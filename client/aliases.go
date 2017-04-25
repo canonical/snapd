@@ -28,7 +28,7 @@ import (
 type aliasAction struct {
 	Action string `json:"action"`
 	Snap   string `json:"snap"`
-	Target string `json:"target,omitempty"`
+	App    string `json:"app,omitempty"`
 	Alias  string `json:"alias,omitempty"`
 	// XXX: going away
 	Aliases []string `json:"aliases,omitempty"`
@@ -48,7 +48,7 @@ func (client *Client) Alias(snapName, app, alias string) (changeID string, err e
 	return client.performAliasAction(&aliasAction{
 		Action: "alias",
 		Snap:   snapName,
-		Target: app,
+		App:    app,
 		Alias:  alias,
 	})
 }

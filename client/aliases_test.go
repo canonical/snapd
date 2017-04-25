@@ -50,7 +50,7 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "alias",
 		"snap":   "alias-snap",
-		"target": "cmd1",
+		"app":    "cmd1",
 		"alias":  "alias1",
 	})
 }

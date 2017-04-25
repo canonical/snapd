@@ -2256,7 +2256,7 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 type aliasAction struct {
 	Action string `json:"action"`
 	Snap   string `json:"snap"`
-	Target string `json:"target"`
+	App    string `json:"app"`
 	Alias  string `json:"alias"`
 	// old now unsupported api
 	Aliases []string `json:"aliases"`
@@ -2284,8 +2284,8 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.Target, a.Snap)
-		taskset, err = snapstate.Alias(state, a.Snap, a.Target, a.Alias)
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
+		taskset, err = snapstate.Alias(state, a.Snap, a.App, a.Alias)
 	case "unalias":
 		return BadRequest("cannot yet interpret request")
 	}
