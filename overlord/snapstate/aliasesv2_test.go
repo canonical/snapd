@@ -41,9 +41,6 @@ func target(at *snapstate.AliasTarget) string {
 }
 
 func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	auto1 := &snapstate.AliasTarget{
 		Auto: "cmd1",
 	}
@@ -91,7 +88,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 			newAliases["myalias"] = scenario.newTarget
 		}
 
-		err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", scenario.autoDisabled, prevAliases, scenario.newAutoDisabled, newAliases, s.fakeBackend)
+		err := snapstate.ApplyAliasesChange("alias-snap1", scenario.autoDisabled, prevAliases, scenario.newAutoDisabled, newAliases, s.fakeBackend)
 		c.Assert(err, IsNil)
 
 		var add, rm []*backend.Alias
@@ -120,9 +117,6 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	prevAliases := map[string]*snapstate.AliasTarget{
 		"myalias0": {Auto: "cmd0"},
 	}
@@ -130,7 +124,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 		"myalias1": {Auto: "alias-snap1"},
 	}
 
-	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", false, prevAliases, false, newAliases, s.fakeBackend)
+	err := snapstate.ApplyAliasesChange("alias-snap1", false, prevAliases, false, newAliases, s.fakeBackend)
 	c.Assert(err, IsNil)
 
 	expected := fakeOps{

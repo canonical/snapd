@@ -903,7 +903,7 @@ func (m *SnapManager) doSetupAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	snapName := snapsup.Name()
 	curAliases := snapst.Aliases
 
-	err = applyAliasesChange(st, snapName, true, nil, snapst.AutoAliasesDisabled, curAliases, m.backend)
+	err = applyAliasesChange(snapName, true, nil, snapst.AutoAliasesDisabled, curAliases, m.backend)
 	if err != nil {
 		return err
 	}
@@ -941,7 +941,7 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if !snapst.AliasesPending {
-		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
@@ -989,7 +989,7 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 	if !snapst.AliasesPending {
 		curAliases := snapst.Aliases
-		if err := applyAliasesChange(st, snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend); err != nil {
 			return err
 		}
 	}
@@ -1020,7 +1020,7 @@ func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	newAliases := pruneAutoAliases(curAliases, which)
 
 	if !snapst.AliasesPending {
-		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
@@ -1067,7 +1067,7 @@ func (m *SnapManager) doAliasV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if !snapst.AliasesPending {
-		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
@@ -1093,7 +1093,7 @@ func (m *SnapManager) doDisableAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	newAliases := disableAliases(oldAliases)
 
 	if !snapst.AliasesPending {
-		if err := applyAliasesChange(st, snapName, oldAutoDisabled, oldAliases, true, newAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, oldAutoDisabled, oldAliases, true, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
@@ -1129,7 +1129,7 @@ func (m *SnapManager) doUnaliasV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if !snapst.AliasesPending {
-		if err := applyAliasesChange(st, snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend); err != nil {
+		if err := applyAliasesChange(snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
