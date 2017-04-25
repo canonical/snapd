@@ -102,7 +102,6 @@ var (
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
-	ResetAliases           = resetAliases
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
