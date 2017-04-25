@@ -20,36 +20,33 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 )
 
 type cmdAlias struct {
-	Reset bool `long:"reset"`
-
 	Positionals struct {
-		Snap    installedSnapName `required:"yes"`
-		Aliases []string          `required:"yes"`
+		SnapApp string `required:"yes"`
+		Alias   string `required:"yes"`
 	} `positional-args:"true"`
 }
 
-// TODO: implement a Completer for aliases
+// TODO: implement a completer for snapApp
 
-var shortAliasHelp = i18n.G("Enables the given aliases")
+var shortAliasHelp = i18n.G("Sets up a manual alias")
 var longAliasHelp = i18n.G(`
-The alias command enables the given application aliases defined by the snap.
+The alias command aliases the given snap application to the given alias.
 
-Once enabled the respective application commands can be invoked just using the aliases.
+Once this manual alias is setup the respective application command can be invoked just using the alias.
 `)
 
 func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
-	}, map[string]string{
-		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, disabled otherwise"),
-	}, []argDesc{
-		{name: "<snap>"},
+	}, nil, []argDesc{
+		{name: "<snap.app>"},
 		{name: i18n.G("<alias>")},
 	})
 }
@@ -59,15 +56,11 @@ func (x *cmdAlias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName := string(x.Positionals.Snap)
-	aliases := x.Positionals.Aliases
+	snapName, appName := snap.SplitSnapApp(x.Positionals.SnapApp)
+	alias := x.Positionals.Alias
 
 	cli := Client()
-	op := cli.Alias
-	if x.Reset {
-		op = cli.ResetAliases
-	}
-	id, err := op(snapName, aliases)
+	id, err := cli.Alias(snapName, appName, alias)
 	if err != nil {
 		return err
 	}
