@@ -6425,8 +6425,9 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
 		},
 	})
 
-	// pending alias task
+	// pending old alias task
 	t := s.state.NewTask("alias", "...")
+	t.Set("aliases", map[string]string{})
 	chg := s.state.NewChange("alias chg", "...")
 	chg.AddTask(t)
 
