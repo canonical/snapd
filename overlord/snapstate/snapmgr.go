@@ -493,14 +493,21 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// store attempts in memory so that we can backoff
-	delta := timeutil.Next(refreshSchedule, lastRefresh)
-	m.nextRefresh = time.Now().Add(delta)
-	logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
-	if !m.nextRefresh.Before(time.Now()) {
-		return nil
+	// compute next refresh attempt (if needed)
+	if m.nextRefresh.IsZero() {
+		// store attempts in memory so that we can backoff
+		delta := timeutil.Next(refreshSchedule, lastRefresh)
+		m.nextRefresh = time.Now().Add(delta)
+		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
-	return m.doAutoRefresh()
+
+	// do refresh attempt (if needed)
+	if m.nextRefresh.Before(time.Now()) {
+		err = m.doAutoRefresh()
+		m.nextRefresh = time.Time{}
+	}
+
+	return err
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
