@@ -89,14 +89,16 @@ func run() error {
 	return snapExecApp(snapApp, revision, opts.Command, extraArgs)
 }
 
+const defaultShell = "/bin/bash"
+
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
 	case "shell":
-		cmd = "/bin/bash"
+		cmd = defaultShell
 	case "complete":
 		if app.Completer != "" {
-			cmd = "/bin/bash"
+			cmd = defaultShell
 		}
 	case "stop":
 		cmd = app.StopCommand
@@ -153,10 +155,10 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
 	switch command {
 	case "shell":
-		fullCmd = "/bin/bash"
+		fullCmd = defaultShell
 		cmdArgs = nil
 	case "complete":
-		fullCmd = "/bin/bash"
+		fullCmd = defaultShell
 		cmdArgs = []string{
 			dirs.CompletionHelper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
