@@ -55,7 +55,20 @@ var script = `#!/bin/sh
 echo "hello world"
 `
 
-var mockRepair = fmt.Sprintf(`type: repair
+var mockRepair1 = fmt.Sprintf(`type: repair
+authority-id: canonical
+brand-id: acme
+repair-id: repair-1
+series:
+  - 16
+body-length: %v
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+%s
+
+AXNpZw==`, len(script), script)
+
+var mockRepair42 = fmt.Sprintf(`type: repair
 authority-id: canonical
 brand-id: acme
 repair-id: repair-42
@@ -102,22 +115,30 @@ func (s *repairSuite) TestRunNoRepairs(c *C) {
 }
 
 func (s *repairSuite) TestRunSingleRepair(c *C) {
-	repair, err := asserts.Decode([]byte(mockRepair))
+	repair1, err := asserts.Decode([]byte(mockRepair1))
+	c.Assert(err, IsNil)
+	repair42, err := asserts.Decode([]byte(mockRepair42))
 	c.Assert(err, IsNil)
 
-	s.repairs = []*asserts.Repair{repair.(*asserts.Repair)}
+	s.repairs = []*asserts.Repair{
+		repair1.(*asserts.Repair),
+		repair42.(*asserts.Repair),
+	}
 	err = runRepair()
 	c.Check(err, IsNil)
-	c.Check(s.cmds, HasLen, 1)
+	c.Check(s.cmds, HasLen, 2)
 	c.Check(s.cmds, DeepEquals, [][]string{
+		{filepath.Join(dirs.SnapRepairDir, "repair-1", "script")},
 		{filepath.Join(dirs.SnapRepairDir, "repair-42", "script")},
 	})
-	output, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairDir, "repair-42/repair-42.output"))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Equals, "hello world\n")
+	for _, i := range []int{1, 42} {
+		output, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairDir, fmt.Sprintf("repair-%[1]d/repair-%[1]d.output", i)))
+		c.Assert(err, IsNil)
+		c.Check(string(output), Equals, "hello world\n")
+	}
 
 	// run again and ensure the already done repair is skipped
 	err = runRepair()
 	c.Check(err, IsNil)
-	c.Check(s.cmds, HasLen, 1)
+	c.Check(s.cmds, HasLen, 2)
 }

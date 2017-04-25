@@ -25,6 +25,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -84,6 +87,35 @@ func (r *repair) run() error {
 	return err
 }
 
+type byRepairID []*asserts.Repair
+
+func (a byRepairID) Len() int {
+	return len(a)
+}
+func (a byRepairID) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+// FIXME: move into the assertion itself?
+func splitID(id string) (string, int) {
+	l := strings.SplitN(id, "-", 2)
+	prefix := l[0]
+	seq, err := strconv.Atoi(l[1])
+	if err != nil {
+		panic(err)
+	}
+	return prefix, seq
+}
+
+func (a byRepairID) Less(i, j int) bool {
+	aPrefix, aSeq := splitID(a[i].RepairID())
+	bPrefix, bSeq := splitID(a[j].RepairID())
+	if aPrefix == bPrefix {
+		return aSeq < bSeq
+	}
+	return aPrefix < bPrefix
+}
+
 // FIXME: bypass the assertion DB entirely and collect all repair
 //        bits in /var/lib/snapd/repair/
 // FIXME: create a copy of the critical assertion code to protect
@@ -107,6 +139,7 @@ var findRepairAssertions = func() ([]*asserts.Repair, error) {
 	for i, a := range assertions {
 		repairAssertions[i] = a.(*asserts.Repair)
 	}
+	sort.Sort(byRepairID(repairAssertions))
 
 	return repairAssertions, nil
 }
