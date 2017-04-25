@@ -59,14 +59,9 @@ func (c Change) Needed(mounted []*InfoEntry) bool {
 	return true
 }
 
-// Perform executes the desired mount or unmount change.
-//
-// Mount and unmount are handled by using the system call directly. Note that
-// some filesystems use a special helper program and such mount operations are
-// not handled. Note that some behaviors of the mount program are actually
-// implemented with multiple calls to the mount system call and are thus not
-// atomic (e.g. --make-shared). Such features are not supported. You get what
-// the kernel gives you.
+// Perform executes the desired mount or unmount change using system calls.
+// Filesystems that depend on helper programs or multiple independent calls to
+// the kernel (--make-shared, for example) are unsupported.
 func (c *Change) Perform() error {
 	switch c.Action {
 	case Mount:
