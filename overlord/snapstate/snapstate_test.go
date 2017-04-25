@@ -4440,7 +4440,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Set("last-refresh", fakeLastRefresh)
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-%02d:%02d", now.Hour(), now.Minute()))
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
