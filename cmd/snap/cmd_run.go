@@ -324,7 +324,10 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		}
 
 		fout.Close()
-		os.Remove(targetPath)
+		if err := os.Remove(targetPath); err != nil {
+			logger.Noticef("WARNING: failed to remove existing file %s", targetPath)
+			return "", err
+		}
 
 		// Ensure we're validating the Xauthority file from the beginning
 		if _, err := fin.Seek(int64(os.SEEK_SET), 0); err != nil {
@@ -338,14 +341,6 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	if err := x11.ValidateXauthorityFromFile(fin); err != nil {
 		logger.Noticef("WARNING: invalid Xauthority file: %s", err)
 		return "", nil
-	}
-
-	// Replace the file securely by removing and creating with O_CREATE|O_EXCL
-	if osutil.FileExists(targetPath) {
-		err := os.Remove(targetPath)
-		if err != nil {
-			logger.Noticef("WARNING: failed to remove existing file %s", targetPath)
-		}
 	}
 
 	// Read data from the beginning of the file
