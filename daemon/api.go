@@ -1280,7 +1280,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	flags.RemoveSnapPath = true
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1288,6 +1287,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
+	flags.RemoveSnapPath = true
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -2256,8 +2256,10 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 type aliasAction struct {
 	Action string `json:"action"`
 	Snap   string `json:"snap"`
-	Target string `json:"target"`
+	App    string `json:"app"`
 	Alias  string `json:"alias"`
+	// AliasOrSnap triggers unalias Do-What-I-Mean logic
+	AliasOrSnap string `json:"alias-or-snap"`
 	// old now unsupported api
 	Aliases []string `json:"aliases"`
 }
@@ -2275,20 +2277,34 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	var taskset *state.TaskSet
 	var err error
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	switch a.Action {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		taskset, err = snapstate.Alias(state, a.Snap, a.Target, a.Alias)
+		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
 	case "unalias":
-		if a.Alias == "" {
-			a.Alias = a.Snap
+		if a.AliasOrSnap != "" { // Do What I Mean
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, a.AliasOrSnap, &snapst)
+			if err != nil && err != state.ErrNoState {
+				return InternalError("%v", err)
+			}
+			if err == nil { // found a matching snap
+				a.Snap = a.AliasOrSnap
+			} else {
+				a.Alias = a.AliasOrSnap
+			}
 		}
-		taskset, a.Snap, err = snapstate.Unalias(state, a.Alias)
+		if a.Snap != "" {
+			a.Alias = ""
+			taskset, err = snapstate.DisableAllAliases(st, a.Snap)
+		} else {
+			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
+		}
 	}
 	if err != nil {
 		return BadRequest("%v", err)
@@ -2297,20 +2313,20 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	var summary string
 	switch a.Action {
 	case "alias":
-		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.Target, a.Snap)
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
 	case "unalias":
-		if a.Alias == a.Snap {
-			summary = fmt.Sprintf(i18n.G("Unalias snap %q"), a.Snap)
+		if a.Alias != "" {
+			summary = fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), a.Alias, a.Snap)
 		} else {
-			summary = fmt.Sprintf(i18n.G("Tear down alias %q for snap %q"), a.Alias, a.Snap)
+			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
 		}
 	}
 
-	change := state.NewChange(a.Action, summary)
+	change := st.NewChange(a.Action, summary)
 	change.Set("snap-names", []string{a.Snap})
 	change.AddAll(taskset)
 
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }

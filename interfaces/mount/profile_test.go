@@ -22,6 +22,7 @@ package mount_test
 import (
 	"bytes"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -52,7 +53,7 @@ func (s *profileSuite) TestLoadProfile2(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(p.Entries, HasLen, 1)
 	c.Assert(p.Entries, DeepEquals, []mount.Entry{
-		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
+		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 	})
 }
 
@@ -62,11 +63,16 @@ func (s *profileSuite) TestSaveProfile1(c *C) {
 	fname := filepath.Join(dir, "profile")
 	p := &mount.Profile{
 		Entries: []mount.Entry{
-			{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
+			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 		},
 	}
 	err := p.Save(fname)
 	c.Assert(err, IsNil)
+
+	stat, err := os.Stat(fname)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
+
 	data, err := ioutil.ReadFile(fname)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "name-1 dir-1 type-1 options-1 1 1\n")
@@ -94,8 +100,8 @@ func (s *profileSuite) TestReadProfile3(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(p.Entries, HasLen, 2)
 	c.Assert(p.Entries, DeepEquals, []mount.Entry{
-		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
-		{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
+		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
+		{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 	})
 }
 
@@ -113,8 +119,8 @@ func (s *profileSuite) TestWriteTo1(c *C) {
 func (s *profileSuite) TestWriteTo2(c *C) {
 	p := &mount.Profile{
 		Entries: []mount.Entry{
-			{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
-			{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
+			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
+			{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 		},
 	}
 	var buf bytes.Buffer

@@ -34,6 +34,7 @@
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -127,15 +128,6 @@ static void setup_private_mount(const char *snap_name)
 	if (chdir(pwd) != 0)
 		die("cannot change current working directory to the original directory");
 	free(pwd);
-
-	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
-	int i;
-	for (i = 0; tmpd[i] != NULL; i++) {
-		if (setenv(tmpd[i], "/tmp", 1) != 0) {
-			die("cannot set environment variable '%s'", tmpd[i]);
-		}
-	}
 }
 
 // TODO: fold this into bootstrap
@@ -240,7 +232,7 @@ struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
-	bool on_classic;
+	bool on_classic_distro;
 };
 
 /**
@@ -397,7 +389,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// uniform way after pivot_root but this is good enough and requires less
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
-	if (config->on_classic) {
+	if (config->on_classic_distro) {
 		sc_mount_nvidia_driver(scratch_dir);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -527,8 +519,8 @@ void sc_populate_mount_ns(const char *snap_name)
 		die("cannot get the current working directory");
 	}
 	// Remember if we are on classic, some things behave differently there.
-	bool on_classic = is_running_on_classic_distribution();
-	if (on_classic) {
+	bool on_classic_distro = is_running_on_classic_distribution();
+	if (on_classic_distro) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -555,7 +547,7 @@ void sc_populate_mount_ns(const char *snap_name)
 		struct sc_mount_config classic_config = {
 			.rootfs_dir = sc_get_outer_core_mount_point(),
 			.mounts = mounts,
-			.on_classic = true,
+			.on_classic_distro = true,
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -585,7 +577,7 @@ void sc_populate_mount_ns(const char *snap_name)
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	if (on_classic) {
+	if (on_classic_distro) {
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
@@ -600,5 +592,39 @@ void sc_populate_mount_ns(const char *snap_name)
 			die("cannot change directory to %s", SC_VOID_DIR);
 		}
 		debug("successfully moved to %s", SC_VOID_DIR);
+	}
+}
+
+static bool is_mounted_with_shared_option(const char *dir)
+    __attribute__ ((nonnull(1)));
+
+static bool is_mounted_with_shared_option(const char *dir)
+{
+	struct sc_mountinfo *sm
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	sm = sc_parse_mountinfo(NULL);
+	if (sm == NULL) {
+		die("cannot parse /proc/self/mountinfo");
+	}
+	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
+	while (entry != NULL) {
+		const char *mount_dir = entry->mount_dir;
+		if (sc_streq(mount_dir, dir)) {
+			const char *optional_fields = entry->optional_fields;
+			if (strstr(optional_fields, "shared:") != NULL) {
+				return true;
+			}
+		}
+		entry = sc_next_mountinfo_entry(entry);
+	}
+	return false;
+}
+
+void sc_ensure_shared_snap_mount()
+{
+	if (!is_mounted_with_shared_option("/")
+	    && !is_mounted_with_shared_option("/snap")) {
+		sc_do_mount("/snap", "/snap", "none", MS_BIND | MS_REC, 0);
+		sc_do_mount("none", "/snap", NULL, MS_SHARED | MS_REC, NULL);
 	}
 }

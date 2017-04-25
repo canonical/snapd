@@ -56,7 +56,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 				"action": "alias",
 				"snap":   "alias-snap",
-				"target": "cmd1",
+				"app":    "cmd1",
 				"alias":  "alias1",
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)

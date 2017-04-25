@@ -20,6 +20,10 @@
 package mount_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -40,11 +44,11 @@ func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
 	c.Assert(entry.DevMinor, Equals, 0)
 	c.Assert(entry.Root, Equals, "/mnt1")
 	c.Assert(entry.MountDir, Equals, "/mnt2")
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1")
+	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	c.Assert(entry.MountSource, Equals, "/dev/root")
-	c.Assert(entry.SuperOpts, Equals, "rw,errors=continue")
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{"rw": "", "errors": "continue"})
 }
 
 // Check that various combinations of optional fields are parsed correctly.
@@ -53,26 +57,26 @@ func (s *mountinfoSuite) TestParseInfoEntry2(c *C) {
 	entry, err := mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "")
+	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
+	c.Assert(entry.OptionalFields, HasLen, 0)
 	c.Assert(entry.FsType, Equals, "ext3")
 	// One optional field.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1")
+	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	// Two optional fields.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1 slave:2")
+	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1", "slave:2"})
 	c.Assert(entry.FsType, Equals, "ext3")
 }
 
-// Check that white-space is unescaped correctly, except for OptionalFlds which are space-separated.
+// Check that white-space is unescaped correctly.
 func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 	entry, err := mount.ParseInfoEntry(
 		`36 35 98:0 /mnt\0401 /mnt\0402 rw\040,noatime mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`)
@@ -83,12 +87,12 @@ func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 	c.Assert(entry.DevMinor, Equals, 0)
 	c.Assert(entry.Root, Equals, "/mnt 1")
 	c.Assert(entry.MountDir, Equals, "/mnt 2")
-	c.Assert(entry.MountOpts, Equals, "rw ,noatime")
+	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw ": "", "noatime": ""})
 	// This field is still escaped as it is space-separated and needs further parsing.
-	c.Assert(entry.OptionalFlds, Equals, `mas\040ter:1`)
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"mas ter:1"})
 	c.Assert(entry.FsType, Equals, "ext 3")
 	c.Assert(entry.MountSource, Equals, "/dev/ro ot")
-	c.Assert(entry.SuperOpts, Equals, "rw ,errors=continue")
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{"rw ": "", "errors": "continue"})
 }
 
 // Check that various malformed entries are detected.
@@ -116,4 +120,40 @@ func (s *mountinfoSuite) TestParseInfoEntry4(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse device minor number: "bot"`)
 	_, err = mount.ParseInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse device major:minor number pair: "corrupt"`)
+}
+
+// Test that empty mountinfo is parsed without errors.
+func (s *profileSuite) TestReadMountInfo1(c *C) {
+	entries, err := mount.ReadMountInfo(strings.NewReader(""))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 0)
+}
+
+const mountInfoSample = "" +
+	"19 25 0:18 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw\n" +
+	"20 25 0:4 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw\n" +
+	"21 25 0:6 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=1937696k,nr_inodes=484424,mode=755\n"
+
+// Test that mountinfo is parsed without errors.
+func (s *profileSuite) TestReadMountInfo2(c *C) {
+	entries, err := mount.ReadMountInfo(strings.NewReader(mountInfoSample))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a file works as expected.
+func (s *profileSuite) TestLoadMountInfo1(c *C) {
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
+	c.Assert(err, IsNil)
+	entries, err := mount.LoadMountInfo(fname)
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a missing file reports an error.
+func (s *profileSuite) TestLoadMountInfo2(c *C) {
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	_, err := mount.LoadMountInfo(fname)
+	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }
