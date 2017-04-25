@@ -33,10 +33,9 @@ execute: |
     # the mount namespace is going to be altered. The -slot snap is just there
     # inert, as a way to provide content, but it does not execute and does not
     # need a namespace namespace.
-    #
-    # Run snap-update-ns to see that we try to open the namespace file but fail
-    # (because it is not there yet).
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "cannot update snap namespace: cannot open mount namespace file: no such file or directory"
+
+    # Check that update doesn't error if there is no namespace yet.
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
 
     # Run a trivial command to build and preserve a mount namespace.
     snap run --shell $PLUG_SNAP.content-plug -c 'true'
@@ -88,9 +87,7 @@ execute: |
     # Check that desired and current profile are (still) the same.
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
-    # Discard the namespace so that update has nothing useful to do. Let's just
-    # ensure that it really does use the namespace and doesn't meddle with the
-    # current mount namespace.
+    # Discard the namespace so that update has nothing useful to do.
     /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
-    echo "Check that snap-update-ns fails after discarding the mount namespace"
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "cannot update snap namespace: cannot switch mount namespace: invalid argument"
+    echo "Check that snap-update-ns silently does nothing after discarding the mount namespace"
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
