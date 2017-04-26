@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -5690,6 +5691,52 @@ version: 1.0
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
+}
+
+func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
+	var mockGadgetSnapYaml = `
+name: canonical-pc
+type: gadget
+`
+	var mockGadgetYaml = []byte(`
+defaults:
+  other:
+    foo:
+      bar: baz
+      num: 1.305
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	// change root dir for this test, this can't be done in SetUpTest as it affects all other tests.
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(2)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	gi, err := snap.ReadGadgetInfo(info, false)
+	c.Assert(err, IsNil)
+	c.Assert(gi, NotNil)
+
+	snapName := "some-snap"
+	hooksup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        "configure",
+		Optional:    true,
+		IgnoreError: false,
+		TrackError:  false,
+	}
+
+	var contextData map[string]interface{}
+	contextData = map[string]interface{}{"patch": gi.Defaults}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(hookstate.HookTask(s.state, "", hooksup, contextData), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
