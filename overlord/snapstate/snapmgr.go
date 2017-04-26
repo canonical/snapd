@@ -401,7 +401,7 @@ func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
 	return refreshSchedule, nil
 }
 
-func (m *SnapManager) runAutoRefresh() error {
+func (m *SnapManager) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
@@ -436,7 +436,6 @@ func (m *SnapManager) runAutoRefresh() error {
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
-	m.state.EnsureBefore(0)
 	return nil
 }
 
@@ -503,7 +502,7 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// do refresh attempt (if needed)
 	if m.nextRefresh.Before(time.Now()) {
-		err = m.runAutoRefresh()
+		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will
 		// not go into a busy store loop
