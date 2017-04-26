@@ -4416,7 +4416,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	canAutoRefreshCalled := false
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
 		return true, nil
 	}
@@ -4434,13 +4433,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	for i := 0; i < 100; i++ {
-		if canAutoRefreshCalled {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 	s.state.Lock()
 
 	// nothing needs to be done and no refresh was run
@@ -4456,7 +4448,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 
 	// run ensure again to test that nextRefresh again to ensure that
 	// nextRefresh is not calculated again if nothing changes
-	canAutoRefreshCalled = false
 	s.state.Unlock()
 	s.snapmgr.Ensure()
 	s.state.Lock()
