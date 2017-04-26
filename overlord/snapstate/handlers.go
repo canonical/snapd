@@ -1041,28 +1041,28 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we disabled other snap aliases try to undo that
 	var conflicting map[string]bool
-	var curOtherSnapStates map[string]*SnapState
+	var otherCurSnapStates map[string]*SnapState
 	if len(otherSnapDisabled) != 0 {
 		conflicting = make(map[string]bool, len(otherSnapDisabled))
-		curOtherSnapStates = make(map[string]*SnapState, len(otherSnapDisabled))
+		otherCurSnapStates = make(map[string]*SnapState, len(otherSnapDisabled))
 		for otherSnap, otherDisabled := range otherSnapDisabled {
-			var otherSnapSt SnapState
-			err := Get(st, otherSnap, &otherSnapSt)
+			var otherSnapState SnapState
+			err := Get(st, otherSnap, &otherSnapState)
 			if err != nil {
 				return err
 			}
-			curOtherInfo, err := otherSnapSt.CurrentInfo()
+			otherCurInfo, err := otherSnapState.CurrentInfo()
 			if err != nil {
 				return err
 			}
 
-			curOtherSnapStates[otherSnap] = &otherSnapSt
+			otherCurSnapStates[otherSnap] = &otherSnapState
 
-			autoDisabled := otherSnapSt.AutoAliasesDisabled
+			autoDisabled := otherSnapState.AutoAliasesDisabled
 			if otherDisabled.Disabled {
 				autoDisabled = false
 			}
-			otherAliases := reenableAliases(curOtherInfo, otherSnapSt.Aliases, otherDisabled.Manual)
+			otherAliases := reenableAliases(otherCurInfo, otherSnapState.Aliases, otherDisabled.Manual)
 			// check for conflicts taking into account
 			// re-enabled aliases
 			conflicts, err := checkAliasesConflicts(st, otherSnap, autoDisabled, otherAliases, newSnapStates)
@@ -1075,7 +1075,7 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 				return err
 			}
 
-			newSnapSt := otherSnapSt
+			newSnapSt := otherSnapState
 			newSnapSt.Aliases = otherAliases
 			newSnapSt.AutoAliasesDisabled = autoDisabled
 			newSnapStates[otherSnap] = &newSnapSt
@@ -1083,14 +1083,14 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// apply non-conflicting other
-	for otherSnap, otherSnapSt := range curOtherSnapStates {
+	for otherSnap, otherSnapState := range otherCurSnapStates {
 		if conflicting[otherSnap] {
 			// keep as it was
 			continue
 		}
 		newSnapSt := newSnapStates[otherSnap]
-		if !otherSnapSt.AliasesPending {
-			if _, _, err := applyAliasesChange(otherSnap, otherSnapSt.AutoAliasesDisabled, otherSnapSt.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, false); err != nil {
+		if !otherSnapState.AliasesPending {
+			if _, _, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, false); err != nil {
 				return err
 			}
 		}
@@ -1335,15 +1335,15 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		otherSnapStates = make(map[string]*SnapState, len(aliasConflicts))
 		otherSnapDisabled = make(map[string]*otherDisabledAliases, len(aliasConflicts))
 		for otherSnap := range aliasConflicts {
-			var otherSnapSt SnapState
-			err := Get(st, otherSnap, &otherSnapSt)
+			var otherSnapState SnapState
+			err := Get(st, otherSnap, &otherSnapState)
 			if err != nil {
 				return err
 			}
 
-			otherAliases, disabledManual := disableAliases(otherSnapSt.Aliases)
+			otherAliases, disabledManual := disableAliases(otherSnapState.Aliases)
 
-			added, removed, err := applyAliasesChange(otherSnap, otherSnapSt.AutoAliasesDisabled, otherSnapSt.Aliases, true, otherAliases, m.backend, otherSnapSt.AliasesPending)
+			added, removed, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, true, otherAliases, m.backend, otherSnapState.AliasesPending)
 			if err != nil {
 				return err
 			}
@@ -1353,14 +1353,14 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 			var otherDisabled otherDisabledAliases
 			otherDisabled.Manual = disabledManual
-			otherSnapSt.Aliases = otherAliases
+			otherSnapState.Aliases = otherAliases
 			// disable as needed
-			if !otherSnapSt.AutoAliasesDisabled && len(otherAliases) != 0 {
+			if !otherSnapState.AutoAliasesDisabled && len(otherAliases) != 0 {
 				otherDisabled.Disabled = true
-				otherSnapSt.AutoAliasesDisabled = true
+				otherSnapState.AutoAliasesDisabled = true
 			}
 			otherSnapDisabled[otherSnap] = &otherDisabled
-			otherSnapStates[otherSnap] = &otherSnapSt
+			otherSnapStates[otherSnap] = &otherSnapState
 		}
 	}
 
@@ -1372,8 +1372,8 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	for otherSnap, otherSnapSt := range otherSnapStates {
-		Set(st, otherSnap, otherSnapSt)
+	for otherSnap, otherSnapState := range otherSnapStates {
+		Set(st, otherSnap, otherSnapState)
 	}
 	if len(otherSnapDisabled) != 0 {
 		t.Set("other-disabled-aliases", otherSnapDisabled)
