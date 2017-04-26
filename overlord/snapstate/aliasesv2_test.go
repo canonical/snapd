@@ -41,9 +41,6 @@ func target(at *snapstate.AliasTarget) string {
 }
 
 func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	auto1 := &snapstate.AliasTarget{
 		Auto: "cmd1",
 	}
@@ -91,7 +88,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 			newAliases["myalias"] = scenario.newTarget
 		}
 
-		err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", scenario.autoDisabled, prevAliases, scenario.newAutoDisabled, newAliases, s.fakeBackend)
+		add1, rm1, err := snapstate.ApplyAliasesChange("alias-snap1", scenario.autoDisabled, prevAliases, scenario.newAutoDisabled, newAliases, s.fakeBackend, false)
 		c.Assert(err, IsNil)
 
 		var add, rm []*backend.Alias
@@ -115,14 +112,14 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops(), Commentf("%v", scenario))
 		c.Assert(s.fakeBackend.ops, DeepEquals, expected, Commentf("%v", scenario))
 
+		c.Check(add1, DeepEquals, add)
+		c.Check(rm1, DeepEquals, rm)
+
 		s.fakeBackend.ops = nil
 	}
 }
 
 func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	prevAliases := map[string]*snapstate.AliasTarget{
 		"myalias0": {Auto: "cmd0"},
 	}
@@ -130,7 +127,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 		"myalias1": {Auto: "alias-snap1"},
 	}
 
-	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", false, prevAliases, false, newAliases, s.fakeBackend)
+	_, _, err := snapstate.ApplyAliasesChange("alias-snap1", false, prevAliases, false, newAliases, s.fakeBackend, false)
 	c.Assert(err, IsNil)
 
 	expected := fakeOps{
@@ -495,6 +492,17 @@ func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
 	})
 }
 
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json:"alias"`
+}
+
+type traceData struct {
+	Added   []*changedAlias `json:"aliases-added,omitempty"`
+	Removed []*changedAlias `json:"aliases-removed,omitempty"`
+}
+
 func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -536,6 +544,13 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	c.Check(snapst.AliasesPending, Equals, false)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Manual: "cmd1"},
+	})
+
+	var trace traceData
+	err = chg.Get("api-data", &trace)
+	c.Assert(err, IsNil)
+	c.Check(trace, DeepEquals, traceData{
+		Added: []*changedAlias{{Snap: "alias-snap", App: "cmd1", Alias: "alias1"}},
 	})
 }
 
@@ -772,6 +787,12 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
 	})
+
+	var trace traceData
+	err = chg.Get("api-data", &trace)
+	c.Assert(err, IsNil)
+	c.Check(trace.Added, HasLen, 0)
+	c.Check(trace.Removed, HasLen, 3)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManualAliasTasks(c *C) {
@@ -847,6 +868,13 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	c.Check(snapst.AutoAliasesDisabled, Equals, false)
 	c.Check(snapst.AliasesPending, Equals, false)
 	c.Check(snapst.Aliases, HasLen, 0)
+
+	var trace traceData
+	err = chg.Get("api-data", &trace)
+	c.Assert(err, IsNil)
+	c.Check(trace, DeepEquals, traceData{
+		Removed: []*changedAlias{{Snap: "alias-snap", App: "cmd5", Alias: "alias1"}},
+	})
 }
 
 func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
