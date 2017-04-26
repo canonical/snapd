@@ -41,7 +41,7 @@ _complete_from_snap() {
 
         if [ ! "$bounced" ]; then
             local IFS=$'\n'
-            COMPREPLY=( $(cat) )
+            COMPREPLY=( $( \grep -v '[[:cntrl:];?*{}]' ) )
             IFS="$oldIFS"
         fi
 
@@ -62,7 +62,7 @@ _complete_from_snap() {
 # what -D would've done before).
 _complete_from_snap_maybe() {
     # catch /snap/bin and /var/lib/snapd/snap/bin
-    if [[ "$(which "$1")" =~ /snap/bin/ ]]; then
+    if [[ "$(which "$1")" =~ /snap/bin/ && ( -e /var/lib/snapd/snap/core/current/usr/lib/snapd/etelpmoc.sh || -e /snap/core/current/usr/lib/snapd/etelpmoc.sh ) ]]; then
         _complete_from_snap "$1"
         return $?
     fi
