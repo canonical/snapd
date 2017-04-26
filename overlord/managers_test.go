@@ -1144,8 +1144,11 @@ apps:
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1", "app2"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
 	})
 
 	snapYamlContent := `name: foo
@@ -1153,10 +1156,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	ver := "1.0"
@@ -1206,8 +1207,10 @@ apps:
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+		},
 	})
 
 	fooYaml := `name: foo
@@ -1215,10 +1218,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	fooPath, _ := ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.0", -1), "10")
@@ -1262,9 +1263,11 @@ apps:
 	c.Check(dest, Equals, "foo.app1")
 
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app2"},
-		"revision":     "1",
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+		"revision": "1",
 	})
 
 	// new foo version/revision
@@ -1309,8 +1312,10 @@ apps:
 
 func (ms *mgrsSuite) TestHappyOrthogonalRefreshAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+		},
 	}, map[string]interface{}{
 		"snap-name": "bar",
 	})
@@ -1320,10 +1325,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	barYaml := `name: bar
@@ -1331,10 +1334,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app3:
   command: bin/app3
-  aliases: [app3]
 `
 
 	fooPath, _ := ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.0", -1), "10")
@@ -1394,18 +1395,23 @@ apps:
 		"app1": {Auto: "app1"},
 	})
 
-	// foo gets a new version/revision and a change of auto-aliases
+	// foo gets a new version/revision and a change of automatic aliases
 	// bar gets only the latter
 	// app1 is transferred from foo to bar
 	// UpdateMany after a snap-declaration refresh handles all of this
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app2"},
-		"revision":     "1",
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+		"revision": "1",
 	}, map[string]interface{}{
-		"snap-name":    "bar",
-		"auto-aliases": []interface{}{"app1", "app3"},
-		"revision":     "1",
+		"snap-name": "bar",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app3", "target": "app3"},
+		},
+		"revision": "1",
 	})
 
 	// new foo version/revision
