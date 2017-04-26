@@ -5286,33 +5286,33 @@ func (s *apiSuite) TestAliases(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]aliasStatus{
 		"alias-snap1": {
 			"alias1": {
-				App:    "alias-snap1.cmd1x",
-				Status: "manual",
-				Manual: "cmd1x",
-				Auto:   "cmd1",
+				Command: "alias-snap1.cmd1x",
+				Status:  "manual",
+				Manual:  "cmd1x",
+				Auto:    "cmd1",
 			},
 			"alias2": {
-				App:    "alias-snap1.cmd2",
-				Status: "auto",
-				Auto:   "cmd2",
+				Command: "alias-snap1.cmd2",
+				Status:  "auto",
+				Auto:    "cmd2",
 			},
 		},
 		"alias-snap2": {
 			"alias2": {
-				App:    "alias-snap2.cmd2",
-				Status: "unaliased",
-				Auto:   "cmd2",
+				Command: "alias-snap2.cmd2",
+				Status:  "disabled",
+				Auto:    "cmd2",
 			},
 			"alias3": {
-				App:    "alias-snap2.cmd3",
-				Status: "manual",
-				Manual: "cmd3",
+				Command: "alias-snap2.cmd3",
+				Status:  "manual",
+				Manual:  "cmd3",
 			},
 			"alias4": {
-				App:    "alias-snap2.cmd4x",
-				Status: "manual",
-				Manual: "cmd4x",
-				Auto:   "cmd4",
+				Command: "alias-snap2.cmd4x",
+				Status:  "manual",
+				Manual:  "cmd4x",
+				Auto:    "cmd4",
 			},
 		},
 	})

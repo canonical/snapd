@@ -145,12 +145,12 @@ func (cs *clientSuite) TestClientAliases(c *check.C) {
 		"type": "sync",
 		"result": {
                     "foo": {
-                        "foo0": {"app": "foo", "status": "auto", "auto": "foo"},
-                        "foo_reset": {"app": "foo.reset", "manual": "reset", "status": "manual"}
+                        "foo0": {"command": "foo", "status": "auto", "auto": "foo"},
+                        "foo_reset": {"command": "foo.reset", "manual": "reset", "status": "manual"}
                     },
                     "bar": {
-                        "bar_dump": {"app": "bar.dump", "status": "manual", "manual": "dump"},
-                        "bar_dump.1": {"app": "bar.dump", "status": "unaliased", "auto": "dump"}
+                        "bar_dump": {"command": "bar.dump", "status": "manual", "manual": "dump"},
+                        "bar_dump.1": {"command": "bar.dump", "status": "disabled", "auto": "dump"}
                     }
 		}
 	}`
@@ -158,12 +158,12 @@ func (cs *clientSuite) TestClientAliases(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
 		"foo": {
-			"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
-			"foo_reset": {App: "foo.reset", Status: "manual", Manual: "reset"},
+			"foo0":      {Command: "foo", Status: "auto", Auto: "foo"},
+			"foo_reset": {Command: "foo.reset", Status: "manual", Manual: "reset"},
 		},
 		"bar": {
-			"bar_dump":   {App: "bar.dump", Status: "manual", Manual: "dump"},
-			"bar_dump.1": {App: "bar.dump", Status: "unaliased", Auto: "dump"},
+			"bar_dump":   {Command: "bar.dump", Status: "manual", Manual: "dump"},
+			"bar_dump.1": {Command: "bar.dump", Status: "disabled", Auto: "dump"},
 		},
 	})
 }

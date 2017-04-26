@@ -198,6 +198,8 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		})
 	}
 
+	// TODO: expose aliases information and state?
+
 	return map[string]interface{}{
 		"description":      localSnap.Description(),
 		"developer":        about.publisher,
