@@ -357,7 +357,7 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
+func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 	for _, s := range rs {
 		if s.Weekday != "" {
 			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
@@ -376,10 +376,10 @@ func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err == nil {
-		err = refreshScheduleUsesWeekdays(refreshSchedule)
+		err = refreshScheduleNoWeekdays(refreshSchedule)
 	}
 	if err != nil {
-		logger.Noticef("cannot use refresh.schedule: %s", err)
+		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
 		if err != nil {
 			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
@@ -392,7 +392,7 @@ func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
 	if !m.nextRefresh.IsZero() {
 		if m.currentRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
-			logger.Debugf("Option refresh-schedule changed, reloading.")
+			logger.Debugf("Option refresh.schedule changed.")
 			m.nextRefresh = time.Time{}
 		}
 	}
@@ -405,11 +405,11 @@ func (m *SnapManager) doAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
-		logger.Noticef("AutoRefresh failed with: %s", err)
+		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
 
-	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// Set last refresh time only if the store (in AutoRefresh) gave
 	// us no error.
 	m.state.Set("last-refresh", time.Now())
 
