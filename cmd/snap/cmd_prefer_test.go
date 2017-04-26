@@ -59,7 +59,7 @@ func (s *SnapSuite) TestPrefer(c *C) {
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-added": [{"alias": "alias1", "snap": "some-snap", "app": "cmd1"}]}}}`)
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
@@ -67,4 +67,9 @@ func (s *SnapSuite) TestPrefer(c *C) {
 	rest, err := Parser().ParseArgs([]string{"prefer", "some-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, ""+
+		"Added:\n"+
+		"  - alias1 => some-snap.cmd1\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
 }

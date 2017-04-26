@@ -1560,6 +1560,12 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 	c.Check(otherst3.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias3": {Auto: "cmd3"},
 	})
+
+	var trace traceData
+	err = chg.Get("api-data", &trace)
+	c.Assert(err, IsNil)
+	c.Check(trace.Added, HasLen, 3)
+	c.Check(trace.Removed, HasLen, 4)
 }
 
 func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
