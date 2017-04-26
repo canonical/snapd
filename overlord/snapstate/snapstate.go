@@ -663,7 +663,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 }
 
 func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
-	changed, dropped, err := autoAliasesDeltaV2(st, nil)
+	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(names) != 0 {
 			// not "refresh all", error

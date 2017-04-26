@@ -136,12 +136,11 @@ func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[
 // AutoAliases allows to hook support for retrieving the automatic aliases of a snap.
 var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error)
 
-// autoAliasesDeltaV2 compares the automatic aliases with the current snap
+// autoAliasesDelta compares the automatic aliases with the current snap
 // declaration for the installed snaps with the given names (or all if
 // names is empty) and returns changed and dropped auto-aliases by
 // snap name.
-// TODO: temporary name
-func autoAliasesDeltaV2(st *state.State, names []string) (changed map[string][]string, dropped map[string][]string, err error) {
+func autoAliasesDelta(st *state.State, names []string) (changed map[string][]string, dropped map[string][]string, err error) {
 	var snapStates map[string]*SnapState
 	if len(names) == 0 {
 		var err error
