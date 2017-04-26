@@ -852,7 +852,9 @@ aliases v2 implementation uses the following tasks:
     - set-auto-aliases: updates aliases snap state based on the
       snap-declaration and current revision info of the snap
 
-  * for refresh & when the snap-declaration aliases change without a new revision
+  * for refresh & when the snap-declaration aliases change without a
+    new revision
+
     - refresh-aliases: updates aliases snap state and updates them on disk too;
       its undo is used generically by other tasks as well
 
@@ -1073,10 +1075,10 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		newSnapSt := otherSnapState
-		newSnapSt.Aliases = otherAliases
-		newSnapSt.AutoAliasesDisabled = autoDisabled
-		newSnapStates[otherSnap] = &newSnapSt
+		newSnapState := otherSnapState
+		newSnapState.Aliases = otherAliases
+		newSnapState.AutoAliasesDisabled = autoDisabled
+		newSnapStates[otherSnap] = &newSnapState
 	}
 
 	// apply non-conflicting other
