@@ -1,0 +1,59 @@
+summary: Verify the SSH service configure option of the core snap works
+
+description: |
+    This test case verifies the 'service.ssh.disable' configure option
+    for the core snap behaves correctly and either disables or enables
+    the SSH server running on the device.
+
+    In order to not prevent any further ssh connections to the device
+    under test spread may open the ssh.service unit is replaced with
+    a fake which allows tracking correct behavior.
+
+restore: |
+    umount /lib/systemd/system/ssh.service || true
+    systemctl enable ssh
+    systemctl start ssh
+
+execute: |
+    # By default the config option should be empty
+    ! snap get core service.ssh.disable
+
+    cat << EOF > /tmp/fake-ssh.service
+    [Unit]
+    Description=OpenBSD Secure Shell server
+    After=network.target auditd.service
+    ConditionPathExists=!/etc/ssh/sshd_not_to_be_run
+
+    [Service]
+    Type=simple
+    RemainAfterExit=yes
+    ExecStart=/bin/touch /tmp/ssh-started
+    ExecStop=/bin/touch /tmp/ssh-stopped
+
+    [Install]
+    WantedBy=multi-user.target
+    Alias=sshd.service
+    EOF
+
+    # ssh.service is a symlink to ssh.service so that one is
+    # the one we want to fake here.
+    mount --bind /tmp/fake-ssh.service /lib/systemd/system/ssh.service
+
+    systemctl daemon-reload
+
+    snap set core service.ssh.disable=true
+    test `snap get core service.ssh.disable` = true
+    test "$(systemctl is-enabled ssh)" = "disabled"
+    test "$(systemctl is-active ssh)" = "inactive"
+    test -e /tmp/ssh-stopped
+    rm /tmp/ssh-stopped
+
+    snap set core service.ssh.disable=false
+    test "$(systemctl is-enabled ssh)" = "enabled"
+    test "$(systemctl is-active ssh)" = "active"
+    test -e /tmp/ssh-started
+    rm /tmp/ssh-started
+
+    ! snap set core service.ssh.disable=foo
+    ! snap set core service.ssh.disable=true1
+    ! snap set core service.ssh.disable=1false
