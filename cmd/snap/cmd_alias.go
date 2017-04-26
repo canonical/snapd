@@ -20,8 +20,13 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"text/tabwriter"
+
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
@@ -65,6 +70,44 @@ func (x *cmdAlias) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, id)
+	chg, err := wait(cli, id)
+	if err == nil {
+		if err := showAliasChanges(chg); err != nil {
+			return err
+		}
+	}
+
 	return err
+}
+
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json:"alias"`
+}
+
+func showAliasChanges(chg *client.Change) error {
+	var added, removed []*changedAlias
+	if err := chg.Get("aliases-added", &added); err != nil && err != client.ErrNoData {
+		return err
+	}
+	if err := chg.Get("aliases-removed", &removed); err != nil && err != client.ErrNoData {
+		return err
+	}
+	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+	if len(added) != 0 {
+		printChangedAliases(w, i18n.G("Added"), added)
+	}
+	if len(removed) != 0 {
+		printChangedAliases(w, i18n.G("Removed"), removed)
+	}
+	w.Flush()
+	return nil
+}
+
+func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
+	fmt.Fprintf(w, "%s:\n", label)
+	for _, a := range changed {
+		fmt.Fprintf(w, "\t- %s => %s\n", a.Alias, snap.JoinSnapApp(a.Snap, a.App))
+	}
 }

@@ -575,9 +575,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  "",
-		Revision: snap.R(0),
+		Name:       name,
+		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
@@ -1061,9 +1060,10 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsMode:
-		result.Kind = errorKindSnapNeedsMode
-		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsDevMode:
+		result.Kind = errorKindSnapNeedsDevMode
+	case *snapstate.ErrSnapNeedsClassic:
+		result.Kind = errorKindSnapNeedsClassic
 	case *snapstate.ErrSnapNeedsClassicSystem:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
