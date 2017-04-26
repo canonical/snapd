@@ -60,7 +60,7 @@ func (h *MockHandler) Before() error {
 func (h *MockHandler) Done() error {
 	executed := atomic.AddInt32(&h.Executed, -1)
 	if executed != 0 {
-		panic("More than one handler executed")
+		panic(fmt.Sprintf("More than one handler executed: %d", executed))
 	}
 	atomic.AddInt32(&h.TotalExecutions, 1)
 	h.DoneCalled = true
