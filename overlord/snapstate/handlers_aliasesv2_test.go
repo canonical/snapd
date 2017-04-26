@@ -458,8 +458,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
 	c.Check(snapst.AliasesPending, Equals, true)
 }
 
-// TODO: test and fix idempotence of setup-aliases
-
 func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
