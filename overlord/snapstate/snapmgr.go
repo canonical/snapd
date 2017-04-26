@@ -486,19 +486,19 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// Check that we have reasonable delays between unsuccessful attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
-		return nil
-	}
-
-	// compute next refresh attempt (if needed)
+	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
 		delta := timeutil.Next(refreshSchedule, lastRefresh)
 		m.nextRefresh = time.Now().Add(delta)
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+	}
+
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
+		return nil
 	}
 
 	// do refresh attempt (if needed)
