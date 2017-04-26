@@ -242,11 +242,10 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	if len(snaps) == 1 {
 		for snapName := range snaps {
 			actualName := snapName
-			if snapName == "" {
-				// support things that start with “:” as shorthand for “core:”
-				actualName = "core"
-			}
 			if spec.plugs {
+				if spec.connected && snapName == "" {
+					actualName = "core"
+				}
 				for _, plug := range ifaces.Plugs {
 					if plug.Snap == actualName && strings.HasPrefix(plug.Name, prefix) && spec.connFilter(len(plug.Connections)) {
 						// TODO: in the future annotate plugs that can take
@@ -257,6 +256,9 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 				}
 			}
 			if spec.slots {
+				if actualName == "" {
+					actualName = "core"
+				}
 				for _, slot := range ifaces.Slots {
 					if slot.Snap == actualName && strings.HasPrefix(slot.Name, prefix) && spec.connFilter(len(slot.Connections)) {
 						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", snapName, slot.Name), Description: "slot"})

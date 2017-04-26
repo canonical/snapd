@@ -27,7 +27,6 @@ import (
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -180,55 +179,8 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 		case "/v2/interfaces":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
-				"type": "sync",
-				"result": client.Interfaces{
-					Slots: []client.Slot{
-						{
-							Snap:      "wake-up-alarm",
-							Name:      "toggle",
-							Interface: "bool-file",
-							Label:     "Alarm toggle",
-						},
-						{
-							Snap:      "canonical-pi2",
-							Name:      "pin-13",
-							Interface: "bool-file",
-							Label:     "Pin 13",
-							Connections: []client.PlugRef{
-								{
-									Snap: "keyboard-lights",
-									Name: "capslock-led",
-								},
-							},
-						},
-					},
-					Plugs: []client.Plug{
-						{
-							Snap:      "paste-daemon",
-							Name:      "network-listening",
-							Interface: "network-listening",
-							Label:     "Ability to be a network service",
-						},
-						{
-							Snap:      "potato",
-							Name:      "frying",
-							Interface: "frying",
-							Label:     "Ability to fry a network service",
-						},
-						{
-							Snap:      "keyboard-lights",
-							Name:      "capslock-led",
-							Interface: "bool-file",
-							Label:     "Capslock indicator LED",
-							Connections: []client.SlotRef{
-								{
-									Snap: "canonical-pi2",
-									Name: "pin-13",
-								},
-							},
-						},
-					},
-				},
+				"type":   "sync",
+				"result": fortestingInterfaceList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
@@ -240,23 +192,35 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 	expected := []flags.Completion{}
 	parser := Parser()
 	parser.CompletionHandler = func(obtained []flags.Completion) {
-		c.Assert(obtained, DeepEquals, expected)
+		c.Check(obtained, DeepEquals, expected)
 	}
 
-	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "keyboard-lights:"}}
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}}
 	_, err := parser.ParseArgs([]string{"disconnect", ""})
 	c.Assert(err, IsNil)
 
 	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"disconnect", "c"})
+	_, err = parser.ParseArgs([]string{"disconnect", "ca"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: ":core-support", Description: "slot"}, {Item: ":core-support-plug", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"disconnect", ":"})
 	c.Assert(err, IsNil)
 
 	expected = []flags.Completion{{Item: "keyboard-lights:capslock-led", Description: "plug"}}
 	_, err = parser.ParseArgs([]string{"disconnect", "k"})
 	c.Assert(err, IsNil)
 
-	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}}
 	_, err = parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", ""})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", "ca"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: ":core-support", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"disconnect", ":core-support-plug", ":"})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.Stdout(), Equals, "")
