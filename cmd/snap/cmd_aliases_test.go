@@ -65,13 +65,13 @@ func (s *SnapSuite) TestAliases(c *C) {
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
-					"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
-					"foo_reset": {App: "foo.reset", Manual: "reset", Status: "manual"},
+					"foo0":      {Command: "foo", Status: "auto", Auto: "foo"},
+					"foo_reset": {Command: "foo.reset", Manual: "reset", Status: "manual"},
 				},
 				"bar": {
-					"bar_dump":    {App: "bar.dump", Status: "manual", Manual: "dump"},
-					"bar_dump.1":  {App: "bar.dump", Status: "unaliased", Auto: "dump"},
-					"bar_restore": {App: "bar.safe-restore", Status: "manual", Auto: "restore", Manual: "safe-restore"},
+					"bar_dump":    {Command: "bar.dump", Status: "manual", Manual: "dump"},
+					"bar_dump.1":  {Command: "bar.dump", Status: "disabled", Auto: "dump"},
+					"bar_restore": {Command: "bar.safe-restore", Status: "manual", Auto: "restore", Manual: "safe-restore"},
 				},
 			},
 		})
@@ -80,11 +80,11 @@ func (s *SnapSuite) TestAliases(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"App               Alias        Notes\n" +
+		"Command           Alias        Notes\n" +
 		"bar.dump          bar_dump     manual\n" +
-		"bar.dump          bar_dump.1   unaliased\n" +
-		"bar.safe-restore  bar_restore  manual,auto:restore\n" +
-		"foo               foo0         auto\n" +
+		"bar.dump          bar_dump.1   disabled\n" +
+		"bar.safe-restore  bar_restore  manual,override\n" +
+		"foo               foo0         -\n" +
 		"foo.reset         foo_reset    manual\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
@@ -101,12 +101,12 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
-					"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
-					"foo_reset": {App: "foo.reset", Manual: "reset", Status: "manual"},
+					"foo0":      {Command: "foo", Status: "auto", Auto: "foo"},
+					"foo_reset": {Command: "foo.reset", Manual: "reset", Status: "manual"},
 				},
 				"bar": {
-					"bar_dump":   {App: "bar.dump", Status: "manual", Manual: "dump"},
-					"bar_dump.1": {App: "bar.dump", Status: "unaliased", Auto: "dump"},
+					"bar_dump":   {Command: "bar.dump", Status: "manual", Manual: "dump"},
+					"bar_dump.1": {Command: "bar.dump", Status: "disabled", Auto: "dump"},
 				},
 			},
 		})
@@ -115,8 +115,8 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"App        Alias      Notes\n" +
-		"foo        foo0       auto\n" +
+		"Command    Alias      Notes\n" +
+		"foo        foo0       -\n" +
 		"foo.reset  foo_reset  manual\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
@@ -137,7 +137,7 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 	_, err := Parser().ParseArgs([]string{"aliases"})
 	c.Assert(err, IsNil)
 	expectedStdout := "" +
-		"App  Alias  Notes\n"
+		"Command  Alias  Notes\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -145,26 +145,23 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 func (s *SnapSuite) TestAliasesSorting(c *C) {
 	tests := []struct {
 		snap1  string
-		app1   string
+		cmd1   string
 		alias1 string
 		snap2  string
-		app2   string
+		cmd2   string
 		alias2 string
 	}{
 		{"bar", "bar", "r", "baz", "baz", "z"},
 		{"bar", "bar", "bar0", "bar", "bar.app", "bapp"},
 		{"bar", "bar.app1", "bapp1", "bar", "bar.app2", "bapp2"},
-		{"bar", "bar", "bar0", "bar", "", "bapp"},
-		{"bar", "bar.app1", "appy", "bar", "", "appx"},
-		{"bar", "", "bapp1", "bar", "", "bapp2"},
 		{"bar", "bar.app1", "appx", "bar", "bar.app1", "appy"},
 	}
 
 	for _, test := range tests {
-		res := AliasInfoLess(test.snap1, test.alias1, test.app1, test.snap2, test.alias2, test.app2)
+		res := AliasInfoLess(test.snap1, test.alias1, test.cmd1, test.snap2, test.alias2, test.cmd2)
 		c.Check(res, Equals, true, Commentf("%v", test))
 
-		rres := AliasInfoLess(test.snap2, test.alias2, test.app2, test.snap1, test.alias1, test.app1)
+		rres := AliasInfoLess(test.snap2, test.alias2, test.cmd2, test.snap1, test.alias1, test.cmd1)
 		c.Check(rres, Equals, false, Commentf("reversed %v", test))
 	}
 

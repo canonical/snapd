@@ -56,11 +56,11 @@ func init() {
 }
 
 type aliasInfo struct {
-	Snap   string
-	App    string
-	Alias  string
-	Status string
-	Auto   string
+	Snap    string
+	Command string
+	Alias   string
+	Status  string
+	Auto    string
 }
 
 type aliasInfos []*aliasInfo
@@ -72,15 +72,10 @@ func (infos aliasInfos) Less(i, j int) bool {
 		return true
 	}
 	if infos[i].Snap == infos[j].Snap {
-		if infos[i].App != "" {
-			if infos[j].App == "" {
-				return true
-			}
-			if infos[i].App < infos[j].App {
-				return true
-			}
+		if infos[i].Command < infos[j].Command {
+			return true
 		}
-		if infos[i].App == infos[j].App {
+		if infos[i].Command == infos[j].Command {
 			if infos[i].Alias < infos[j].Alias {
 				return true
 			}
@@ -97,7 +92,7 @@ func (x *cmdAliases) Execute(args []string) error {
 	allStatuses, err := Client().Aliases()
 	if err == nil {
 		w := tabWriter()
-		fmt.Fprintln(w, i18n.G("App\tAlias\tNotes"))
+		fmt.Fprintln(w, i18n.G("Command\tAlias\tNotes"))
 		defer w.Flush()
 		var infos aliasInfos
 		filterSnap := string(x.Positionals.Snap)
@@ -109,11 +104,11 @@ func (x *cmdAliases) Execute(args []string) error {
 		for snapName, aliasStatuses := range allStatuses {
 			for alias, aliasStatus := range aliasStatuses {
 				infos = append(infos, &aliasInfo{
-					Snap:   snapName,
-					App:    aliasStatus.App,
-					Alias:  alias,
-					Status: aliasStatus.Status,
-					Auto:   aliasStatus.Auto,
+					Snap:    snapName,
+					Command: aliasStatus.Command,
+					Alias:   alias,
+					Status:  aliasStatus.Status,
+					Auto:    aliasStatus.Auto,
 				})
 			}
 		}
@@ -121,18 +116,17 @@ func (x *cmdAliases) Execute(args []string) error {
 
 		for _, info := range infos {
 			var notes []string
-			app := info.App
-			if info.Status != "" {
+			if info.Status != "auto" {
 				notes = append(notes, info.Status)
 				if info.Status == "manual" && info.Auto != "" {
-					notes = append(notes, fmt.Sprintf("auto:%s", info.Auto))
+					notes = append(notes, "override")
 				}
 			}
 			notesStr := strings.Join(notes, ",")
 			if notesStr == "" {
 				notesStr = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", app, info.Alias, notesStr)
+			fmt.Fprintf(w, "%s\t%s\t%s\n", info.Command, info.Alias, notesStr)
 		}
 	}
 	return err

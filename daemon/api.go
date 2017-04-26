@@ -2331,10 +2331,10 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 type aliasStatus struct {
-	App    string `json:"app,omitempty"`
-	Status string `json:"status,omitempty"`
-	Manual string `json:"manual,omitempty"`
-	Auto   string `json:"auto,omitempty"`
+	Command string `json:"command"`
+	Status  string `json:"status"`
+	Manual  string `json:"manual,omitempty"`
+	Auto    string `json:"auto,omitempty"`
 }
 
 // getAliases produces a response with a map snap -> alias -> aliasStatus
@@ -2366,13 +2366,13 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 				status := "auto"
 				tgt := aliasTarget.Effective(autoDisabled)
 				if tgt == "" {
-					status = "unaliased"
+					status = "disabled"
 					tgt = aliasTarget.Auto
 				} else if aliasTarget.Manual != "" {
 					status = "manual"
 				}
 				aliasStatus.Status = status
-				aliasStatus.App = snap.JoinSnapApp(snapName, tgt)
+				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
 				snapAliases[alias] = aliasStatus
 			}
 		}
