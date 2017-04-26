@@ -1342,11 +1342,15 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 			}
 
 			otherAliases, disabledManual := disableAliases(otherSnapSt.Aliases)
-			if !otherSnapSt.AliasesPending {
-				if _, _, err := applyAliasesChange(otherSnap, otherSnapSt.AutoAliasesDisabled, otherSnapSt.Aliases, true, otherAliases, m.backend, false); err != nil {
-					return err
-				}
+
+			added, removed, err := applyAliasesChange(otherSnap, otherSnapSt.AutoAliasesDisabled, otherSnapSt.Aliases, true, otherAliases, m.backend, otherSnapSt.AliasesPending)
+			if err != nil {
+				return err
 			}
+			if err := aliasesTrace(t, added, removed); err != nil {
+				return err
+			}
+
 			var otherDisabled otherDisabledAliases
 			otherDisabled.Manual = disabledManual
 			otherSnapSt.Aliases = otherAliases
@@ -1360,10 +1364,12 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	if !snapst.AliasesPending {
-		if _, _, err := applyAliasesChange(snapName, true, curAliases, false, curAliases, m.backend, false); err != nil {
-			return err
-		}
+	added, removed, err := applyAliasesChange(snapName, true, curAliases, false, curAliases, m.backend, snapst.AliasesPending)
+	if err != nil {
+		return err
+	}
+	if err := aliasesTrace(t, added, removed); err != nil {
+		return err
 	}
 
 	for otherSnap, otherSnapSt := range otherSnapStates {
