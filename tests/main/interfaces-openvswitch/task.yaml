@@ -1,0 +1,102 @@
+summary: Ensure that the openvswitch interface works.
+
+systems: [-ubuntu-core-*]
+
+details: |
+    The openvswitch interface allows to task to the openvswitch socket (rw mode).
+
+    A snap which defines a openvswitch plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to do all the operations that
+    are carried through the socket, in this test we exercise bridge and port creation,
+    list and deletion.
+
+prepare: |
+    echo "Given openvswitch is installed"
+    apt install -y --no-install-recommends openvswitch-switch
+
+    echo "And a snap declaring a plug on the openvswitch interface is installed"
+    snap install --edge test-snapd-openvswitch-consumer
+
+    echo "And a tap interface is defined"
+    ip tuntap add tap1 mode tap
+
+restore: |
+    ovs-vsctl del-port br0 tap1 || true
+    ovs-vsctl del-br br0 || true
+
+    apt-get remove -y --purge openvswitch-switch
+    apt-get -y autoremove
+
+    rm -f *.error
+
+    ip link delete tap1 || true
+
+execute: |
+    CONNECTED_PATTERN=":openvswitch +test-snapd-openvswitch-consumer"
+    DISCONNECTED_PATTERN="\- +test-snapd-openvswitch-consumer:openvswitch"
+
+    echo "The plug is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect test-snapd-openvswitch-consumer:openvswitch
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to create a bridge"
+    test-snapd-openvswitch-consumer.ovs-vsctl add-br br0
+    ovs-vsctl list-br | MATCH br0
+
+    echo "And the snap is able to create a port"
+    test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1
+    ovs-vsctl list-ports br0 | MATCH tap1
+
+    echo "And the snap is able to delete a port"
+    test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1
+    ovs-vsctl list-ports br0 | MATCH -v tap1
+
+    echo "And the snap is able to delete a bridge"
+    test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
+    ovs-vsctl list-br | MATCH -v br0
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-openvswitch-consumer:openvswitch
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to create a bridge"
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-br br0 2>${PWD}/bridge-creation.error; then
+        echo "Expected permission error accessing openvswitch socket with disconnected plug"
+        exit 1
+    fi
+    cat bridge-creation.error | MATCH "database connection failed \(Permission denied\)"
+
+    ovs-vsctl add-br br0
+
+    echo "And the snap is not able to create a port"
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1 2>${PWD}/port-creation.error; then
+        echo "Expected permission error accessing openvswitch socket with disconnected plug"
+        exit 1
+    fi
+    cat port-creation.error | MATCH "database connection failed \(Permission denied\)"
+
+    ovs-vsctl add-port br0 tap1
+
+    echo "And the snap is not able to delete a port"
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1 2>${PWD}/port-deletion.error; then
+        echo "Expected permission error accessing openvswitch socket with disconnected plug"
+        exit 1
+    fi
+    cat port-deletion.error | MATCH "database connection failed \(Permission denied\)"
+
+    echo "And the snap is not able to delete a bridge"
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-br br0 2>${PWD}/br-creation.error; then
+        echo "Expected permission error accessing openvswitch socket with disconnected plug"
+        exit 1
+    fi
+    cat br-creation.error | MATCH "database connection failed \(Permission denied\)"
