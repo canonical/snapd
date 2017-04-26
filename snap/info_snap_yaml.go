@@ -160,7 +160,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Epoch:               epoch,
 		Confinement:         confinement,
 		Apps:                make(map[string]*AppInfo),
-		Aliases:             make(map[string]*AppInfo),
+		LegacyAliases:       make(map[string]*AppInfo),
 		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
@@ -223,7 +223,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 		app := &AppInfo{
 			Snap:            snap,
 			Name:            appName,
-			Aliases:         yApp.Aliases,
+			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
@@ -241,11 +241,11 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			app.Slots = make(map[string]*SlotInfo)
 		}
 		snap.Apps[appName] = app
-		for _, alias := range app.Aliases {
-			if snap.Aliases[alias] != nil {
-				return fmt.Errorf("cannot set %q as alias for both %q and %q", alias, snap.Aliases[alias].Name, appName)
+		for _, alias := range app.LegacyAliases {
+			if snap.LegacyAliases[alias] != nil {
+				return fmt.Errorf("cannot set %q as alias for both %q and %q", alias, snap.LegacyAliases[alias].Name, appName)
 			}
-			snap.Aliases[alias] = app
+			snap.LegacyAliases[alias] = app
 		}
 		// Bind all plugs/slots listed in this app
 		for _, plugName := range yApp.PlugNames {
