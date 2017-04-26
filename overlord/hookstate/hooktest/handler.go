@@ -20,6 +20,7 @@
 package hooktest
 
 import "fmt"
+import "sync/atomic"
 
 // MockHandler is a mock hookstate.Handler.
 type MockHandler struct {
@@ -32,6 +33,9 @@ type MockHandler struct {
 	ErrorCalled bool
 	ErrorError  bool
 	Err         error
+
+	Executed        int32
+	TotalExecutions int32
 }
 
 // NewMockHandler returns a new MockHandler.
@@ -41,6 +45,10 @@ func NewMockHandler() *MockHandler {
 
 // Before satisfies hookstate.Handler.Before
 func (h *MockHandler) Before() error {
+	executed := atomic.AddInt32(&h.Executed, 1)
+	if executed != 1 {
+		panic(fmt.Sprintf("More than one handler executed: %d", executed))
+	}
 	h.BeforeCalled = true
 	if h.BeforeError {
 		return fmt.Errorf("Before failed at user request")
@@ -50,6 +58,11 @@ func (h *MockHandler) Before() error {
 
 // Done satisfies hookstate.Handler.Done
 func (h *MockHandler) Done() error {
+	executed := atomic.AddInt32(&h.Executed, -1)
+	if executed != 0 {
+		panic("More than one handler executed")
+	}
+	atomic.AddInt32(&h.TotalExecutions, 1)
 	h.DoneCalled = true
 	if h.DoneError {
 		return fmt.Errorf("Done failed at user request")

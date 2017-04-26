@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -651,4 +652,42 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(errtrackerCalled, Equals, true)
+}
+
+func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "configure",
+		Revision: snap.R(1),
+	}
+
+	s.state.Lock()
+
+	var tasks []*state.Task
+	for i := 0; i < 20; i++ {
+		task := hookstate.HookTask(s.state, "test summary", hooksup, nil)
+		c.Assert(s.task, NotNil)
+		change := s.state.NewChange("kind", "summary")
+		change.AddTask(task)
+		tasks = append(tasks, task)
+	}
+	s.state.Unlock()
+
+	for i := 0; i < 50; i++ {
+		s.manager.Ensure()
+		s.manager.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	for i := 0; i < len(tasks); i++ {
+		c.Check(tasks[i].Kind(), Equals, "run-hook")
+		c.Check(tasks[i].Status(), Equals, state.DoneStatus)
+	}
+	c.Assert(atomic.LoadInt32(&s.mockHandler.TotalExecutions), Equals, int32(1+len(tasks)))
 }
