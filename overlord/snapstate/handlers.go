@@ -838,7 +838,41 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// aliases v2
+/* aliases v2
+
+aliases v2 implementation uses the following tasks:
+
+  * for install/refresh/remove/enable/disable etc
+
+    - remove-aliases: remove aliases of a snap from disk and mark them pending
+
+    - setup-aliases: (re)creates aliases from snap state, mark them as
+      not pending
+
+    - set-auto-aliases: updates aliases snap state based on the
+      snap-declaration and current revision info of the snap
+
+  * for refresh & when the snap-declaration aliases change without a new revision
+    - refresh-aliases: updates aliases snap state and updates them on disk too;
+      its undo is used generically by other tasks as well
+
+    - prune-auto-aliases: used for the special case of automatic
+      aliases transferred from one snap to another to prune them from
+      the source snaps to avoid conflicts in later operations
+
+  * for alias/unalias/prefer:
+
+    - alias: creates a manual alias
+
+    - unalias: removes a manual alias
+
+    - disable-aliases: disable the automatic aliases of a snap and
+      removes all manual ones as well
+
+    - prefer-aliases: enables the automatic aliases of a snap after
+      disabling any other snap conflicting aliases
+
+*/
 
 func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
