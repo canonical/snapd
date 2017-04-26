@@ -1,0 +1,24 @@
+summary: Simple snap prefer test
+execute: |
+    echo "Install the snap with auto-aliases"
+    snap install test-snapd-auto-aliases
+
+    echo "Sanity check"
+    test -h /snap/bin/test_snapd_wellknown1
+    test -h /snap/bin/test_snapd_wellknown2
+
+    echo "Disable the auto-aliases"
+    snap unalias test-snapd-auto-aliases
+
+    echo "Auto-aliases are gone"
+    test ! -e /snap/bin/test_snapd_wellknown1
+    test ! -e /snap/bin/test_snapd_wellknown2
+
+    echo "Execute snap prefer"
+    snap prefer test-snapd-auto-aliases
+
+    echo "Test that the  auto-aliases are back"
+    test -h /snap/bin/test_snapd_wellknown1
+    test -h /snap/bin/test_snapd_wellknown2
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
