@@ -38,41 +38,28 @@ type xauth struct {
 	Data    []byte
 }
 
-func readBytes(f *os.File, data []byte) error {
-	n, err := f.Read(data)
-	if err != nil {
-		return err
-	}
-
-	if n != len(data) {
-		return fmt.Errorf("Could not read enough bytes")
-	}
-
-	return nil
-}
-
-func readChunk(f *os.File) ([]byte, error) {
+func readChunk(r io.Reader) ([]byte, error) {
 	// A chunk consists of a length encoded by two bytes and
 	// additional data which is the real value of the item
 	// we reading here from the file.
 
 	b := [2]byte{}
-	if err := readBytes(f, b[:]); err != nil {
+	if _, err := io.ReadFull(r, b[:]); err != nil {
 		return nil, err
 	}
 
 	size := int(binary.BigEndian.Uint16(b[:]))
 	chunk := make([]byte, size)
-	if err := readBytes(f, chunk); err != nil {
+	if _, err := io.ReadFull(r, chunk); err != nil {
 		return nil, err
 	}
 
 	return chunk, nil
 }
 
-func (xa *xauth) readFromFile(f *os.File) error {
+func (xa *xauth) readFromFile(r io.Reader) error {
 	b := [2]byte{}
-	if err := readBytes(f, b[:]); err != nil {
+	if _, err := io.ReadFull(r, b[:]); err != nil {
 		return err
 	}
 	// The family field consists of two bytes
@@ -80,19 +67,19 @@ func (xa *xauth) readFromFile(f *os.File) error {
 
 	var err error
 
-	if xa.Address, err = readChunk(f); err != nil {
+	if xa.Address, err = readChunk(r); err != nil {
 		return err
 	}
 
-	if xa.Number, err = readChunk(f); err != nil {
+	if xa.Number, err = readChunk(r); err != nil {
 		return err
 	}
 
-	if xa.Name, err = readChunk(f); err != nil {
+	if xa.Name, err = readChunk(r); err != nil {
 		return err
 	}
 
-	if xa.Data, err = readChunk(f); err != nil {
+	if xa.Data, err = readChunk(r); err != nil {
 		return err
 	}
 
@@ -101,22 +88,22 @@ func (xa *xauth) readFromFile(f *os.File) error {
 
 // ValidateXauthority validates a given Xauthority file. The file is valid
 // if it can be parsed and contains at least one cookie.
-func ValidateXauthority(path string) error {
+func ValidateXauthorityFile(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return ValidateXauthorityFromFile(f)
+	return ValidateXauthority(f)
 }
 
 // ValidateXauthority validates a given Xauthority file. The file is valid
 // if it can be parsed and contains at least one cookie.
-func ValidateXauthorityFromFile(f *os.File) error {
+func ValidateXauthority(r io.Reader) error {
 	cookies := 0
 	for {
 		xa := &xauth{}
-		err := xa.readFromFile(f)
+		err := xa.readFromFile(r)
 		if err == io.EOF {
 			break
 		} else if err != nil {

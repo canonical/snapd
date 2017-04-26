@@ -272,7 +272,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// it point to exactly the file we just opened (no symlinks,
 	// no funny "../.." etc)
 	if fin.Name() != xauthPathCan {
-		logger.Noticef("WARNING: %s != %s\n", fin.Name(), xauthPathCan)
+		logger.Noticef("WARNING: XAUTHORITY environment value is not a clean path: %q", xauthPathCan)
 		return "", nil
 	}
 
@@ -297,7 +297,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	}
 	sys := fi.Sys()
 	if sys == nil {
-		return "", fmt.Errorf(i18n.G("Can't validate file owner"))
+		return "", fmt.Errorf(i18n.G("cannot validate owner of file %s"), fin.Name())
 	}
 	// cheap comparison as the current uid is only available as a string
 	// but it is better to convert the uid from the stat result to a
@@ -325,7 +325,6 @@ func migrateXauthority(info *snap.Info) (string, error) {
 
 		fout.Close()
 		if err := os.Remove(targetPath); err != nil {
-			logger.Noticef("WARNING: failed to remove existing file %s", targetPath)
 			return "", err
 		}
 
@@ -338,9 +337,8 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// To guard against setting XAUTHORITY to non-xauth files, check
 	// that we have a valid Xauthority. Specifically, the file must be
 	// parseable as an Xauthority file and not be empty.
-	if err := x11.ValidateXauthorityFromFile(fin); err != nil {
-		logger.Noticef("WARNING: invalid Xauthority file: %s", err)
-		return "", nil
+	if err := x11.ValidateXauthority(fin); err != nil {
+		return "", err
 	}
 
 	// Read data from the beginning of the file
@@ -357,9 +355,9 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// Read and write validated Xauthority file to its right location
 	if _, err = io.Copy(fout, fin); err != nil {
 		if err := os.Remove(targetPath); err != nil {
-			logger.Noticef("WARNING: failed to remove file at %s", targetPath)
+			logger.Noticef("WARNING: cannot remove file at %s: %s", targetPath, err)
 		}
-		return "", fmt.Errorf(i18n.G("Failed to write new Xauthority file at %s"), targetPath)
+		return "", fmt.Errorf(i18n.G("cannot write new Xauthority file at %s: %s"), targetPath, err)
 	}
 
 	return targetPath, nil
