@@ -68,7 +68,7 @@ type Schedule struct {
 
 func (sched *Schedule) String() string {
 	if sched.Weekday == "" {
-		return fmt.Sprintf("%s:%s", sched.Start, sched.End)
+		return fmt.Sprintf("%s-%s", sched.Start, sched.End)
 	}
 	return fmt.Sprintf("%s@%s-%s", sched.Weekday, sched.Start, sched.End)
 }
