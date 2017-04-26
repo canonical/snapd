@@ -54,14 +54,14 @@ func (s *hooktestSuite) TestBeforeError(c *C) {
 
 func (s *hooktestSuite) TestDone(c *C) {
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
-	s.mockHandler.Executed = 1
+	s.mockHandler.Executing = 1
 	c.Check(s.mockHandler.Done(), IsNil)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
 }
 
 func (s *hooktestSuite) TestDoneError(c *C) {
 	s.mockHandler.DoneError = true
-	s.mockHandler.Executed = 1
+	s.mockHandler.Executing = 1
 	c.Check(s.mockHandler.Done(), NotNil)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
 }
