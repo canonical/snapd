@@ -89,8 +89,10 @@ func (client *Client) Prefer(snapName string) (changeID string, err error) {
 
 // AliasStatus represents the status of an alias.
 type AliasStatus struct {
-	App    string `json:"app,omitempty"`
-	Status string `json:"status,omitempty"`
+	Command string `json:"command"`
+	Status  string `json:"status"`
+	Manual  string `json:"manual,omitempty"`
+	Auto    string `json:"auto,omitempty"`
 }
 
 // Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.
