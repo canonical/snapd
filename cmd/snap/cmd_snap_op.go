@@ -940,8 +940,8 @@ func init() {
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":          i18n.G("Refresh to the given revision"),
-			"list":              i18n.G("Show available snaps for refresh"),
-			"time":              i18n.G("Show auto refresh information"),
+			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
+			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
