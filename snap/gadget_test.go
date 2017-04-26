@@ -207,7 +207,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info, false)
-	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader must be either grub, u-boot or fastboot")
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader must be either grub, u-boot or android-boot")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {

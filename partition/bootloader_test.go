@@ -146,7 +146,7 @@ func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
 	for _, t := range []struct{ gadgetFile, systemFile string }{
 		{"grub.conf", "/boot/grub/grub.cfg"},
 		{"uboot.conf", "/boot/uboot/uboot.env"},
-		{"fastboot.conf", "/boot/fastboot/config.yaml"},
+		{"androidboot.conf", "/boot/androidboot/config.yaml"},
 	} {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)

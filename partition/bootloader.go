@@ -67,7 +67,7 @@ type Bootloader interface {
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir string) error {
-	for _, bl := range []Bootloader{&grub{}, &uboot{}, &fastboot{}} {
+	for _, bl := range []Bootloader{&grub{}, &uboot{}, &androidboot{}} {
 		// the bootloader config file has to be root of the gadget snap
 		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
 		if !osutil.FileExists(gadgetFile) {
@@ -103,9 +103,9 @@ func FindBootloader() (Bootloader, error) {
 		return grub, nil
 	}
 
-	// no, try fastboot
-	if fastboot := newFastboot(); fastboot != nil {
-		return fastboot, nil
+	// no, try androidboot
+	if androidboot := newAndroidboot(); androidboot != nil {
+		return androidboot, nil
 	}
 
 	// no, weeeee
