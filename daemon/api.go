@@ -2331,8 +2331,10 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 type aliasStatus struct {
-	App    string `json:"app,omitempty"`
-	Status string `json:"status,omitempty"`
+	Command string `json:"command"`
+	Status  string `json:"status"`
+	Manual  string `json:"manual,omitempty"`
+	Auto    string `json:"auto,omitempty"`
 }
 
 // getAliases produces a response with a map snap -> alias -> aliasStatus
@@ -2348,37 +2350,31 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	allAliases, err := snapstate.Aliases(state)
-	if err != nil {
-		return InternalError("cannot list aliases: %v", err)
-	}
-
 	for snapName, snapst := range allStates {
-		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
 		}
-		if len(info.Aliases) != 0 {
+		if len(snapst.Aliases) != 0 {
 			snapAliases := make(map[string]aliasStatus)
 			res[snapName] = snapAliases
-			for alias, aliasApp := range info.Aliases {
-				snapAliases[alias] = aliasStatus{
-					App: filepath.Base(aliasApp.WrapperPath()),
+			autoDisabled := snapst.AutoAliasesDisabled
+			for alias, aliasTarget := range snapst.Aliases {
+				aliasStatus := aliasStatus{
+					Manual: aliasTarget.Manual,
+					Auto:   aliasTarget.Auto,
 				}
+				status := "auto"
+				tgt := aliasTarget.Effective(autoDisabled)
+				if tgt == "" {
+					status = "disabled"
+					tgt = aliasTarget.Auto
+				} else if aliasTarget.Manual != "" {
+					status = "manual"
+				}
+				aliasStatus.Status = status
+				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
+				snapAliases[alias] = aliasStatus
 			}
-		}
-	}
-
-	for snapName, aliasStatuses := range allAliases {
-		snapAliases := res[snapName]
-		if snapAliases == nil {
-			snapAliases = make(map[string]aliasStatus)
-			res[snapName] = snapAliases
-		}
-		for alias, status := range aliasStatuses {
-			entry := snapAliases[alias]
-			entry.Status = status
-			snapAliases[alias] = entry
 		}
 	}
 
