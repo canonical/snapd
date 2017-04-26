@@ -575,9 +575,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  "",
-		Revision: snap.R(0),
+		Name:       name,
+		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
@@ -2258,8 +2257,6 @@ type aliasAction struct {
 	Snap   string `json:"snap"`
 	App    string `json:"app"`
 	Alias  string `json:"alias"`
-	// AliasOrSnap triggers unalias Do-What-I-Mean logic
-	AliasOrSnap string `json:"alias-or-snap"`
 	// old now unsupported api
 	Aliases []string `json:"aliases"`
 }
@@ -2287,16 +2284,17 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "alias":
 		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
 	case "unalias":
-		if a.AliasOrSnap != "" { // Do What I Mean
+		if a.Alias == a.Snap {
+			// Do What I mean:
+			// check if a snap is referred/intended
+			// or just an alias
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, a.AliasOrSnap, &snapst)
+			err := snapstate.Get(st, a.Snap, &snapst)
 			if err != nil && err != state.ErrNoState {
 				return InternalError("%v", err)
 			}
-			if err == nil { // found a matching snap
-				a.Snap = a.AliasOrSnap
-			} else {
-				a.Alias = a.AliasOrSnap
+			if err == state.ErrNoState { // not a snap
+				a.Snap = ""
 			}
 		}
 		if a.Snap != "" {
