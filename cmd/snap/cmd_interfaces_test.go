@@ -534,55 +534,8 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 		case "/v2/interfaces":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
-				"type": "sync",
-				"result": client.Interfaces{
-					Slots: []client.Slot{
-						{
-							Snap:      "wake-up-alarm",
-							Name:      "toggle",
-							Interface: "bool-file",
-							Label:     "Alarm toggle",
-						},
-						{
-							Snap:      "canonical-pi2",
-							Name:      "pin-13",
-							Interface: "bool-file",
-							Label:     "Pin 13",
-							Connections: []client.PlugRef{
-								{
-									Snap: "keyboard-lights",
-									Name: "capslock-led",
-								},
-							},
-						},
-					},
-					Plugs: []client.Plug{
-						{
-							Snap:      "paste-daemon",
-							Name:      "network-listening",
-							Interface: "network-listening",
-							Label:     "Ability to be a network service",
-						},
-						{
-							Snap:      "core",
-							Name:      "frying",
-							Interface: "frying",
-							Label:     "Ability to fry a network service",
-						},
-						{
-							Snap:      "keyboard-lights",
-							Name:      "capslock-led",
-							Interface: "bool-file",
-							Label:     "Capslock indicator LED",
-							Connections: []client.SlotRef{
-								{
-									Snap: "canonical-pi2",
-									Name: "pin-13",
-								},
-							},
-						},
-					},
-				},
+				"type":   "sync",
+				"result": fortestingInterfaceList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
@@ -594,10 +547,10 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 	expected := []flags.Completion{}
 	parser := Parser()
 	parser.CompletionHandler = func(obtained []flags.Completion) {
-		c.Assert(obtained, DeepEquals, expected)
+		c.Check(obtained, DeepEquals, expected)
 	}
 
-	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "wake-up-alarm:"}}
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "potato:"}, {Item: "wake-up-alarm:"}}
 	_, err := parser.ParseArgs([]string{"interfaces", ""})
 	c.Assert(err, IsNil)
 
@@ -607,10 +560,6 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 
 	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
 	_, err = parser.ParseArgs([]string{"interfaces", "wa"})
-	c.Assert(err, IsNil)
-
-	expected = []flags.Completion{{Item: ":frying", Description: "plug"}}
-	_, err = parser.ParseArgs([]string{"interfaces", ":"})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.Stdout(), Equals, "")
