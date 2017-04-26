@@ -1461,9 +1461,9 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 			"alias3": {Auto: "cmd3"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap1", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap1", Revision: snap.R(3)},
+			{RealName: "other-alias-snap1", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1471,9 +1471,9 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 			"alias1": {Auto: "cmd1"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap2", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap2", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap2", Revision: snap.R(3)},
+			{RealName: "other-alias-snap2", Revision: snap.R(3)},
 		},
 		Current:        snap.R(3),
 		Active:         true,
@@ -1483,9 +1483,9 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 			"aliasx": {Manual: "cmdx"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap3", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap3", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap3", Revision: snap.R(3)},
+			{RealName: "other-alias-snap3", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1537,7 +1537,7 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 	})
 
 	var otherst1 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap1", &otherst1)
+	err = snapstate.Get(s.state, "other-alias-snap1", &otherst1)
 	c.Assert(err, IsNil)
 	c.Check(otherst1.AutoAliasesDisabled, Equals, true)
 	c.Check(otherst1.AliasesPending, Equals, false)
@@ -1546,14 +1546,14 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 	})
 
 	var otherst2 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap2", &otherst2)
+	err = snapstate.Get(s.state, "other-alias-snap2", &otherst2)
 	c.Assert(err, IsNil)
 	c.Check(otherst2.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst2.AliasesPending, Equals, true)
 	c.Check(otherst2.Aliases, HasLen, 0)
 
 	var otherst3 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap3", &otherst3)
+	err = snapstate.Get(s.state, "other-alias-snap3", &otherst3)
 	c.Assert(err, IsNil)
 	c.Check(otherst3.AutoAliasesDisabled, Equals, true)
 	c.Check(otherst3.AliasesPending, Equals, false)
@@ -1579,9 +1579,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 			"alias3": {Auto: "cmd3"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap1", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap1", Revision: snap.R(3)},
+			{RealName: "other-alias-snap1", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1589,9 +1589,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 			"alias1": {Auto: "cmd1"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap2", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap2", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap2", Revision: snap.R(3)},
+			{RealName: "other-alias-snap2", Revision: snap.R(3)},
 		},
 		Current:        snap.R(3),
 		Active:         true,
@@ -1601,9 +1601,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 			"aliasx": {Manual: "cmdx"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap3", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap3", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap3", Revision: snap.R(3)},
+			{RealName: "other-alias-snap3", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1659,7 +1659,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 	})
 
 	var otherst1 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap1", &otherst1)
+	err = snapstate.Get(s.state, "other-alias-snap1", &otherst1)
 	c.Assert(err, IsNil)
 	c.Check(otherst1.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst1.AliasesPending, Equals, false)
@@ -1668,17 +1668,16 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 	})
 
 	var otherst2 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap2", &otherst2)
+	err = snapstate.Get(s.state, "other-alias-snap2", &otherst2)
 	c.Assert(err, IsNil)
 	c.Check(otherst2.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst2.AliasesPending, Equals, true)
 	c.Check(otherst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias2": {Manual: "cmd2"},
-		"aliasx": {Manual: "cmdx"},
 	})
 
 	var otherst3 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap3", &otherst3)
+	err = snapstate.Get(s.state, "other-alias-snap3", &otherst3)
 	c.Assert(err, IsNil)
 	c.Check(otherst3.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst3.AliasesPending, Equals, false)
@@ -1704,9 +1703,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 			"alias3": {Auto: "cmd3"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap1", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap1", Revision: snap.R(3)},
+			{RealName: "other-alias-snap1", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1714,9 +1713,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 			"alias1": {Auto: "cmd1"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap2", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap2", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap2", Revision: snap.R(3)},
+			{RealName: "other-alias-snap2", Revision: snap.R(3)},
 		},
 		Current:        snap.R(3),
 		Active:         true,
@@ -1726,9 +1725,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 			"aliasx": {Manual: "cmdx"},
 		},
 	})
-	snapstate.Set(s.state, "other-snap3", &snapstate.SnapState{
+	snapstate.Set(s.state, "other-alias-snap3", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap3", Revision: snap.R(3)},
+			{RealName: "other-alias-snap3", Revision: snap.R(3)},
 		},
 		Current: snap.R(3),
 		Active:  true,
@@ -1743,9 +1742,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 		defer st.Unlock()
 
 		var snapst1, snapst2 snapstate.SnapState
-		err := snapstate.Get(st, "other-snap1", &snapst1)
+		err := snapstate.Get(st, "other-alias-snap1", &snapst1)
 		c.Assert(err, IsNil)
-		err = snapstate.Get(st, "other-snap2", &snapst2)
+		err = snapstate.Get(st, "other-alias-snap2", &snapst2)
 		c.Assert(err, IsNil)
 		snapst1.Aliases = map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
@@ -1754,8 +1753,8 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 		snapst2.Aliases = map[string]*snapstate.AliasTarget{
 			"alias5": {Manual: "cmd5"},
 		}
-		snapstate.Set(st, "other-snap1", &snapst1)
-		snapstate.Set(st, "other-snap2", &snapst2)
+		snapstate.Set(st, "other-alias-snap1", &snapst1)
+		snapstate.Set(st, "other-alias-snap2", &snapst2)
 
 		return nil
 	}
@@ -1798,7 +1797,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 	c.Assert(s.fakeBackend.ops[4], DeepEquals, fakeOp{
 		op: "update-aliases",
 		aliases: []*backend.Alias{
-			{"alias3", "other-snap3.cmd5"},
+			{"alias3", "other-alias-snap3.cmd5"},
 		},
 	})
 
@@ -1815,7 +1814,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 	})
 
 	var otherst1 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap1", &otherst1)
+	err = snapstate.Get(s.state, "other-alias-snap1", &otherst1)
 	c.Assert(err, IsNil)
 	c.Check(otherst1.AutoAliasesDisabled, Equals, true)
 	c.Check(otherst1.AliasesPending, Equals, false)
@@ -1825,7 +1824,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 	})
 
 	var otherst2 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap2", &otherst2)
+	err = snapstate.Get(s.state, "other-alias-snap2", &otherst2)
 	c.Assert(err, IsNil)
 	c.Check(otherst2.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst2.AliasesPending, Equals, true)
@@ -1834,7 +1833,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
 	})
 
 	var otherst3 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap3", &otherst3)
+	err = snapstate.Get(s.state, "other-alias-snap3", &otherst3)
 	c.Assert(err, IsNil)
 	c.Check(otherst3.AutoAliasesDisabled, Equals, false)
 	c.Check(otherst3.AliasesPending, Equals, false)

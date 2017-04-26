@@ -1017,13 +1017,18 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 			if err != nil {
 				return err
 			}
+			curOtherInfo, err := otherSnapSt.CurrentInfo()
+			if err != nil {
+				return err
+			}
+
 			curOtherSnapStates[otherSnap] = &otherSnapSt
 
 			autoDisabled := otherSnapSt.AutoAliasesDisabled
 			if otherDisabled.Disabled {
 				autoDisabled = false
 			}
-			otherAliases := reenableAliases(otherSnapSt.Aliases, otherDisabled.Manuals)
+			otherAliases := reenableAliases(curOtherInfo, otherSnapSt.Aliases, otherDisabled.Manual)
 			// check for conflicts taking into account
 			// re-enabled aliases
 			conflicts, err := checkAliasesConflicts(st, otherSnap, autoDisabled, otherAliases, newSnapStates)
@@ -1258,7 +1263,7 @@ func (m *SnapManager) doUnaliasV2(t *state.Task, _ *tomb.Tomb) error {
 
 type otherDisabledAliases struct {
 	Disabled bool              `json:"disabled,omitempty"`
-	Manuals  map[string]string `json:"manuals,omitempty"`
+	Manual   map[string]string `json:"manual,omitempty"`
 }
 
 func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
@@ -1294,14 +1299,14 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 				return err
 			}
 
-			otherAliases, manuals := disableAliases(otherSnapSt.Aliases)
+			otherAliases, disabledManual := disableAliases(otherSnapSt.Aliases)
 			if !otherSnapSt.AliasesPending {
 				if _, _, err := applyAliasesChange(otherSnap, otherSnapSt.AutoAliasesDisabled, otherSnapSt.Aliases, true, otherAliases, m.backend, false); err != nil {
 					return err
 				}
 			}
 			var otherDisabled otherDisabledAliases
-			otherDisabled.Manuals = manuals
+			otherDisabled.Manual = disabledManual
 			otherSnapSt.Aliases = otherAliases
 			// disable as needed
 			if !otherSnapSt.AutoAliasesDisabled && len(otherAliases) != 0 {
