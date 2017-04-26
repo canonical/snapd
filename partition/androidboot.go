@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,38 +26,38 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type fastboot struct {
+type androidboot struct {
 	BootVars map[string]string
 }
 
-// newFastboot creates a new Fastboot bootloader object
-func newFastboot() Bootloader {
-	f := &fastboot{}
-	if !osutil.FileExists(f.ConfigFile()) {
+// newAndroidboot creates a new Androidboot bootloader object
+func newAndroidboot() Bootloader {
+	a := &androidboot{}
+	if !osutil.FileExists(a.ConfigFile()) {
 		return nil
 	}
-	return f
+	return a
 }
 
-func (f *fastboot) Name() string {
-	return "fastboot"
+func (a *androidboot) Name() string {
+	return "androidboot"
 }
 
-func (f *fastboot) Dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/fastboot")
+func (a *androidboot) Dir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
 }
 
-func (f *fastboot) ConfigFile() string {
-	return filepath.Join(f.Dir(), "config.yaml")
+func (a *androidboot) ConfigFile() string {
+	return filepath.Join(a.Dir(), "androidboot.env")
 }
 
-func (f *fastboot) GetBootVars(names ...string) (map[string]string, error) {
-	return f.BootVars, nil
+func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
+	return a.BootVars, nil
 }
 
-func (f *fastboot) SetBootVars(values map[string]string) error {
+func (a *androidboot) SetBootVars(values map[string]string) error {
 	for key, value := range values {
-		f.BootVars[key] = value
+		a.BootVars[key] = value
 	}
 	return nil
 }

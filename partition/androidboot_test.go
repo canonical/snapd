@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,37 +27,37 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func mockFastbootFile(c *C, newPath string, mode os.FileMode) {
+func mockAndroidbootFile(c *C, newPath string, mode os.FileMode) {
 	err := ioutil.WriteFile(newPath, []byte(""), mode)
 	c.Assert(err, IsNil)
 }
 
-func (s *PartitionTestSuite) makeFakeFastbootConfig(c *C) {
+func (s *PartitionTestSuite) makeFakeAndroidbootConfig(c *C) {
 	// these files just needs to exist
-	f := &fastboot{}
-	mockFastbootFile(c, f.ConfigFile(), 0644)
+	a := &androidboot{}
+	mockAndroidbootFile(c, a.ConfigFile(), 0644)
 }
 
-func (s *PartitionTestSuite) TestNewFastbootNoFastbootReturnsNil(c *C) {
+func (s *PartitionTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
 	dirs.GlobalRootDir = "/something/not/there"
 
-	f := newFastboot()
-	c.Assert(f, IsNil)
+	a := newAndroidboot()
+	c.Assert(a, IsNil)
 }
 
-func (s *PartitionTestSuite) TestNewFastboot(c *C) {
-	s.makeFakeFastbootConfig(c)
+func (s *PartitionTestSuite) TestNewAndroidboot(c *C) {
+	s.makeFakeAndroidbootConfig(c)
 
-	f := newFastboot()
-	c.Assert(f, NotNil)
-	c.Assert(f, FitsTypeOf, &fastboot{})
+	a := newAndroidboot()
+	c.Assert(a, NotNil)
+	c.Assert(a, FitsTypeOf, &androidboot{})
 }
 
 func (s *PartitionTestSuite) TestSetGetBootVar(c *C) {
-	f := newFastboot()
+	a := newAndroidboot()
 	bootVars := map[string]string{}
 	bootVars["snap_mode"] = "try"
-	f.SetBootVars(bootVars)
+	a.SetBootVars(bootVars)
 
 	v, err := f.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
