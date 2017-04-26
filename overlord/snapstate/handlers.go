@@ -876,7 +876,7 @@ aliases v2 implementation uses the following tasks:
 
 */
 
-func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -909,7 +909,7 @@ func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doRemoveAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -929,7 +929,7 @@ func (m *SnapManager) doRemoveAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doSetupAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -950,7 +950,7 @@ func (m *SnapManager) doSetupAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -987,7 +987,7 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1103,7 +1103,7 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPruneAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1177,7 +1177,7 @@ func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 	return nil
 }
 
-func (m *SnapManager) doAliasV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1226,7 +1226,7 @@ func (m *SnapManager) doAliasV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doDisableAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDisableAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1256,7 +1256,7 @@ func (m *SnapManager) doDisableAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doUnaliasV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doUnalias(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1302,7 +1302,7 @@ type otherDisabledAliases struct {
 	Manual map[string]string `json:"manual,omitempty"`
 }
 
-func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

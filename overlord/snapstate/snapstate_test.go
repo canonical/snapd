@@ -2197,7 +2197,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		updates, tts, err := snapstate.UpdateMany(s.state, scenario.names, s.user.ID)
 		c.Check(err, IsNil)
 
-		_, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"some-snap", "other-snap"})
+		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
 
 		j := 0
@@ -2343,7 +2343,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
 		c.Assert(err, IsNil)
-		_, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"some-snap", "other-snap"})
+		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
 
 		j := 0
