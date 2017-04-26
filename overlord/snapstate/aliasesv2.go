@@ -387,13 +387,18 @@ func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*
 
 // reenableAliases returns newAliases corresponding to the reenabling over
 // curAliases of disabledManual manual aliases.
-func reenableAliases(curAliases map[string]*AliasTarget, disabledManual map[string]string) (newAliases map[string]*AliasTarget) {
+func reenableAliases(info *snap.Info, curAliases map[string]*AliasTarget, disabledManual map[string]string) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
 		newAliases[alias] = aliasTarget
 	}
 
 	for alias, manual := range disabledManual {
+		if info.Apps[manual] == nil {
+			// not an app presently
+			continue
+		}
+
 		newTarget := newAliases[alias]
 		if newTarget == nil {
 			newAliases[alias] = &AliasTarget{Manual: manual}
