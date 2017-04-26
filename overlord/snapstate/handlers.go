@@ -972,6 +972,9 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	snapName := snapsup.Name()
 	curAutoDisabled := snapst.AutoAliasesDisabled
 	autoDisabled := curAutoDisabled
+	if err = t.Get("old-auto-aliases-disabled", &autoDisabled); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	// check if the old states creates conflicts now
 	_, err = checkAliasesConflicts(st, snapName, autoDisabled, oldAliases)
@@ -1070,6 +1073,68 @@ func (m *SnapManager) doAliasV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doDisableAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	oldAutoDisabled := snapst.AutoAliasesDisabled
+	oldAliases := snapst.Aliases
+	newAliases := disableAliases(oldAliases)
+
+	if !snapst.AliasesPending {
+		if err := applyAliasesChange(st, snapName, oldAutoDisabled, oldAliases, true, newAliases, m.backend); err != nil {
+			return err
+		}
+	}
+
+	t.Set("old-auto-aliases-disabled", oldAutoDisabled)
+	snapst.AutoAliasesDisabled = true
+	t.Set("old-aliases-v2", oldAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doUnaliasV2(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var alias string
+	err = t.Get("alias", &alias)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	autoDisabled := snapst.AutoAliasesDisabled
+	oldAliases := snapst.Aliases
+	newAliases, err := manualUnalias(oldAliases, alias)
+	if err != nil {
+		return err
+	}
+
+	if !snapst.AliasesPending {
+		if err := applyAliasesChange(st, snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend); err != nil {
+			return err
+		}
+	}
+
+	t.Set("old-aliases-v2", oldAliases)
 	snapst.Aliases = newAliases
 	Set(st, snapName, snapst)
 	return nil
