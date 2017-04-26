@@ -10,7 +10,7 @@ execute: |
     aliases.cmd2|MATCH "ok command 2"
 
     echo "Create manual aliases"
-    snap alias aliases.cmd1 alias1
+    snap alias aliases.cmd1 alias1|MATCH ".*- alias1 => aliases.cmd1.*"
     snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
@@ -24,7 +24,7 @@ execute: |
     snap aliases|MATCH "aliases.cmd2 +alias2 +manual"
 
     echo "Disable one manual alias"
-    snap unalias alias2
+    snap unalias alias2|MATCH ".*- alias2 => aliases.cmd2.*"
 
     echo "One still works, one is not there"
     alias1|MATCH "ok command 1"
@@ -36,7 +36,7 @@ execute: |
     ! snap aliases|MATCH "aliases.cmd2 +alias2"
 
     echo "Disable all aliases"
-    snap unalias aliases
+    snap unalias aliases|MATCH ".*- alias1 => aliases.cmd1.*"
 
     echo "Alias is gone"
     test ! -e /snap/bin/alias1
