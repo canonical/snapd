@@ -542,3 +542,85 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 
 	return newAliases, nil
 }
+
+// DisableAllAliases disables all aliases of a snap, removing all manual ones.
+func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", snapName)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+		return nil, err
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapName},
+	}
+
+	disableAll := st.NewTask("disable-aliases", fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapName))
+	disableAll.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(disableAll), nil
+}
+
+// RemoveManualAlias removes a manual alias.
+func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapName string, err error) {
+	snapName, err = findSnapOfManualAlias(st, alias)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+		return nil, "", err
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapName},
+	}
+
+	unalias := st.NewTask("unalias", fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), alias, snapName))
+	unalias.Set("alias", alias)
+	unalias.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(unalias), snapName, nil
+}
+
+func findSnapOfManualAlias(st *state.State, alias string) (snapName string, err error) {
+	snapStates, err := All(st)
+	if err != nil {
+		return "", err
+	}
+	for snapName, snapst := range snapStates {
+		target := snapst.Aliases[alias]
+		if target != nil && target.Manual != "" {
+			return snapName, nil
+		}
+	}
+	return "", fmt.Errorf("cannot find manual alias %q in any snap", alias)
+}
+
+// manualUnalias returns newAliases with the manual alias removed from
+// curAliases.
+func manualUnalias(curAliases map[string]*AliasTarget, alias string) (newAliases map[string]*AliasTarget, err error) {
+	newTarget := curAliases[alias]
+	if newTarget == nil {
+		return nil, fmt.Errorf("no alias %q", alias)
+	}
+	newAliases = make(map[string]*AliasTarget, len(curAliases))
+	for alias, aliasTarget := range curAliases {
+		newAliases[alias] = aliasTarget
+	}
+
+	if newTarget.Auto == "" {
+		delete(newAliases, alias)
+	} else {
+		newAliases[alias] = &AliasTarget{Auto: newTarget.Auto}
+	}
+
+	return newAliases, nil
+}
