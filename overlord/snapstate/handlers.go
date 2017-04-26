@@ -1283,16 +1283,24 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	curAliases := snapst.Aliases
-	conflicts, err := checkAliasesConflicts(st, snapName, false, curAliases, nil)
-	if err != nil && conflicts == nil {
+	aliasConflicts, err := checkAliasesConflicts(st, snapName, false, curAliases, nil)
+	conflErr, isConflErr := err.(*AliasConflictError)
+	if err != nil && !isConflErr {
 		return err
 	}
+	if isConflErr && conflErr.Conflicts == nil {
+		// it's a snap command namespace conflict, we cannot remedy it
+		return conflErr
+	}
+	// proceed to disable conflicting aliases as needed
+	// before re-enabling snapName aliases
+
 	var otherSnapStates map[string]*SnapState
 	var otherSnapDisabled map[string]*otherDisabledAliases
-	if conflicts != nil {
-		otherSnapStates = make(map[string]*SnapState, len(conflicts))
-		otherSnapDisabled = make(map[string]*otherDisabledAliases, len(conflicts))
-		for otherSnap := range conflicts {
+	if aliasConflicts != nil {
+		otherSnapStates = make(map[string]*SnapState, len(aliasConflicts))
+		otherSnapDisabled = make(map[string]*otherDisabledAliases, len(aliasConflicts))
+		for otherSnap := range aliasConflicts {
 			var otherSnapSt SnapState
 			err := Get(st, otherSnap, &otherSnapSt)
 			if err != nil {
