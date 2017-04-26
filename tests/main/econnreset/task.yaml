@@ -7,9 +7,10 @@ execute: |
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download core 2>snap-download.log" test &
     echo "Wait until it actually got some data for the snap"
     while ! grep -q "Retrying.*download-snap/.*\.snap, attempt 1" snap-download.log; do
-        sleep 1
+        sleep 0.2
     done
     echo "Force sending a RST packages"
+    sleep 1
     iptables -I OUTPUT -m owner --uid-owner $(id -u test) -j REJECT -p tcp --reject-with tcp-reset
     echo "Check that we retried"
     for i in $(seq 10); do
