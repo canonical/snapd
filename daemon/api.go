@@ -1060,9 +1060,10 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsMode:
-		result.Kind = errorKindSnapNeedsMode
-		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsDevMode:
+		result.Kind = errorKindSnapNeedsDevMode
+	case *snapstate.ErrSnapNeedsClassic:
+		result.Kind = errorKindSnapNeedsClassic
 	case *snapstate.ErrSnapNeedsClassicSystem:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
