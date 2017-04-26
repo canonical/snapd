@@ -4359,20 +4359,6 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	c.Check(time.Now().Year(), Equals, lastRefresh.Year())
 }
 
-func (s *snapmgrTestSuite) waitForLastRefresh(c *C) {
-	var lastRefresh time.Time
-	for i := 0; i < 100; i++ {
-		s.state.Lock()
-		s.state.Get("last-refresh", &lastRefresh)
-		s.state.Unlock()
-		if lastRefresh.Add(1 * time.Hour).After(time.Now()) {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	c.Fatalf("waitForLastRefresh failed")
-}
-
 func makeTestRefreshConfig(st *state.State) {
 	now := time.Now()
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
@@ -4401,7 +4387,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	s.waitForLastRefresh(c)
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: "mon@12:00-14:00" uses weekdays which is currently not supported`)
@@ -4417,8 +4402,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	s.waitForLastRefresh(c)
 	s.state.Lock()
 
 	// nothing needs to be done, but last-refresh got updated
@@ -4476,13 +4459,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	canAutoRefreshCalled = false
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	for i := 0; i < 100; i++ {
-		if canAutoRefreshCalled {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 	s.state.Lock()
 	c.Check(s.snapmgr.NextRefresh(), Equals, nextRefresh)
 }
@@ -4507,7 +4483,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	// update for the "some-snap" in our fake store
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// verify we have an auto-refresh change scheduled now
@@ -4538,8 +4513,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	// update for the "some-snap" in our fake store
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
@@ -4582,8 +4555,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// verify no additional change got generated
@@ -4610,7 +4581,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	// got called once
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
@@ -4619,7 +4589,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	// again because to test that lastRefreshAttempt backoff is working
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
