@@ -357,7 +357,7 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
+func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 	for _, s := range rs {
 		if s.Weekday != "" {
 			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
@@ -376,10 +376,10 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err == nil {
-		err = refreshScheduleUsesWeekdays(refreshSchedule)
+		err = refreshScheduleNoWeekdays(refreshSchedule)
 	}
 	if err != nil {
-		logger.Noticef("cannot use refresh.schedule: %s", err)
+		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
 		if err != nil {
 			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
@@ -392,7 +392,7 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 	if !m.nextRefresh.IsZero() {
 		if m.currentRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
-			logger.Debugf("Option refresh-schedule changed, reloading.")
+			logger.Debugf("Option refresh.schedule changed.")
 			m.nextRefresh = time.Time{}
 		}
 	}
@@ -401,15 +401,15 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 	return refreshSchedule, nil
 }
 
-func (m *SnapManager) doAutoRefresh() error {
+func (m *SnapManager) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
-		logger.Noticef("AutoRefresh failed with: %s", err)
+		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
 
-	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// Set last refresh time only if the store (in AutoRefresh) gave
 	// us no error.
 	m.state.Set("last-refresh", time.Now())
 
@@ -436,7 +436,6 @@ func (m *SnapManager) doAutoRefresh() error {
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
-	m.state.EnsureBefore(0)
 	return nil
 }
 
@@ -494,14 +493,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// Check that we have reasonable delays between unsuccessful attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
-		return nil
-	}
-
-	// compute next refresh attempt (if needed)
+	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
 		delta := timeutil.Next(refreshSchedule, lastRefresh)
@@ -509,10 +501,22 @@ func (m *SnapManager) ensureRefreshes() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
 
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
+		return nil
+	}
+
 	// do refresh attempt (if needed)
 	if m.nextRefresh.Before(time.Now()) {
-		err = m.doAutoRefresh()
-		m.nextRefresh = time.Time{}
+		err = m.launchAutoRefresh()
+		// clear nextRefresh only if the refresh worked. There is
+		// still the lastRefreshAttempt rate limit so things will
+		// not go into a busy store loop
+		if err == nil {
+			m.nextRefresh = time.Time{}
+		}
 	}
 
 	return err
