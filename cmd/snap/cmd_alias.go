@@ -83,7 +83,7 @@ func (x *cmdAlias) Execute(args []string) error {
 type changedAlias struct {
 	Snap  string `json:"snap"`
 	App   string `json:"app"`
-	Alias string `json"alias"`
+	Alias string `json:"alias"`
 }
 
 func showAliasChanges(chg *client.Change) error {

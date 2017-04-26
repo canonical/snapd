@@ -1035,7 +1035,7 @@ func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 type changedAlias struct {
 	Snap  string `json:"snap"`
 	App   string `json:"app"`
-	Alias string `json"alias"`
+	Alias string `json:"alias"`
 }
 
 func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
