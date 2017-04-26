@@ -34,7 +34,7 @@ type MockHandler struct {
 	ErrorError  bool
 	Err         error
 
-	Executed        int32
+	Executing       int32
 	TotalExecutions int32
 }
 
@@ -45,9 +45,9 @@ func NewMockHandler() *MockHandler {
 
 // Before satisfies hookstate.Handler.Before
 func (h *MockHandler) Before() error {
-	executed := atomic.AddInt32(&h.Executed, 1)
-	if executed != 1 {
-		panic(fmt.Sprintf("More than one handler executed: %d", executed))
+	executing := atomic.AddInt32(&h.Executing, 1)
+	if executing != 1 {
+		panic(fmt.Sprintf("More than one handler executed: %d", executing))
 	}
 	h.BeforeCalled = true
 	if h.BeforeError {
@@ -58,9 +58,9 @@ func (h *MockHandler) Before() error {
 
 // Done satisfies hookstate.Handler.Done
 func (h *MockHandler) Done() error {
-	executed := atomic.AddInt32(&h.Executed, -1)
-	if executed != 0 {
-		panic(fmt.Sprintf("More than one handler executed: %d", executed))
+	executing := atomic.AddInt32(&h.Executing, -1)
+	if executing != 0 {
+		panic(fmt.Sprintf("More than one handler executed: %d", executing))
 	}
 	atomic.AddInt32(&h.TotalExecutions, 1)
 	h.DoneCalled = true

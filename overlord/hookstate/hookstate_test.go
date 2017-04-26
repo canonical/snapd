@@ -690,5 +690,5 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 		c.Check(tasks[i].Status(), Equals, state.DoneStatus)
 	}
 	c.Assert(atomic.LoadInt32(&s.mockHandler.TotalExecutions), Equals, int32(1+len(tasks)))
-	c.Assert(atomic.LoadInt32(&s.mockHandler.Executed), Equals, int32(0))
+	c.Assert(atomic.LoadInt32(&s.mockHandler.Executing), Equals, int32(0))
 }
