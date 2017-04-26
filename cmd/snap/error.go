@@ -47,7 +47,7 @@ func termSize() (width, height int) {
 	}
 
 	if height <= 0 {
-		height = int(osutil.GetenvInt64("COLUMNS"))
+		height = int(osutil.GetenvInt64("LINES"))
 	}
 
 	if width < 40 {
@@ -68,6 +68,10 @@ func fill(para string) string {
 		width = 100
 	}
 
+	// some terminals aren't happy about writing in the last
+	// column (they'll add line for you). We could check terminfo
+	// for "sam" (semi_auto_right_margin), but that's a lot of
+	// work just for this.
 	width--
 
 	// 3 is the %v\n, which will be present in any locale
@@ -79,7 +83,11 @@ func fill(para string) string {
 }
 
 func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {
+	// FIXME: using err.Message in user-facing messaging is not
+	// l10n-friendly, and probably means we're missing ad-hoc messaging.
+
 	isError := true
+	usesSnapName := true
 	var msg string
 	switch err.Kind {
 	case client.ErrorKindSnapAlreadyInstalled:
@@ -105,20 +113,28 @@ usually confined to, which may put your system at risk.
 If you understand and want to proceed repeat the command including --classic.
 `)
 	case client.ErrorKindLoginRequired:
+		usesSnapName = false
 		u, _ := user.Current()
 		if u != nil && u.Username == "root" {
+			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (see "snap login --help")`), err.Message)
 		} else {
+			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
-		return "", errors.New(fill(msg))
 	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
-		return fill(err.Message), nil
+		isError = false
+		usesSnapName = false
+		msg = err.Message
 	default:
-		return "", errors.New(fill(err.Message))
+		usesSnapName = false
+		msg = err.Message
 	}
 
-	msg = fill(fmt.Sprintf(msg, snapName))
+	if usesSnapName {
+		msg = fmt.Sprintf(msg, snapName)
+	}
+	msg = fill(msg)
 	if isError {
 		return "", errors.New(msg)
 	}
