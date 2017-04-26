@@ -564,7 +564,7 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 							Label:     "Ability to be a network service",
 						},
 						{
-							Snap:      "potato",
+							Snap:      "core",
 							Name:      "frying",
 							Interface: "frying",
 							Label:     "Ability to fry a network service",
@@ -597,7 +597,7 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 		c.Assert(obtained, DeepEquals, expected)
 	}
 
-	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "potato:"}, {Item: "wake-up-alarm:"}}
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "wake-up-alarm:"}}
 	_, err := parser.ParseArgs([]string{"interfaces", ""})
 	c.Assert(err, IsNil)
 
@@ -607,6 +607,10 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 
 	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
 	_, err = parser.ParseArgs([]string{"interfaces", "wa"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: ":frying", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"interfaces", ":"})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.Stdout(), Equals, "")
