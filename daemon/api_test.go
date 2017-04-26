@@ -86,6 +86,9 @@ type apiBaseSuite struct {
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
+	if !spec.AnyChannel {
+		return nil, fmt.Errorf("api is expected to set AnyChannel")
+	}
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -5043,8 +5046,9 @@ func (s *apiSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	defer d.overlord.Stop()
 
 	action := &aliasAction{
-		Action:      "unalias",
-		AliasOrSnap: "alias-snap",
+		Action: "unalias",
+		Snap:   "alias-snap",
+		Alias:  "alias-snap",
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -5212,8 +5216,9 @@ func (s *apiSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 
 	// DWIM unalias an alias
 	action = &aliasAction{
-		Action:      "unalias",
-		AliasOrSnap: "alias1",
+		Action: "unalias",
+		Snap:   "alias1",
+		Alias:  "alias1",
 	}
 	text, err = json.Marshal(action)
 	c.Assert(err, check.IsNil)
