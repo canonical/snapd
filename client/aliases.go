@@ -25,13 +25,13 @@ import (
 )
 
 // aliasAction represents an action performed on aliases.
+// With action "unalias" if Snap and Alias are set to the same value,
+// snapd will check if what is referred to is indeed a snap or an alias.
 type aliasAction struct {
 	Action string `json:"action"`
 	Snap   string `json:"snap,omitempty"`
 	App    string `json:"app,omitempty"`
 	Alias  string `json:"alias,omitempty"`
-	// AliasOrSnap is used to trigger Do-What-I-Mean unalias action logic
-	AliasOrSnap string `json:"alias-or-snap,omitempty"`
 }
 
 // performAliasAction performs a single action on aliases.
@@ -72,8 +72,9 @@ func (client *Client) RemoveManualAlias(alias string) (changeID string, err erro
 // Unalias tears down a manual alias or disables all aliases of a snap (removing all manual ones)
 func (client *Client) Unalias(aliasOrSnap string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
-		Action:      "unalias",
-		AliasOrSnap: aliasOrSnap,
+		Action: "unalias",
+		Snap:   aliasOrSnap,
+		Alias:  aliasOrSnap,
 	})
 }
 
