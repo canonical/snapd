@@ -88,20 +88,11 @@ func (at *AliasTarget) Effective(autoDisabled bool) string {
 
 */
 
-// TODO: helper from snap
-func composeTarget(snapName, targetApp string) string {
-	if targetApp == snapName {
-		return targetApp
-	}
-	return fmt.Sprintf("%s.%s", snapName, targetApp)
-}
-
 // applyAliasesChange applies the necessary changes to aliases on disk
 // to go from prevAliases consindering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
 // snapName. It assumes that conflicts have already been checked.
-func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend) error {
-	var add, remove []*backend.Alias
+func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
 	for alias, prevTargets := range prevAliases {
 		if _, ok := newAliases[alias]; ok {
 			continue
@@ -110,7 +101,7 @@ func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool,
 		if effTgt := prevTargets.Effective(prevAutoDisabled); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, effTgt),
+				Target: snap.JoinSnapApp(snapName, effTgt),
 			})
 		}
 	}
@@ -124,21 +115,22 @@ func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool,
 		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevTgt),
+				Target: snap.JoinSnapApp(snapName, prevTgt),
 			})
 		}
 		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, newTgt),
+				Target: snap.JoinSnapApp(snapName, newTgt),
 			})
 		}
 	}
-	err := be.UpdateAliases(add, remove)
-	if err != nil {
-		return err
+	if !dryRun {
+		if err := be.UpdateAliases(add, remove); err != nil {
+			return nil, nil, err
+		}
 	}
-	return nil
+	return add, remove, nil
 }
 
 // AutoAliases allows to hook support for retrieving the automatic aliases of a snap.
@@ -475,7 +467,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	for snapName, snapst := range withAliases {
 		if !snapst.AliasesPending {
-			err := applyAliasesChange(m.state, snapName, true, nil, false, snapst.Aliases, m.backend)
+			_, _, err := applyAliasesChange(snapName, true, nil, false, snapst.Aliases, m.backend, false)
 			if err != nil {
 				// try to clean up and disable
 				logger.Noticef("cannot create automatic aliases for %q: %v", snapName, err)
