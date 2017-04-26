@@ -1,30 +1,17 @@
 summary: Check snap alias and snap unalias
 
 prepare: |
-    echo "New semantics are WIP, skipping for now"
-    exit 0
-
     . $TESTSLIB/snaps.sh
     install_local aliases
 
 execute: |
-    echo "New semantics are WIP, skipping for now"
-    exit 0
-
     echo "Sanity check"
     aliases.cmd1|MATCH "ok command 1"
     aliases.cmd2|MATCH "ok command 2"
 
-    echo "Default statuses"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +-"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +-"
-
-    echo "Enable aliases"
-    snap alias aliases alias1 alias2
-
-    echo "Enabled statuses"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
+    echo "Create manual aliases"
+    snap alias aliases.cmd1 alias1|MATCH ".*- alias1 => aliases.cmd1.*"
+    snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
     test -h /snap/bin/alias1
@@ -32,46 +19,24 @@ execute: |
     alias1|MATCH "ok command 1"
     alias2|MATCH "ok command 2"
 
-    echo "Disable an alias explicitly"
-    snap unalias aliases alias2
-
-    echo "One disabled status"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +disabled"
+    echo "Disable one manual alias"
+    snap unalias alias2|MATCH ".*- alias2 => aliases.cmd2.*"
 
     echo "One still works, one is not there"
     alias1|MATCH "ok command 1"
     test ! -e /snap/bin/alias2
     alias2 2>&1|MATCH "alias2: command not found"
 
-    echo "Re-enabling it works"
-    snap alias aliases alias2
-    test -h /snap/bin/alias2
-    alias2|MATCH "ok command 2"
-
-    echo "Both enabled again"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
-
-    echo "Reset the aliases to their automatic states (disabled)"
-    snap alias --reset aliases alias1
-
-    echo "One default again"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +-"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
+    echo "Disable all aliases"
+    snap unalias aliases|MATCH ".*- alias1 => aliases.cmd1.*"
 
     echo "Alias is gone"
     test ! -e /snap/bin/alias1
     alias1 2>&1|MATCH "alias1: command not found"
 
-    echo "Re-enabling them works"
-    snap alias aliases alias1 alias2
+    echo "Recreate one"
+    snap alias aliases.cmd1 alias1
     alias1|MATCH "ok command 1"
-    alias2|MATCH "ok command 2"
-
-    echo "Both enabled again"
-    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
-    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
 
     echo "Removing the snap should remove the aliases"
     snap remove aliases

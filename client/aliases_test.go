@@ -56,7 +56,7 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientUnaliasCallsEndpoint(c *check.C) {
-	cs.cli.Unalias("alias-snap", []string{"alias1", "alias2"})
+	cs.cli.Unalias("alias1")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
 }
@@ -68,7 +68,7 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.Unalias("alias-snap", []string{"alias1", "alias2"})
+	id, err := cs.cli.Unalias("alias1")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
@@ -76,9 +76,61 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action":  "unalias",
-		"snap":    "alias-snap",
-		"aliases": []interface{}{"alias1", "alias2"},
+		"action": "unalias",
+		"snap":   "alias1",
+		"alias":  "alias1",
+	})
+}
+
+func (cs *clientSuite) TestClientDisableAllAliasesCallsEndpoint(c *check.C) {
+	cs.cli.DisableAllAliases("some-snap")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientDisableAllAliases(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.DisableAllAliases("some-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "unalias",
+		"snap":   "some-snap",
+	})
+}
+
+func (cs *clientSuite) TestClientRemoveManualAliasCallsEndpoint(c *check.C) {
+	cs.cli.RemoveManualAlias("alias1")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.RemoveManualAlias("alias1")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "unalias",
+		"alias":  "alias1",
 	})
 }
 

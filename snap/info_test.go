@@ -346,6 +346,22 @@ func (s *infoSuite) TestSplitSnapApp(c *C) {
 	}
 }
 
+func (s *infoSuite) TestJoinSnapApp(c *C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		// normal cases
+		{[]string{"foo", "bar"}, "foo.bar"},
+		{[]string{"foo", "bar-baz"}, "foo.bar-baz"},
+		// special case, snapName == appName
+		{[]string{"foo", "foo"}, "foo"},
+	} {
+		snapApp := snap.JoinSnapApp(t.in[0], t.in[1])
+		c.Check(snapApp, Equals, t.out)
+	}
+}
+
 func ExampleSpltiSnapApp() {
 	fmt.Println(snap.SplitSnapApp("hello-world.env"))
 	// Output: hello-world env
