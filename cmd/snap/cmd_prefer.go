@@ -31,7 +31,7 @@ type cmdPrefer struct {
 	} `positional-args:"true"`
 }
 
-var shortPreferHelp = i18n.G("Prefer a manual alias or an entire snap")
+var shortPreferHelp = i18n.G("Prefer aliases from a snap and disable conflicts")
 var longPreferHelp = i18n.G(`
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
