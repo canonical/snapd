@@ -229,6 +229,13 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
 }
 
+func formatRefreshTime(t time.Time) string {
+	if t.IsZero() {
+		return "n/a"
+	}
+	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+}
+
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
@@ -255,8 +262,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh": map[string]interface{}{
 			"schedule": refreshScheduleStr,
-			"last":     fmt.Sprintf("%s", lastRefresh.Truncate(time.Minute)),
-			"next":     fmt.Sprintf("%s", nextRefresh.Truncate(time.Minute)),
+			"last":     formatRefreshTime(lastRefresh),
+			"next":     formatRefreshTime(nextRefresh),
 		},
 	}
 

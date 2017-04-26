@@ -578,8 +578,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"refresh": map[string]interface{}{
 			"schedule": "",
-			"last":     "0001-01-01T00:00:00Z",
-			"next":     "0001-01-01T00:00:00Z",
+			"last":     "n/a",
+			"next":     "n/a",
 		},
 	}
 	var rsp resp
