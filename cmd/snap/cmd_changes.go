@@ -61,7 +61,7 @@ func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
 	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
 	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, map[string]string{
-		"last": "Show last change of given type (install, refresh, remove etc.)",
+		"last": "Show last change of given type (install, refresh, remove, try, auto-refresh etc.)",
 	}, nil)
 }
 
@@ -135,7 +135,7 @@ func (c *cmdTasks) Execute([]string) error {
 	if c.LastChangeType != "" {
 		kind := c.LastChangeType
 		// our internal change types use "-snap" postfix but let user skip it and use short form.
-		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" {
+		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
 			kind += "-snap"
 		}
 		opts := client.ChangesOptions{
