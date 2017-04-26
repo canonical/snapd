@@ -1056,7 +1056,8 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		otherCurSnapStates[otherSnap] = &otherSnapState
 
 		autoDisabled := otherSnapState.AutoAliasesDisabled
-		if otherDisabled.Disabled {
+		if otherDisabled.Auto {
+			// automatic aliases of other were disabled, undo that
 			autoDisabled = false
 		}
 		otherAliases := reenableAliases(otherCurInfo, otherSnapState.Aliases, otherDisabled.Manual)
@@ -1291,9 +1292,14 @@ func (m *SnapManager) doUnaliasV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// otherDisabledAliases is used to track for the benefit of undo what
+// changes were made aka what aliases were disabled of another
+// conflicting snap by prefer logic
 type otherDisabledAliases struct {
-	Disabled bool              `json:"disabled,omitempty"`
-	Manual   map[string]string `json:"manual,omitempty"`
+	// Auto records whether prefer had to disable automatic aliases
+	Auto bool `json:"auto,omitempty"`
+	// Manual records which manual aliases were removed by prefer
+	Manual map[string]string `json:"manual,omitempty"`
 }
 
 func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
@@ -1346,9 +1352,10 @@ func (m *SnapManager) doPreferAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		var otherDisabled otherDisabledAliases
 		otherDisabled.Manual = disabledManual
 		otherSnapState.Aliases = otherAliases
-		// disable as needed
+		// disable automatic aliases as needed
 		if !otherSnapState.AutoAliasesDisabled && len(otherAliases) != 0 {
-			otherDisabled.Disabled = true
+			// record that we did disable automatic aliases
+			otherDisabled.Auto = true
 			otherSnapState.AutoAliasesDisabled = true
 		}
 		otherSnapDisabled[otherSnap] = &otherDisabled
