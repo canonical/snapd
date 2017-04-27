@@ -98,7 +98,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -135,7 +135,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -172,7 +172,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -225,7 +225,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -261,7 +261,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -297,7 +297,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// Create both revisions 41 and 42
 	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
@@ -405,7 +405,7 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(false)()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -463,7 +463,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(true)()
+	defer mockSnapConfine(dirs.CoreLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -507,7 +507,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	// below /tmp which the Xauthority migration expects.
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	u, err := user.Current()
 	c.Assert(err, check.IsNil)
