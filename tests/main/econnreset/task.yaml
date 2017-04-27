@@ -10,7 +10,7 @@ execute: |
         sleep 0.2
     done
     echo "Force sending a RST packages"
-    sleep 1
+    sleep 2
     iptables -I OUTPUT -m owner --uid-owner $(id -u test) -j REJECT -p tcp --reject-with tcp-reset
     echo "Check that we retried"
     for i in $(seq 10); do
