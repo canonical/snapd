@@ -134,6 +134,32 @@ func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientPreferCallsEndpoint(c *check.C) {
+	cs.cli.Prefer("some-snap")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientPrefer(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.Prefer("some-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "prefer",
+		"snap":   "some-snap",
+	})
+}
+
 func (cs *clientSuite) TestClientAliasesCallsEndpoint(c *check.C) {
 	_, _ = cs.cli.Aliases()
 	c.Check(cs.req.Method, check.Equals, "GET")
