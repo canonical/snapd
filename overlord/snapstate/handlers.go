@@ -940,7 +940,7 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	snapName := snapsup.Name()
 	curAliases := snapst.Aliases
 
-	_, _, err = applyAliasesChange(snapName, true, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, false)
+	_, _, err = applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply)
 	if err != nil {
 		return err
 	}
@@ -976,7 +976,7 @@ func (m *SnapManager) doRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if !snapst.AliasesPending {
-		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, false); err != nil {
+		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
 			return err
 		}
 	}
@@ -1029,7 +1029,7 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 
 	if !snapst.AliasesPending {
 		curAliases := snapst.Aliases
-		if _, _, err := applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend, false); err != nil {
+		if _, _, err := applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend, doApply); err != nil {
 			return err
 		}
 	}
@@ -1087,7 +1087,7 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 		}
 		newSnapSt := newSnapStates[otherSnap]
 		if !otherSnapState.AliasesPending {
-			if _, _, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, false); err != nil {
+			if _, _, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, doApply); err != nil {
 				return err
 			}
 		}
@@ -1123,7 +1123,7 @@ func (m *SnapManager) doPruneAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	newAliases := pruneAutoAliases(curAliases, which)
 
 	if !snapst.AliasesPending {
-		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, false); err != nil {
+		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
 			return err
 		}
 	}
@@ -1240,7 +1240,7 @@ func (m *SnapManager) doDisableAliases(t *state.Task, _ *tomb.Tomb) error {
 	oldAliases := snapst.Aliases
 	newAliases, _ := disableAliases(oldAliases)
 
-	added, removed, err := applyAliasesChange(snapName, oldAutoDisabled, oldAliases, true, newAliases, m.backend, snapst.AliasesPending)
+	added, removed, err := applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDis, newAliases, m.backend, snapst.AliasesPending)
 	if err != nil {
 		return err
 	}
@@ -1318,7 +1318,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	curAliases := snapst.Aliases
-	aliasConflicts, err := checkAliasesConflicts(st, snapName, false, curAliases, nil)
+	aliasConflicts, err := checkAliasesConflicts(st, snapName, autoEn, curAliases, nil)
 	conflErr, isConflErr := err.(*AliasConflictError)
 	if err != nil && !isConflErr {
 		return err
@@ -1341,7 +1341,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 
 		otherAliases, disabledManual := disableAliases(otherSnapState.Aliases)
 
-		added, removed, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, true, otherAliases, m.backend, otherSnapState.AliasesPending)
+		added, removed, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, autoDis, otherAliases, m.backend, otherSnapState.AliasesPending)
 		if err != nil {
 			return err
 		}
@@ -1362,7 +1362,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 		otherSnapStates[otherSnap] = &otherSnapState
 	}
 
-	added, removed, err := applyAliasesChange(snapName, true, curAliases, false, curAliases, m.backend, snapst.AliasesPending)
+	added, removed, err := applyAliasesChange(snapName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending)
 	if err != nil {
 		return err
 	}
