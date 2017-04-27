@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"golang.org/x/net/context"
 
@@ -322,20 +323,15 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "core" {
 		info.Type = snap.TypeOS
 	}
-	if name == "alias-snap" {
+	if strings.Contains(name, "alias-snap") {
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
   cmd1:
-    aliases: [alias1, alias1.cmd1]
   cmd2:
-    aliases: [alias2]
   cmd3:
-    aliases: [alias3]
   cmd4:
-    aliases: [alias4]
   cmd5:
-    aliases: [alias5]
 `))
 		if err != nil {
 			panic(err)
