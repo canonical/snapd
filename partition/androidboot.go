@@ -20,15 +20,15 @@
 package partition
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition/androidbootenv"
 )
 
-type androidboot struct {
-	BootVars map[string]string
-}
+type androidboot struct{}
 
 // newAndroidboot creates a new Androidboot bootloader object
 func newAndroidboot() Bootloader {
@@ -52,12 +52,27 @@ func (a *androidboot) ConfigFile() string {
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
-	return a.BootVars, nil
+	out := make(map[string]string)
+
+	env := androidbootenv.NewEnv(a.ConfigFile())
+	if err := env.Load(); err != nil {
+		return nil, err
+	}
+
+	for _, name := range names {
+		out[name] = env.Get(name)
+	}
+
+	return out, nil
 }
 
 func (a *androidboot) SetBootVars(values map[string]string) error {
-	for key, value := range values {
-		a.BootVars[key] = value
+	env := androidbootenv.NewEnv(a.ConfigFile())
+	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	return nil
+	for k, v := range values {
+		env.Set(k, v)
+	}
+	return env.Save()
 }
