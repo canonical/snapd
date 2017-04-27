@@ -1,5 +1,7 @@
 summary: Ensure that the kernel-module-control interface works.
 
+systems: [-debian-*]
+
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
