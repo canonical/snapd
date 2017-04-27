@@ -88,6 +88,14 @@ func (at *AliasTarget) Effective(autoDisabled bool) string {
 
 */
 
+// autoDisabled options and doApply
+const (
+	autoDis = true
+	autoEn  = false
+
+	doApply = false
+)
+
 // applyAliasesChange applies the necessary changes to aliases on disk
 // to go from prevAliases consindering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
@@ -505,7 +513,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	for snapName, snapst := range withAliases {
 		if !snapst.AliasesPending {
-			_, _, err := applyAliasesChange(snapName, true, nil, false, snapst.Aliases, m.backend, false)
+			_, _, err := applyAliasesChange(snapName, autoDis, nil, autoEn, snapst.Aliases, m.backend, doApply)
 			if err != nil {
 				// try to clean up and disable
 				logger.Noticef("cannot create automatic aliases for %q: %v", snapName, err)
