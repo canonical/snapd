@@ -34,6 +34,7 @@
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -177,27 +178,36 @@ static void sc_setup_mount_profiles(const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 
-	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	const char *mount_profile_dir = "/var/lib/snapd/mount";
-
+	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	char profile_path[PATH_MAX];
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/snap.%s.fstab",
-			 mount_profile_dir, snap_name);
 
-	debug("opening mount profile %s", profile_path);
-	f = setmntent(profile_path, "r");
-	// it is ok for the file to not exist
-	if (f == NULL && errno == ENOENT) {
-		debug("mount profile %s doesn't exist, ignoring", profile_path);
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/run/snapd/ns/snap.%s.fstab", snap_name);
+	debug("opening current mount profile %s", profile_path);
+	current = setmntent(profile_path, "w");
+	if (current == NULL) {
+		die("cannot open current mount profile: %s", profile_path);
+	}
+
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/var/lib/snapd/mount/snap.%s.fstab", snap_name);
+	debug("opening desired mount profile %s", profile_path);
+	desired = setmntent(profile_path, "r");
+	if (desired == NULL && errno == ENOENT) {
+		// It is ok for the desired profile to not exist. Note that in this
+		// case we also "update" the current profile as we already opened and
+		// truncated it above.
+		debug("desired mount profile %s doesn't exist, ignoring",
+		      profile_path);
 		return;
 	}
-	// however any other error is a real error
-	if (f == NULL) {
-		die("cannot open %s", profile_path);
+	if (desired == NULL) {
+		die("cannot open desired mount profile: %s", profile_path);
 	}
 
 	struct mntent *m = NULL;
-	while ((m = getmntent(f)) != NULL) {
+	while ((m = getmntent(desired)) != NULL) {
 		debug("read mount entry\n"
 		      "\tmnt_fsname: %s\n"
 		      "\tmnt_dir: %s\n"
@@ -219,6 +229,9 @@ static void sc_setup_mount_profiles(const char *snap_name)
 			flags &= ~MS_RDONLY;
 		}
 		sc_do_mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL);
+		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
+			die("cannot append entry to the current mount profile");
+		}
 	}
 }
 
@@ -591,5 +604,39 @@ void sc_populate_mount_ns(const char *snap_name)
 			die("cannot change directory to %s", SC_VOID_DIR);
 		}
 		debug("successfully moved to %s", SC_VOID_DIR);
+	}
+}
+
+static bool is_mounted_with_shared_option(const char *dir)
+    __attribute__ ((nonnull(1)));
+
+static bool is_mounted_with_shared_option(const char *dir)
+{
+	struct sc_mountinfo *sm
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	sm = sc_parse_mountinfo(NULL);
+	if (sm == NULL) {
+		die("cannot parse /proc/self/mountinfo");
+	}
+	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
+	while (entry != NULL) {
+		const char *mount_dir = entry->mount_dir;
+		if (sc_streq(mount_dir, dir)) {
+			const char *optional_fields = entry->optional_fields;
+			if (strstr(optional_fields, "shared:") != NULL) {
+				return true;
+			}
+		}
+		entry = sc_next_mountinfo_entry(entry);
+	}
+	return false;
+}
+
+void sc_ensure_shared_snap_mount()
+{
+	if (!is_mounted_with_shared_option("/")
+	    && !is_mounted_with_shared_option("/snap")) {
+		sc_do_mount("/snap", "/snap", "none", MS_BIND | MS_REC, 0);
+		sc_do_mount("none", "/snap", NULL, MS_SHARED | MS_REC, NULL);
 	}
 }

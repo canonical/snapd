@@ -1,5 +1,9 @@
 summary: Ensure that the process-control interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 summary: |
     The process-control interface allows a snap to control other processes via signals
     and nice.
