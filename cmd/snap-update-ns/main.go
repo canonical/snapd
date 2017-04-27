@@ -76,10 +76,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
 	}
+	defer lock.Close()
 	if err := lock.Lock(); err != nil {
 		return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
 	}
-	defer lock.Close()
 
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
