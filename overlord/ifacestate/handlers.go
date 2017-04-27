@@ -444,8 +444,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	affectedConns := []interfaces.ConnRef{{PlugRef: plugRef, SlotRef: slotRef}}
-	m.repo.DisconnectAll(affectedConns)
+	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
+	}
 	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
@@ -461,9 +463,9 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	}
-	for _, conn := range affectedConns {
-		delete(conns, conn.ID())
-	}
+
+	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	delete(conns, conn.ID())
 
 	setConns(st, conns)
 	return nil
