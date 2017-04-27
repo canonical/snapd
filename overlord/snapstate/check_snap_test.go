@@ -502,7 +502,7 @@ confinement: classic
 
 	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
-	c.Assert(err, ErrorMatches, ".* requires classic or confinement override")
+	c.Assert(err, ErrorMatches, ".* requires classic confinement")
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorClassicOnCoreDisallowed(c *C) {

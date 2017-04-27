@@ -28,51 +28,48 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestAliasHelp(c *C) {
+func (s *SnapSuite) TestPreferHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] alias [<snap.app>] [<alias>]
+  snap.test [OPTIONS] prefer [<snap>]
 
-The alias command aliases the given snap application to the given alias.
-
-Once this manual alias is setup the respective application command can be
-invoked just using the alias.
+The prefer command enables all aliases of the given snap in preference
+to conflicting aliases of other snaps whose aliases will be disabled
+(removed for manual ones).
 
 Application Options:
-      --version         Print the version and exit
+      --version     Print the version and exit
 
 Help Options:
-  -h, --help            Show this help message
+  -h, --help        Show this help message
 `
-	rest, err := Parser().ParseArgs([]string{"alias", "--help"})
+	rest, err := Parser().ParseArgs([]string{"prefer", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestAlias(c *C) {
+func (s *SnapSuite) TestPrefer(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
 			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action": "alias",
-				"snap":   "alias-snap",
-				"app":    "cmd1",
-				"alias":  "alias1",
+				"action": "prefer",
+				"snap":   "some-snap",
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-added": [{"alias": "alias1", "snap": "alias-snap", "app": "cmd1"}]}}}`)
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-added": [{"alias": "alias1", "snap": "some-snap", "app": "cmd1"}]}}}`)
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"})
+	rest, err := Parser().ParseArgs([]string{"prefer", "some-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Added:\n"+
-		"  - alias1 => alias-snap.cmd1\n",
+		"  - alias1 => some-snap.cmd1\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }
