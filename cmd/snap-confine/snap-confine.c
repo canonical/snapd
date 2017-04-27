@@ -46,15 +46,6 @@ int main(int argc, char **argv)
 	struct sc_error *err = NULL;
 	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
-
-	if (sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE)) {
-		sc_error_free(err);
-		// Let's print our nice usage string and exit.
-		fprintf(stderr, "Usage: %s <security-tag> <executable>",
-			argv[0]);
-		return 1;
-	}
-	// We don't want to handle any other errors, just die if we see one.
 	sc_die_on_error(err);
 
 	// We've been asked to print the version string so let's just do that.

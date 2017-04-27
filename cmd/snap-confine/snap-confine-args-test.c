@@ -299,7 +299,9 @@ static void test_sc_nonfatal_parse_args__no_security_tag()
 
 	// Check the error that we've got
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"application or hook security tag was not provided");
+			"Usage: snap-confine <security-tag> <executable>\n"
+			"\napplication or hook security tag was not provided");
+
 	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
 }
 
@@ -320,7 +322,8 @@ static void test_sc_nonfatal_parse_args__no_executable()
 
 	// Check the error that we've got
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"executable name was not provided");
+			"Usage: snap-confine <security-tag> <executable>\n"
+			"\nexecutable name was not provided");
 	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
 }
 
@@ -341,7 +344,8 @@ static void test_sc_nonfatal_parse_args__unknown_option()
 
 	// Check the error that we've got
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"unrecognized command line option: --frozbonicator");
+			"Usage: snap-confine <security-tag> <executable>\n"
+			"\nunrecognized command line option: --frozbonicator");
 	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
 }
 
@@ -367,7 +371,8 @@ static void test_sc_nonfatal_parse_args__forwards_error()
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("unrecognized command line option: --frozbonicator\n");
+	    ("Usage: snap-confine <security-tag> <executable>\n"
+	     "\nunrecognized command line option: --frozbonicator\n");
 }
 
 static void __attribute__ ((constructor)) init()
