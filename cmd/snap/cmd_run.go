@@ -318,7 +318,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		if fout, err = os.Open(targetPath); err != nil {
 			return "", err
 		}
-		if osutil.FileStreamsEqual(fin, fout) {
+		if osutil.StreamsEqual(fin, fout) {
 			fout.Close()
 			return targetPath, nil
 		}

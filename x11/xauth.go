@@ -39,9 +39,9 @@ type xauth struct {
 }
 
 func readChunk(r io.Reader) ([]byte, error) {
-	// A chunk consists of a length encoded by two bytes and
-	// additional data which is the real value of the item
-	// we reading here from the file.
+	// A chunk consists of a length encoded by two bytes (so max 64K) 
+	// and additional data which is the real value of the item we're
+	// reading here from the file.
 
 	b := [2]byte{}
 	if _, err := io.ReadFull(r, b[:]); err != nil {

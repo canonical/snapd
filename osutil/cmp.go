@@ -58,12 +58,12 @@ func FilesAreEqual(a, b string) bool {
 		return false
 	}
 
-	return FileStreamsEqual(fa, fb)
+	return StreamsEqual(fa, fb)
 }
 
-// FileStreamsEqual compares two file streams and returns true if both
+// StreamsEqual compares two streams and returns true if both
 // have the same content.
-func FileStreamsEqual(a, b io.Reader) bool {
+func StreamsEqual(a, b io.Reader) bool {
 	bufa := make([]byte, bufsz)
 	bufb := make([]byte, bufsz)
 	for {
