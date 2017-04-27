@@ -107,6 +107,11 @@ if [ "$STATIC" = 1 ]; then
         go vet $pkg
     done
 
+    if which shellcheck 2>/dev/null; then
+        echo Checking shell scripts...
+        shellcheck -s bash data/completion/*.sh
+    fi
+
     echo Checking spelling errors
     go get -u github.com/client9/misspell/cmd/misspell
     for file in $(ls . | grep -v 'vendor\|po'); do

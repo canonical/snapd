@@ -3,8 +3,13 @@
 # etelpmoc is the backwards half of complete: it de-serialises the tab
 # completion request into the appropriate environs expected by the tab
 # completion tools, performs whatever action is wanted, and serialises the
-# result. It accomplishes this by a mixture of aliases and functions overriding
-# the builtin completion commands.
+# result. It accomplishes this by having functions override the builtin
+# completion commands.
+#
+# this always runs "inside", in the same environment you get when doing "snap
+# run --shell", and snap-exec is the one setting the first argument to the
+# completion script set in the snap. The rest of the arguments come through
+# from snap-run --command=complete <snap> <args...>
 
 _die() {
     echo "$*" >&2
@@ -19,6 +24,7 @@ if [[ "${#@}" -lt 8 ]]; then
     _die "USAGE: $0 <script> <COMP_TYPE> <COMP_KEY> <COMP_POINT> <COMP_CWORD> <COMP_WORDBREAKS> <COMP_LINE> cmd [args...]"
 fi
 
+# De-serialize the command line arguments and populate tab completion environment
 _compscript="$1"
 shift
 COMP_TYPE="$1"
@@ -46,15 +52,22 @@ if [[ ! -f "$_compscript" ]]; then
     _die "ERROR: completion script does not exist"
 fi
 
+# Source the bash-completion library functions and common completion setup
 . /usr/share/bash-completion/bash_completion
-
+# Now source the snap's 'completer' script itself
 . "$_compscript"
 
-# _compopts is an associative array, which keys are options.
+# _compopts is an associative array, which keys are options. The options are
+# described in bash(1)'s description of the -o option to the "complete"
+# builtin, and they affect how the completion options are presented to the user
+# (e.g. adding a slash for directories, whether to add a space after the
+# completion, etc). These need setting in the user's environemnt so need
+# serializing separately from the completions themselves.
 declare -A _compopts
 
 # wrap compgen, setting _compopts for any options given.
-xcompgen() {
+# (as these options need handling separately from the completions)
+compgen() {
     local opt
 
     while getopts :o: opt; do
@@ -64,15 +77,12 @@ xcompgen() {
                 ;;
         esac
     done
-    # aliases are not checked if the command is quoted, and a backslash counts.
-    \compgen "$@"
+    builtin compgen "$@"
 }
-alias compgen=xcompgen
-shopt -s expand_aliases
 
 # compopt replaces the original compopt with one that just sets/unsets entries
 # in _compopts
-compopt() (
+compopt() {
     local i
 
     for ((i=0; i<$#; i++)); do
@@ -87,7 +97,7 @@ compopt() (
                 ;;
         esac
     done
-)
+}
 
 _compfunc="_minimal"
 _compact=""
@@ -95,6 +105,11 @@ _compact=""
 # get the result of 'complete -p "$1"' into an array, splitting it as
 # the shell would.
 readarray -t _comp < <(xargs -n1 < <(complete -p "$1") )
+# _comp is now an array of the appropriate 'complete' invocation, word-split as
+# the shell would, so we can now inspect it with getopts to determine the
+# appropriate completion action.
+# Unfortunately shellcheck doesn't know about readarray:
+# shellcheck disable=SC2154
 if [[ "${_comp[*]}" ]]; then
     while getopts :abcdefgjksuvA:C:W:o:F: opt "${_comp[@]:1}"; do
         case "$opt" in
@@ -144,7 +159,7 @@ if [[ "${_comp[*]}" ]]; then
                 _compfunc="$OPTARG"
                 ;;
             W)
-                readarray -t COMPREPLY < <( \compgen -W "$OPTARG" -- "${COMP_WORDS[$COMP_CWORD]}" )
+                readarray -t COMPREPLY < <( builtin compgen -W "$OPTARG" -- "${COMP_WORDS[$COMP_CWORD]}" )
                 _compfunc=""
                 ;;
             *)
@@ -166,7 +181,7 @@ esac
 
 if [ ! "$_bounce" ]; then
     if [ "$_compact" ]; then
-        readarray -t COMPREPLY < <( \compgen -A "$_compact" -- "${COMP_WORDS[$COMP_CWORD]}" )
+        readarray -t COMPREPLY < <( builtin compgen -A "$_compact" -- "${COMP_WORDS[$COMP_CWORD]}" )
     elif [ "$_compfunc" ]; then
         # execute completion function (or the command if -C)
         $_compfunc

@@ -1,10 +1,31 @@
 # -*- bash -*-
 
-# _complete_from_snap serialises the tab completion request and sends it off to
-# the appropriate 'snap run --command=complete', and de-serialises the response
-# into the usual tab completion result.
+# _complete_from_snap performs the tab completion request by calling the
+# appropriate 'snap run --command=complete' with serialized args, and
+# deserializes the response into the usual tab completion result.
+#
+# How snap command completion works is:
+# 1. snappy's complete.sh is sourced into the user's shell environment
+# 2. user performs '<command> <tab>'. If '<command>' is a snap command,
+#    proceed to step '3', otherwise perform normal bash completion
+# 3. run 'snap run --command=complete ...', converting bash completion
+#    environment into serialized command line arguments
+# 4. 'snap run --command=complete ...' exec()s 'etelpmoc.sh' within the snap's
+#    runtime environment and confinement
+# 5. 'etelpmoc.sh' takes the serialized command line arguments from step '3'
+#    and puts them back into the bash completion environment variables
+# 6. 'etelpmoc.sh' sources the snap's 'completer' script, performs the bash
+#    completion and serializes the resulting completion environment variables
+#    by printing to stdout the results in a format that snappy's complete.sh
+#    will understand, then exits
+# 7. control returns to snappy's 'complete.sh' and it deserializes the output
+#    from 'etelpmoc.sh', validates the results and puts the validated results
+#    into the bash completion environment variables
+# 8. bash displays the results to the user
 _complete_from_snap() {
     {
+        # De-serialize the output of 'snap run --command=complete ...' into the format
+        # bash expects:
         read -a opts
         # opts is expected to be a series of compopt options
         if [[ ${#opts[@]} -gt 0 ]]; then
@@ -15,7 +36,7 @@ _complete_from_snap() {
 
             for i in "${opts[@]}"; do
                 if ! [[ "$i" =~ ^[a-z]+$ ]]; then
-                    # non-alphanumeric option; something awry
+                    # only lowercase alpha characters allowed
                     return 2
                 fi
             done
@@ -33,7 +54,7 @@ _complete_from_snap() {
         esac
 
         read sep
-        if [ "$sep" ]; then
+        if [ -n "$sep" ]; then
             # non-blank separator? madness!
             return 2
         fi
@@ -41,11 +62,16 @@ _complete_from_snap() {
 
         if [ ! "$bounced" ]; then
             local IFS=$'\n'
-            COMPREPLY=( $( \grep -v '[[:cntrl:];?*{}]' ) )
+            # Ignore any suspicious results that are uncommon in filenames and that
+            # might be used to trick the user. A whitelist approach would be better
+            # but is impractical with UTF-8 and common characters like quotes.
+            COMPREPLY=( $( command grep -v '[[:cntrl:];&?*{}]' ) )
             IFS="$oldIFS"
         fi
 
         if [[ ${#opts[@]} -gt 0 ]]; then
+            # shellcheck disable=SC2046
+            # (we *want* word splitting to happen here)
             compopt $(printf " -o %s" "${opts[@]}")
         fi
         if [ "$bounced" ]; then
