@@ -17,8 +17,12 @@ execute: |
     # Do an out-of-tree build in the autogarbage directory
     mkdir -p $SPREAD_PATH/cmd/autogarbage
     cd $SPREAD_PATH/cmd/autogarbage
+    EXTRA_CONF=
+    if [ ! -d /sys/kernel/security/apparmor ]; then
+        EXTRA_CONF="--disable-apparmor --disable-seccomp"
+    fi
     $SPREAD_PATH/cmd/configure \
-        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu $EXTRA_CONF
     # Build and run unit tests
     make check
 restore: |
