@@ -61,7 +61,7 @@ fi
 # described in bash(1)'s description of the -o option to the "complete"
 # builtin, and they affect how the completion options are presented to the user
 # (e.g. adding a slash for directories, whether to add a space after the
-# completion, etc). These need setting in the user's environemnt so need
+# completion, etc). These need setting in the user's environment so need
 # serializing separately from the completions themselves.
 declare -A _compopts
 
