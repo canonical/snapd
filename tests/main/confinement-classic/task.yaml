@@ -5,20 +5,26 @@ details: |
     this test (classic and jailmode) and the snap (this particular one) should
     function correctly in both cases.
 systems: [-ubuntu-core-16-*]
-prepare: |
+execute: |
     run_install() {
         make -C test-snapd-hello-classic clean
         make -C test-snapd-hello-classic
-        snap install $1 --dangerous ./test-snapd-hello-classic/test-snapd-hello-classic_0.1_*.snap
+        snap install "$@" --dangerous ./test-snapd-hello-classic/test-snapd-hello-classic_0.1_*.snap
     }
+
     run_install --classic
+    /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+
     # FIXME jailmode doesn't work on debian type systems due to missing
     # confinement yet. This check will be replaced with proper detection
     # if confinement is supported on the platform we're running.
-    if [[ "$SPREAD_SYSTEM" != "debian-*" ]]; then
-        run_install --classic --jailmode
+    if [[ "$SPREAD_SYSTEM" = debian-* ]]; then
+        exit 0
     fi
-execute: |
+
+    # Installing again will increase revision and put the snap into jailmode
+    run_install --classic --jailmode
     /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+
 restore: |
     make -C test-snapd-hello-classic clean
