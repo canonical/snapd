@@ -1,5 +1,9 @@
 summary: Ensure that the network-bind interface works
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The network-bind interface allows a daemon to access the network as a server.
 
@@ -35,7 +39,7 @@ restore: |
 execute: |
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
-    :network-bind +$SNAP_NAME"
+    :network-bind +.*$SNAP_NAME"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     - +$SNAP_NAME:network-bind"

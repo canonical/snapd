@@ -1,5 +1,9 @@
 summary: Ensure that the kernel-module-control interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
