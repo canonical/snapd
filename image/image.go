@@ -102,6 +102,36 @@ func localSnaps(opts *Options) (*localInfos, error) {
 			info.Revision = snap.R(-1)
 			nameToPath[info.Name()] = snapName
 			local[snapName] = info
+
+			// crude way to find the .assert file
+			assertFile := strings.Replace(snapName, ".snap", ".assert", -1)
+			// find the revision/snap-id from the local provided
+			// assertion and set info accordingly. no need to
+			// actually check the assertion because we do that
+			// anyway for all snaps that have a snapID/revision.
+			f, err := os.Open(assertFile)
+			if os.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			dec := asserts.NewDecoder(f)
+			for {
+				a, err := dec.Decode()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return nil, err
+				}
+				if sr, ok := a.(*asserts.SnapRevision); ok {
+					info.Revision = snap.R(sr.SnapRevision())
+					info.SnapID = sr.SnapID()
+					info.Channel = opts.Channel
+				}
+			}
 		}
 	}
 	return &localInfos{
@@ -338,8 +368,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		typ := info.Type
 
 		// if it comes from the store fetch the snap assertions too
-		// TODO: support somehow including available assertions
-		// also for local snaps
 		if info.SnapID != "" {
 			snapDecl, err := FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {

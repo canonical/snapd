@@ -400,7 +400,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				value, err := validateAttr(valueData)
+				value, err := normalizeYamlValue(valueData)
 				if err != nil {
 					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
 				}
@@ -414,8 +414,8 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 	}
 }
 
-// validateAttr validates an attribute value and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
-func validateAttr(v interface{}) (interface{}, error) {
+// normalizeYamlValue validates values and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
+func normalizeYamlValue(v interface{}) (interface{}, error) {
 	switch x := v.(type) {
 	case string:
 		return x, nil
@@ -425,10 +425,14 @@ func validateAttr(v interface{}) (interface{}, error) {
 		return int64(x), nil
 	case int64:
 		return x, nil
+	case float64:
+		return x, nil
+	case float32:
+		return float64(x), nil
 	case []interface{}:
 		l := make([]interface{}, len(x))
 		for i, el := range x {
-			el, err := validateAttr(el)
+			el, err := normalizeYamlValue(el)
 			if err != nil {
 				return nil, err
 			}
@@ -440,16 +444,26 @@ func validateAttr(v interface{}) (interface{}, error) {
 		for k, item := range x {
 			kStr, ok := k.(string)
 			if !ok {
-				return nil, fmt.Errorf("non-string key in attribute map: %v", k)
+				return nil, fmt.Errorf("non-string key: %v", k)
 			}
-			item, err := validateAttr(item)
+			item, err := normalizeYamlValue(item)
 			if err != nil {
 				return nil, err
 			}
 			m[kStr] = item
 		}
 		return m, nil
+	case map[string]interface{}:
+		m := make(map[string]interface{}, len(x))
+		for k, item := range x {
+			item, err := normalizeYamlValue(item)
+			if err != nil {
+				return nil, err
+			}
+			m[k] = item
+		}
+		return m, nil
 	default:
-		return nil, fmt.Errorf("invalid attribute scalar: %v", v)
+		return nil, fmt.Errorf("invalid scalar: %v", v)
 	}
 }
