@@ -20,36 +20,38 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
+	"fmt"
+	"io"
+	"text/tabwriter"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 )
 
 type cmdAlias struct {
-	Reset bool `long:"reset"`
-
 	Positionals struct {
-		Snap    installedSnapName `required:"yes"`
-		Aliases []string          `required:"yes"`
+		SnapApp string `required:"yes"`
+		Alias   string `required:"yes"`
 	} `positional-args:"true"`
 }
 
-// TODO: implement a Completer for aliases
+// TODO: implement a completer for snapApp
 
-var shortAliasHelp = i18n.G("Enables the given aliases")
+var shortAliasHelp = i18n.G("Sets up a manual alias")
 var longAliasHelp = i18n.G(`
-The alias command enables the given application aliases defined by the snap.
+The alias command aliases the given snap application to the given alias.
 
-Once enabled the respective application commands can be invoked just using the aliases.
+Once this manual alias is setup the respective application command can be invoked just using the alias.
 `)
 
 func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
-	}, map[string]string{
-		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, disabled otherwise"),
-	}, []argDesc{
-		{name: "<snap>"},
+	}, nil, []argDesc{
+		{name: "<snap.app>"},
 		{name: i18n.G("<alias>")},
 	})
 }
@@ -59,19 +61,54 @@ func (x *cmdAlias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName := string(x.Positionals.Snap)
-	aliases := x.Positionals.Aliases
+	snapName, appName := snap.SplitSnapApp(x.Positionals.SnapApp)
+	alias := x.Positionals.Alias
 
 	cli := Client()
-	op := cli.Alias
-	if x.Reset {
-		op = cli.ResetAliases
-	}
-	id, err := op(snapName, aliases)
+	id, err := cli.Alias(snapName, appName, alias)
 	if err != nil {
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	chg, err := wait(cli, id)
+	if err != nil {
+		return err
+	}
+	if err := showAliasChanges(chg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json:"alias"`
+}
+
+func showAliasChanges(chg *client.Change) error {
+	var added, removed []*changedAlias
+	if err := chg.Get("aliases-added", &added); err != nil && err != client.ErrNoData {
+		return err
+	}
+	if err := chg.Get("aliases-removed", &removed); err != nil && err != client.ErrNoData {
+		return err
+	}
+	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+	if len(added) != 0 {
+		printChangedAliases(w, i18n.G("Added"), added)
+	}
+	if len(removed) != 0 {
+		printChangedAliases(w, i18n.G("Removed"), removed)
+	}
+	w.Flush()
+	return nil
+}
+
+func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
+	fmt.Fprintf(w, "%s:\n", label)
+	for _, a := range changed {
+		fmt.Fprintf(w, "\t- %s => %s\n", a.Alias, snap.JoinSnapApp(a.Snap, a.App))
+	}
 }

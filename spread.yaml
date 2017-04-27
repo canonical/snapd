@@ -26,15 +26,17 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
+    GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
-    SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
     HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
+    SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
 backends:
     linode:
@@ -184,8 +186,14 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
+    echo '# journal messages for snapd'
     journalctl -u snapd
+    echo '# apparmor denials '
     dmesg | grep DENIED || true
+    echo '# seccomp denials (kills) '
+    dmesg | grep 1326 || true
+    echo '# snap interfaces'
+    snap interfaces || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -299,25 +307,18 @@ suites:
             $TESTSLIB/reset.sh
 
     tests/unit/:
-        summary: Suite to run non-go unit tests and go unit tests for other runtimes
+        summary: Suite to run unit tests (non-go and different go runtimes)
+        systems: [-ubuntu-core-16-*]
         prepare: |
             . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            prepare_classic
         prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
             . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
+            prepare_each_classic
         restore: |
             $TESTSLIB/reset.sh --store
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
-            fi
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests

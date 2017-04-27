@@ -24,6 +24,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"syscall"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -70,8 +73,31 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
+	if urlErr, ok := err.(*url.Error); ok {
+		err = urlErr.Err
 	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
+	if netErr, ok := err.(net.Error); ok {
+		if netErr.Timeout() {
+			logger.Debugf("Retrying because of: %s", netErr)
+			return true
+		}
+	}
+	// The CDN sometimes resets the connection (LP:#1617765), also
+	// retry in this case
+	if opErr, ok := err.(*net.OpError); ok {
+		// peeling the onion
+		if syscallErr, ok := opErr.Err.(*os.SyscallError); ok {
+			if syscallErr.Err == syscall.ECONNRESET {
+				logger.Debugf("Retrying because of: %s", opErr)
+				return true
+			}
+		}
+	}
+
+	if err == io.ErrUnexpectedEOF || err == io.EOF {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
+	return false
 }
