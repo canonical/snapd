@@ -9,4 +9,4 @@ execute: |
     snap known model|grep "series: 16"
 
     echo "Make sure core has an actual revision"
-    snap list | MATCH "^core +[0-9]+\.[0-9]+ +[0-9]+ +canonical +\-"
+    snap list | MATCH "^core +[0-9]+\-[0-9]+ +[0-9]+ +canonical +\-"
