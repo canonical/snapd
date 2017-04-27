@@ -152,11 +152,7 @@ func mockVersion(v string) (restore func()) {
 	return func() { cmd.Version = old }
 }
 
-func mockSnapConfine(reexec bool) func() {
-	libExecDir := dirs.DistroLibExecDir
-	if reexec {
-		libExecDir = dirs.CoreLibExecDir
-	}
+func mockSnapConfine(libExecDir string) func() {
 	snapConfine := filepath.Join(libExecDir, "snap-confine")
 	if err := os.MkdirAll(libExecDir, 0755); err != nil {
 		panic(err)
