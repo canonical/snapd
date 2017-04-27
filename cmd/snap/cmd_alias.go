@@ -71,13 +71,14 @@ func (x *cmdAlias) Execute(args []string) error {
 	}
 
 	chg, err := wait(cli, id)
-	if err == nil {
-		if err := showAliasChanges(chg); err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
+	if err := showAliasChanges(chg); err != nil {
+		return err
 	}
 
-	return err
+	return nil
 }
 
 type changedAlias struct {

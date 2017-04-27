@@ -143,7 +143,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 }
 
-func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2(c *C) {
+func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
 		return map[string]string{
@@ -172,7 +172,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2(c *C) {
 		},
 	})
 
-	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
 	c.Assert(err, IsNil)
 
 	c.Check(changed, HasLen, 1)
@@ -185,7 +185,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2All(c *C) {
+func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	seen := make(map[string]bool)
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		seen[info.Name()] = true
@@ -218,7 +218,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2All(c *C) {
 		Active:  true,
 	})
 
-	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, nil)
+	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(changed, HasLen, 1)
@@ -234,7 +234,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2All(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2OverManual(c *C) {
+func (s *snapmgrTestSuite) TestAutoAliasesDeltaOverManual(c *C) {
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
 		return map[string]string{
@@ -257,7 +257,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2OverManual(c *C) {
 		},
 	})
 
-	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
 	c.Assert(err, IsNil)
 
 	c.Check(changed, HasLen, 1)
