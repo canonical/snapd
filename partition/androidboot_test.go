@@ -22,13 +22,16 @@ package partition
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	. "gopkg.in/check.v1"
 )
 
 func mockAndroidbootFile(c *C, newPath string, mode os.FileMode) {
-	err := ioutil.WriteFile(newPath, []byte(""), mode)
+	newpath := filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
+	os.MkdirAll(newpath, os.ModePerm)
+	err := ioutil.WriteFile(newPath, nil, mode)
 	c.Assert(err, IsNil)
 }
 
@@ -39,8 +42,9 @@ func (s *PartitionTestSuite) makeFakeAndroidbootConfig(c *C) {
 }
 
 func (s *PartitionTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	dirs.GlobalRootDir = "/something/not/there"
+	s.makeFakeAndroidbootConfig(c)
 
+	dirs.GlobalRootDir = "/something/not/there"
 	a := newAndroidboot()
 	c.Assert(a, IsNil)
 }
@@ -54,12 +58,14 @@ func (s *PartitionTestSuite) TestNewAndroidboot(c *C) {
 }
 
 func (s *PartitionTestSuite) TestSetGetBootVar(c *C) {
+	s.makeFakeAndroidbootConfig(c)
+
 	a := newAndroidboot()
 	bootVars := map[string]string{}
 	bootVars["snap_mode"] = "try"
 	a.SetBootVars(bootVars)
 
-	v, err := f.GetBootVars("snap_mode")
+	v, err := a.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
 	c.Check(v["snap_mode"], Equals, "try")
