@@ -18,12 +18,15 @@ execute: |
 
     prevsnapdver=$(snap --version|grep "snapd ")
 
-    echo Install a snap with it
+    echo Install sanity check snaps with it
     snap install test-snapd-tools
+    snap install test-snapd-auto-aliases
 
-    echo Sanity check install
+    echo Sanity check installs
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
 
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
@@ -47,6 +50,11 @@ execute: |
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
     echo Hello > /var/tmp/myevil.txt
     test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+    # check that automatic aliases survived
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
 
     echo Check migrating to types in state
     coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
