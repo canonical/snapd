@@ -284,3 +284,30 @@ apps:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }
+
+func (s *ValidateSuite) TestValidateAlias(c *C) {
+	validAliases := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"a_a", "aa_a", "a_aa", "a_b_c",
+		"a0", "a_0", "a_0a",
+		"01game", "1-or-2",
+		"0.1game", "1_or_2",
+	}
+	for _, alias := range validAliases {
+		err := ValidateAlias(alias)
+		c.Assert(err, IsNil)
+	}
+	invalidAliases := []string{
+		"",
+		"_foo",
+		"-foo",
+		".foo",
+		"foo$",
+	}
+	for _, alias := range invalidAliases {
+		err := ValidateAlias(alias)
+		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
+	}
+}

@@ -27,7 +27,7 @@ import (
 )
 
 const pulseaudioConnectedPlugAppArmor = `
-/{run,dev}/shm/pulse-shm-* rwk,
+/{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
@@ -85,7 +85,7 @@ owner /{,var/}run/pulse/ rw,
 owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
-/{run,dev}/shm/pulse-shm-* rwk,
+/{run,dev}/shm/pulse-shm-* mrwk,
 
 /usr/share/applications/ r,
 
