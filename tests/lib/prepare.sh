@@ -8,7 +8,10 @@ set -eux
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
     echo "Turning off kernel rate-limiting"
-    sysctl -w kernel.printk_ratelimit=0
+    # TODO: we should be able to run the tests with rate limiting disabled so
+    # debug output is robust, but we currently can't :(
+    echo "SKIPPED: see https://forum.snapcraft.io/t/snapd-spread-tests-should-be-able-to-run-with-kernel-rate-limiting-disabled/424"
+    #sysctl -w kernel.printk_ratelimit=0
 }
 
 update_core_snap_for_classic_reexec() {
