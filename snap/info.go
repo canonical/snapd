@@ -587,3 +587,13 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 	}
 	return l[0], l[1]
 }
+
+// JoinSnapApp produces a full application wrapper name from the
+// `snap` and the `app` part. It also deals with the special
+// case of snapName == appName.
+func JoinSnapApp(snap, app string) string {
+	if snap == app {
+		return app
+	}
+	return fmt.Sprintf("%s.%s", snap, app)
+}
