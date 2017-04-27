@@ -1,5 +1,9 @@
 summary: Check security profile generation for apps and hooks.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 prepare: |
     snapbuild $TESTSLIB/snaps/basic-hooks .
 restore: |
