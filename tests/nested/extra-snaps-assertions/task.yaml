@@ -23,11 +23,13 @@ prepare: |
 
     # create ubuntu-core image
     mkdir -p /tmp/work-dir
-    snap install --devmode --beta test-snapd-ubuntu-image
+    snap install --devmode --beta ubuntu-image
+    # bind mount the snap binary installed from the package built with the branch to the binary used by ubuntu-image
+    mount -o bind /usr/bin/snap /snap/ubuntu-image/current/bin/snap
 
     snap download core
 
-    /snap/bin/test-snapd-ubuntu-image.ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img --extra-snaps core_*.snap
+    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img --extra-snaps core_*.snap
     mv ubuntu-core.img /tmp/work-dir
 
     # create assertion block device
