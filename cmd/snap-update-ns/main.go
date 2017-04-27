@@ -91,14 +91,14 @@ func run() error {
 	}
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
-	current, err := mount.LoadProfile(currentProfilePath)
+	currentBefore, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
-	changesNeeded := mount.NeededChanges(current, desired)
+	changesNeeded := mount.NeededChanges(currentBefore, desired)
 	var changesMade []mount.Change
 	for _, change := range changesNeeded {
 		if change.Action == mount.Keep {
@@ -126,13 +126,13 @@ func run() error {
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
-	current = &mount.Profile{}
+	var currentAfter mount.Profile
 	for _, change := range changesMade {
 		if change.Action == mount.Mount || change.Action == mount.Keep {
-			current.Entries = append(current.Entries, change.Entry)
+			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
 		}
 	}
-	if err := current.Save(currentProfilePath); err != nil {
+	if err := currentAfter.Save(currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
 	}
 	return nil
