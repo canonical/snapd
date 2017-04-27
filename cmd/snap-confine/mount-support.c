@@ -342,19 +342,19 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 	}
 	// Since we mounted /etc from the host filesystem to the scratch directory,
-	// we may need to put /etc/alternatives from the desired root filesystem
+	// we may need to put certain directories from the desired root filesystem
 	// (e.g. the core snap) back. This way the behavior of running snaps is not
 	// affected by the alternatives directory from the host, if one exists.
 	//
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018
-	const char *etc_alternatives = "/etc/alternatives";
-	if (access(etc_alternatives, F_OK) == 0) {
-		sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
-				 etc_alternatives);
-		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
-				 etc_alternatives);
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+	const char *dirs_from_core[] = { "/etc/alternatives", "/etc/ssl", NULL };
+	for (const char *dir = dirs_from_core[0]; dir != NULL; dir++) {
+		if (access(dir, F_OK) == 0) {
+			sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir, dir);
+			sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, dir);
+			sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+		}
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
