@@ -449,7 +449,7 @@ plugs:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
@@ -463,7 +463,7 @@ plugs:
           baz:
           - 1: A
 `))
-	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key in attribute map: 1`)
+	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key: 1`)
 }
 
 // Tests focusing on slots
@@ -791,7 +791,7 @@ slots:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
