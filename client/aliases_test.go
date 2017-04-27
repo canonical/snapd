@@ -134,6 +134,32 @@ func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientPreferCallsEndpoint(c *check.C) {
+	cs.cli.Prefer("some-snap")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientPrefer(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.Prefer("some-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "prefer",
+		"snap":   "some-snap",
+	})
+}
+
 func (cs *clientSuite) TestClientAliasesCallsEndpoint(c *check.C) {
 	_, _ = cs.cli.Aliases()
 	c.Check(cs.req.Method, check.Equals, "GET")
@@ -145,26 +171,25 @@ func (cs *clientSuite) TestClientAliases(c *check.C) {
 		"type": "sync",
 		"result": {
                     "foo": {
-                        "foo0": {"app": "foo", "status": "auto"},
-                        "foo_reset": {"app": "foo.reset"}
+                        "foo0": {"command": "foo", "status": "auto", "auto": "foo"},
+                        "foo_reset": {"command": "foo.reset", "manual": "reset", "status": "manual"}
                     },
                     "bar": {
-                        "bar_dump": {"app": "bar.dump", "status": "enabled"},
-                        "bar_dump.1": {"status": "disabled"}
+                        "bar_dump": {"command": "bar.dump", "status": "manual", "manual": "dump"},
+                        "bar_dump.1": {"command": "bar.dump", "status": "disabled", "auto": "dump"}
                     }
-
 		}
 	}`
 	allStatuses, err := cs.cli.Aliases()
 	c.Assert(err, check.IsNil)
 	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
 		"foo": {
-			"foo0":      {App: "foo", Status: "auto"},
-			"foo_reset": {App: "foo.reset", Status: ""},
+			"foo0":      {Command: "foo", Status: "auto", Auto: "foo"},
+			"foo_reset": {Command: "foo.reset", Status: "manual", Manual: "reset"},
 		},
 		"bar": {
-			"bar_dump":   {App: "bar.dump", Status: "enabled"},
-			"bar_dump.1": {App: "", Status: "disabled"},
+			"bar_dump":   {Command: "bar.dump", Status: "manual", Manual: "dump"},
+			"bar_dump.1": {Command: "bar.dump", Status: "disabled", Auto: "dump"},
 		},
 	})
 }

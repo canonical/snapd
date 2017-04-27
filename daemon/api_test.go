@@ -5249,17 +5249,87 @@ func (s *apiSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, false)
 }
 
-func (s *apiSuite) TestAliases(c *check.C) {
+func (s *apiSuite) TestPreferSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
 	s.mockSnap(c, aliasYaml)
 
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &aliasAction{
+		Action: "prefer",
+		Snap:   "alias-snap",
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
 	st := d.overlord.State()
 	st.Lock()
-	st.Set("aliases", map[string]map[string]string{
-		"alias-snap": {
-			"alias1": "enabled",
-			"alias3": "disabled", // gone from the current revision of the snap
+	chg := st.Change(id)
+	c.Check(chg.Summary(), check.Equals, `Prefer aliases of snap "alias-snap"`)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	defer st.Unlock()
+	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
+	// sanity check
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "alias-snap", &snapst)
+	c.Assert(err, check.IsNil)
+	c.Check(snapst.AutoAliasesDisabled, check.Equals, false)
+}
+
+func (s *apiSuite) TestAliases(c *check.C) {
+	d := s.daemon(c)
+
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "alias-snap1", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap1", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Manual: "cmd1x", Auto: "cmd1"},
+			"alias2": {Auto: "cmd2"},
+		},
+	})
+	snapstate.Set(st, "alias-snap2", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap2", Revision: snap.R(12)},
+		},
+		Current:             snap.R(12),
+		Active:              true,
+		AutoAliasesDisabled: true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias2": {Auto: "cmd2"},
+			"alias3": {Manual: "cmd3"},
+			"alias4": {Manual: "cmd4x", Auto: "cmd4"},
 		},
 	})
 	st.Unlock()
@@ -5271,10 +5341,36 @@ func (s *apiSuite) TestAliases(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]aliasStatus{
-		"alias-snap": {
-			"alias1": {App: "alias-snap.app", Status: "enabled"},
-			"alias2": {App: "alias-snap.app2"},
-			"alias3": {Status: "disabled"},
+		"alias-snap1": {
+			"alias1": {
+				Command: "alias-snap1.cmd1x",
+				Status:  "manual",
+				Manual:  "cmd1x",
+				Auto:    "cmd1",
+			},
+			"alias2": {
+				Command: "alias-snap1.cmd2",
+				Status:  "auto",
+				Auto:    "cmd2",
+			},
+		},
+		"alias-snap2": {
+			"alias2": {
+				Command: "alias-snap2.cmd2",
+				Status:  "disabled",
+				Auto:    "cmd2",
+			},
+			"alias3": {
+				Command: "alias-snap2.cmd3",
+				Status:  "manual",
+				Manual:  "cmd3",
+			},
+			"alias4": {
+				Command: "alias-snap2.cmd4x",
+				Status:  "manual",
+				Manual:  "cmd4x",
+				Auto:    "cmd4",
+			},
 		},
 	})
 
