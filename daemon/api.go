@@ -1604,8 +1604,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	case "disconnect":
 		var conns []interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
-		// note: disconnect can affect multiple connections, so unlike with 'connect' above we cannot give a good summary -
-		// just include the snaps/plug/slot names given to the API, before they are resolved.
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
