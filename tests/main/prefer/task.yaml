@@ -19,7 +19,7 @@ execute: |
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled"
 
     echo "Execute snap prefer"
-    snap prefer test-snapd-auto-aliases|MATCH ".*- test_snapd_wellknown1 => test-snapd-auto-aliases.wellknown1.*"
+    snap prefer test-snapd-auto-aliases|MATCH ".*- test-snapd-auto-aliases.wellknown1 as test_snapd_wellknown1.*"
 
     echo "Test that the  auto-aliases are back"
     test -h /snap/bin/test_snapd_wellknown1

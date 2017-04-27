@@ -72,7 +72,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Added:\n"+
-		"  - alias1 => alias-snap.cmd1\n",
+		"  - alias-snap.cmd1 as alias1\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }
