@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 echo "Greetings from inside ${SNAP:?}."
 if [ "$#" -gt "0" ]; then
     echo "Arguments given:"
