@@ -74,10 +74,10 @@ func run() error {
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(snapName)
 	if err != nil {
-		return fmt.Errorf("cannot open mount namespace lock file: %s", err)
+		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
 	}
 	if err := lock.Lock(); err != nil {
-		return fmt.Errorf("cannot lock mount namespace: %s", err)
+		return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
 	}
 	defer lock.Close()
 
@@ -87,13 +87,13 @@ func run() error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
 	desired, err := mount.LoadProfile(desiredProfilePath)
 	if err != nil {
-		return fmt.Errorf("cannot load desired mount profile: %s", err)
+		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 	current, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
-		return fmt.Errorf("cannot load current mount profile: %s", err)
+		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 
 	// Compute the needed changes and perform each change if needed, collecting
@@ -118,7 +118,7 @@ func run() error {
 		}
 		fmt.Printf("%s\n", change)
 		if err := change.Perform(); err != nil {
-			logger.Noticef("cannot perform mount change %s: %s", change, err)
+			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
 		changesMade = append(changesMade, change)
@@ -133,7 +133,7 @@ func run() error {
 		}
 	}
 	if err := current.Save(currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile: %s", err)
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
 	}
 	return nil
 }
