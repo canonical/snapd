@@ -44,7 +44,7 @@ import (
 )
 
 var (
-	ErrNoNS = errors.New("no namespace")
+	ErrNoNS = errors.New("cannot update mount namespace that was not created yet")
 )
 
 // Error returns error (if any) encountered in pre-main C code.
