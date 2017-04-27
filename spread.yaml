@@ -220,6 +220,13 @@ repack: |
     fi
 
 prepare: |
+    # check if running inside an lxc/lxd container, the testsuite will not
+    # work in such an environment
+    if env|grep -q 'container=lxc'; then
+        echo "Tests cannot run inside an lxc/lxd/docker environment"
+        exit 1
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
