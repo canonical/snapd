@@ -104,17 +104,17 @@ func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 
 var AutoImportCandidates = autoImportCandidates
 
-func AliasInfoLess(snapName1, alias1, app1, snapName2, alias2, app2 string) bool {
+func AliasInfoLess(snapName1, alias1, cmd1, snapName2, alias2, cmd2 string) bool {
 	x := aliasInfos{
 		&aliasInfo{
-			Snap:  snapName1,
-			Alias: alias1,
-			App:   app1,
+			Snap:    snapName1,
+			Alias:   alias1,
+			Command: cmd1,
 		},
 		&aliasInfo{
-			Snap:  snapName2,
-			Alias: alias2,
-			App:   app2,
+			Snap:    snapName2,
+			Alias:   alias2,
+			Command: cmd2,
 		},
 	}
 	return x.Less(0, 1)

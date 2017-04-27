@@ -168,16 +168,7 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 			continue
 		}
 
-		// TODO: helper for this?
-		cmdStr := app.Name
-		if cmdStr != snapName {
-			cmdStr = fmt.Sprintf("%s.%s", snapName, cmdStr)
-		}
-
-		if len(app.Aliases) != 0 {
-			cmdStr = fmt.Sprintf("%s (%s)", cmdStr, strings.Join(app.Aliases, ","))
-		}
-
+		cmdStr := snap.JoinSnapApp(snapName, app.Name)
 		commands = append(commands, cmdStr)
 	}
 	if len(commands) == 0 {
