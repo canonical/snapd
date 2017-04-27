@@ -128,11 +128,17 @@ type ConnectCandidate struct {
 }
 
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	return connc.PlugAttrs
+	if connc.PlugAttrs != nil {
+		return connc.PlugAttrs
+	}
+	return connc.Plug.Attrs
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	return connc.SlotAttrs
+	if connc.SlotAttrs != nil {
+		return connc.SlotAttrs
+	}
+	return connc.Slot.Attrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {

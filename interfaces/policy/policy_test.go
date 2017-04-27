@@ -750,8 +750,6 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 			Plug:            s.plugSnap.Plugs[t.iface],
 			Slot:            s.slotSnap.Slots[t.iface],
 			BaseDeclaration: s.baseDecl,
-			PlugAttrs:       s.plugSnap.Plugs[t.iface].Attrs,
-			SlotAttrs:       s.slotSnap.Slots[t.iface].Attrs,
 		}
 
 		err := cand.Check()
@@ -791,8 +789,6 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 			Plug:            s.plugSnap.Plugs[t.iface],
 			Slot:            s.slotSnap.Slots[t.iface],
 			BaseDeclaration: s.baseDecl,
-			PlugAttrs:       s.plugSnap.Plugs[t.iface].Attrs,
-			SlotAttrs:       s.slotSnap.Slots[t.iface].Attrs,
 		}
 
 		err := cand.CheckAutoConnect()
@@ -829,8 +825,6 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 			PlugSnapDeclaration: s.plugDecl,
 			SlotSnapDeclaration: s.slotDecl,
 			BaseDeclaration:     s.baseDecl,
-			PlugAttrs:           s.plugSnap.Plugs[t.iface].Attrs,
-			SlotAttrs:           s.slotSnap.Slots[t.iface].Attrs,
 		}
 
 		err := cand.Check()
@@ -867,8 +861,6 @@ func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
 			PlugSnapDeclaration: s.plugDecl,
 			SlotSnapDeclaration: s.slotDecl,
 			BaseDeclaration:     s.baseDecl,
-			PlugAttrs:           s.plugSnap.Plugs[t.iface].Attrs,
-			SlotAttrs:           s.slotSnap.Slots[t.iface].Attrs,
 		}
 
 		err := cand.CheckAutoConnect()
@@ -1524,8 +1516,6 @@ func (s *policySuite) TestSlotDollarSlotAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-slot-attr-mismatch"],
 		Slot:            s.slotSnap.Slots["slot-slot-attr"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-slot-attr-mismatch"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-attr"].Attrs,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
@@ -1534,8 +1524,6 @@ func (s *policySuite) TestSlotDollarSlotAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-slot-attr-match"],
 		Slot:            s.slotSnap.Slots["slot-slot-attr"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-slot-attr-match"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-attr"].Attrs,
 	}
 	c.Check(cand.Check(), IsNil)
 }
@@ -1546,8 +1534,6 @@ func (s *policySuite) TestSlotDollarPlugAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-plug-attr-mismatch"],
 		Slot:            s.slotSnap.Slots["slot-plug-attr"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-plug-attr-mismatch"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-attr"].Attrs,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
@@ -1556,8 +1542,6 @@ func (s *policySuite) TestSlotDollarPlugAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-plug-attr-match"],
 		Slot:            s.slotSnap.Slots["slot-plug-attr"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-plug-attr-match"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-attr"].Attrs,
 	}
 	c.Check(cand.Check(), IsNil)
 }
@@ -1568,8 +1552,6 @@ func (s *policySuite) TestPlugDollarPlugAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
 		Slot:            s.slotSnap.Slots["plug-plug-attr-mismatch"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["plug-plug-attr"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["plug-plug-attr-mismatch"].Attrs,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
@@ -1578,8 +1560,6 @@ func (s *policySuite) TestPlugDollarPlugAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
 		Slot:            s.slotSnap.Slots["plug-plug-attr-match"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["plug-plug-attr"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["plug-plug-attr-match"].Attrs,
 	}
 	c.Check(cand.Check(), IsNil)
 }
@@ -1590,8 +1570,6 @@ func (s *policySuite) TestPlugDollarSlotAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["plug-slot-attr"],
 		Slot:            s.slotSnap.Slots["plug-slot-attr-mismatch"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["plug-slot-attr"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["plug-slot-attr-mismatch"].Attrs,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
@@ -1600,8 +1578,6 @@ func (s *policySuite) TestPlugDollarSlotAttrConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["plug-slot-attr"],
 		Slot:            s.slotSnap.Slots["plug-slot-attr-match"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["plug-slot-attr"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["plug-slot-attr-match"].Attrs,
 	}
 	c.Check(cand.Check(), IsNil)
 }
@@ -1612,8 +1588,6 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-plug-missing-mismatch"],
 		Slot:            s.slotSnap.Slots["slot-plug-missing"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-plug-missing-mismatch"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-missing"].Attrs,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
@@ -1622,8 +1596,6 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 		Plug:            s.plugSnap.Plugs["slot-plug-missing-match"],
 		Slot:            s.slotSnap.Slots["slot-plug-missing"],
 		BaseDeclaration: s.baseDecl,
-		PlugAttrs:       s.plugSnap.Plugs["slot-plug-missing-match"].Attrs,
-		SlotAttrs:       s.slotSnap.Slots["slot-plug-missing"].Attrs,
 	}
 	c.Check(cand.Check(), IsNil)
 }
