@@ -48,8 +48,15 @@ execute: |
     snap list | grep test-snapd-tools
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
-    echo Hello > /var/tmp/myevil.txt
-    test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+
+    # only test if confinement works and we actually have apparmor available
+    # FIXME: this will be converted to a better check once we added the
+    # plumbing for that into the snap command.
+    if [ -e /sys/kernel/security/apparmor ]; then
+        echo Hello > /var/tmp/myevil.txt
+        test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+    fi
+
     # check that automatic aliases survived
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"

@@ -1,5 +1,8 @@
 summary: Check that try command works
-systems: [-ubuntu-core-16-*]
+systems:
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
