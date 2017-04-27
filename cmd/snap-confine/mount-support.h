@@ -33,4 +33,12 @@
  **/
 void sc_populate_mount_ns(const char *snap_name);
 
+/**
+ * Ensure that / or /snap is mounted with the SHARED option. 
+ *
+ * If the system is found to be not having a shared mount for "/" 
+ * snap-confine will create a shared bind mount for "/snap" to
+ * ensure that "/snap" is mounted shared. See LP:#1668659
+ */
+void sc_ensure_shared_snap_mount();
 #endif

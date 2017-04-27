@@ -34,12 +34,15 @@ import (
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
 // overrides the any pre-existing environment variables.
-func ExecEnv(info *snap.Info) []string {
+func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
 	env := envMap(os.Environ())
 	snapEnv := snapEnv(info)
 	for k, v := range snapEnv {
+		env[k] = v
+	}
+	for k, v := range extra {
 		env[k] = v
 	}
 	return envFromMap(env)

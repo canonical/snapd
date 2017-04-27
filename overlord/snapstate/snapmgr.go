@@ -22,7 +22,6 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -30,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,10 +36,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timeutil"
 )
 
-// FIXME: what we actually want is a schedule spec that is user configurable
-// like:
+// FIXME: what we actually want is a more flexible schedule spec that is
+// user configurable  like:
 // """
 // tue
 // tue,thu
@@ -62,24 +61,20 @@ import (
 // $ snap set core refresh.schedule=<time spec>
 // and we need to validate the time-spec, ideally internally by
 // intercepting the set call
-var (
-	minRefreshInterval = 4 * time.Hour
 
-	// random interval on top of the minmum time between refreshes
-	defaultRefreshRandomness = 4 * time.Hour
-)
+const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
-var (
-	errtrackerReport = errtracker.Report
-)
+// overridden in the tests
+var errtrackerReport = errtracker.Report
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	refreshRandomness  time.Duration
-	lastRefreshAttempt time.Time
+	currentRefreshSchedule string
+	nextRefresh            time.Time
+	lastRefreshAttempt     time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
@@ -304,10 +299,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
-
-		refreshRandomness: time.Duration(rand.Int63n(int64(defaultRefreshRandomness))),
 	}
-	logger.Debugf("snapmgr refresh randomness %s", m.refreshRandomness)
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -336,18 +328,17 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
-	runner.AddHandler("alias", m.doAlias, m.undoAlias)
-	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
-	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
-	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
-
-	// XXX: WIP: aliases v2: temporary task names to be able to write tess until switching
-	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("setup-aliases-v2", m.doSetupAliasesV2, m.doRemoveAliasesV2)
-	runner.AddHandler("refresh-aliases-v2", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("prune-auto-aliases-v2", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("remove-aliases-v2", m.doRemoveAliasesV2, m.doSetupAliasesV2)
+	// FIXME: drop the task entirely after a while
+	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("setup-aliases", m.doSetupAliasesV2, m.doRemoveAliasesV2)
+	runner.AddHandler("refresh-aliases", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("remove-aliases", m.doRemoveAliasesV2, m.doSetupAliasesV2)
+	runner.AddHandler("alias", m.doAliasV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("unalias", m.doUnaliasV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("disable-aliases", m.doDisableAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("prefer-aliases", m.doPreferAliasesV2, m.undoRefreshAliasesV2)
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
@@ -363,95 +354,67 @@ func Manager(st *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func diskAliasTask(t *state.Task) bool {
-	// TODO: aliases v2!
-	kind := t.Kind()
-	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
-}
-
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
-	// aliases are global, serialize tasks operating on them
-	if diskAliasTask(cand) {
-		for _, t := range running {
-			if diskAliasTask(t) {
-				return true
-			}
-		}
-	}
 	return false
 }
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func setLastRefresh(st *state.State) {
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.last", time.Now())
-	tr.Commit()
+func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
+	for _, s := range rs {
+		if s.Weekday != "" {
+			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
+		}
+	}
+	return nil
 }
 
-// ensureRefreshes ensures that we refresh all installed snaps periodically
-func (m *SnapManager) ensureRefreshes() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil {
-		return nil
-	}
-	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
-		return err
-	}
+func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
+	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
-
-	// allow disabling auto-refresh in the tests
-	if osutil.GetenvBool("SNAPD_DEBUG") {
-		var refreshDisabled bool
-		err := tr.Get("core", "refresh.disabled", &refreshDisabled)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-		if refreshDisabled {
-			return nil
-		}
-	}
-
-	var lastRefresh time.Time
-	err := tr.Get("core", "refresh.last", &lastRefresh)
+	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
-		return err
+		return nil, err
+	}
+	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
+	if err == nil {
+		err = refreshScheduleNoWeekdays(refreshSchedule)
+	}
+	if err != nil {
+		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
+		if err != nil {
+			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+		}
+		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+		tr.Commit()
 	}
 
-	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(m.refreshRandomness)
-	if time.Now().Before(nextRefresh) {
-		return nil
-	}
-
-	// check that there is no change in flight already
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
+	// we already have a refresh time, check if we got a new config
+	if !m.nextRefresh.IsZero() {
+		if m.currentRefreshSchedule != refreshScheduleStr {
+			// the refresh schedule has changed
+			logger.Debugf("Option refresh.schedule changed.")
+			m.nextRefresh = time.Time{}
 		}
 	}
+	m.currentRefreshSchedule = refreshScheduleStr
 
-	// Check that we have reasonable delays between unsuccessful attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
-		return nil
-	}
+	return refreshSchedule, nil
+}
 
-	// store attempts in memory so that we can backoff a
+func (m *SnapManager) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
+		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
 
-	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// Set last refresh time only if the store (in AutoRefresh) gave
 	// us no error.
-	setLastRefresh(m.state)
+	m.state.Set("last-refresh", time.Now())
 
 	var msg string
 	switch len(updated) {
@@ -475,7 +438,83 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
 	return nil
+}
+
+func autoRefreshInFlight(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			return true
+		}
+	}
+	return false
+}
+
+func lastRefresh(st *state.State) (time.Time, error) {
+	var lastRefresh time.Time
+	err := st.Get("last-refresh", &lastRefresh)
+	if err != nil && err != state.ErrNoState {
+		return time.Time{}, err
+	}
+	return lastRefresh, nil
+}
+
+// ensureRefreshes ensures that we refresh all installed snaps periodically
+func (m *SnapManager) ensureRefreshes() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// see if it even makes sense to try to refresh
+	if CanAutoRefresh == nil {
+		return nil
+	}
+	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
+	}
+
+	// get lastRefresh and schedule
+	lastRefresh, err := lastRefresh(m.state)
+	if err != nil {
+		return err
+	}
+	refreshSchedule, err := m.getRefreshSchedule()
+	if err != nil {
+		return err
+	}
+
+	// ensure nothing is in flight already
+	if autoRefreshInFlight(m.state) {
+		return nil
+	}
+
+	// compute next refresh attempt time (if needed)
+	if m.nextRefresh.IsZero() {
+		// store attempts in memory so that we can backoff
+		delta := timeutil.Next(refreshSchedule, lastRefresh)
+		m.nextRefresh = time.Now().Add(delta)
+		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+	}
+
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
+		return nil
+	}
+
+	// do refresh attempt (if needed)
+	if m.nextRefresh.Before(time.Now()) {
+		err = m.launchAutoRefresh()
+		// clear nextRefresh only if the refresh worked. There is
+		// still the lastRefreshAttempt rate limit so things will
+		// not go into a busy store loop
+		if err == nil {
+			m.nextRefresh = time.Time{}
+		}
+	}
+
+	return err
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -516,6 +555,10 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	m.state.Set("fix-forced-devmode", 1)
 
 	return nil
+}
+
+func (m *SnapManager) NextRefresh() time.Time {
+	return m.nextRefresh
 }
 
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
@@ -579,6 +622,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
 	errs := []error{
+		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.ensureRefreshes(),
