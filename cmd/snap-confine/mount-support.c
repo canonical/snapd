@@ -178,27 +178,36 @@ static void sc_setup_mount_profiles(const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 
-	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	const char *mount_profile_dir = "/var/lib/snapd/mount";
-
+	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	char profile_path[PATH_MAX];
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/snap.%s.fstab",
-			 mount_profile_dir, snap_name);
 
-	debug("opening mount profile %s", profile_path);
-	f = setmntent(profile_path, "r");
-	// it is ok for the file to not exist
-	if (f == NULL && errno == ENOENT) {
-		debug("mount profile %s doesn't exist, ignoring", profile_path);
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/run/snapd/ns/snap.%s.fstab", snap_name);
+	debug("opening current mount profile %s", profile_path);
+	current = setmntent(profile_path, "w");
+	if (current == NULL) {
+		die("cannot open current mount profile: %s", profile_path);
+	}
+
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/var/lib/snapd/mount/snap.%s.fstab", snap_name);
+	debug("opening desired mount profile %s", profile_path);
+	desired = setmntent(profile_path, "r");
+	if (desired == NULL && errno == ENOENT) {
+		// It is ok for the desired profile to not exist. Note that in this
+		// case we also "update" the current profile as we already opened and
+		// truncated it above.
+		debug("desired mount profile %s doesn't exist, ignoring",
+		      profile_path);
 		return;
 	}
-	// however any other error is a real error
-	if (f == NULL) {
-		die("cannot open %s", profile_path);
+	if (desired == NULL) {
+		die("cannot open desired mount profile: %s", profile_path);
 	}
 
 	struct mntent *m = NULL;
-	while ((m = getmntent(f)) != NULL) {
+	while ((m = getmntent(desired)) != NULL) {
 		debug("read mount entry\n"
 		      "\tmnt_fsname: %s\n"
 		      "\tmnt_dir: %s\n"
@@ -220,6 +229,9 @@ static void sc_setup_mount_profiles(const char *snap_name)
 			flags &= ~MS_RDONLY;
 		}
 		sc_do_mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL);
+		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
+			die("cannot append entry to the current mount profile");
+		}
 	}
 }
 
