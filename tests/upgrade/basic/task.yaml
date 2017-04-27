@@ -50,6 +50,8 @@ execute: |
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
 
     # only test if confinement works and we actually have apparmor available
+    # FIXME: this will be converted to a better check once we added the
+    # plumbing for that into the snap command.
     if [ -e /sys/kernel/security/apparmor ]; then
         echo Hello > /var/tmp/myevil.txt
         test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
