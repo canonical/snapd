@@ -192,9 +192,9 @@ debug-each: |
     echo '# journal messages for snapd'
     journalctl -u snapd
     echo '# apparmor denials '
-    dmesg | grep DENIED || true
+    dmesg --ctime | grep DENIED || true
     echo '# seccomp denials (kills) '
-    dmesg | grep 1326 || true
+    dmesg --ctime | grep type=1326 || true
     echo '# snap interfaces'
     snap interfaces || true
 

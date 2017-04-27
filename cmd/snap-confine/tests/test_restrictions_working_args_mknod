@@ -2,19 +2,19 @@
 
 set -e
 
-# shellcheck source=snap-confine/tests/common.sh
 . "${srcdir:-.}/snap-confine/tests/common.sh"
 
 get_common_syscalls >"$TMP"/tmpl
 cat >>"$TMP"/tmpl <<EOF
-getpriority
+# what we are testing
 EOF
 
-for i in PRIO_PROCESS PRIO_PGRP PRIO_USER ; do
+for i in S_IFREG S_IFCHR S_IFBLK S_IFIFO S_IFSOCK ; do
     cat "$TMP"/tmpl >"$TMP"/snap.name.app
-    echo "setpriority $i - -" >>"$TMP"/snap.name.app
+    cat "$TMP"/snap.name.app
+    echo "mknod - $i" >>"$TMP"/snap.name.app
 
-    printf "Test good seccomp arg filtering (setpriority %s - -)" "$i"
+    printf "Test good seccomp arg filtering (mknod - %s)" "$i"
     # ensure that the command "true" can run with the right filter
     if $L snap.name.app /bin/true ; then
         PASS
