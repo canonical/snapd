@@ -152,7 +152,7 @@ backends:
             - ubuntu-17.10-ppc64el:
                 username: ubuntu
                 password: ubuntu
-            - ubuntu-17.04-armhf:
+            - ubuntu-17.10-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
