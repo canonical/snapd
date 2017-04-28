@@ -34,6 +34,9 @@ import (
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
 // overrides the any pre-existing environment variables.
+//
+// With the extra parameter additional environment variables can be
+// supplied which will be set in the execution environment.
 func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries

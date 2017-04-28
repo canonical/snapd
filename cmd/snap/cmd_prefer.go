@@ -25,32 +25,34 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdUnalias struct {
+type cmdPrefer struct {
 	Positionals struct {
-		AliasOrSnap string `required:"yes"`
+		Snap installedSnapName `required:"yes"`
 	} `positional-args:"true"`
 }
 
-var shortUnaliasHelp = i18n.G("Unalias a manual alias or an entire snap")
-var longUnaliasHelp = i18n.G(`
-The unalias command tears down a manual alias when given one or disables all aliases of a snap, removing also all manual ones, when given a snap name.
+var shortPreferHelp = i18n.G("Prefer aliases from a snap and disable conflicts")
+var longPreferHelp = i18n.G(`
+The prefer command enables all aliases of the given snap in preference
+to conflicting aliases of other snaps whose aliases will be disabled
+(removed for manual ones).
 `)
 
 func init() {
-	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
-		return &cmdUnalias{}
+	addCommand("prefer", shortPreferHelp, longPreferHelp, func() flags.Commander {
+		return &cmdPrefer{}
 	}, nil, []argDesc{
-		{name: i18n.G("<alias-or-snap>")},
+		{name: "<snap>"},
 	})
 }
 
-func (x *cmdUnalias) Execute(args []string) error {
+func (x *cmdPrefer) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
 	cli := Client()
-	id, err := cli.Unalias(x.Positionals.AliasOrSnap)
+	id, err := cli.Prefer(string(x.Positionals.Snap))
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,9 @@ execute: |
     echo "And we can use the shared content"
     test-snapd-content-plug.content-plug | grep "Some shared content"
 
+    echo "And the current mount profile is the same as the desired mount profile"
+    diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
+
     echo "============================================"
 
     echo "When the plug is disconnected"

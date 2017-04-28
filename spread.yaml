@@ -56,6 +56,9 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
                 workers: 2
+            - debian-unstable-64:
+                kernel: GRUB 2
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -189,9 +192,9 @@ debug-each: |
     echo '# journal messages for snapd'
     journalctl -u snapd
     echo '# apparmor denials '
-    dmesg | grep DENIED || true
+    dmesg --ctime | grep DENIED || true
     echo '# seccomp denials (kills) '
-    dmesg | grep 1326 || true
+    dmesg --ctime | grep type=1326 || true
     echo '# snap interfaces'
     snap interfaces || true
 

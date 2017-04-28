@@ -1,5 +1,9 @@
 summary: Check that the log-observe interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The log-observe interface allows a snap to read system logs and set kernel
     log rate-limiting.
