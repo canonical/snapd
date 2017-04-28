@@ -1,4 +1,4 @@
-summary: test that snap-discard-ns works as expected
+summary: check basic operation of snap-discard-ns
 details: |
     The internal command snap-discard-ns discards (unmounts) the
     /run/snapd/ns/$SNAP_NAME.mnt file and removes the current mount profile
@@ -7,17 +7,29 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
+environment:
+    # TODO: vary by distro later
+    LIBEXECDIR: /usr/lib/snapd/
 execute: |
-    echo "We can discard the namespace before a snap app runs without errors"
-    /usr/lib/snapd/snap-discard-ns test-snapd-tools
+    echo "We can try to discard a namespace before snap runs"
+    $LIBEXECDIR/snap-discard-ns test-snapd-tools
 
+    echo "We can try to discard a namespace before the .mnt file exits"
+    mkdir -p /run/snapd/ns/
+    $LIBEXECDIR/snap-discard-ns test-snapd-tools
+
+    echo "We can try to discard a namespace before the .mnt file is mounted"
+    touch /run/snapd/ns/test-snapd-tools.mnt
+    $LIBEXECDIR/snap-discard-ns test-snapd-tools
+
+    echo "We can discard the namespace after a snap runs"
     test-snapd-tools.success
-
-    echo "We can discard the namespace after a snap app runs without errors"
-    /usr/lib/snapd/snap-discard-ns test-snapd-tools
+    stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'nsfs|proc'
+    $LIBEXECDIR/snap-discard-ns test-snapd-tools
+    stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'tmpfs'
 
     echo "We can fake a current mount profile and see that it is removed too"
     test-snapd-tools.success
     touch /run/snapd/ns/snap.test-snapd-tools.fstab
-    /usr/lib/snapd/snap-discard-ns test-snapd-tools
+    $LIBEXECDIR/snap-discard-ns test-snapd-tools
     test ! -e /run/snapd/ns/snap.test-snapd-tools.fstab
