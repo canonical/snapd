@@ -553,7 +553,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app"})
 
 	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
