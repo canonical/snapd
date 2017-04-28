@@ -7,7 +7,7 @@ restore: |
     if [ -e /snap/core/current/meta/hooks/configure ]; then
         snap set core refresh.disabled=true
     fi
-    
+
 execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
@@ -15,7 +15,7 @@ execute: |
     if [ -e /snap/core/current/meta/hooks/configure ]; then
         snap set core refresh.disabled=false
     fi
-    
+
     systemctl stop snapd.{service,socket}
     echo "Modify the snap to track the edge channel"
     jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
@@ -28,7 +28,7 @@ execute: |
 
     echo "wait for auto-refresh to happen"
     for i in $(seq 120); do
-        if snap changes|grep -q "Done.*Refresh snap"; then
+        if snap changes|grep -q "Done.*Auto-refresh snap \"test-snapd-tools\""; then
             break
         fi
         sleep 1
@@ -36,7 +36,6 @@ execute: |
 
     echo "Ensure our snap got updated"
     snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
-    
+
     echo "Ensure refresh.last is set"
     jq ".data[\"config\"][\"core\"][\"refresh\"][\"last\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
-
