@@ -127,6 +127,9 @@ quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rn
 # in 16.04: apt build-dep -y ./
 quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
+# Necessary tools for our test setup
+quiet apt-get install -y netcat-openbsd
+
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
     rm -rf $GOPATH/src/github.com/kardianos/govendor

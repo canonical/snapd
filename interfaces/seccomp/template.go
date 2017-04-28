@@ -208,6 +208,16 @@ mlock2
 mlockall
 mmap
 mmap2
+
+# Allow mknod for regular files, pipes and sockets (and not block or char
+# devices)
+mknod - |S_IFREG -
+mknodat - - |S_IFREG -
+mknod - |S_IFIFO -
+mknodat - - |S_IFIFO -
+mknod - |S_IFSOCK -
+mknodat - - |S_IFSOCK -
+
 modify_ldt
 mprotect
 

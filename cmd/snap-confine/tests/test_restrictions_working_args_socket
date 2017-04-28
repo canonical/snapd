@@ -19,7 +19,6 @@ for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_A
     if $L snap.name.app /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 
@@ -32,7 +31,6 @@ for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_A
         if $L snap.name.app /bin/true ; then
             PASS
         else
-            dmesg|tail -n1
             FAIL
         fi
     done

@@ -255,6 +255,19 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 	panic("internal error: snapstate.Configure is unset")
 }
 
+// snapTopicalTasks are tasks that characterize changes on a snap that
+// cannot be run concurrently and should conflict with each other.
+var snapTopicalTasks = map[string]bool{
+	"link-snap":          true,
+	"unlink-snap":        true,
+	"refresh-aliases":    true,
+	"prune-auto-aliases": true,
+	"alias":              true,
+	"unalias":            true,
+	"disable-aliases":    true,
+	"prefer-aliases":     true,
+}
+
 // CheckChangeConflict ensures that for the given snapName no other
 // changes that alters the snap (like remove, install, refresh) are in
 // progress. It also ensures that snapst (if not nil) did not get
@@ -272,8 +285,7 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		// TODO: consider unalias tasks
-		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
+		if snapTopicalTasks[k] && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -651,7 +663,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 }
 
 func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
-	changed, dropped, err := autoAliasesDeltaV2(st, nil)
+	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(names) != 0 {
 			// not "refresh all", error
