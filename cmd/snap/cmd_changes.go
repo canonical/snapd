@@ -126,13 +126,12 @@ func (c *cmdChanges) Execute(args []string) error {
 func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
 	var id changeID
-	if c.Positional.ID == "" && c.LastChangeType == "" {
+	switch {
+	case c.Positional.ID == "" && c.LastChangeType == "":
 		return fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
-	}
-	if c.Positional.ID != "" && c.LastChangeType != "" {
+	case c.Positional.ID != "" && c.LastChangeType != "":
 		return fmt.Errorf(i18n.G("cannot use change ID and type together"))
-	}
-	if c.LastChangeType != "" {
+	case c.LastChangeType != "":
 		kind := c.LastChangeType
 		// our internal change types use "-snap" postfix but let user skip it and use short form.
 		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
@@ -153,7 +152,7 @@ func (c *cmdTasks) Execute([]string) error {
 			return fmt.Errorf(i18n.G("no changes of type %q found"), c.LastChangeType)
 		}
 		id = changeID(chg.ID)
-	} else {
+	default:
 		id = c.Positional.ID
 	}
 
