@@ -148,9 +148,7 @@ func (c *cmdTasks) Execute([]string) error {
 		if len(changes) == 0 {
 			return fmt.Errorf(i18n.G("no changes found"))
 		}
-		// sort by date, descending so that we will pick the most recent change of given kind.
-		sort.Sort(sort.Reverse(changesByTime(changes)))
-		chg := findFirstChangeByKind(changes, kind)
+		chg := findLatestChangeByKind(changes, kind)
 		if chg == nil {
 			return fmt.Errorf(i18n.G("no changes of type %q found"), c.LastChangeType)
 		}
@@ -167,13 +165,13 @@ func (c *cmdChange) Execute([]string) error {
 	return showChange(cli, c.Positional.ID)
 }
 
-func findFirstChangeByKind(changes []*client.Change, kind string) *client.Change {
+func findLatestChangeByKind(changes []*client.Change, kind string) (latest *client.Change) {
 	for _, chg := range changes {
-		if chg.Kind == kind {
-			return chg
+		if chg.Kind == kind && (latest == nil || latest.SpawnTime.Before(chg.SpawnTime)) {
+			latest = chg
 		}
 	}
-	return nil
+	return latest
 }
 
 func showChange(cli *client.Client, chid changeID) error {
