@@ -144,7 +144,13 @@ func (s loggerSuite) TestRedir(c *check.C) {
 			c.Check(r.Header.Get("Range"), check.Equals, "42")
 			c.Check(r.Header.Get("Authorization"), check.Equals, "please")
 			c.Check(r.Header.Get("Cookie"), check.Equals, "chocolate chip")
-			http.Redirect(w, r, r.URL.Path, 302)
+			// go1.8 changes the policy for headers on redirect:
+			//   https://golang.org/pkg/net/http/#Client
+			// sensitive headers are only cleaned if the redirect
+			// goes to a different domain, so we simulate this
+			// here
+			r.URL.Host = strings.Replace(r.Host, "127.0.0.1", "localhost", -1)
+			http.Redirect(w, r, r.URL.String(), 302)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/")
