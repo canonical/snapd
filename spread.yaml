@@ -85,6 +85,9 @@ backends:
             - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
     autopkgtest:
         type: adhoc
         allocate: |
@@ -135,6 +138,18 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-ppc64el:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.04-armhf:
