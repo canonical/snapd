@@ -184,7 +184,7 @@ func SetRootDir(rootdir string) {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
 
-	CoreLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+	CoreLibExecDir = "/usr/lib/snapd"
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")

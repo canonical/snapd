@@ -463,7 +463,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine(dirs.CoreLibExecDir)()
+	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "current", dirs.CoreLibExecDir))()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -473,7 +473,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 
 	// pretend to be running from core
 	restorer := snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "/core/111//usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
 	})
 	defer restorer()
 
