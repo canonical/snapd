@@ -62,8 +62,6 @@ plugs:
 	return &policy.ConnectCandidate{
 		Plug:            plugSnap.Plugs[iface],
 		Slot:            slotSnap.Slots[iface],
-		PlugAttrs:       plugSnap.Plugs[iface].Attrs,
-		SlotAttrs:       slotSnap.Slots[iface].Attrs,
 		BaseDeclaration: s.baseDecl,
 	}
 }
