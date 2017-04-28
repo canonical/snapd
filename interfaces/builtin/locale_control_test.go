@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type LocaleControlInterfaceSuite struct {
@@ -33,23 +36,27 @@ type LocaleControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocaleControlInterfaceSuite{
-	iface: builtin.NewLocaleControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&LocaleControlInterfaceSuite{})
+
+func (s *LocaleControlInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [locale-control]
+`
+	s.iface = builtin.NewLocaleControlInterface()
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["locale-control"]}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "locale-control",
 			Interface: "locale-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "locale-control",
-			Interface: "locale-control",
-		},
-	},
-})
+	}
+}
 
 func (s *LocaleControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "locale-control")
@@ -80,11 +87,11 @@ func (s *LocaleControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *LocaleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *LocaleControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
+	aasnippets := apparmorSpec.Snippets()
+	c.Assert(aasnippets, HasLen, 1)
+	c.Assert(aasnippets["snap.other.app"], HasLen, 1)
+	c.Assert(string(aasnippets["snap.other.app"][0]), testutil.Contains, "/etc/default/locale")
 }

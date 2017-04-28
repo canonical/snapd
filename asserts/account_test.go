@@ -68,6 +68,21 @@ func (s *accountSuite) TestDecodeOK(c *C) {
 	c.Check(account.IsCertified(), Equals, true)
 }
 
+func (s *accountSuite) TestOptional(c *C) {
+	encoded := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)
+
+	tests := []struct{ original, replacement string }{
+		{"username: nice\n", ""},
+		{"username: nice\n", "username: \n"},
+	}
+
+	for _, test := range tests {
+		valid := strings.Replace(encoded, test.original, test.replacement, 1)
+		_, err := asserts.Decode([]byte(valid))
+		c.Check(err, IsNil)
+	}
+}
+
 func (s *accountSuite) TestIsCertified(c *C) {
 	tests := []struct {
 		value       string
@@ -105,6 +120,7 @@ func (s *accountSuite) TestDecodeInvalid(c *C) {
 		{"account-id: abc-123\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"display-name: Nice User\n", "", `"display-name" header is mandatory`},
 		{"display-name: Nice User\n", "display-name: \n", `"display-name" header should not be empty`},
+		{"username: nice\n", "username:\n  - foo\n  - bar\n", `"username" header must be a string`},
 		{"validation: certified\n", "", `"validation" header is mandatory`},
 		{"validation: certified\n", "validation: \n", `"validation" header should not be empty`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
@@ -131,7 +147,7 @@ func (s *accountSuite) TestCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(account)
-	c.Assert(err, ErrorMatches, "account assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `account assertion timestamp outside of signing key validity \(key valid since.*\)`)
 }
 
 func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {

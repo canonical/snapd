@@ -120,6 +120,7 @@ func (as *authSuite) TestNewUser(c *C) {
 func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
+	c.Assert(err, IsNil)
 	as.state.Unlock()
 
 	expected := []string{"discharge1", "discharge2"}

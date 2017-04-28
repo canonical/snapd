@@ -28,7 +28,7 @@ import (
 
 type cmdDeleteKey struct {
 	Positional struct {
-		KeyName string
+		KeyName keyName
 	} `positional-args:"true" required:"true"`
 }
 
@@ -51,5 +51,5 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 	}
 
 	manager := asserts.NewGPGKeypairManager()
-	return manager.Delete(x.Positional.KeyName)
+	return manager.Delete(string(x.Positional.KeyName))
 }

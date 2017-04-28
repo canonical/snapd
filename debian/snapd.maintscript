@@ -1,5 +1,0 @@
-
-# we used to ship a custom grub config that is no longer needed
-rm_conffile /etc/grub.d/09_snappy 1.7.3ubuntu1
-# keep mount point busy
-rm_conffile /etc/ld.so.conf.d/snappy.conf 2.0.7~

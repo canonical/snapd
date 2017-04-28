@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -e
+
+# shellcheck source=snap-confine/tests/common.sh
+. "${srcdir:-.}/snap-confine/tests/common.sh"
+
+get_common_syscalls >"$TMP"/tmpl
+cat >>"$TMP"/tmpl <<EOF
+getpriority
+EOF
+
+for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_ATMPVC AF_APPLETALK AF_PACKET AF_ALG AF_CAN PF_UNIX PF_LOCAL PF_INET PF_INET6 PF_IPX PF_NETLINK PF_X25 PF_AX25 PF_ATMPVC PF_APPLETALK PF_PACKET PF_ALG PF_CAN ; do
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "socket $i" >>"$TMP"/snap.name.app
+
+    printf "Test good seccomp arg filtering (socket %s)" "$i"
+    # ensure that the command "true" can run with the right filter
+    if $L snap.name.app /bin/true ; then
+        PASS
+    else
+        FAIL
+    fi
+
+    for j in SOCK_STREAM SOCK_DGRAM SOCK_SEQPACKET SOCK_RAW SOCK_RDM SOCK_PACKET ; do
+        cat "$TMP"/tmpl >"$TMP"/snap.name.app
+        echo "socket $i $j" >>"$TMP"/snap.name.app
+
+        printf "Test good seccomp arg filtering (socket %s %s)" "$i" "$j"
+        # ensure that the command "true" can run with the right filter
+        if $L snap.name.app /bin/true ; then
+            PASS
+        else
+            FAIL
+        fi
+    done
+done

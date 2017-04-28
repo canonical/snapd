@@ -48,7 +48,7 @@ flags are available using
     go help get
 
 At this point you will have the git local repository of the `snapd` source at
-`$GOPATH/github.com/snapcore/snapd`. The source for any
+`$GOPATH/src/github.com/snapcore/snapd`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
@@ -59,7 +59,7 @@ Dependencies are handled via `govendor`. Get it via:
 
 After a fresh checkout, move to the snapd source directory:
 
-    cd $GOPATH/github.com/snapcore/snapd
+    cd $GOPATH/src/github.com/snapcore/snapd
 
 And then, run:
 
@@ -83,6 +83,10 @@ working directory). Alternatively:
     go install github.com/snapcore/snapd/...
 
 to have it available in `$GOPATH/bin`
+
+Similarly, to build the `snapd` REST API daemon, you can run
+
+    go build -o /tmp/snapd github.com/snapcore/snapd/cmd/snapd
 
 ### Contributing
 
@@ -132,8 +136,13 @@ Then setup the environment via:
 
     $ mkdir -p .spread/qemu
     $ cd .spread/qemu
-    $ adt-buildvm-ubuntu-cloud
+    # For xenial (same works for yakkety/zesty)
+    $ adt-buildvm-ubuntu-cloud -r xenial
     $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
+    # For trusty
+    $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
+    $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+
 
 And you can run the tests via:
 
@@ -153,18 +162,30 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./snapd
 
-or with systemd version >= 230
+To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
+It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
-    sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+# Quick intro to hacking on snap-confine
 
-This will stop the installed snapd and activate the new one. Once it's
-printed out something like `Listening on /run/snapd.socket as 3.` you
-should then
+Hey, welcome to the nice, low-level world of snap-confine
 
-    sudo chmod 0666 /run/snapd*.socket
+## Building the code locally
 
-so the socket has the right permissions (otherwise you need `sudo` to
-connect).
+To get started from a pristine tree you want to do this:
+
+```
+./mkversion.sh
+cd cmd/
+autoreconf -i -f
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+```
+
+This will drop makefiles and let you build stuff. You may find the `make hack`
+target, available in `cmd/snap-confine` handy, it installs the locally built
+version on your system and reloads the apparmor profile.
+
+## Submitting patches
+
+Please run `make fmt` before sending your patches.

@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"fmt"
 	"regexp"
 
 	. "gopkg.in/check.v1"
@@ -83,27 +84,27 @@ func (s *ValidateSuite) TestValidateEpoch(c *C) {
 
 func (s *ValidateSuite) TestValidateHook(c *C) {
 	validHooks := []*HookInfo{
-		&HookInfo{Name: "a"},
-		&HookInfo{Name: "aaa"},
-		&HookInfo{Name: "a-a"},
-		&HookInfo{Name: "aa-a"},
-		&HookInfo{Name: "a-aa"},
-		&HookInfo{Name: "a-b-c"},
+		{Name: "a"},
+		{Name: "aaa"},
+		{Name: "a-a"},
+		{Name: "aa-a"},
+		{Name: "a-aa"},
+		{Name: "a-b-c"},
 	}
 	for _, hook := range validHooks {
 		err := ValidateHook(hook)
 		c.Assert(err, IsNil)
 	}
 	invalidHooks := []*HookInfo{
-		&HookInfo{Name: ""},
-		&HookInfo{Name: "a a"},
-		&HookInfo{Name: "a--a"},
-		&HookInfo{Name: "-a"},
-		&HookInfo{Name: "a-"},
-		&HookInfo{Name: "0"},
-		&HookInfo{Name: "123"},
-		&HookInfo{Name: "123abc"},
-		&HookInfo{Name: "日本語"},
+		{Name: ""},
+		{Name: "a a"},
+		{Name: "a--a"},
+		{Name: "-a"},
+		{Name: "a-"},
+		{Name: "0"},
+		{Name: "123"},
+		{Name: "123abc"},
+		{Name: "日本語"},
 	}
 	for _, hook := range invalidHooks {
 		err := ValidateHook(hook)
@@ -143,14 +144,30 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", SocketMode: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", ListenStream: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "oneshot"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
+	for _, t := range []struct {
+		daemon string
+		ok     bool
+	}{
+		// good
+		{"", true},
+		{"simple", true},
+		{"forking", true},
+		{"oneshot", true},
+		{"dbus", true},
+		{"notify", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+		}
+	}
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
@@ -253,4 +270,44 @@ slots:
 	c.Assert(err, IsNil)
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
+}
+
+func (s *ValidateSuite) TestIllegalAliasName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo$]
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
+}
+
+func (s *ValidateSuite) TestValidateAlias(c *C) {
+	validAliases := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"a_a", "aa_a", "a_aa", "a_b_c",
+		"a0", "a_0", "a_0a",
+		"01game", "1-or-2",
+		"0.1game", "1_or_2",
+	}
+	for _, alias := range validAliases {
+		err := ValidateAlias(alias)
+		c.Assert(err, IsNil)
+	}
+	invalidAliases := []string{
+		"",
+		"_foo",
+		"-foo",
+		".foo",
+		"foo$",
+	}
+	for _, alias := range invalidAliases {
+		err := ValidateAlias(alias)
+		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
+	}
 }

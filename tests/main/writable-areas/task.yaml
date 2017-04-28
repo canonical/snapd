@@ -1,5 +1,11 @@
 summary: Check that snap apps and services can write to writable areas.
 
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
+
 prepare: |
     snapbuild $TESTSLIB/snaps/data-writer .
 
@@ -19,14 +25,13 @@ execute: |
     #[ -f /root/snap/data-writer/common/from-app ]
 
     echo "Waiting for data writer service to finish..."
-    while ! journalctl --no-pager -u snap.data-writer.service.service | grep -q "Writing to SNAP_USER_DATA"; do
+    while [ ! -f /root/snap/data-writer/x1/from-service ]; do
        sleep 1
     done
 
     echo "Services can write to writable areas"
     [ -f /var/snap/data-writer/x1/from-service ]
     [ -f /var/snap/data-writer/common/from-service ]
-    [ -f /root/snap/data-writer/x1/from-service ]
     # TODO: As soon as `snap run` is used (which creates this directory),
     # uncomment the following line:
     #[ -f /root/snap/data-writer/common/from-service ]

@@ -23,8 +23,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ProcessControlInterfaceSuite struct {
@@ -33,23 +37,28 @@ type ProcessControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ProcessControlInterfaceSuite{
-	iface: builtin.NewProcessControlInterface(),
-	slot: &interfaces.Slot{
+const procctlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [process-control]
+`
+
+var _ = Suite(&ProcessControlInterfaceSuite{})
+
+func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewProcessControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "process-control",
 			Interface: "process-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "process-control",
-			Interface: "process-control",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, procctlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["process-control"]}
+}
 
 func (s *ProcessControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "process-control")
@@ -80,14 +89,15 @@ func (s *ProcessControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *ProcessControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability sys_resource")
 
-func (s *ProcessControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "sched_setaffinity\n")
 }

@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -34,13 +35,14 @@ type RepositorySuite struct {
 	iface     Interface
 	plug      *Plug
 	slot      *Slot
+	coreSnap  *snap.Info
 	emptyRepo *Repository
 	// Repository pre-populated with s.iface
 	testRepo *Repository
 }
 
 var _ = Suite(&RepositorySuite{
-	iface: &TestInterface{
+	iface: &ifacetest.TestInterface{
 		InterfaceName: "interface",
 	},
 })
@@ -72,6 +74,16 @@ slots:
         attr: value
 `, nil)
 	s.slot = &Slot{SlotInfo: producer.Slots["slot"]}
+	// NOTE: The core snap has a slot so that it shows up in the
+	// repository. The repository doesn't record snaps unless they
+	// have at least one interface.
+	s.coreSnap = snaptest.MockInfo(c, `
+name: core
+type: os
+slots:
+    network:
+        interface: interface
+`, nil)
 	s.emptyRepo = NewRepository()
 	s.testRepo = NewRepository()
 	err := s.testRepo.AddInterface(s.iface)
@@ -105,8 +117,8 @@ func (s *RepositorySuite) TestAddInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestAddInterfaceClash(c *C) {
-	iface1 := &TestInterface{InterfaceName: "iface"}
-	iface2 := &TestInterface{InterfaceName: "iface"}
+	iface1 := &ifacetest.TestInterface{InterfaceName: "iface"}
+	iface2 := &ifacetest.TestInterface{InterfaceName: "iface"}
 	err := s.emptyRepo.AddInterface(iface1)
 	c.Assert(err, IsNil)
 	// Adding an interface with the same name as another interface is not allowed
@@ -116,11 +128,26 @@ func (s *RepositorySuite) TestAddInterfaceClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
-	iface := &TestInterface{InterfaceName: "bad-name-"}
+	iface := &ifacetest.TestInterface{InterfaceName: "bad-name-"}
 	// Adding an interface with invalid name is not allowed
 	err := s.emptyRepo.AddInterface(iface)
 	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
+}
+
+func (s *RepositorySuite) TestAddBackend(c *C) {
+	backend := &ifacetest.TestSecurityBackend{BackendName: "test"}
+	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
+	err := s.emptyRepo.AddBackend(backend)
+	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
+}
+
+func (s *RepositorySuite) TestBackends(c *C) {
+	b1 := &ifacetest.TestSecurityBackend{BackendName: "b1"}
+	b2 := &ifacetest.TestSecurityBackend{BackendName: "b2"}
+	c.Assert(s.emptyRepo.AddBackend(b2), IsNil)
+	c.Assert(s.emptyRepo.AddBackend(b1), IsNil)
+	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b1, b2})
 }
 
 // Tests for Repository.Interface()
@@ -138,9 +165,9 @@ func (s *RepositorySuite) TestInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestInterfaceSearch(c *C) {
-	ifaceA := &TestInterface{InterfaceName: "a"}
-	ifaceB := &TestInterface{InterfaceName: "b"}
-	ifaceC := &TestInterface{InterfaceName: "c"}
+	ifaceA := &ifacetest.TestInterface{InterfaceName: "a"}
+	ifaceB := &ifacetest.TestInterface{InterfaceName: "b"}
+	ifaceC := &ifacetest.TestInterface{InterfaceName: "c"}
 	err := s.emptyRepo.AddInterface(ifaceA)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddInterface(ifaceB)
@@ -163,13 +190,33 @@ func (s *RepositorySuite) TestAddPlug(c *C) {
 	c.Assert(s.testRepo.Plug(s.plug.Snap.Name(), s.plug.Name), DeepEquals, s.plug)
 }
 
-func (s *RepositorySuite) TestAddPlugClash(c *C) {
+func (s *RepositorySuite) TestAddPlugClashingPlug(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddPlug(s.plug)
-	c.Assert(err, ErrorMatches, `cannot add plug, snap "consumer" already has plug "plug"`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has plugs conflicting on name "plug"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
 	c.Assert(s.testRepo.Plug(s.plug.Snap.Name(), s.plug.Name), DeepEquals, s.plug)
+}
+
+func (s *RepositorySuite) TestAddPlugClashingSlot(c *C) {
+	snapInfo := &snap.Info{SuggestedName: "snap"}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	err := s.testRepo.AddSlot(slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddPlug(plug)
+	c.Assert(err, ErrorMatches, `snap "snap" has plug and slot conflicting on name "clashing"`)
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 1)
+	c.Assert(s.testRepo.Slot(slot.Snap.Name(), slot.Name), DeepEquals, slot)
 }
 
 func (s *RepositorySuite) TestAddPlugFailsWithInvalidSnapName(c *C) {
@@ -205,7 +252,7 @@ func (s *RepositorySuite) TestAddPlugFailsWithUnknownInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestAddPlugFailsWithUnsanitizedPlug(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		SanitizePlugCallback: func(plug *Plug) error {
 			return fmt.Errorf("plug is dirty")
@@ -270,7 +317,7 @@ func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, IsNil)
 	// Removing a plug used by a slot returns an appropriate error
@@ -306,7 +353,7 @@ plugs:
 
 func (s *RepositorySuite) TestAllPlugsWithInterfaceName(c *C) {
 	// Add another interface so that we can look for it
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
@@ -351,7 +398,7 @@ plugs:
 // Tests for Repository.AllSlots()
 
 func (s *RepositorySuite) TestAllSlots(c *C) {
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
@@ -450,17 +497,37 @@ func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
+func (s *RepositorySuite) TestAddSlotClashingSlot(c *C) {
 	// Adding the first slot succeeds
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot, snap "producer" already has slot "slot"`)
+	c.Assert(err, ErrorMatches, `snap "producer" has slots conflicting on name "slot"`)
+}
+
+func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
+	snapInfo := &snap.Info{SuggestedName: "snap"}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	err := s.testRepo.AddPlug(plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(slot)
+	c.Assert(err, ErrorMatches, `snap "snap" has plug and slot conflicting on name "clashing"`)
+	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
+	c.Assert(s.testRepo.Plug(plug.Snap.Name(), plug.Name), DeepEquals, plug)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		SanitizeSlotCallback: func(slot *Slot) error {
 			return fmt.Errorf("slot is dirty")
@@ -506,7 +573,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsConnected(c *C) {
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, IsNil)
 	// Removing a slot occupied by a plug returns an appropriate error
@@ -594,7 +661,8 @@ slots:
 
 // ResolveConnect detects lack of candidates
 func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
+	c.Assert(err, IsNil)
 	coreSnap := snaptest.MockInfo(c, `
 name: core
 type: os
@@ -675,7 +743,7 @@ func (s *RepositorySuite) TestResolveNoSuchSlot(c *C) {
 
 // Plug and slot must have matching types
 func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
-	c.Assert(s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"}), IsNil)
+	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"}), IsNil)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "consumer"},
@@ -692,13 +760,315 @@ func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
 	c.Check(conn, Equals, ConnRef{})
 }
 
+// Tests for Repository.ResolveDisconnect()
+
+// All the was to resolve a 'snap disconnect' between two snaps.
+// The actual snaps are not installed though.
+func (s *RepositorySuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", `snap "producer" has no plug or slot named "slot"`},
+		// Case 4 (FAILURE)
+		// Disconnect everything from a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (FAILURE)
+		// Disconnect anything connected to a specific plug
+		{"consumer", "plug", "", "", `snap "consumer" has no plug or slot named "plug"`},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", `snap "consumer" has no plug named "plug"`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := s.testRepo.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		c.Check(err, ErrorMatches, scenario.errMsg)
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the was to resolve a 'snap disconnect' between two snaps.
+// The actual snaps are not installed though but a core snap is.
+func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", `snap "producer" has no plug or slot named "slot"`},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", `snap "consumer" has no plug or slot named "plug"`},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", `snap "consumer" has no plug named "plug"`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := s.testRepo.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		c.Check(err, ErrorMatches, scenario.errMsg)
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the was to resolve a 'snap disconnect' between two snaps.
+// The actual snaps as well as the core snap are installed.
+// The snaps are not connected.
+func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", ""},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", ""},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "core" has no slot named "slot"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection (but it is not connected).
+		{"consumer", "plug", "producer", "slot", `cannot disconnect consumer:plug from producer:slot, it is not connected`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := s.testRepo.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		if scenario.errMsg != "" {
+			c.Check(err, ErrorMatches, scenario.errMsg)
+		} else {
+			c.Check(err, IsNil)
+		}
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the was to resolve a 'snap disconnect' between two snaps.
+// The actual snaps as well as the core snap are installed.
+// The snaps are connected.
+func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
+	c.Assert(s.testRepo.Connect(connRef), IsNil)
+
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", ""},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", ""},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "core" has no slot named "slot"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (SUCCESS)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", ""},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := s.testRepo.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		if scenario.errMsg != "" {
+			c.Check(err, ErrorMatches, scenario.errMsg)
+			c.Check(connRefList, HasLen, 0)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(connRefList, DeepEquals, []ConnRef{connRef})
+		}
+	}
+}
+
 // Tests for Repository.Connect()
 
 func (s *RepositorySuite) TestConnectFailsWhenPlugDoesNotExist(c *C) {
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Connecting an unknown plug returns an appropriate error
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, ErrorMatches, `cannot connect plug "plug" from snap "consumer", no such plug`)
 }
@@ -707,7 +1077,7 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	// Connecting to an unknown slot returns an error
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, ErrorMatches, `cannot connect plug to slot "slot" from snap "producer", no such slot`)
 }
@@ -717,7 +1087,7 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, IsNil)
 	// Connecting exactly the same thing twice succeeds without an error but does nothing.
@@ -737,7 +1107,7 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
-	otherInterface := &TestInterface{InterfaceName: "other-interface"}
+	otherInterface := &ifacetest.TestInterface{InterfaceName: "other-interface"}
 	err := s.testRepo.AddInterface(otherInterface)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
@@ -752,7 +1122,7 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Connecting a plug to an incompatible slot fails with an appropriate error
-	connRef := ConnRef{PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, ErrorMatches, `cannot connect plug "consumer:plug" \(interface "other-interface"\) to "producer:slot" \(interface "interface"\)`)
 }
@@ -763,7 +1133,7 @@ func (s *RepositorySuite) TestConnectSucceeds(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Connecting a plug works okay
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, IsNil)
 }
@@ -848,13 +1218,13 @@ func (s *RepositorySuite) TestConnectedFindsConnections(c *C) {
 	conns, err := s.testRepo.Connected(s.plug.Snap.Name(), s.plug.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), s.slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()},
 	})
 
 	conns, err = s.testRepo.Connected(s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), s.slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()},
 	})
 }
 
@@ -874,7 +1244,7 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	conns, err := s.testRepo.Connected("", s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: slot.Ref()},
 	})
 }
 
@@ -885,7 +1255,7 @@ func (s *RepositorySuite) TestDisconnectAll(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	c.Assert(s.testRepo.Connect(ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}), IsNil)
 
-	conns := []ConnRef{{s.plug.Ref(), s.slot.Ref()}}
+	conns := []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}}
 	s.testRepo.DisconnectAll(conns)
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
 		Plugs: []*Plug{{PlugInfo: s.plug.PlugInfo}},
@@ -901,7 +1271,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// After connecting the result is as expected
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = s.testRepo.Connect(connRef)
 	c.Assert(err, IsNil)
 	ifaces := s.testRepo.Interfaces()
@@ -925,205 +1295,133 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	})
 }
 
-// Tests for Repository.SecuritySnippetsForSnap()
+// Tests for Repository.SnapSpecification
 
-const testSecurity SecuritySystem = "security"
+const testSecurity SecuritySystem = "test"
 
-var testInterface = &TestInterface{
+var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
-	PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
-		if securitySystem == testSecurity {
-			return []byte(`static plug snippet`), nil
-		}
-		return nil, nil
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		spec.AddSnippet("static plug snippet")
+		return nil
 	},
-	PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-		if securitySystem == testSecurity {
-			return []byte(`connection-specific plug snippet`), nil
-		}
-		return nil, nil
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific plug snippet")
+		return nil
 	},
-	PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-		if securitySystem == testSecurity {
-			return []byte(`static slot snippet`), nil
-		}
-		return nil, nil
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		spec.AddSnippet("static slot snippet")
+		return nil
 	},
-	SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-		if securitySystem == testSecurity {
-			return []byte(`connection-specific slot snippet`), nil
-		}
-		return nil, nil
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific slot snippet")
+		return nil
 	},
 }
 
-func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
+func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	repo := s.emptyRepo
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
+	c.Assert(repo.AddBackend(backend), IsNil)
 	c.Assert(repo.AddInterface(testInterface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
+
 	// Snaps should get static security now
-	var snippets map[string][][]byte
-	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": {
-			[]byte(`static plug snippet`),
-		},
-		"snap.consumer.hook.configure": {
-			[]byte(`static plug snippet`),
-		},
-	})
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static plug snippet"})
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": {
-			[]byte(`static slot snippet`),
-		},
-	})
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static slot snippet"})
+
 	// Establish connection between plug and slot
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	err = repo.Connect(connRef)
 	c.Assert(err, IsNil)
+
 	// Snaps should get static and connection-specific security now
-	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
+	spec, err = repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": {
-			[]byte(`static plug snippet`),
-			[]byte(`connection-specific plug snippet`),
-		},
-		"snap.consumer.hook.configure": {
-			[]byte(`static plug snippet`),
-			[]byte(`connection-specific plug snippet`),
-		},
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static plug snippet",
+		"connection-specific plug snippet",
 	})
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": {
-			[]byte(`static slot snippet`),
-			[]byte(`connection-specific slot snippet`),
-		},
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static slot snippet",
+		"connection-specific slot snippet",
 	})
 }
 
-func (s *RepositorySuite) TestOrphanInterfaces(c *C) {
-	repo := s.emptyRepo
-	snaps := addPlugsSlots(c, s.testRepo, `
-name: snap-a
-plugs:
-    plug-a: interface
-`, `
-name: snap-b
-slots:
-    slot-b: interface
-`)
-
-	c.Assert(repo.AddInterface(testInterface), IsNil)
-	for _, snap := range snaps {
-		err := repo.AddSnap(snap)
-		c.Assert(err, IsNil)
-	}
-
-	// Snaps should get static security now
-	var snippets map[string][][]byte
-	snippets, err := repo.SecuritySnippetsForSnap("snap-a", testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.snap-a.none.plug-a": {
-			[]byte(`static plug snippet`),
-		},
-	})
-	snippets, err = repo.SecuritySnippetsForSnap("snap-b", testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.snap-b.none.slot-b": {
-			[]byte(`static slot snippet`),
-		},
-	})
-
-	// Establish connection between plug and slot
-	connRef := ConnRef{PlugRef: PlugRef{Snap: "snap-a", Name: "plug-a"}, SlotRef: SlotRef{Snap: "snap-b", Name: "slot-b"}}
-	c.Assert(repo.Connect(connRef), IsNil)
-
-	// Snaps should get static and connection-specific security now
-	snippets, err = repo.SecuritySnippetsForSnap("snap-a", testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.snap-a.none.plug-a": {
-			[]byte(`static plug snippet`),
-			[]byte(`connection-specific plug snippet`),
-		},
-	})
-	snippets, err = repo.SecuritySnippetsForSnap("snap-b", testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.snap-b.none.slot-b": {
-			[]byte(`static slot snippet`),
-			[]byte(`connection-specific slot snippet`),
-		},
-	})
-}
-
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippets(c *C) {
+func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
-	iface := &TestInterface{
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			return nil, fmt.Errorf("cannot compute snippet for consumer")
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			return nil, fmt.Errorf("cannot compute snippet for provider")
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
 	repo := s.emptyRepo
+
+	c.Assert(repo.AddBackend(backend), IsNil)
 	c.Assert(repo.AddInterface(iface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	c.Assert(repo.Connect(connRef), IsNil)
-	var snippets map[string][][]byte
-	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
-	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
-	c.Check(snippets, IsNil)
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
+
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
-	c.Check(snippets, IsNil)
+	c.Assert(spec, IsNil)
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
+	c.Assert(spec, IsNil)
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
+func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			return nil, fmt.Errorf("cannot compute static snippet for consumer")
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
-			return nil, fmt.Errorf("cannot compute static snippet for provider")
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
 	repo := s.emptyRepo
+	c.Assert(repo.AddBackend(backend), IsNil)
 	c.Assert(repo.AddInterface(iface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
-	connRef := ConnRef{PlugRef: PlugRef{Snap: s.plug.Snap.Name(), Name: s.plug.Name}, SlotRef: SlotRef{Snap: s.slot.Snap.Name(), Name: s.slot.Name}}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	c.Assert(repo.Connect(connRef), IsNil)
-	var snippets map[string][][]byte
-	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
-	c.Assert(err, ErrorMatches, "cannot compute static snippet for provider")
-	c.Check(snippets, IsNil)
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
-	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
-	c.Check(snippets, IsNil)
+
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
+	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
+	c.Assert(spec, IsNil)
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
+	c.Assert(spec, IsNil)
 }
 
-func (s *RepositorySuite) TestAutoConnectCandidates(c *C) {
+func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
-	err := repo.AddInterface(&TestInterface{InterfaceName: "auto"})
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
 	c.Assert(err, IsNil)
-	err = repo.AddInterface(&TestInterface{InterfaceName: "manual"})
+	err = repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
 
 	policyCheck := func(plug *Plug, slot *Slot) bool {
@@ -1149,12 +1447,17 @@ slots:
 	err = repo.AddSnap(consumer)
 	c.Assert(err, IsNil)
 
-	candidateSlots := repo.AutoConnectCandidates("consumer", "auto", policyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 
+	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
+	c.Assert(candidatePlugs, HasLen, 1)
+	c.Check(candidatePlugs[0].Snap.Name(), Equals, "consumer")
+	c.Check(candidatePlugs[0].Interface, Equals, "auto")
+	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
 
 // Tests for AddSnap and RemoveSnap
@@ -1167,9 +1470,9 @@ var _ = Suite(&AddRemoveSuite{})
 
 func (s *AddRemoveSuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
-	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface"})
+	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"})
 	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&TestInterface{
+	err = s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
@@ -1178,16 +1481,18 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 }
 
 func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
-	err := s.repo.AddInterface(&TestInterface{
+	err := s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid-plug-iface",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
-	err = s.repo.AddInterface(&TestInterface{
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid-slot-iface",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
+	c.Assert(err, IsNil)
 	snapInfo := snaptest.MockInfo(c, `
 name: complex
 plugs:
@@ -1220,6 +1525,26 @@ apps:
         slots: [iface]
 `
 
+const testConsumerInvalidSlotNameYaml = `
+name: consumer
+slots:
+ ttyS5:
+  interface: iface
+apps:
+    app:
+        slots: [iface]
+`
+
+const testConsumerInvalidPlugNameYaml = `
+name: consumer
+plugs:
+ ttyS3:
+  interface: iface
+apps:
+    app:
+        plugs: [iface]
+`
+
 func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
 	snapInfo := snaptest.MockInfo(c, yaml, nil)
 	return snapInfo, s.repo.AddSnap(snapInfo)
@@ -1230,6 +1555,18 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 	c.Assert(err, IsNil)
 	// The plug was added
 	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
+}
+
+func (s *AddRemoveSuite) TestAddSnapErrorsOnInvalidSlotNames(c *C) {
+	_, err := s.addSnap(c, testConsumerInvalidSlotNameYaml)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+}
+
+func (s *AddRemoveSuite) TestAddSnapErrorsOnInvalidPlugNames(c *C) {
+	_, err := s.addSnap(c, testConsumerInvalidPlugNameYaml)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
 }
 
 func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapPlugs(c *C) {
@@ -1301,9 +1638,9 @@ var _ = Suite(&DisconnectSnapSuite{})
 func (s *DisconnectSnapSuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
 
-	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface-a"})
+	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface-a"})
 	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&TestInterface{InterfaceName: "iface-b"})
+	err = s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface-b"})
 	c.Assert(err, IsNil)
 
 	s.s1 = snaptest.MockInfo(c, `
@@ -1373,7 +1710,7 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 }
 
 func contentPolicyCheck(plug *Plug, slot *Slot) bool {
-	return plug.Snap.Developer == slot.Snap.Developer
+	return plug.Snap.PublisherID == slot.Snap.PublisherID
 }
 
 func contentAutoConnect(plug *Plug, slot *Slot) bool {
@@ -1384,12 +1721,13 @@ func contentAutoConnect(plug *Plug, slot *Slot) bool {
 // is a content plug and one a content slot
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
+	c.Assert(err, IsNil)
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
 plugs:
-  import-content:
+  imported-content:
     interface: content
     content: %s
 `, plugContentToken), nil)
@@ -1411,118 +1749,40 @@ slots:
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 1)
+	c.Check(candidatePlugs[0].Name, Equals, "imported-content")
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) {
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	slotSnap.Type = snap.TypeOS
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *C) {
 	repo, plugSnap, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	// this comes via SideInfo
-	plugSnap.Developer = "foo"
-	slotSnap.Developer = "bar"
+	// real code will use the assertions, this is just for emulation
+	plugSnap.PublisherID = "fooid"
+	slotSnap.PublisherID = "barid"
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
-}
-
-func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
-	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted"})
-	c.Assert(err, IsNil)
-
-	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted"})
-	c.Assert(err, IsNil)
-
-	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
-name: %s
-plugs:
-  restricted:
-    interface: restricted
-  non-restricted:
-    interface: non-restricted
-`, name), &snap.SideInfo{
-		DeveloperID: developer,
-	})
-	slotSnap := snaptest.MockInfo(c, `
-name: core
-type: os
-slots:
-  restricted:
-    interface: restricted
-  non-restricted:
-    interface: non-restricted
-`, &snap.SideInfo{
-		DeveloperID: "canonical",
-	})
-
-	err = repo.AddSnap(plugSnap)
-	c.Assert(err, IsNil)
-	err = repo.AddSnap(slotSnap)
-	c.Assert(err, IsNil)
-
-	return repo, plugSnap, slotSnap
-}
-
-func livePatchPolicyCheck(plug *Plug, slot *Slot) bool {
-	if IsLivePatchSnap(plug.Snap) {
-		return true
-	}
-	return slot.Interface == "non-restricted"
-}
-
-// test auto-connecting livepatch interfaces for special snaps
-func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
-	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
-	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
-	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
-	c.Check(candidateSlots[0].Name, Equals, "restricted")
-}
-
-// test auto-connecting unrestricted (auto-connect) interfaces for special snaps
-func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
-	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
-	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
-	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
-	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
-}
-
-// test auto-connecting unrestricted (auto-connect) interfaces for non-special snaps
-func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(c *C) {
-	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
-	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
-	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
-	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
-}
-
-func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
-	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "somebody")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
-	c.Check(candidateSlots, HasLen, 0)
-}
-
-func (s *RepositorySuite) TestAutoConnectLivepatchWrongName(c *C) {
-	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "something", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
-	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }

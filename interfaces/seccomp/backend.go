@@ -47,8 +47,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "seccomp"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecuritySecComp
 }
 
 // Setup creates seccomp profiles specific to a given snap.
@@ -57,18 +57,20 @@ func (b *Backend) Name() string {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
-	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, devMode, snippets)
+
+	// Get the snippets that apply to this snap
+	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
+
 	glob := interfaces.SecurityTagGlob(snapName)
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -91,41 +93,47 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// combineSnippets combines security snippets collected from all the interfaces
+// deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-		addContent(appInfo.SecurityTag(), devMode, snippets, content)
-	}
-
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), devMode, snippets, content)
+		securityTag := hookInfo.SecurityTag()
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
+	}
+	for _, appInfo := range snapInfo.Apps {
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		securityTag := appInfo.SecurityTag()
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
-	if devMode {
-		// NOTE: This is understood by ubuntu-core-launcher
+	if opts.Classic && !opts.JailMode {
+		// NOTE: This is understood by snap-confine
+		buffer.WriteString("@unrestricted\n")
+	}
+	if opts.DevMode && !opts.JailMode {
+		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
 	}
 
 	buffer.Write(defaultTemplate)
-	for _, snippet := range snippets[securityTag] {
-		buffer.Write(snippet)
-		buffer.WriteRune('\n')
-	}
+	buffer.WriteString(snippetForTag)
 
 	content[securityTag] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	return &Specification{}
 }

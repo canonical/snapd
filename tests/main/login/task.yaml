@@ -1,16 +1,17 @@
 summary: Checks for snap login
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 restore: |
     snap logout || true
 
 execute: |
     echo "Checking missing email error"
-    expect -f missing_email_error.exp
+    expect -d -f missing_email_error.exp
 
     echo "Checking wrong password error"
-    expect -f unsuccessful_login.exp
+    expect -d -f unsuccessful_login.exp
 
     output=$(snap managed)
     if [ "$output" != "false" ]; then
@@ -20,14 +21,13 @@ execute: |
 
     if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
         echo "Checking successful login"
-        expect -f successful_login.exp
+        expect -d -f successful_login.exp
 
         output=$(snap managed)
-        if [ "$output" != "system is managed" ]; then
+        if [ "$output" != "true" ]; then
             echo "Unexpected output from 'snap managed': $output"
             exit 1
         fi
 
         snap logout
     fi
-

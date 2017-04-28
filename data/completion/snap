@@ -1,13 +1,46 @@
+# -*- sh -*-
 _complete() {
-    # All arguments except the first one
-    args=("${COMP_WORDS[@]:1:$COMP_CWORD}")
+    # TODO: add support for sourcing this function from the core snap.
+    local cur prev words cword
+    _init_completion -n : || return
+
+    local command
+    if [[ ${#words[@]} -gt 2 ]]; then
+        if [[ ${words[1]} =~ ^-- ]]; then
+            # global options take no args
+            return 0
+        fi
+        if [[ ${words[-2]} = "--help" ]]; then
+            # help takes no args
+            return 0
+        fi
+
+        command=${words[-2]}
+    fi
 
     # Only split on newlines
     local IFS=$'\n'
 
-    # Call completion (note that the first element of COMP_WORDS is
-    # the executable itself)
-    COMPREPLY=($(GO_FLAGS_COMPLETION=1 ${COMP_WORDS[0]} "${args[@]}"))
+    COMPREPLY=($(GO_FLAGS_COMPLETION=1 "${words[@]}"))
+
+    case $command in
+        install|info|sign-build)
+            _filedir "snap"
+            ;;
+        ack)
+            _filedir
+            ;;
+        try)
+            _filedir -d
+            ;;
+        connect)
+            if [[ "$COMPREPLY" == *: ]]; then
+                compopt -o nospace
+            fi
+    esac
+
+    __ltrim_colon_completions "$cur"
+
     return 0
 }
 

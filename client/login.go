@@ -78,12 +78,16 @@ func (client *Client) Logout() error {
 	return removeAuthData()
 }
 
-// LoggedIn returns whether the client has authentication data available.
-func (client *Client) LoggedIn() bool {
-	return osutil.FileExists(storeAuthDataFilename(""))
+// LoggedInUser returns the logged in User or nil
+func (client *Client) LoggedInUser() *User {
+	u, err := readAuthData()
+	if err != nil {
+		return nil
+	}
+	return u
 }
 
-const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+const authFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
 
 func storeAuthDataFilename(homeDir string) string {
 	if fn := os.Getenv(authFileEnvKey); fn != "" {

@@ -1,0 +1,46 @@
+summary: Check that auto-refresh works
+
+prepare: |
+    snap install --devmode jq
+
+restore: |
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
+        snap set core refresh.disabled=true
+    fi
+    
+execute: |
+    echo "Install a snap from stable"
+    snap install test-snapd-tools
+    snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.schedule="0:00-23:59"
+        snap set core refresh.disabled=false
+    fi
+    
+    systemctl stop snapd.{service,socket}
+    echo "Modify the snap to track the edge channel"
+    jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+
+    systemctl start snapd.{service,socket}
+
+    echo "wait for auto-refresh to happen"
+    for i in $(seq 120); do
+        if snap changes|grep -q "Done.*Auto-refresh snap"; then
+            break
+        fi
+        echo "Doing something that triggers ensure"
+        snap install test-snapd-python-webserver
+        snap remove test-snapd-python-webserver
+        sleep 10
+    done
+
+    echo "Ensure our snap got updated"
+    snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
+    
+    echo "Ensure refresh.last is set"
+    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
+

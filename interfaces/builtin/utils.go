@@ -35,7 +35,7 @@ import (
 // - "snap.$snap.$app" if there is exactly one app bound
 // - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
 // - "snap.$snap.*" if all apps are bound to the slot
-func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) []byte {
+func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.Name())
 	if len(apps) == 1 {
@@ -59,19 +59,19 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) []byte {
 		buf.WriteByte('}')
 	}
 	buf.WriteByte('"')
-	return buf.Bytes()
+	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) []byte {
+func slotAppLabelExpr(slot *interfaces.Slot) string {
 	return appLabelExpr(slot.Apps, slot.Snap)
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) []byte {
+func plugAppLabelExpr(plug *interfaces.Plug) string {
 	return appLabelExpr(plug.Apps, plug.Snap)
 }
 
 // Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) []byte {
+func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) string {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
 	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
 	const udevSuffix string = `, %s+="%s"`
@@ -80,6 +80,14 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 	udevSnippet.WriteString(udevHeader + "\n")
 	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
 	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
-	udevSnippet.WriteString("\n")
-	return udevSnippet.Bytes()
+	return udevSnippet.String()
+}
+
+// Function to create an udev TAG, essentially the cgroup name for
+// the snap application.
+// @param snapName is the name of the snap
+// @param appName is the name of the application
+// @return string "snap_<snap name>_<app name>"
+func udevSnapSecurityName(snapName string, appName string) string {
+	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
 }

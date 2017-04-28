@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -80,6 +81,21 @@ slots:
 	}
 }
 
+func (s *baseDeclSuite) installPlugCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
+	if yaml == "" {
+		yaml = fmt.Sprintf(`name: install-plug-snap
+type: %s
+plugs:
+  %s:
+`, snapType, iface)
+	}
+	snap := snaptest.MockInfo(c, yaml, nil)
+	return &policy.InstallCandidate{
+		Snap:            snap,
+		BaseDeclaration: s.baseDecl,
+	}
+}
+
 const declTempl = `type: snap-declaration
 authority-id: canonical
 series: 16
@@ -113,6 +129,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// own separate tests
 	snowflakes := map[string]bool{
 		"content":       true,
+		"core-support":  true,
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
@@ -120,18 +137,21 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
-		"browser-support":        true,
-		"gsettings":              true,
-		"mir":                    true,
-		"network":                true,
-		"network-bind":           true,
-		"opengl":                 true,
-		"optical-drive":          true,
-		"pulseaudio":             true,
-		"screen-inhibit-control": true,
-		"unity7":                 true,
-		"upower-observe":         true,
-		"x11":                    true,
+		"browser-support":         true,
+		"gsettings":               true,
+		"media-hub":               true,
+		"mir":                     true,
+		"network":                 true,
+		"network-bind":            true,
+		"opengl":                  true,
+		"optical-drive":           true,
+		"pulseaudio":              true,
+		"screen-inhibit-control":  true,
+		"unity7":                  true,
+		"unity8":                  true,
+		"ubuntu-download-manager": true,
+		"upower-observe":          true,
+		"x11":                     true,
 	}
 
 	for _, iface := range all {
@@ -140,9 +160,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		}
 		expected := autoconnect[iface.Name()]
 		comm := Commentf(iface.Name())
-
-		// cross-check with past behavior
-		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
 
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
@@ -161,9 +178,10 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":     true,
-		"home":        true,
-		"lxd-support": true,
+		"classic-support": true,
+		"content":         true,
+		"home":            true,
+		"lxd-support":     true,
 	}
 
 	for _, iface := range all {
@@ -175,39 +193,231 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
-	// home will be controlled by AutoConnect(plug, slot) until
-	// we have on-classic support in decls
-	// to stop it from working on non-classic
+	restore := release.MockOnClassic(true)
+	defer restore()
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+
+	release.OnClassic = false
+	err = cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, `auto-connection denied by slot rule of interface \"home\"`)
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
-	// snapd-control is auto-connect until we have snap declaration editing
+func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
+
+	plugsSlots := `
+plugs:
+  snapd-control:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
-	// content will also depend for now AutoConnect(plug, slot)
 	// random snaps cannot connect with content
+	// (Sanitize* will now also block this)
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
+	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 
-	// TODO: have the real snap-decl allow things and not the base-decl
-	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", "")
+	plugsSlots := `
+plugs:
+  lxd-support:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = lxdDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverrideRevoke(c *C) {
+	cand := s.connectCand(c, "lxd-support", "", "")
+	plugsSlots := `
+plugs:
+  lxd-support:
+    allow-auto-connection: false
+`
+
+	lxdDecl := s.mockSnapDecl(c, "notlxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
+}
+
+func (s *baseDeclSuite) TestAutoConnectionKernelModuleControlOverride(c *C) {
+	cand := s.connectCand(c, "kernel-module-control", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kernel-module-control\"")
+
+	plugsSlots := `
+plugs:
+  kernel-module-control:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDockerSupportOverride(c *C) {
+	cand := s.connectCand(c, "docker-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"docker-support\"")
+
+	plugsSlots := `
+plugs:
+  docker-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
+	cand := s.connectCand(c, "classic-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-support\"")
+
+	plugsSlots := `
+plugs:
+  classic-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "classic", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionKubernetesSupportOverride(c *C) {
+	cand := s.connectCand(c, "kubernetes-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kubernetes-support\"")
+
+	plugsSlots := `
+plugs:
+  kubernetes-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
+	plugsSlots := `
+plugs:
+  network-bind:
+    allow-auto-connection: true
+  network-control:
+    allow-auto-connection: true
+  kernel-module-control:
+    allow-auto-connection: true
+  system-observe:
+    allow-auto-connection: true
+  hardware-observe:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+
+	all := builtin.Interfaces()
+	// these are a mixture interfaces that the snap plugs
+	plugged := map[string]bool{
+		"network-bind":          true,
+		"network-control":       true,
+		"kernel-module-control": true,
+		"system-observe":        true,
+		"hardware-observe":      true,
+	}
+	for _, iface := range all {
+		if !plugged[iface.Name()] {
+			continue
+		}
+
+		cand := s.connectCand(c, iface.Name(), "", "")
+		cand.PlugSnapDeclaration = snapDecl
+		err := cand.CheckAutoConnect()
+		c.Check(err, IsNil)
+	}
 }
 
 // describe installation rules for slots succinctly for cross-checking,
@@ -222,28 +432,57 @@ var (
 	unconstrained = []string{"core", "kernel", "gadget", "app"}
 
 	slotInstallation = map[string][]string{
-		// unconstrained
-		"bluez":            unconstrained,
-		"docker":           unconstrained, // TODO: we want slots: docker: false
-		"fwupd":            unconstrained,
-		"location-control": unconstrained,
-		"location-observe": unconstrained,
-		"modem-manager":    unconstrained,
-		"network-manager":  unconstrained,
-		"udisks2":          unconstrained,
 		// other
-		"bool-file":       []string{"core", "gadget"},
-		"browser-support": []string{"core"},
-		"content":         []string{"app", "gadget"},
-		"docker-support":  []string{"core"},
-		"gpio":            []string{"core", "gadget"},
-		"hidraw":          []string{"core", "gadget"},
-		"lxd-support":     []string{"core"},
-		"mir":             []string{"app"},
-		"mpris":           []string{"app"},
-		"ppp":             []string{"core"},
-		"pulseaudio":      []string{"core"},
-		"serial-port":     []string{"core", "gadget"},
+		"autopilot-introspection": {"core"},
+		"bluez":                   {"app"},
+		"bool-file":               {"core", "gadget"},
+		"browser-support":         {"core"},
+		"content":                 {"app", "gadget"},
+		"core-support":            {"core"},
+		"dbus":                    {"app"},
+		"docker-support":          {"core"},
+		"fwupd":                   {"app"},
+		"gpio":                    {"core", "gadget"},
+		"hidraw":                  {"core", "gadget"},
+		"i2c":                     {"core", "gadget"},
+		"iio":                     {"core", "gadget"},
+		"kubernetes-support":      {"core"},
+		"location-control":        {"app"},
+		"location-observe":        {"app"},
+		"lxd-support":             {"core"},
+		"maliit":                  {"app"},
+		"media-hub":               {"app", "core"},
+		"mir":                     {"app"},
+		"modem-manager":           {"app", "core"},
+		"mpris":                   {"app"},
+		"network-manager":         {"app", "core"},
+		"ofono":                   {"app", "core"},
+		"ppp":                     {"core"},
+		"pulseaudio":              {"app", "core"},
+		"serial-port":             {"core", "gadget"},
+		"thumbnailer-service":     {"app"},
+		"udisks2":                 {"app"},
+		"uhid":                    {"core"},
+		"unity8":                  {"app"},
+		"unity8-calendar":         {"app"},
+		"unity8-contacts":         {"app"},
+		"ubuntu-download-manager": {"app"},
+		"upower-observe":          {"app", "core"},
+		// snowflakes
+		"classic-support": nil,
+		"docker":          nil,
+		"lxd":             nil,
+	}
+
+	restrictedPlugInstallation = map[string][]string{
+		"core-support": {"core"},
+	}
+
+	snapTypeMap = map[string]snap.Type{
+		"core":   snap.TypeOS,
+		"app":    snap.TypeApp,
+		"kernel": snap.TypeKernel,
+		"gadget": snap.TypeGadget,
 	}
 )
 
@@ -257,13 +496,6 @@ func contains(l []string, s string) bool {
 }
 
 func (s *baseDeclSuite) TestSlotInstallation(c *C) {
-	typMap := map[string]snap.Type{
-		"core":   snap.TypeOS,
-		"app":    snap.TypeApp,
-		"kernel": snap.TypeKernel,
-		"gadget": snap.TypeGadget,
-	}
-
 	all := builtin.Interfaces()
 
 	for _, iface := range all {
@@ -278,7 +510,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			// snowflake needs to be tested specially
 			continue
 		}
-		for name, snapType := range typMap {
+		for name, snapType := range snapTypeMap {
 			ok := contains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
 			slotInfo := ic.Snap.Slots[iface.Name()]
@@ -299,4 +531,224 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			}
 		}
 	}
+
+	// test docker specially
+	ic := s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	err := ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+
+	// test lxd specially
+	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+}
+
+func (s *baseDeclSuite) TestPlugInstallation(c *C) {
+	all := builtin.Interfaces()
+
+	restricted := map[string]bool{
+		"classic-support":       true,
+		"docker-support":        true,
+		"kernel-module-control": true,
+		"kubernetes-support":    true,
+		"lxd-support":           true,
+		"snapd-control":         true,
+		"unity8":                true,
+	}
+
+	for _, iface := range all {
+		types, ok := restrictedPlugInstallation[iface.Name()]
+		// If plug installation is restricted to specific snap types we
+		// need to make sure this is really the case here. If that is not
+		// the case we continue as normal.
+		if ok {
+			for name, snapType := range snapTypeMap {
+				ok := contains(types, name)
+				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
+				err := ic.Check()
+				comm := Commentf("%s by %s snap", iface.Name(), name)
+				if ok {
+					c.Check(err, IsNil, comm)
+				} else {
+					c.Check(err, NotNil, comm)
+				}
+			}
+		} else {
+			ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
+			err := ic.Check()
+			comm := Commentf("%s", iface.Name())
+			if restricted[iface.Name()] {
+				c.Check(err, NotNil, comm)
+			} else {
+				c.Check(err, IsNil, comm)
+			}
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestConnection(c *C) {
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis
+	noconnect := map[string]bool{
+		"bluez":            true,
+		"content":          true,
+		"docker":           true,
+		"fwupd":            true,
+		"location-control": true,
+		"location-observe": true,
+		"lxd":              true,
+		"maliit":           true,
+		"mir":              true,
+		"thumbnailer-service":     true,
+		"udisks2":                 true,
+		"unity8-calendar":         true,
+		"unity8-contacts":         true,
+		"ubuntu-download-manager": true,
+	}
+
+	for _, iface := range all {
+		expected := !noconnect[iface.Name()]
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), "", "")
+		err := cand.Check()
+
+		if expected {
+			c.Check(err, IsNil, comm)
+		} else {
+			c.Check(err, NotNil, comm)
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	noconnect := map[string]bool{
+		"modem-manager":   true,
+		"network-manager": true,
+		"ofono":           true,
+		"pulseaudio":      true,
+		"upower-observe":  true,
+	}
+
+	for _, onClassic := range []bool{true, false} {
+		release.OnClassic = onClassic
+		for _, iface := range all {
+			if !noconnect[iface.Name()] {
+				continue
+			}
+			expected := onClassic
+			comm := Commentf(iface.Name())
+
+			// check base declaration
+			cand := s.connectCand(c, iface.Name(), "", "")
+			err := cand.Check()
+
+			if expected {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, NotNil, comm)
+			}
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestSanity(c *C) {
+	all := builtin.Interfaces()
+
+	// these interfaces have rules both for the slots and plugs side
+	// given how the rules work this can be delicate,
+	// listed here to make sure that was a conscious decision
+	bothSides := map[string]bool{
+		"classic-support":       true,
+		"core-support":          true,
+		"docker-support":        true,
+		"kernel-module-control": true,
+		"kubernetes-support":    true,
+		"lxd-support":           true,
+		"snapd-control":         true,
+		"unity8":                true,
+	}
+
+	for _, iface := range all {
+		plugRule := s.baseDecl.PlugRule(iface.Name())
+		slotRule := s.baseDecl.SlotRule(iface.Name())
+		if plugRule == nil && slotRule == nil {
+			c.Logf("%s is not considered in the base declaration", iface.Name())
+			c.Fail()
+		}
+		if plugRule != nil && slotRule != nil {
+			if !bothSides[iface.Name()] {
+				c.Logf("%s have both a base declaration slot rule and plug rule, make sure that's intended and correct", iface.Name())
+				c.Fail()
+			}
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestConnectionContent(c *C) {
+	// we let connect explicitly as long as content matches (or is absent on both sides)
+
+	// random (Sanitize* will now also block this)
+	cand := s.connectCand(c, "content", "", "")
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, NotNil)
 }

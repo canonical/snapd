@@ -22,7 +22,6 @@ package store
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -49,6 +48,14 @@ type storeTestSuite struct {
 var _ = Suite(&storeTestSuite{})
 
 var defaultAddr = "localhost:23321"
+
+func getSha(fn string) string {
+	snapDigest, _, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		panic(err)
+	}
+	return hexify(snapDigest)
+}
 
 func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
@@ -117,70 +124,77 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "snap_id": "xidididididididididididididididid",
-    "package_name": "foo",
-    "origin": "foo-devel",
-    "developer_id": "foo-devel-id",
-    "anon_download_url": "%s/download/foo_7_all.snap",
-    "download_url": "%s/download/foo_7_all.snap",
-    "version": "7",
-    "revision": 77
-}`, s.store.URL(), s.store.URL()))
+
+	var body map[string]interface{}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "xidididididididididididididididid",
+		"package_name":      "foo",
+		"origin":            "foo-devel",
+		"developer_id":      "foo-devel-id",
+		"anon_download_url": s.store.URL() + "/download/foo_7_all.snap",
+		"download_url":      s.store.URL() + "/download/foo_7_all.snap",
+		"version":           "7",
+		"revision":          float64(77),
+		"download_sha3_384": getSha(snapFn),
+	})
 }
 
 func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
-	s.makeTestSnap(c, "name: foo\nversion: 1")
+	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
 	resp, err := s.StoreGet(`/snaps/details/foo`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "snap_id": "",
-    "package_name": "foo",
-    "origin": "canonical",
-    "developer_id": "canonical",
-    "anon_download_url": "%s/download/foo_1_all.snap",
-    "download_url": "%s/download/foo_1_all.snap",
-    "version": "1",
-    "revision": 424242
-}`, s.store.URL(), s.store.URL()))
+
+	var body map[string]interface{}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "",
+		"package_name":      "foo",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/foo_1_all.snap",
+		"download_url":      s.store.URL() + "/download/foo_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": getSha(snapFn),
+	})
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
-	s.makeTestSnap(c, "name: hello-world\nversion: 1")
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
-	// note that we send the hello-world snapID here
+	// note that we send the test-snapd-tools snapID here
 	resp, err := s.StorePostJSON("/snaps/metadata", []byte(`{
-"snaps": [{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":1}]
+"snaps": [{"snap_id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","channel":"stable","revision":1}]
 }`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-                "package_name": "hello-world",
-                "origin": "canonical",
-                "developer_id": "canonical",
-                "anon_download_url": "%[1]s/download/hello-world_1_all.snap",
-                "download_url": "%[1]s/download/hello-world_1_all.snap",
-                "version": "1",
-                "revision": 424242
-            }
-        ]
-    }
-}`, s.store.URL()))
+
+	var body struct {
+		Top struct {
+			Cat []map[string]interface{} `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"package_name":      "test-snapd-tools",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+		"download_url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": getSha(snapFn),
+	}})
 }
 
 func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
@@ -194,24 +208,24 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "snap_id": "xidididididididididididididididid",
-                "package_name": "foo",
-                "origin": "foo-devel",
-                "developer_id": "foo-devel-id",
-                "anon_download_url": "%[1]s/download/foo_10_all.snap",
-                "download_url": "%[1]s/download/foo_10_all.snap",
-                "version": "10",
-                "revision": 99
-            }
-        ]
-    }
-}`, s.store.URL()))
+	var body struct {
+		Top struct {
+			Cat []map[string]interface{} `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "xidididididididididididididididid",
+		"package_name":      "foo",
+		"origin":            "foo-devel",
+		"developer_id":      "foo-devel-id",
+		"anon_download_url": s.store.URL() + "/download/foo_10_all.snap",
+		"download_url":      s.store.URL() + "/download/foo_10_all.snap",
+		"version":           "10",
+		"revision":          float64(99),
+		"download_sha3_384": getSha(snapFn),
+	}})
 }
 
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {

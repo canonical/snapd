@@ -120,29 +120,8 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
-	// Restore real OS info at the end of this function.
-	defer release.MockReleaseInfo(&release.OS{})()
-	distros := []struct {
-		id        string
-		idVersion string
-		devmode   bool
-	}{
-		// Please keep this list sorted
-		{id: "arch", devmode: true},
-		{id: "debian", devmode: true},
-		{id: "elementary", devmode: true},
-		{id: "elementary", idVersion: "0.4", devmode: false},
-		{id: "fedora", devmode: true},
-		{id: "gentoo", devmode: true},
-		{id: "neon", devmode: false},
-		{id: "opensuse", devmode: true},
-		{id: "rhel", devmode: true},
-		{id: "ubuntu", devmode: false},
-	}
-	for _, distro := range distros {
-		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
-		c.Logf("checking distribution %#v", rel)
-		release.MockReleaseInfo(rel)
-		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)
+	for _, devmode := range []bool{true, false} {
+		release.MockForcedDevmode(devmode)
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }

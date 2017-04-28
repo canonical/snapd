@@ -20,9 +20,9 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const lxdSupportConnectedPlugAppArmor = `
@@ -45,46 +45,22 @@ func (iface *LxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *LxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
+	return nil
 }
 
-func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(lxdSupportConnectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(lxdSupportConnectedPlugSecComp), nil
-	}
-	return nil, nil
-}
-
-func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *LxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	snapName := plug.Snap.Name()
-	devName := plug.Snap.Developer
-	if snapName != "lxd" {
-		return fmt.Errorf("lxd-support plug reserved (snap name '%s' != 'lxd')", snapName)
-	} else if devName != "canonical" {
-		return fmt.Errorf("lxd-support interface is reserved for the upstream LXD project")
-	}
 	return nil
 }
 
 func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *LxdSupportInterface) LegacyAutoConnect() bool {
-	// since limited to lxd.canonical, we can auto-connect
-	return true
 }
 
 func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

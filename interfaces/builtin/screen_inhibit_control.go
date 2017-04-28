@@ -55,21 +55,16 @@ dbus (send)
     bus=session
     path=/Screensaver
     interface=org.freedesktop.ScreenSaver
-    member=org.freedesktop.ScreenSaver.{Inhibit,UnInhibit}
+    member=org.freedesktop.ScreenSaver.{Inhibit,UnInhibit,SimulateUserActivity}
     peer=(label=unconfined),
-`
 
-const screenInhibitControlConnectedPlugSecComp = `
-# Description: Can inhibit and uninhibit screen savers in desktop sessions.
-# dbus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
+# gnome, kde and cinnamon screensaver
+dbus (send)
+    bus=session
+    path=/{,ScreenSaver}
+    interface=org.{gnome.ScreenSaver,kde.screensaver,cinnamon.ScreenSaver}
+    member=SimulateUserActivity
+    peer=(label=unconfined),
 `
 
 // NewScreenInhibitControlInterface returns a new "screen-inhibit-control" interface.
@@ -77,8 +72,6 @@ func NewScreenInhibitControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "screen-inhibit-control",
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  screenInhibitControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

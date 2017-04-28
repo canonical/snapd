@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type RemovableMediaInterfaceSuite struct {
@@ -33,23 +36,26 @@ type RemovableMediaInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&RemovableMediaInterfaceSuite{
-	iface: builtin.NewRemovableMediaInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&RemovableMediaInterfaceSuite{})
+
+func (s *RemovableMediaInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+apps:
+  other:
+    command: foo
+    plugs: [removable-media]
+`, nil)
+	s.iface = builtin.NewRemovableMediaInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "removable-media",
 			Interface: "removable-media",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "removable-media",
-			Interface: "removable-media",
-		},
-	},
-})
+	}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["removable-media"]}
+}
 
 func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "removable-media")
@@ -80,11 +86,9 @@ func (s *RemovableMediaInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *RemovableMediaInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
+	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")
 }

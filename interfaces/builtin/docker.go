@@ -23,12 +23,13 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const dockerConnectedPlugAppArmor = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
 # Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
@@ -37,9 +38,7 @@ const dockerConnectedPlugAppArmor = `
 const dockerConnectedPlugSecComp = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
-setsockopt
 bind
 `
 
@@ -49,31 +48,14 @@ func (iface *DockerInterface) Name() string {
 	return "docker"
 }
 
-func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *DockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(dockerConnectedPlugAppArmor)
+	return nil
 }
 
-func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(dockerConnectedPlugAppArmor)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(dockerConnectedPlugSecComp)
-		return snippet, nil
-	}
-	return nil, nil
-}
-
-func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// The docker socket is a named socket and therefore mediated by
-	// AppArmor file rules. As such, there is no additional ConnectedSlot
-	// policy to add.
-	return nil, nil
+func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(dockerConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -84,18 +66,10 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	snapName := slot.Snap.Name()
-	devName := slot.Snap.Developer
-	// The docker slot interface can only by used with the docker project
-	// and Canonical
-	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
-		return fmt.Errorf("docker slot interface is reserved for the upstream docker project")
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
-}
-
-func (iface *DockerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *DockerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

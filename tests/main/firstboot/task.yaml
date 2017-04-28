@@ -1,0 +1,68 @@
+summary: Check that firstboot assertions are imported and snaps installed
+systems: [-ubuntu-core-16-*]
+environment:
+    SEED_DIR: /var/lib/snapd/seed
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    snapbuild $TESTSLIB/snaps/basic .
+
+    systemctl stop snapd.service snapd.socket
+    rm -f /var/lib/snapd/state.json
+    mkdir -p $SEED_DIR/snaps
+    mkdir -p $SEED_DIR/assertions
+    cat > $SEED_DIR/seed.yaml <<EOF
+    snaps:
+      - name: basic
+        unasserted: true
+        file: basic.snap
+    EOF
+    # pretend to be not classic :)
+    mv /etc/os-release /etc/os-release.save
+    cp $TESTSLIB/os-release.16 /etc/os-release
+    echo Copy the needed assertions to /var/lib/snapd/
+    cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/developer1-pc.model $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
+    echo Copy the needed snaps to $SEED_DIR/snaps
+    cp ./basic_1.0_all.snap $SEED_DIR/snaps/basic.snap
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    rm -r $SEED_DIR
+    rm -f *.snap
+    mv /etc/os-release.save /etc/os-release
+    systemctl start snapd.socket snapd.service
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Start the daemon with an empty state, this will make it import "
+    echo "assertions from the $SEED_DIR/assertions subdirectory and "
+    echo "install the seed snaps."
+    systemctl start snapd.socket snapd.service
+
+    echo "Wait for Seed change to be finished"
+    for i in `seq 60`; do
+        if snap list 2>/dev/null |grep -q -E "^basic" ; then
+            break
+        fi
+    done
+
+    echo "Verifying the imported assertions"
+    if ! snap known model|MATCH "type: model" ; then
+        echo "Model assertion was not imported on firstboot"
+        exit 1
+    fi
+
+    snap list |grep -q -E "^basic"
+    test -f $SEED_DIR/snaps/basic.snap

@@ -62,7 +62,9 @@ apps:
   stop-command: stop-app
   post-stop-command: post-stop-app
   environment:
-   LD_LIBRARY_PATH: /some/path
+   BASE_PATH: /some/path
+   LD_LIBRARY_PATH: ${BASE_PATH}/lib
+   MY_PATH: $PATH
  nostop:
   command: nostop
 `)
@@ -72,6 +74,8 @@ version: 1.0
 hooks:
  configure:
 `)
+
+var mockContents = ""
 
 var binaryTemplate = `#!/bin/sh
 echo "$(basename $0)" >> %[1]q
@@ -128,7 +132,7 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 
 func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -147,12 +151,14 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
-	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
+	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
+	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
 }
 
 func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -173,7 +179,7 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 
 func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -210,7 +216,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	os.Setenv("SNAP_REVISION", "42")
 	defer os.Unsetenv("SNAP_REVISION")
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -251,7 +257,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 
-	testSnap := snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	testSnap := snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 	hookPath := filepath.Join("meta", "hooks", "configure")
@@ -286,7 +292,7 @@ func actuallyExec(argv0 string, argv []string, env []string) error {
 
 func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -305,5 +311,5 @@ func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, "/bin/bash")
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "-c", "echo foo"})
-	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
+	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
 }

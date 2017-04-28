@@ -55,11 +55,18 @@ func (b *mockBootloader) Name() string {
 func (b *mockBootloader) Dir() string {
 	return "/boot/mocky"
 }
-func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return b.bootVars[name], nil
+func (b *mockBootloader) GetBootVars(names ...string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, name := range names {
+		out[name] = b.bootVars[name]
+	}
+
+	return out, nil
 }
-func (b *mockBootloader) SetBootVar(name, value string) error {
-	b.bootVars[name] = value
+func (b *mockBootloader) SetBootVars(values map[string]string) error {
+	for k, v := range values {
+		b.bootVars[k] = v
+	}
 	return nil
 }
 func (b *mockBootloader) ConfigFile() string {
@@ -142,6 +149,7 @@ func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
 	} {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
+		c.Assert(err, IsNil)
 		err = InstallBootConfig(mockGadgetDir)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(dirs.GlobalRootDir, t.systemFile)

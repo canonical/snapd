@@ -20,6 +20,7 @@
 package store
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -42,6 +45,14 @@ import (
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(418)
 	fmt.Fprintf(w, "I'm a teapot")
+}
+
+func hexify(in string) string {
+	bs, err := base64.RawURLEncoding.DecodeString(in)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("%x", bs)
 }
 
 // Store is our snappy software store implementation
@@ -61,6 +72,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
+		httputil.SetUserAgentFromVersion("unknown", "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{
@@ -221,14 +233,16 @@ type searchReplyJSON struct {
 }
 
 type detailsReplyJSON struct {
-	SnapID          string `json:"snap_id"`
-	PackageName     string `json:"package_name"`
-	Developer       string `json:"origin"`
-	DeveloperID     string `json:"developer_id"`
-	AnonDownloadURL string `json:"anon_download_url"`
-	DownloadURL     string `json:"download_url"`
-	Version         string `json:"version"`
-	Revision        int    `json:"revision"`
+	Architectures   []string `json:"architecture"`
+	SnapID          string   `json:"snap_id"`
+	PackageName     string   `json:"package_name"`
+	Developer       string   `json:"origin"`
+	DeveloperID     string   `json:"developer_id"`
+	AnonDownloadURL string   `json:"anon_download_url"`
+	DownloadURL     string   `json:"download_url"`
+	Version         string   `json:"version"`
+	Revision        int      `json:"revision"`
+	DownloadDigest  string   `json:"download_sha3_384"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -268,6 +282,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	details := detailsReplyJSON{
+		Architectures:   []string{"all"},
 		SnapID:          essInfo.SnapID,
 		PackageName:     essInfo.Name,
 		Developer:       essInfo.DevelName,
@@ -276,6 +291,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		Version:         essInfo.Version,
 		Revision:        essInfo.Revision,
+		DownloadDigest:  hexify(essInfo.Digest),
 	}
 
 	// use indent because this is a development tool, output
@@ -328,14 +344,22 @@ type bulkReplyJSON struct {
 	Payload payload `json:"_embedded"`
 }
 
-var someSnapIDtoName = map[string]string{
-	"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ": "hello-world",
-	"EQPfyVOJF0AZNz9P2IJ6UKwldLFN5TzS": "xkcd-webserver",
-	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
-	"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
-	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
-	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
-	"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
+var someSnapIDtoName = map[string]map[string]string{
+	"production": {
+		"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+		"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
+		"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
+		"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+		"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
+		"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
+		"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+	},
+	"staging": {
+		"xMNMpEm0COPZy7jq9YRwWVLCD9q5peow": "core",
+		"02AHdOomTzby7gTaiLX3M3SGMmXDfLJp": "test-snapd-tools",
+		"uHjTANBWSXSiYzNOUXZNDnOSH3POSqWS": "test-snapd-python-webserver",
+		"edmdK5G9fP1q1bGyrjnaDXS4RkdjiTGV": "test-snapd-go-webserver",
+	},
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -354,7 +378,13 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName)
+	var remoteStore string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		remoteStore = "staging"
+	} else {
+		remoteStore = "production"
+	}
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
 		return
@@ -385,6 +415,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			}
 
 			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
+				Architectures:   []string{"all"},
 				SnapID:          essInfo.SnapID,
 				PackageName:     essInfo.Name,
 				Developer:       essInfo.DevelName,
@@ -393,6 +424,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         essInfo.Version,
 				Revision:        essInfo.Revision,
+				DownloadDigest:  hexify(essInfo.Digest),
 			})
 		}
 	}
@@ -444,8 +476,18 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
+func isAssertNotFound(err error) bool {
+	if err == asserts.ErrNotFound {
+		return true
+	}
+	if _, ok := err.(*store.AssertionNotFoundError); ok {
+		return true
+	}
+	return false
+}
+
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
-	a, err := bs.Get(assertType, primaryKey)
+	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
 	if err == asserts.ErrNotFound && s.assertFallback {
 		return s.fallback.Assertion(assertType, primaryKey, nil)
 	}
@@ -481,7 +523,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	a, err := s.retrieveAssertion(bs, typ, comps[1:])
-	if err == asserts.ErrNotFound {
+	if isAssertNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))
@@ -508,7 +550,7 @@ func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]str
 		m[decl.SnapID()] = decl.SnapName()
 	}
 
-	err := bs.Search(asserts.SnapDeclarationType, nil, hit)
+	err := bs.Search(asserts.SnapDeclarationType, nil, hit, asserts.SnapDeclarationType.MaxSupportedFormat())
 	if err != nil {
 		return nil, err
 	}
@@ -517,13 +559,13 @@ func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]str
 }
 
 func findSnapRevision(snapDigest string, bs asserts.Backstore) (*asserts.SnapRevision, *asserts.Account, error) {
-	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest})
+	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest}, asserts.SnapRevisionType.MaxSupportedFormat())
 	if err != nil {
 		return nil, nil, err
 	}
 	snapRev := a.(*asserts.SnapRevision)
 
-	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()})
+	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()}, asserts.AccountType.MaxSupportedFormat())
 	if err != nil {
 		return nil, nil, err
 	}

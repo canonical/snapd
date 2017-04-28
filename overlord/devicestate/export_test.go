@@ -27,6 +27,10 @@ import (
 )
 
 func MockKeyLength(n int) (restore func()) {
+	if n < 1024 {
+		panic("key length must be >= 1024")
+	}
+
 	oldKeyLength := keyLength
 	keyLength = n
 	return func() {
@@ -62,6 +66,18 @@ func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
 
+func (m *DeviceManager) EnsureOperationalShouldBackoff(now time.Time) bool {
+	return m.ensureOperationalShouldBackoff(now)
+}
+
+func (m *DeviceManager) BecomeOperationalBackoff() time.Duration {
+	return m.becomeOperationalBackoff
+}
+
+func (m *DeviceManager) SetLastBecomeOperationalAttempt(t time.Time) {
+	m.lastBecomeOperationalAttempt = t
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -92,4 +108,11 @@ func (m *DeviceManager) SetBootOkRan(b bool) {
 	m.bootOkRan = b
 }
 
-var ImportAssertionsFromSeed = importAssertionsFromSeed
+var (
+	ImportAssertionsFromSeed = importAssertionsFromSeed
+	CheckGadgetOrKernel      = checkGadgetOrKernel
+	CanAutoRefresh           = canAutoRefresh
+
+	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
+	EnsureOperationalAttempts    = ensureOperationalAttempts
+)

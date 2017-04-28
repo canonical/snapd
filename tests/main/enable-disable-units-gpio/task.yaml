@@ -1,0 +1,87 @@
+summary: Check that systemd units are enabled/disabled and gpio works after rebooting
+
+details: |
+    This test makes sure that the systemd snippet created by the gpio interface
+    is executed after a reboot.
+
+    It modifies the core snap to provide a gpio slot. Also, a mocked gpio node and the
+    required systemfs files (export and unexeport) are created as a bind mount. The test
+    expects that, after a snap declared a gpio plug is installed and connected, after
+    a reboot the systemd service tries to regenerate the gpio device node if it does not
+    find it.
+
+systems: [ubuntu-core-16-64]
+
+environment:
+    GPIO_MOCK_DIR: /home/test/gpio-mock
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    echo "Given a snap declaring a plug on gpio is installed"
+    . $TESTSLIB/snaps.sh
+    install_local gpio-consumer
+
+    echo "And a mocked gpio device is in place"
+    cat > /home/test/gpio-mock.sh <<-EOF
+    #!/bin/sh
+    if [ ! -d "$GPIO_MOCK_DIR" ]; then
+        # the service has just been created
+        mkdir -p $GPIO_MOCK_DIR
+        touch $GPIO_MOCK_DIR/gpio100 $GPIO_MOCK_DIR/export $GPIO_MOCK_DIR/unexport
+    else
+        # after reboot, remove device node to test export
+        rm $GPIO_MOCK_DIR/gpio100
+        truncate -s 0 $GPIO_MOCK_DIR/export
+    fi
+    mount --bind $GPIO_MOCK_DIR /sys/class/gpio
+    EOF
+    chmod a+x /home/test/gpio-mock.sh
+
+    cat > /etc/systemd/system/gpio-mock.service <<-EOF
+    [Unit]
+    Description=Set up mock for gpio test
+    Before=snap.core.interface.gpio-100.service
+
+    [Service]
+    Type=oneshot
+    RemainAfterExit=true
+    ExecStart=/home/test/gpio-mock.sh
+    ExecStop=
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+    systemctl enable --now gpio-mock.service
+
+    echo "And the gpio plug is connected"
+    snap connect gpio-consumer:gpio :gpio-pin
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    umount /sys/class/gpio || true
+    systemctl disable gpio-mock.service
+    rm -rf $GPIO_MOCK_DIR /etc/systemd/system/gpio-mock.service /home/test/gpio-mock.sh
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
+    expected="Unit snap.core.interface.gpio-100.service has finished starting up"
+    journalctl -xe --no-pager | grep "$expected"
+
+    if [ "$SPREAD_REBOOT" = "1" ]; then
+        cat $GPIO_MOCK_DIR/export | grep -P "^100$"
+    fi
+
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        REBOOT
+    fi

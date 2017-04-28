@@ -1,10 +1,14 @@
 summary: Checks for special cases of snap install from the store
 
-systems: [+ubuntu-core-16-64]
+systems: [ubuntu-core-16-*]
 
 environment:
     SNAP_NAME: test-snapd-tools
-    DEVMODE_SNAP: devmode-world
+    DEVMODE_SNAP: test-snapd-devmode
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
 
 execute: |
     echo "Install from different channels"
@@ -20,12 +24,7 @@ execute: |
     snap install $SNAP_NAME --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
-    # XXX want to move this to a more precise, verbose, user-friendly
-    # error (e.g. "snap asks for devmode but not provided nor
-    # overridden")
-    expected="snap not found"
-    actual=$(snap install --channel beta $DEVMODE_SNAP 2>&1 && exit 1 || true)
-    echo "$actual" | grep -Pzq "$expected"
+    ( snap install --channel beta $DEVMODE_SNAP 2>&1 && exit 1 || true ) | MATCH 'repeat the command including --devmode'
 
     echo "Install devmode snap from stable"
     expected="snap not found"

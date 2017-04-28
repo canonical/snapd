@@ -20,14 +20,16 @@
 package cmd
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"syscall"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // The SNAP_REEXEC environment variable controls whether the command
@@ -44,9 +46,6 @@ const newCore = "/snap/core/current"
 // newer than minOldRevno will be ok to re-exec into.
 const oldCore = "/snap/ubuntu-core/current"
 
-// old ubuntu-core snaps older than this aren't suitable targets for re-execage
-const minOldRevno = 126
-
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
@@ -55,7 +54,21 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	if os.Getenv(key) != "1" {
+	// should we re-exec? no option in the environment means yes
+	if !osutil.GetenvBool(key, true) {
+		logger.Debugf("re-exec disabled by user")
+		return
+	}
+
+	// can we re-exec? some distributions will need extra work before re-exec really works.
+	switch release.ReleaseInfo.ID {
+	case "fedora", "centos", "rhel", "opensuse", "suse", "poky":
+		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
+		return
+	}
+
+	// did we already re-exec?
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
 		return
 	}
 
@@ -64,22 +77,46 @@ func ExecInCoreSnap() {
 		return
 	}
 
+	corePath := newCore
 	full := filepath.Join(newCore, exe)
 	if !osutil.FileExists(full) {
-		if rev, err := os.Readlink(oldCore); err != nil {
-			return
-		} else if revno, err := strconv.Atoi(rev); err != nil || revno < minOldRevno {
-			return
-		}
-
+		corePath = oldCore
 		full = filepath.Join(oldCore, exe)
 		if !osutil.FileExists(full) {
 			return
 		}
 	}
 
+	// ensure we do not re-exec into an older version of snapd, look
+	// for info file and ignore version of core that do not yet have
+	// it
+	fullInfo := filepath.Join(corePath, "/usr/lib/snapd/info")
+	if !osutil.FileExists(fullInfo) {
+		logger.Debugf("not restarting into %q (no version info): older than %q (%s)", full, exe, Version)
+		return
+	}
+	content, err := ioutil.ReadFile(fullInfo)
+	if err != nil {
+		logger.Noticef("cannot read info file %q: %s", fullInfo, err)
+		return
+	}
+	ver := regexp.MustCompile("(?m)^VERSION=(.*)$").FindStringSubmatch(string(content))
+	if len(ver) != 2 {
+		logger.Noticef("cannot find version information in %q", content)
+	}
+	// > 0 means our Version is bigger than the version of snapd in core
+	res, err := strutil.VersionCompare(Version, ver[1])
+	if err != nil {
+		logger.Debugf("cannot version compare %q and %q: %s", Version, ver[1], res)
+		return
+	}
+	if res > 0 {
+		logger.Debugf("not restarting into %q (%s): older than %q (%s)", full, ver, exe, Version)
+		return
+	}
+
 	logger.Debugf("restarting into %q", full)
 
-	env := append(os.Environ(), key+"=0")
+	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
 	panic(syscall.Exec(full, os.Args, env))
 }

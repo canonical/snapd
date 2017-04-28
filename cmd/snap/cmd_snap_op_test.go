@@ -22,12 +22,13 @@ package main_test
 import (
 	"fmt"
 	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -207,14 +208,71 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"classic": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func testForm(r *http.Request, c *check.C) *multipart.Form {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	c.Assert(err, check.IsNil)
+	c.Assert(params["boundary"], check.Matches, ".{10,}")
+	c.Check(mediaType, check.Equals, "multipart/form-data")
+
+	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(1 << 20)
+	c.Assert(err, check.IsNil)
+
+	return form
+}
+
+func formFile(form *multipart.Form, c *check.C) (name, filename string, content []byte) {
+	c.Assert(form.File, check.HasLen, 1)
+
+	for name, fheaders := range form.File {
+		c.Assert(fheaders, check.HasLen, 1)
+		body, err := fheaders[0].Open()
+		c.Assert(err, check.IsNil)
+		defer body.Close()
+		filename = fheaders[0].Filename
+		content, err = ioutil.ReadAll(body)
+		c.Assert(err, check.IsNil)
+
+		return name, filename, content
+	}
+
+	return "", "", nil
+}
+
 func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		postData, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, check.IsNil)
-		c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\nfalse\r\n.*")
+
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["devmode"], check.IsNil)
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 2)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
 	}
 
 	snapBody := []byte("snap-data")
@@ -235,11 +293,17 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		postData, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, check.IsNil)
-		c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\ntrue\r\n.*")
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["devmode"], check.DeepEquals, []string{"true"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
 	}
 
 	snapBody := []byte("snap-data")
@@ -257,14 +321,51 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["classic"], check.DeepEquals, []string{"true"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		postData, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, check.IsNil)
-		c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\ntrue\r\n.*")
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["dangerous"], check.DeepEquals, []string{"true"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
 	}
 
 	snapBody := []byte("snap-data")
@@ -282,23 +383,75 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRevert(c *check.C) {
+func (s *SnapOpSuite) runRevertTest(c *check.C, opts *client.SnapOptions) {
+	modes := []struct {
+		enabled bool
+		name    string
+	}{
+		{opts.DevMode, "devmode"},
+		{opts.JailMode, "jailmode"},
+		{opts.Classic, "classic"},
+	}
+
 	s.srv.checker = func(r *http.Request) {
+
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
-		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "revert",
-		})
+		d := DecodedRequestBody(c, r)
+
+		n := 1
+		c.Check(d["action"], check.Equals, "revert")
+
+		for _, mode := range modes {
+			if mode.enabled {
+				n++
+				c.Check(d[mode.name], check.Equals, true)
+			} else {
+				c.Check(d[mode.name], check.IsNil)
+			}
+		}
+		c.Check(d, check.HasLen, n)
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
+
+	cmd := []string{"revert", "foo"}
+	for _, mode := range modes {
+		if mode.enabled {
+			cmd = append(cmd, "--"+mode.name)
+		}
+	}
+
+	rest, err := snap.Parser().ParseArgs(cmd)
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo reverted to 1.0`)
+	c.Check(s.Stdout(), check.Equals, "foo reverted to 1.0\n")
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
+
+func (s *SnapOpSuite) TestRevertNoMode(c *check.C) {
+	s.runRevertTest(c, &client.SnapOptions{})
+}
+
+func (s *SnapOpSuite) TestRevertDevMode(c *check.C) {
+	s.runRevertTest(c, &client.SnapOptions{DevMode: true})
+}
+
+func (s *SnapOpSuite) TestRevertJailMode(c *check.C) {
+	s.runRevertTest(c, &client.SnapOptions{JailMode: true})
+}
+
+func (s *SnapOpSuite) TestRevertClassic(c *check.C) {
+	s.runRevertTest(c, &client.SnapOptions{Classic: true})
+}
+
+func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"revert"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -335,26 +488,44 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "refresh",
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "one"})
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "foo"})
 	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' refreshed`)
+
 }
 
 func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "refresh",
 			"channel": "beta",
 		})
+		s.srv.channel = "beta"
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one"})
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' refreshed`)
+}
+
+func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"classic": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--classic", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -436,9 +607,18 @@ func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
-func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
+func (s *SnapOpSuite) runTryTest(c *check.C, opts *client.SnapOptions) {
 	// pass relative path to cmd
 	tryDir := "some-dir"
+
+	modes := []struct {
+		enabled bool
+		name    string
+	}{
+		{opts.DevMode, "devmode"},
+		{opts.JailMode, "jailmode"},
+		{opts.Classic, "classic"},
+	}
 
 	s.srv.checker = func(r *http.Request) {
 		// ensure the client always sends the absolute path
@@ -446,18 +626,32 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 		c.Assert(err, check.IsNil)
 
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		postData, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, check.IsNil)
-		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ntry\r\n.*")
-		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", regexp.QuoteMeta(fullTryDir)))
-		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\n%s\r\n.*", strconv.FormatBool(devmode)))
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Assert(form.Value["action"], check.HasLen, 1)
+		c.Assert(form.Value["snap-path"], check.HasLen, 1)
+		c.Check(form.File, check.HasLen, 0)
+		c.Check(form.Value["action"][0], check.Equals, "try")
+		c.Check(form.Value["snap-path"][0], check.Matches, regexp.QuoteMeta(fullTryDir))
+
+		for _, mode := range modes {
+			if mode.enabled {
+				c.Assert(form.Value[mode.name], check.HasLen, 1)
+				c.Check(form.Value[mode.name][0], check.Equals, "true")
+			} else {
+				c.Check(form.Value[mode.name], check.IsNil)
+			}
+		}
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
 
 	cmd := []string{"try", tryDir}
-	if devmode {
-		cmd = append(cmd, "--devmode")
+	for _, mode := range modes {
+		if mode.enabled {
+			cmd = append(cmd, "--"+mode.name)
+		}
 	}
 
 	rest, err := snap.Parser().ParseArgs(cmd)
@@ -469,11 +663,44 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestTryNoDevMode(c *check.C) {
-	s.runTryTest(c, false)
+func (s *SnapOpSuite) TestTryNoMode(c *check.C) {
+	s.runTryTest(c, &client.SnapOptions{})
 }
+
 func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
-	s.runTryTest(c, true)
+	s.runTryTest(c, &client.SnapOptions{DevMode: true})
+}
+
+func (s *SnapOpSuite) TestTryJailMode(c *check.C) {
+	s.runTryTest(c, &client.SnapOptions{JailMode: true})
+}
+
+func (s *SnapOpSuite) TestTryClassic(c *check.C) {
+	s.runTryTest(c, &client.SnapOptions{Classic: true})
+}
+
+func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "kind":"snap-not-a-snap"
+  },
+  "status-code": 400
+}
+`)
+
+	})
+
+	cmd := []string{"try", "/"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
@@ -647,7 +874,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"stable"}]}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"edge"}]}\n`)
 
 		default:
 			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
@@ -659,9 +886,40 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*one \(stable\) 1.0 from 'bar' installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(stable\) 2.0 from 'baz' installed`)
+	// note that (stable) is omitted
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(edge\) 2.0 from 'baz' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestNoWait(c *check.C) {
+	s.srv.checker = func(r *http.Request) {}
+
+	cmds := [][]string{
+		{"remove", "--no-wait", "foo"},
+		{"remove", "--no-wait", "foo", "bar"},
+		{"install", "--no-wait", "foo"},
+		{"install", "--no-wait", "foo", "bar"},
+		{"revert", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo", "bar"},
+		{"enable", "--no-wait", "foo"},
+		{"disable", "--no-wait", "foo"},
+		{"try", "--no-wait", "."},
+	}
+
+	for _, cmd := range cmds {
+		s.RedirectClientToTestServer(s.srv.handle)
+		rest, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.IsNil, check.Commentf("%v", cmd))
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Matches, "(?sm)42\n")
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.srv.n, check.Equals, 1)
+		// reset
+		s.srv.n = 0
+		s.stdout.Reset()
+	}
 }

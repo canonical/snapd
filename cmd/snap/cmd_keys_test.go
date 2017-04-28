@@ -101,11 +101,11 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedResponse := []snap.Key{
-		snap.Key{
+		{
 			Name:     "default",
 			Sha3_384: "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ",
 		},
-		snap.Key{
+		{
 			Name:     "another",
 			Sha3_384: "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L",
 		},

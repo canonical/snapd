@@ -30,8 +30,10 @@ import (
 // about the properties of a device model.
 type Model struct {
 	assertionBase
-	requiredSnaps []string
-	timestamp     time.Time
+	classic          bool
+	requiredSnaps    []string
+	sysUserAuthority []string
+	timestamp        time.Time
 }
 
 // BrandID returns the brand identifier. Same as the authority id.
@@ -44,9 +46,24 @@ func (mod *Model) Model() string {
 	return mod.HeaderString("model")
 }
 
+// DisplayName returns the human-friendly name of the model or
+// falls back to Model if this was not set.
+func (mod *Model) DisplayName() string {
+	display := mod.HeaderString("display-name")
+	if display == "" {
+		return mod.Model()
+	}
+	return display
+}
+
 // Series returns the series of the core software the model uses.
 func (mod *Model) Series() string {
 	return mod.HeaderString("series")
+}
+
+// Classic returns whether the model is a classic system.
+func (mod *Model) Classic() bool {
+	return mod.classic
 }
 
 // Architecture returns the archicteture the model is based on.
@@ -72,6 +89,11 @@ func (mod *Model) Store() string {
 // RequiredSnaps returns the snaps that must be installed at all times and cannot be removed for this model.
 func (mod *Model) RequiredSnaps() []string {
 	return mod.requiredSnaps
+}
+
+// SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
+func (mod *Model) SystemUserAuthority() []string {
+	return mod.sysUserAuthority
 }
 
 // Timestamp returns the time when the model assertion was issued.
@@ -113,7 +135,30 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-var modelMandatory = []string{"architecture", "gadget", "kernel"}
+func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const name = "system-user-authority"
+	v, ok := headers[name]
+	if !ok {
+		return []string{brandID}, nil
+	}
+	switch x := v.(type) {
+	case string:
+		if x == "*" {
+			return nil, nil
+		}
+	case []interface{}:
+		lst, err := checkStringListMatches(headers, name, validAccountID)
+		if err == nil {
+			return lst, nil
+		}
+	}
+	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+}
+
+var (
+	modelMandatory       = []string{"architecture", "gadget", "kernel"}
+	classicModelOptional = []string{"architecture", "gadget"}
+)
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
@@ -126,8 +171,26 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	for _, mandatory := range modelMandatory {
-		if _, err := checkNotEmptyString(assert.headers, mandatory); err != nil {
+	classic, err := checkOptionalBool(assert.headers, "classic")
+	if err != nil {
+		return nil, err
+	}
+
+	if classic {
+		if _, ok := assert.headers["kernel"]; ok {
+			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+		}
+	}
+
+	checker := checkNotEmptyString
+	toCheck := modelMandatory
+	if classic {
+		checker = checkOptionalString
+		toCheck = classicModelOptional
+	}
+
+	for _, h := range toCheck {
+		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
 	}
@@ -138,7 +201,18 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	// display-name is optional but must be a string
+	_, err = checkOptionalString(assert.headers, "display-name")
+	if err != nil {
+		return nil, err
+	}
+
 	reqSnaps, err := checkStringList(assert.headers, "required-snaps")
+	if err != nil {
+		return nil, err
+	}
+
+	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))
 	if err != nil {
 		return nil, err
 	}
@@ -157,9 +231,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
-		assertionBase: assert,
-		requiredSnaps: reqSnaps,
-		timestamp:     timestamp,
+		assertionBase:    assert,
+		classic:          classic,
+		requiredSnaps:    reqSnaps,
+		sysUserAuthority: sysUserAuthority,
+		timestamp:        timestamp,
 	}, nil
 }
 

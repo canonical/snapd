@@ -65,7 +65,6 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
-		DeveloperID:       "deviddeviddeviddeviddeviddevidde",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
@@ -73,12 +72,30 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
-	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
+}
+
+func (s *infoSuite) TestPlugSlotSecurityTags(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: name
+apps:
+    app1:
+    app2:
+hooks:
+    hook1:
+plugs:
+    plug:
+slots:
+    slot:
+`))
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
+		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
+	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
+		"snap.name.app1", "snap.name.app2"})
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
@@ -115,12 +132,18 @@ version: 1
 apps:
  app:
    command: foo
+ app2:
+   command: bar
+ sample:
+   command: foobar
 `
+
+const sampleContents = "SNAP"
 
 func (s *infoSuite) TestReadInfo(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 
-	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
+	snapInfo1 := snaptest.MockSnap(c, sampleYaml, sampleContents, si)
 
 	snapInfo2, err := snap.ReadInfo("sample", si)
 	c.Assert(err, IsNil)
@@ -140,6 +163,7 @@ func makeTestSnap(c *C, yaml string) string {
 	snapSource := filepath.Join(tmp, "snapsrc")
 
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
@@ -179,7 +203,7 @@ confinement: devmode`
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
@@ -276,8 +300,8 @@ apps:
 	env := info.Apps["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
-		"app-k=app-v\n",
-		"global-k=global-v\n",
+		"app-k=app-v",
+		"global-k=global-v",
 	})
 }
 
@@ -300,9 +324,9 @@ apps:
 	env := info.Apps["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
-		"app-k=app-v\n",
-		"global-and-local=local-v\n",
-		"global-k=global-v\n",
+		"app-k=app-v",
+		"global-and-local=local-v",
+		"global-k=global-v",
 	})
 }
 
@@ -319,6 +343,22 @@ func (s *infoSuite) TestSplitSnapApp(c *C) {
 	} {
 		snap, app := snap.SplitSnapApp(t.in)
 		c.Check([]string{snap, app}, DeepEquals, t.out)
+	}
+}
+
+func (s *infoSuite) TestJoinSnapApp(c *C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		// normal cases
+		{[]string{"foo", "bar"}, "foo.bar"},
+		{[]string{"foo", "bar-baz"}, "foo.bar-baz"},
+		// special case, snapName == appName
+		{[]string{"foo", "foo"}, "foo"},
+	} {
+		snapApp := snap.JoinSnapApp(t.in[0], t.in[1])
+		c.Check(snapApp, Equals, t.out)
 	}
 }
 
@@ -358,10 +398,10 @@ version: 1.0`
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
 }
 
-func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, hooks []string, checker func(c *C, info *snap.Info)) {
+func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
-	info0 := snaptest.MockSnap(c, yaml, sideInfo)
+	info0 := snaptest.MockSnap(c, yaml, contents, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
 	info, err := snap.ReadInfo(info0.Name(), sideInfo)
 	c.Check(err, IsNil)
@@ -379,7 +419,7 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, hooks []str
 func (s *infoSuite) TestReadInfoNoHooks(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, nil, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", nil, func(c *C, info *snap.Info) {
 		// Verify that no hooks were loaded for this snap
 		c.Check(info.Hooks, HasLen, 0)
 	})
@@ -388,7 +428,7 @@ version: 1.0`
 func (s *infoSuite) TestReadInfoSingleImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"test-hook"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"test-hook"}, func(c *C, info *snap.Info) {
 		// Verify that the `test-hook` hook has now been loaded, and that it has
 		// no associated plugs.
 		c.Check(info.Hooks, HasLen, 1)
@@ -399,7 +439,7 @@ version: 1.0`
 func (s *infoSuite) TestReadInfoMultipleImplicitHooks(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
 		// Verify that both hooks have now been loaded, and that neither have any
 		// associated plugs.
 		c.Check(info.Hooks, HasLen, 2)
@@ -414,7 +454,7 @@ func (s *infoSuite) TestReadInfoInvalidImplicitHook(c *C) {
 
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
 		// Verify that only foo has been loaded, not bar
 		c.Check(info.Hooks, HasLen, 1)
 		verifyImplicitHook(c, info, "foo")
@@ -427,7 +467,7 @@ version: 1.0
 hooks:
   explicit:
     plugs: [test-plug]`
-	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
 		// Verify that the `implicit` hook has now been loaded, and that it has
 		// no associated plugs. Also verify that the `explicit` hook is still
 		// valid.
@@ -475,7 +515,72 @@ func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
+	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.DataHomeDir(), Equals, "/home/*/snap/name/1")
 	c.Check(info.CommonDataHomeDir(), Equals, "/home/*/snap/name/common")
+	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
+}
+
+func makeFakeDesktopFile(c *C, name, content string) string {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, []byte(content), 0644)
+	c.Assert(err, IsNil)
+	return df
+}
+
+func (s *infoSuite) TestAppDesktopFile(c *C) {
+	snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{})
+	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
+}
+
+const coreSnapYaml = `name: core
+type: os
+plugs:
+  network-bind:
+  core-support:
+`
+
+// reading snap via ReadInfoFromSnapFile renames clashing core plugs
+func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnapYaml, nil)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["network-bind"], IsNil)
+	c.Check(info.Plugs["core-support"], IsNil)
+	c.Check(info.Plugs["network-bind-plug"], NotNil)
+	c.Check(info.Plugs["core-support-plug"], NotNil)
+}
+
+// reading snap via ReadInfo renames clashing core plugs
+func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), RealName: "core"}
+	snaptest.MockSnap(c, coreSnapYaml, sampleContents, si)
+	info, err := snap.ReadInfo("core", si)
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["network-bind"], IsNil)
+	c.Check(info.Plugs["core-support"], IsNil)
+	c.Check(info.Plugs["network-bind-plug"], NotNil)
+	c.Check(info.Plugs["core-support-plug"], NotNil)
+}
+
+// reading snap via InfoFromSnapYaml renames clashing core plugs
+func (s *infoSuite) TestInfoFromSnapYamlRenamesCorePlugs(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(coreSnapYaml))
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["network-bind"], IsNil)
+	c.Check(info.Plugs["core-support"], IsNil)
+	c.Check(info.Plugs["network-bind-plug"], NotNil)
+	c.Check(info.Plugs["core-support-plug"], NotNil)
 }

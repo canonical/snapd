@@ -25,12 +25,12 @@ import (
 
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
-# Usage: reserved
 
   # specific gl libs
   /var/lib/snapd/lib/gl/ r,
   /var/lib/snapd/lib/gl/** rm,
 
+  /dev/dri/ r,
   /dev/dri/card0 rw,
   # nvidia
   @{PROC}/driver/nvidia/params r,
@@ -38,9 +38,11 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidiactl rw,
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
+  unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
   # eglfs
   /dev/vchiq rw,
+  /sys/devices/pci[0-9]*/**/config r,
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
@@ -56,20 +58,11 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-const openglConnectedPlugSecComp = `
-# Description: Can access opengl.
-# Usage: reserved
-
-getsockopt
-`
-
 // NewOpenglInterface returns a new "opengl" interface.
 func NewOpenglInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "opengl",
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

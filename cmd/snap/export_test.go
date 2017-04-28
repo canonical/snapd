@@ -34,6 +34,8 @@ var (
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook
 	Wait               = wait
+	ResolveApp         = resolveApp
+	IsReexeced         = isReexeced
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -76,6 +78,14 @@ func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore
 	}
 }
 
+func MockGetEnv(f func(name string) string) (restore func()) {
+	osGetenvOrig := osGetenv
+	osGetenv = f
+	return func() {
+		osGetenv = osGetenvOrig
+	}
+}
+
 func MockMountInfoPath(newMountInfoPath string) (restore func()) {
 	mountInfoPathOrig := mountInfoPath
 	mountInfoPath = newMountInfoPath
@@ -84,4 +94,28 @@ func MockMountInfoPath(newMountInfoPath string) (restore func()) {
 	}
 }
 
+func MockOsReadlink(f func(string) (string, error)) (restore func()) {
+	osReadlinkOrig := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = osReadlinkOrig
+	}
+}
+
 var AutoImportCandidates = autoImportCandidates
+
+func AliasInfoLess(snapName1, alias1, cmd1, snapName2, alias2, cmd2 string) bool {
+	x := aliasInfos{
+		&aliasInfo{
+			Snap:    snapName1,
+			Alias:   alias1,
+			Command: cmd1,
+		},
+		&aliasInfo{
+			Snap:    snapName2,
+			Alias:   alias2,
+			Command: cmd2,
+		},
+	}
+	return x.Less(0, 1)
+}

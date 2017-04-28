@@ -1,0 +1,27 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1580018
+details: |
+    On classic systems, the /etc/alternatives directory, if one exists, should
+    be coming from the core snap (or the ubuntu-core snap). This allows snaps
+    to rely on deterministic behavior, isolated from any changes imposed by
+    Debian's alternatives system.
+systems:
+    # This test only applies to classic systems
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+prepare: |
+    echo "Having installed the test snap"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+execute: |
+    echo "We can check the inode number of /etc/alternatives"
+    host_inode="$(stat -c '%i' /etc/alternatives)"
+    if [ -e /snap/core/current ]; then
+        core_inode="$(stat -c '%i' /snap/core/current/etc/alternatives)"
+    else
+        core_inode="$(stat -c '%i' /snap/ubuntu-core/current/etc/alternatives)"
+    fi
+    effective_inode="$(test-snapd-tools.cmd stat -c '%i' /etc/alternatives)"
+    echo "The inode number as seen from a confined snap should be that of the /etc/alternatives from the core snap"
+    [ "$host_inode" != "$core_inode" ]
+    [ "$effective_inode" = "$core_inode" ]

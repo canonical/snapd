@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,11 +22,15 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
+
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -36,13 +40,17 @@ import (
 type fakeOp struct {
 	op string
 
-	name  string
-	revno snap.Revision
-	sinfo snap.SideInfo
-	stype snap.Type
-	cand  store.RefreshCandidate
+	name    string
+	channel string
+	revno   snap.Revision
+	sinfo   snap.SideInfo
+	stype   snap.Type
+	cand    store.RefreshCandidate
 
 	old string
+
+	aliases   []*backend.Alias
+	rmAliases []*backend.Alias
 }
 
 type fakeOps []fakeOp
@@ -96,29 +104,45 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	if revision.Unset() {
-		revision = snap.R(11)
-		if channel == "channel-for-7" {
-			revision.N = 7
+	if spec.Revision.Unset() {
+		spec.Revision = snap.R(11)
+		if spec.Channel == "channel-for-7" {
+			spec.Revision.N = 7
 		}
 	}
 
+	confinement := snap.StrictConfinement
+	switch spec.Channel {
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	}
+
+	typ := snap.TypeApp
+	if spec.Name == "some-core" {
+		typ = snap.TypeOS
+	}
+
 	info := &snap.Info{
+		Architectures: []string{"all"},
 		SideInfo: snap.SideInfo{
-			RealName: strings.Split(name, ".")[0],
-			Channel:  channel,
+			RealName: spec.Name,
+			Channel:  spec.Channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision: revision,
+			Revision: spec.Revision,
 		},
-		Version: name,
+		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
+		Type:        typ,
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revision})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
 }
@@ -133,64 +157,77 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 	if len(cands) == 0 {
 		return nil, nil
 	}
-	if len(cands) != 1 {
-		panic("ListRefresh unexpectedly called with more than one candidate")
-	}
-	cand := cands[0]
-
-	snapID := cand.SnapID
-
-	if snapID == "" {
-		return nil, nil
+	if len(cands) > 2 {
+		panic("ListRefresh unexpectedly called with more than two candidates")
 	}
 
-	if snapID == "fakestore-please-error-on-refresh" {
-		return nil, fmt.Errorf("failing as requested")
-	}
+	var res []*snap.Info
+	for _, cand := range cands {
+		snapID := cand.SnapID
 
-	var name string
-	if snapID == "some-snap-id" {
-		name = "some-snap"
-	} else {
-		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
-	}
+		if snapID == "" || snapID == "other-snap-id" {
+			continue
+		}
 
-	revno := snap.R(11)
-	if cand.Channel == "channel-for-7" {
-		revno = snap.R(7)
-	}
+		if snapID == "fakestore-please-error-on-refresh" {
+			return nil, fmt.Errorf("failing as requested")
+		}
 
-	info := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: name,
-			Channel:  cand.Channel,
-			SnapID:   cand.SnapID,
-			Revision: revno,
-		},
-		Version: name,
-		DownloadInfo: snap.DownloadInfo{
-			DownloadURL: "https://some-server.com/some/path.snap",
-		},
-	}
+		var name string
+		switch snapID {
+		case "some-snap-id":
+			name = "some-snap"
+		case "core-snap-id":
+			name = "core"
+		default:
+			panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
+		}
 
-	var hit snap.Revision
-	if cand.Revision != revno {
-		hit = revno
-	}
-	for _, blocked := range cand.Block {
-		if blocked == revno {
-			hit = snap.Revision{}
-			break
+		revno := snap.R(11)
+		confinement := snap.StrictConfinement
+		switch cand.Channel {
+		case "channel-for-7":
+			revno = snap.R(7)
+		case "channel-for-classic":
+			confinement = snap.ClassicConfinement
+		case "channel-for-devmode":
+			confinement = snap.DevModeConfinement
+		}
+
+		info := &snap.Info{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Channel:  cand.Channel,
+				SnapID:   cand.SnapID,
+				Revision: revno,
+			},
+			Version: name,
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "https://some-server.com/some/path.snap",
+			},
+			Confinement:   confinement,
+			Architectures: []string{"all"},
+		}
+
+		var hit snap.Revision
+		if cand.Revision != revno {
+			hit = revno
+		}
+		for _, blocked := range cand.Block {
+			if blocked == revno {
+				hit = snap.Revision{}
+				break
+			}
+		}
+
+		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
+
+		if !hit.Unset() {
+			res = append(res, info)
 		}
 	}
 
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
-
-	if hit.Unset() {
-		return nil, nil
-	}
-
-	return []*snap.Info{info}, nil
+	return res, nil
 }
 
 func (f *fakeStore) SuggestedCurrency() string {
@@ -199,7 +236,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) (string, error) {
+func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
 	var macaroon string
@@ -215,7 +252,7 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
 
-	return "downloaded-snap-path", nil
+	return nil
 }
 
 func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
@@ -228,6 +265,10 @@ func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
 
 func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Never expected fakeStore.Assertion to be called")
+}
+
+func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
+	panic("Sections called")
 }
 
 type fakeSnappyBackend struct {
@@ -270,13 +311,32 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
 	// naive emulation for now, always works
-	info := &snap.Info{SuggestedName: name, SideInfo: *si}
+	info := &snap.Info{
+		SuggestedName: name,
+		SideInfo:      *si,
+		Architectures: []string{"all"},
+	}
 	info.Type = snap.TypeApp
 	if name == "gadget" {
 		info.Type = snap.TypeGadget
 	}
 	if name == "core" {
 		info.Type = snap.TypeOS
+	}
+	if strings.Contains(name, "alias-snap") {
+		var err error
+		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
+apps:
+  cmd1:
+  cmd2:
+  cmd3:
+  cmd4:
+  cmd5:
+`))
+		if err != nil {
+			panic(err)
+		}
+		info.SideInfo = *si
 	}
 	return info, nil
 }
@@ -440,10 +500,43 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  ss.Name(),
-		revno: ss.Revision(),
+		name:  snapsup.Name(),
+		revno: snapsup.Revision(),
 	})
+}
+
+type byAlias []*backend.Alias
+
+func (ba byAlias) Len() int      { return len(ba) }
+func (ba byAlias) Swap(i, j int) { ba[i], ba[j] = ba[j], ba[i] }
+func (ba byAlias) Less(i, j int) bool {
+	return ba[i].Name < ba[j].Name
+}
+
+func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error {
+	if len(add) != 0 {
+		add = append([]*backend.Alias(nil), add...)
+		sort.Sort(byAlias(add))
+	}
+	if len(remove) != 0 {
+		remove = append([]*backend.Alias(nil), remove...)
+		sort.Sort(byAlias(remove))
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:        "update-aliases",
+		aliases:   add,
+		rmAliases: remove,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-aliases",
+		name: snapName,
+	})
+	return nil
 }

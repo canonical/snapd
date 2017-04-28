@@ -23,8 +23,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type TimeControlTestInterfaceSuite struct {
@@ -34,7 +38,7 @@ type TimeControlTestInterfaceSuite struct {
 }
 
 var _ = Suite(&TimeControlTestInterfaceSuite{
-	iface: builtin.NewTimeControlInterface(),
+	iface: &builtin.TimeControlInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -42,14 +46,19 @@ var _ = Suite(&TimeControlTestInterfaceSuite{
 			Interface: "time-control",
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "time-control",
-			Interface: "time-control",
-		},
-	},
+	plug: nil,
 })
+
+func (s *TimeControlTestInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+apps:
+  app-accessing-time-control:
+    command: foo
+    plugs: [time-control]
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["time-control"]}
+}
 
 func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "time-control")
@@ -79,16 +88,20 @@ func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
+	expectedUDevSnippet := `KERNEL=="/dev/rtc0", TAG+="snap_client-snap_app-accessing-time-control"`
 
-func (s *TimeControlTestInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-time-control"})
+	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-time-control"), testutil.Contains, "org/freedesktop/timedate1")
+
+	// connected plugs have a non-nil security snippet for udev
+	spec := &udev.Specification{}
+	spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, DeepEquals, expectedUDevSnippet)
 }

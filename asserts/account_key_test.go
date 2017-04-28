@@ -394,6 +394,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C)
 	newPubKey, err := db.PublicKey(newPrivKey.PublicKey().ID())
 	c.Assert(err, IsNil)
 	newPubKeyEncoded, err := asserts.EncodePublicKey(newPubKey)
+	c.Assert(err, IsNil)
 
 	headers["name"] = "another"
 	headers["public-key-sha3-384"] = newPubKey.ID()
@@ -432,6 +433,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 	newPubKey, err := db.PublicKey(newPrivKey.PublicKey().ID())
 	c.Assert(err, IsNil)
 	newPubKeyEncoded, err := asserts.EncodePublicKey(newPubKey)
+	c.Assert(err, IsNil)
 
 	acct2 := assertstest.NewAccount(db, "acc-id2", map[string]interface{}{
 		"authority-id": "canonical",
@@ -475,6 +477,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	newPubKey, err := db.PublicKey(newPrivKey.PublicKey().ID())
 	c.Assert(err, IsNil)
 	newPubKeyEncoded, err := asserts.EncodePublicKey(newPubKey)
+	c.Assert(err, IsNil)
 
 	headers["public-key-sha3-384"] = newPubKey.ID()
 	headers["revision"] = "1"

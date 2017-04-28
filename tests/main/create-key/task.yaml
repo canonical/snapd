@@ -1,33 +1,9 @@
 summary: Checks for snap create-key
-
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-*, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
 
 prepare: |
-    echo "setup fake gpg pinentry environment"
-    cat > /tmp/pinentry-fake <<'EOF'
-    #!/bin/sh
-    set -e
-    echo "OK Pleased to meet you"
-    while true; do
-      read line
-      case $line in
-      GETPIN)
-        echo "D pass"
-        echo "OK"
-        ;;
-      BYE)
-        exit 0
-      ;;
-      *)
-        echo "OK I'm not very smart"
-        ;;
-    esac
-    done
-    EOF
-    chmod +x /tmp/pinentry-fake
-    mkdir -p /root/.snap/gnupg/
-    chmod 0700 /root/.snap/gnupg/
-    echo pinentry-program /tmp/pinentry-fake > /root/.snap/gnupg/gpg-agent.conf
+    . "$TESTSLIB/mkpinentry.sh"
 
 execute: |
     echo "Checking passphrase mismatch error"

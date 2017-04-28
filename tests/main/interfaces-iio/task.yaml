@@ -1,0 +1,46 @@
+summary: Check that IIO device nodes are accessible through an interface
+
+details: |
+    This test makes sure that a snap using the IIO interface can access
+    devices nodes exposed by a slot properly.
+
+    It modifies the core snap to provide a iio slot. The actual iio device
+    node is served as a plain file with static text content. The test expects
+    that, after a snap declared a iio plug is installed and connected, it can
+    access the node and read/write its content.
+
+systems: [ubuntu-core-16-64]
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    # Mock IIO device node and give it some content we can verify
+    # the test snap can read.
+    echo "iio-0" > /dev/iio:device0
+
+    echo "Given a snap declaring a plug on iio is installed"
+    . $TESTSLIB/snaps.sh
+    install_local iio-consumer
+
+    echo "And the iio plug is connected"
+    snap connect iio-consumer:iio core:iio0
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    rm /dev/iio:device0
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    test "`/snap/bin/iio-consumer.read`" = "iio-0"
+
+    /snap/bin/iio-consumer.write "hello"
+    test "`/snap/bin/iio-consumer.read`" = "hello"

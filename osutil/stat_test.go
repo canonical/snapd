@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -73,4 +74,29 @@ func (ts *StatTestSuite) TestIsSymlink(c *C) {
 
 func (ts *StatTestSuite) TestIsSymlinkNoSymlink(c *C) {
 	c.Assert(IsSymlink(c.MkDir()), Equals, false)
+}
+
+func (ts *StatTestSuite) TestExecutableExists(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPath)
+	d := c.MkDir()
+	os.Setenv("PATH", d)
+	c.Check(ExecutableExists("xyzzy"), Equals, false)
+
+	fname := filepath.Join(d, "xyzzy")
+	c.Assert(ioutil.WriteFile(fname, []byte{}, 0644), IsNil)
+	c.Check(ExecutableExists("xyzzy"), Equals, false)
+
+	c.Assert(os.Chmod(fname, 0755), IsNil)
+	c.Check(ExecutableExists("xyzzy"), Equals, true)
+}
+
+func (s *StatTestSuite) TestLookPathDefaultGivesCorrectPath(c *C) {
+	lookPath = func(name string) (string, error) { return "/bin/true", nil }
+	c.Assert(LookPathDefault("true", "/bin/foo"), Equals, "/bin/true")
+}
+
+func (s *StatTestSuite) TestLookPathDefaultReturnsDefaultWhenNotFound(c *C) {
+	lookPath = func(name string) (string, error) { return "", fmt.Errorf("Not found") }
+	c.Assert(LookPathDefault("bar", "/bin/bla"), Equals, "/bin/bla")
 }

@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers"
@@ -35,7 +36,7 @@ type servicesWrapperGenSuite struct{}
 var _ = Suite(&servicesWrapperGenSuite{})
 
 const expectedServiceFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=snap-snap-44.mount
 Wants=network-online.target
@@ -44,9 +45,10 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run snap.app
-Restart=on-failure
+Restart=%s
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
@@ -56,13 +58,14 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "simple\n")
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "dbus\nBusName=foo.bar.baz")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, "on-failure", "simple\n\n")
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, "on-failure", "dbus\n\nBusName=foo.bar.baz")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, "no", "oneshot\nRemainAfterExit=yes\n")
 )
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=snap-xkcd\x2dwebserver-44.mount
 Wants=network-online.target
@@ -74,13 +77,13 @@ ExecStart=/usr/bin/snap run xkcd-webserver
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver
+ExecReload=/usr/bin/snap run --command=reload xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedSocketUsingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "simple", "")
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking\n", "\n[Install]\nWantedBy=multi-user.target")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -91,6 +94,7 @@ apps:
     app:
         command: bin/start
         stop-command: bin/stop
+        reload-command: bin/reload
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: simple
@@ -142,6 +146,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start",
 		StopCommand:     "bin/foo stop",
+		ReloadCommand:   "bin/foo reload",
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "forking",
@@ -162,6 +167,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start\n",
 		StopCommand:     "bin/foo stop",
+		ReloadCommand:   "bin/foo reload",
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "simple",
@@ -180,6 +186,7 @@ apps:
     app:
         command: bin/start
         stop-command: bin/stop
+        reload-command: bin/reload
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         bus-name: foo.bar.baz
@@ -197,101 +204,25 @@ apps:
 	c.Assert(wrapperText, Equals, expectedDbusService)
 }
 
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker.sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
+func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {
 
-	content, err := wrappers.GenerateSnapSocketFile(service)
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: oneshot
+`, &snap.SideInfo{Revision: snap.R(44)})
+
+	app := info.Apps["app"]
+
+	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
-	c.Assert(content, Equals, `[Unit]
-# Auto-generated, DO NO EDIT
-Description=Socket for snap application xkcd-webserver.xkcd-webserver
-Requires=snap-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=snap-xkcd\x2dwebserver-44.mount network-online.target
-X-Snappy=yes
 
-[Socket]
-ListenStream=/var/run/docker.sock
-SocketMode=0660
-
-[Install]
-WantedBy=sockets.target
-`)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker!sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	_, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, NotNil)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:            "xkcd-webserver",
-		Command:         "bin/foo start",
-		StopCommand:     "bin/foo stop",
-		PostStopCommand: "bin/foo post-stop",
-		StopTimeout:     timeout.DefaultTimeout,
-		Socket:          true,
-		Daemon:          "simple",
-	}
-
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
-	srv := &snap.AppInfo{
-		Name: "foo",
-		Snap: &snap.Info{},
-	}
-
-	// no socket mode means 0660
-	content, err := wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
-
-	// SocketMode itself is honored
-	srv.SocketMode = "0600"
-	content, err = wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
-
+	c.Assert(wrapperText, Equals, expectedOneshotService)
 }

@@ -22,18 +22,28 @@ package ifacestate
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
+func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
+	return interfaces.ConfinementOptions{
+		DevMode:  flags.DevMode,
+		JailMode: flags.JailMode,
+		Classic:  flags.Classic,
+	}
+}
 
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
 	st := task.State()
@@ -46,34 +56,75 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
-			return err
+			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedSnapName, affectingSnap, err)
+			continue
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
-		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+		opts := confinementOptions(snapst.Flags)
+		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
 	// Get snap.Info from bits handed by the snap manager.
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 
-	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
+
+	// TODO: this whole bit seems maybe that it should belong (largely) to a snapstate helper
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		if snapInfo.Type != snap.TypeOS {
+			// not core, nothing to do
+			return nil
+		}
+		if task.State().Restarting() {
+			// don't continue until we are in the restarted snapd
+			task.Logf("Waiting for restart...")
+			return &state.Retry{}
+		}
+		// if not on classic check there was no rollback
+		if !release.OnClassic {
+			// TODO: double check that we really rebooted
+			// otherwise this could be just a spurious restart
+			// of snapd
+			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+			if err == snapstate.ErrBootNameAndRevisionAgain {
+				return &state.Retry{After: 5 * time.Second}
+			}
+			if err != nil {
+				return err
+			}
+			if snapsup.Name() != name || snapInfo.Revision != rev {
+				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+			}
+		}
+	}
+
+	opts := confinementOptions(snapsup.Flags)
+	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+}
+
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
@@ -87,7 +138,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
+	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
 	}
@@ -98,7 +149,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			logger.Noticef("%s", err)
+			task.Logf("%s", err)
 		} else {
 			return err
 		}
@@ -108,17 +159,31 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	}
 	// FIXME: here we should not reconnect auto-connect plug/slot
 	// pairs that were explicitly disconnected by the user
-	if err := m.autoConnect(task, snapName, nil); err != nil {
+	connectedSnaps, err := m.autoConnect(task, snapName, nil)
+	if err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
-
+	affectedSet := make(map[string]bool)
+	for _, name := range disconnectedSnaps {
+		affectedSet[name] = true
+	}
+	for _, name := range connectedSnaps {
+		affectedSet[name] = true
+	}
+	// The principal snap was already handled above.
+	delete(affectedSet, snapInfo.Name())
+	affectedSnaps := make([]string, 0, len(affectedSet))
+	for name := range affectedSet {
+		affectedSnaps = append(affectedSnaps, name)
+	}
+	sort.Strings(affectedSnaps)
 	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
 }
 
-func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -130,6 +195,10 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 	snapName := snapSetup.Name()
 
+	return m.removeProfilesForSnap(task, tomb, snapName)
+}
+
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -149,12 +218,53 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// Remove security artefacts of the snap.
-	if err := removeSnapSecurity(task, snapName); err != nil {
-		// TODO: how long to wait?
-		return &state.Retry{}
+	if err := m.removeSnapSecurity(task, snapName); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		// let the first setup-profiles deal with this
+		return nil
+	}
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	// Get the name from SnapSetup and use it to find the current SideInfo
+	// about the snap, if there is one.
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		// The snap was not installed before so undo should remove security profiles.
+		return m.removeProfilesForSnap(task, tomb, snapName)
+	} else {
+		// The snap was installed before so undo should setup the old security profiles.
+		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
+		if err != nil {
+			return err
+		}
+		opts := confinementOptions(snapst.Flags)
+		return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+	}
 }
 
 func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error {
@@ -169,13 +279,13 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 
 	snapName := snapSetup.Name()
 
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	if err == nil && len(snapState.Sequence) != 0 {
+	if err == nil && len(snapst.Sequence) != 0 {
 		return fmt.Errorf("cannot discard connections for snap %q while it is present", snapName)
 	}
 	conns, err := getConns(st)
@@ -184,11 +294,11 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	}
 	removed := make(map[string]connState)
 	for id := range conns {
-		plugRef, slotRef, err := parseConnID(id)
+		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
 		}
-		if plugRef.Snap == snapName || slotRef.Snap == snapName {
+		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
 			removed[id] = conns[id]
 			delete(conns, id)
 		}
@@ -237,10 +347,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
-	}
+	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
@@ -281,9 +389,14 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		BaseDeclaration:     baseDecl,
 	}
 
-	err = ic.Check()
-	if err != nil {
-		return err
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		err = ic.Check()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = m.repo.Connect(connRef)
@@ -301,10 +414,12 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
+	slotOpts := confinementOptions(slotSnapst.Flags)
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
+	plugOpts := confinementOptions(plugSnapst.Flags)
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
 		return err
 	}
 
@@ -343,41 +458,25 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var affectedConns []interfaces.ConnRef
-	if plugRef.Snap != "" && plugRef.Name != "" && slotRef.Snap != "" && slotRef.Name != "" {
-		if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-			return err
-		}
-		affectedConns = []interfaces.ConnRef{{plugRef, slotRef}}
-	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
-		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
-		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
-		if err != nil {
-			return err
-		}
-		m.repo.DisconnectAll(affectedConns)
-	} else if plugRef.Snap == "" && plugRef.Name == "" && slotRef.Name != "" {
-		// Symmetrically, slotRef.Snap can be either empty or not
-		affectedConns, err = m.repo.Connected(slotRef.Snap, slotRef.Name)
-		if err != nil {
-			return err
-		}
-		m.repo.DisconnectAll(affectedConns)
-	} else {
-		return fmt.Errorf("internal error, unhandled disconnect case plug: %q, slot: %q", plugRef, slotRef)
+	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
 	}
+	m.repo.DisconnectAll(affectedConns)
 	affectedSnaps := snapNamesFromConns(affectedConns)
 	for _, snapName := range affectedSnaps {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			return err
+			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
+			continue
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}
-		if err := setupSnapSecurity(task, snapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
-			return &state.Retry{}
+		opts := confinementOptions(snapst.Flags)
+		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
+			return err
 		}
 	}
 	for _, conn := range affectedConns {
@@ -386,4 +485,76 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	setConns(st, conns)
 	return nil
+}
+
+// transitionConnectionsCoreMigration will transition all connections
+// from oldName to newName. Note that this is only useful when you
+// know that newName supports everything that oldName supports,
+// otherwise you will be in a world of pain.
+func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	// transition over, ubuntu-core has only slots
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.SlotRef.Snap == oldName {
+			connRef.SlotRef.Snap = newName
+			conns[connRef.ID()] = conns[id]
+			delete(conns, id)
+		}
+	}
+	setConns(st, conns)
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewriten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the slot-name encoded.
+	if err := m.reloadConnections(oldName); err != nil {
+		return err
+	}
+	if err := m.reloadConnections(newName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *InterfaceManager) doTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}
+
+func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// symmetrical to the "do" method, just reverse them again
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, newName, oldName)
 }

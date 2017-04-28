@@ -1,5 +1,5 @@
 summary: Check that prepare-image works for grub-systems
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 backends: [-autopkgtest]
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
@@ -10,13 +10,28 @@ environment:
     STORE_ADDR: localhost:11028
     UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
-    setup_store fake $STORE_DIR
+    setup_fake_store $STORE_DIR
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
-    teardown_store fake $STORE_DIR
+    teardown_fake_store $STORE_DIR
     rm -rf $ROOT
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo Expose the needed assertions through the fakestore
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
@@ -24,7 +39,7 @@ execute: |
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE
@@ -44,10 +59,17 @@ execute: |
 
     echo "Verify that we have valid looking seed.yaml"
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
+
     # snap-id of core
-    grep -q "snap-id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776" $IMAGE/var/lib/snapd/seed/seed.yaml
+    if [ "$REMOTE_STORE" = production ]; then
+        core_snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+    else
+        core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+    fi
+    grep -q "snap-id: ${core_snap_id}" $IMAGE/var/lib/snapd/seed/seed.yaml
+
     for snap in pc pc-kernel core; do
-      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+        grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"

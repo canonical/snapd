@@ -1,0 +1,19 @@
+summary: Check that snapd builds with gccgo
+# We only need to check that snapd builds with gccgo in one architecture.
+systems: [ubuntu-16.04-64]
+prepare: |
+    echo Installing gccgo-6 and pretending it is the default go
+    apt install -y gccgo-6
+    ln -s /usr/bin/go-6 /usr/local/bin/go
+restore: |
+    rm -f /usr/local/bin/go
+    apt-get autoremove -y gccgo-6
+execute: |
+    echo Ensure we really build with gccgo
+    go version|MATCH gccgo
+    echo Build the deb with gccgo and run the tests as part of the build
+    su - -c "cd $GOPATH/src/github.com/snapcore/snapd && dpkg-buildpackage -tc -Zgzip" test
+
+# Tests run during package build take a while.
+warn-timeout: 8m
+kill-timeout: 20m

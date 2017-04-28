@@ -32,6 +32,9 @@ import (
 
 // Container is the interface to interact with the low-level snap files
 type Container interface {
+	// Size returns the size of the snap in bytes.
+	Size() (int64, error)
+
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
 
@@ -61,9 +64,12 @@ var formatHandlers = []snapFormat{
 // Open opens a given snap file with the right backend
 func Open(path string) (Container, error) {
 
-	// see if it's a snapdir first
-	if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
-		return snapdir.New(path), nil
+	if osutil.IsDirectory(path) {
+		if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
+			return snapdir.New(path), nil
+		}
+
+		return nil, NotSnapError{Path: path}
 	}
 
 	// open the file and check magic

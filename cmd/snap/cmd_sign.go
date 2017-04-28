@@ -35,7 +35,7 @@ var longSignHelp = i18n.G(`Sign an assertion using the specified key, using the 
 `)
 
 type cmdSign struct {
-	KeyName string `short:"k" default:"default"`
+	KeyName keyName `short:"k" default:"default"`
 }
 
 func init() {
@@ -56,7 +56,7 @@ func (x *cmdSign) Execute(args []string) error {
 	}
 
 	keypairMgr := asserts.NewGPGKeypairManager()
-	privKey, err := keypairMgr.GetByName(x.KeyName)
+	privKey, err := keypairMgr.GetByName(string(x.KeyName))
 	if err != nil {
 		return err
 	}

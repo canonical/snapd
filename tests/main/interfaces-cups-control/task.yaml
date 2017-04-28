@@ -1,6 +1,9 @@
 summary: Ensure that the cups interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems:
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -23,24 +26,23 @@ prepare: |
     snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
-        apt-get install -y cups-pdf
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        apt-get install -y --no-install-recommends cups-pdf
     else
-        apt-get install -y printer-driver-cups-pdf
+        apt-get install -y --no-install-recommends printer-driver-cups-pdf
     fi
 
 restore: |
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
-        apt-get remove -y cups-pdf
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        apt-get purge -y --auto-remove cups-pdf
     else
-        apt-get remove -y printer-driver-cups-pdf
+        apt-get purge -y --auto-remove printer-driver-cups-pdf
     fi
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
     CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
-    . "$TESTSLIB/names.sh"
 
     echo "Then it is not shown as connected"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -48,18 +50,18 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-cups-control-consumer:cups-control ${core_name}:cups-control
+    snap connect test-snapd-cups-control-consumer:cups-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to print files"
     echo "Hello World" > $TEST_FILE
     test-snapd-cups-control-consumer.lpr $TEST_FILE
-    while ! test -e $HOME/PDF/test_file.pdf; do sleep 1; done
+    while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
 
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-cups-control-consumer:cups-control ${core_name}:cups-control
+    snap disconnect test-snapd-cups-control-consumer:cups-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to print files"

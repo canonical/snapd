@@ -52,7 +52,7 @@ Nested values may be retrieved via a dotted path:
 
 type cmdGet struct {
 	Positional struct {
-		Snap string
+		Snap installedSnapName
 		Keys []string
 	} `positional-args:"yes" required:"yes"`
 
@@ -87,7 +87,7 @@ func (x *cmdGet) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
-	snapName := x.Positional.Snap
+	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
 	cli := Client()

@@ -104,3 +104,148 @@ func (fsbss *fsBackstoreSuite) TestPutOldRevision(c *C) {
 	c.Check(err, ErrorMatches, `revision 0 is older than current revision 1`)
 	c.Check(err, DeepEquals, &asserts.RevisionError{Current: 1, Used: 0})
 }
+
+func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+
+	af0, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	af1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"format: 1\n" +
+		"revision: 1\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	af2, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: zoo\n" +
+		"format: 2\n" +
+		"revision: 22\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+
+	err = bs.Put(asserts.TestOnlyType, af0)
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, af1)
+	c.Assert(err, IsNil)
+
+	a, err := bs.Get(asserts.TestOnlyType, []string{"foo"}, 1)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 1)
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"foo"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 0)
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 0)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+
+	err = bs.Put(asserts.TestOnlyType, af2)
+	c.Assert(err, IsNil)
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 1)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 2)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 22)
+}
+
+func (fsbss *fsBackstoreSuite) TestSearchFormat(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+
+	af0, err := asserts.Decode([]byte("type: test-only-2\n" +
+		"authority-id: auth-id1\n" +
+		"pk1: foo\n" +
+		"pk2: bar\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	af1, err := asserts.Decode([]byte("type: test-only-2\n" +
+		"authority-id: auth-id1\n" +
+		"pk1: foo\n" +
+		"pk2: bar\n" +
+		"format: 1\n" +
+		"revision: 1\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+
+	af2, err := asserts.Decode([]byte("type: test-only-2\n" +
+		"authority-id: auth-id1\n" +
+		"pk1: foo\n" +
+		"pk2: baz\n" +
+		"format: 2\n" +
+		"revision: 1\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+
+	err = bs.Put(asserts.TestOnly2Type, af0)
+	c.Assert(err, IsNil)
+
+	queries := []map[string]string{
+		{"pk1": "foo", "pk2": "bar"},
+		{"pk1": "foo"},
+		{"pk2": "bar"},
+	}
+
+	for _, q := range queries {
+		var a asserts.Assertion
+		foundCb := func(a1 asserts.Assertion) {
+			a = a1
+		}
+		err := bs.Search(asserts.TestOnly2Type, q, foundCb, 1)
+		c.Assert(err, IsNil)
+		c.Check(a.Revision(), Equals, 0)
+	}
+
+	err = bs.Put(asserts.TestOnly2Type, af1)
+	c.Assert(err, IsNil)
+
+	for _, q := range queries {
+		var a asserts.Assertion
+		foundCb := func(a1 asserts.Assertion) {
+			a = a1
+		}
+		err := bs.Search(asserts.TestOnly2Type, q, foundCb, 1)
+		c.Assert(err, IsNil)
+		c.Check(a.Revision(), Equals, 1)
+
+		err = bs.Search(asserts.TestOnly2Type, q, foundCb, 0)
+		c.Assert(err, IsNil)
+		c.Check(a.Revision(), Equals, 0)
+	}
+
+	err = bs.Put(asserts.TestOnly2Type, af2)
+	c.Assert(err, IsNil)
+
+	var as []asserts.Assertion
+	foundCb := func(a1 asserts.Assertion) {
+		as = append(as, a1)
+	}
+	err = bs.Search(asserts.TestOnly2Type, map[string]string{
+		"pk1": "foo",
+	}, foundCb, 1) // will not find af2
+	c.Assert(err, IsNil)
+	c.Check(as, HasLen, 1)
+	c.Check(as[0].Revision(), Equals, 1)
+
+}

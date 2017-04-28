@@ -34,6 +34,5 @@ func NewOpticalDriveInterface() interfaces.Interface {
 		name: "optical-drive",
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

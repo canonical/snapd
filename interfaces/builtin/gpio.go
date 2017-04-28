@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,10 +21,10 @@ package builtin
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/systemd"
 )
 
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
@@ -81,62 +81,34 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// PermanentPlugSnippet returns security snippets for plug at install
-func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
-		// Entries in /sys/class/gpio for single GPIO's are just symlinks
-		// to their correct device part in the sysfs tree. Given AppArmor
-		// requires symlinks to be dereferenced, evaluate the GPIO
-		// path and add the correct absolute path to the AppArmor snippet.
-		dereferencedPath, err := evalSymlinks(path)
-		if err != nil {
-			return nil, err
-		}
-		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
+func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
+	// Entries in /sys/class/gpio for single GPIO's are just symlinks
+	// to their correct device part in the sysfs tree. Given AppArmor
+	// requires symlinks to be dereferenced, evaluate the GPIO
+	// path and add the correct absolute path to the AppArmor snippet.
+	dereferencedPath, err := evalSymlinks(path)
+	if err != nil {
+		return err
 	}
-	return nil, nil
+	spec.AddSnippet(fmt.Sprintf("%s/* rwk,", dereferencedPath))
+	return nil
+
 }
 
-// PermanentSlotSnippet - no slot snippets provided
-func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedSlotSnippet - no slot snippets provided
-func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// We need to export the GPIO so that it becomes as entry in sysfs
-	// available and we can assign it to a connecting plug.
-	numInt, ok := slot.Attrs["number"].(int)
+func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	gpioNum, ok := slot.Attrs["number"].(int64)
 	if !ok {
-		return nil, fmt.Errorf("gpio slot has invalid number attribute")
+		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 	}
-	numBytes := []byte(strconv.Itoa(numInt))
-
-	// Check if the gpio symlink is present, if not it needs exporting. Attempting
-	// to export a gpio again will cause an error on the Write() call
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numInt)); os.IsNotExist(err) {
-		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
-		if err != nil {
-			return nil, err
-		}
-		defer fileExport.Close()
-		_, err = fileExport.Write(numBytes)
-		if err != nil {
-			return nil, err
-		}
+	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+	service := &systemd.Service{
+		Type:            "oneshot",
+		RemainAfterExit: true,
+		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
+		ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/unexport'", gpioNum, gpioNum),
 	}
-	return nil, nil
-}
-
-func (iface *GpioInterface) LegacyAutoConnect() bool {
-	return false
+	return spec.AddService(serviceName, service)
 }
 
 func (iface *GpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

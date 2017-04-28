@@ -1,0 +1,19 @@
+summary: test chattr
+# ubuntu-core doesn't have go :-)
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+prepare: |
+  go build -o toggle ./toggle.go
+execute: |
+  touch foo
+  # no immutable flag:
+  lsattr foo | grep -qv i
+  test "$(./toggle foo)" = "mutable -> immutable"
+  # and now an immutable flag!:
+  lsattr foo | grep -q i
+  test "$(./toggle foo)" = "immutable -> mutable"
+  # no immutable flag again:
+  lsattr foo | grep -qv i
+restore: |
+    rm -f foo
+    rm -f toggle

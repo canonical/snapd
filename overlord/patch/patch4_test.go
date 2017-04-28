@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -73,6 +72,14 @@ var statePatch4JSON = []byte(`
 			"status": 2,
 			"data": {"snap-names": ["b"]},
 			"task-ids": ["10","11","12","13","14","15","16"]
+		},
+		"3": {
+			"id": "3",
+			"kind": "install-snap",
+			"summary": "install c snap",
+			"status": 0,
+			"data": {"snap-names": ["c"]},
+			"task-ids": ["17", "18"]
 		}
 	},
 	"tasks": {
@@ -187,6 +194,30 @@ var statePatch4JSON = []byte(`
 			"data": {"snap-setup-task": "10", "had-candidate": false},
 			"wait-tasks": ["15"],
 			"change": "2"
+		},
+
+                "17": {
+			"id": "17",
+			"kind": "prepare-snap",
+			"summary": "",
+			"status": 4,
+			"data": {
+			    "snap-setup": {
+				"side-info": {"revision": "1", "name": "c"}
+			    }
+			},
+			"halt-tasks": ["18"],
+			"change": "1"
+		}, "18": {
+			"id": "18",
+			"kind": "link-snap",
+			"summary": "make snap avaiblabla",
+			"status": 0,
+			"data": {
+			    "snap-setup-task": "17"
+			},
+			"wait-tasks": ["17"],
+			"change": "3"
 		}
 	}
 }
@@ -221,9 +252,9 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		c.Assert(task, NotNil)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -243,9 +274,9 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, true)
+	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
 	var idx int
@@ -275,9 +306,9 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -296,9 +327,9 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, true)
+	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
 	var idx int
@@ -328,9 +359,9 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		// is not fully done yet)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -350,9 +381,9 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, false)
+	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool
 	var idx int
@@ -385,9 +416,9 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -406,9 +437,9 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, false)
+	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool
 	var idx int

@@ -32,7 +32,7 @@ import (
 type cmdExportKey struct {
 	Account    string `long:"account"`
 	Positional struct {
-		KeyName string
+		KeyName keyName
 	} `positional-args:"true"`
 }
 
@@ -56,7 +56,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	keyName := x.Positional.KeyName
+	keyName := string(x.Positional.KeyName)
 	if keyName == "" {
 		keyName = "default"
 	}

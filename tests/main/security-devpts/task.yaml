@@ -1,6 +1,7 @@
 summary: Ensure that the basic devpts security rules are in place.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
     echo "Given a basic snap is installed"
@@ -9,4 +10,4 @@ prepare: |
 
 execute: |
     echo "Then the pts device follows confinement rules"
-    expect -f pts.exp
+    expect -d -f pts.exp

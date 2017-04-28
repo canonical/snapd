@@ -115,23 +115,31 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
 
-	var bootvar string
+	var nextBoot, goodBoot string
 	switch s.Type {
 	case snap.TypeOS:
-		bootvar = "snap_try_core"
+		nextBoot = "snap_try_core"
+		goodBoot = "snap_core"
 	case snap.TypeKernel:
-		bootvar = "snap_try_kernel"
+		nextBoot = "snap_try_kernel"
+		goodBoot = "snap_kernel"
 	}
 	blobName := filepath.Base(s.MountFile())
-	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
+
+	// check if we actually need to do anything, i.e. the exact same
+	// kernel/core revision got installed again (e.g. firstboot)
+	m, err := bootloader.GetBootVars(goodBoot)
+	if err != nil {
 		return err
 	}
-
-	if err := bootloader.SetBootVar("snap_mode", "try"); err != nil {
-		return err
+	if m[goodBoot] == blobName {
+		return nil
 	}
 
-	return nil
+	return bootloader.SetBootVars(map[string]string{
+		nextBoot:    blobName,
+		"snap_mode": "try",
+	})
 }
 
 // KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
@@ -156,18 +164,40 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 		goodBoot = "snap_core"
 	}
 
-	nextBootVer, err := bootloader.GetBootVar(nextBoot)
+	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
 	if err != nil {
-		return false
-	}
-	goodBootVer, err := bootloader.GetBootVar(goodBoot)
-	if err != nil {
+		logger.Noticef("cannot get boot variables: %s", err)
 		return false
 	}
 
 	squashfsName := filepath.Base(s.MountFile())
-	if nextBootVer == squashfsName && goodBootVer != nextBootVer {
+	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
 		return true
+	}
+
+	return false
+}
+
+// InUse checks if the given name/revision is used in the
+// boot environment
+func InUse(name string, rev snap.Revision) bool {
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		logger.Noticef("cannot get boot settings: %s", err)
+		return false
+	}
+
+	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
+	if err != nil {
+		logger.Noticef("cannot get boot vars: %s", err)
+		return false
+	}
+
+	snapFile := filepath.Base(snap.MountFile(name, rev))
+	for _, bootVar := range bootVars {
+		if bootVar == snapFile {
+			return true
+		}
 	}
 
 	return false

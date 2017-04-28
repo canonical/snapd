@@ -1,6 +1,6 @@
 summary: Check that more than one snap is refreshed.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 details: |
     We use only the fake store for this test because we currently
@@ -11,28 +11,44 @@ environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
 
     echo "Given two snaps are installed"
-    for snap in test-snapd-tools xkcd-webserver; do
+    for snap in test-snapd-tools test-snapd-python-webserver; do
         snap install $snap
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_store fake $BLOB_DIR
+    setup_fake_store $BLOB_DIR
 
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
-    teardown_store fake $BLOB_DIR
+    teardown_fake_store $BLOB_DIR
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable test-snapd-tools,xkcd-webserver -dir $BLOB_DIR
+    . $TESTSLIB/store.sh
+    init_fake_refreshes test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
 
     echo "And a refresh is performed"
     snap refresh
 
     echo "Then the new versions are installed"
-    for snap in test-snapd-tools xkcd-webserver; do
-        snap list | grep -Pq "$snap.*?fake1"
+    for snap in test-snapd-tools test-snapd-python-webserver; do
+        snap list | MATCH "$snap.*fake1"
     done

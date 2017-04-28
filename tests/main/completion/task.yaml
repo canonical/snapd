@@ -1,0 +1,25 @@
+summary: Check different completions
+
+systems:
+    - -ubuntu-core-16-*
+    # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+    - -ubuntu-*-ppc64el
+
+prepare: |
+    mkdir -p testdir
+    touch testdir/foo.snap
+    touch bar.snap
+    snap install core
+    snap install test-snapd-tools
+    . "$TESTSLIB/mkpinentry.sh"
+    expect -d -f key.exp0
+
+restore: |
+    rm testdir/foo.snap bar.snap
+    rmdir testdir
+
+execute: |
+    for i in *.exp; do
+        echo $i
+        expect -d -f $i
+    done

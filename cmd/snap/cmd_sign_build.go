@@ -36,10 +36,11 @@ type cmdSignBuild struct {
 		Filename string
 	} `positional-args:"yes" required:"yes"`
 
-	DeveloperID string `long:"developer-id" required:"yes"`
-	SnapID      string `long:"snap-id" required:"yes"`
-	KeyName     string `short:"k" default:"default" `
-	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable"`
+	// XXX complete DeveloperID and SnapID
+	DeveloperID string  `long:"developer-id" required:"yes"`
+	SnapID      string  `long:"snap-id" required:"yes"`
+	KeyName     keyName `short:"k" default:"default" `
+	Grade       string  `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
 var shortSignBuildHelp = i18n.G("Create snap build assertion")
@@ -74,7 +75,7 @@ func (x *cmdSignBuild) Execute(args []string) error {
 	}
 
 	gkm := asserts.NewGPGKeypairManager()
-	privKey, err := gkm.GetByName(x.KeyName)
+	privKey, err := gkm.GetByName(string(x.KeyName))
 	if err != nil {
 		// TRANSLATORS: %q is the key name, %v the error message
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)

@@ -41,8 +41,11 @@ type SeedSnap struct {
 	// bits that are orthongonal/not in assertions
 	Channel string `yaml:"channel,omitempty"`
 	DevMode bool   `yaml:"devmode,omitempty"`
+	Classic bool   `yaml:"classic,omitempty"`
 
 	Private bool `yaml:"private,omitempty"`
+
+	Contact string `yaml:"contact,omitempty"`
 
 	// no assertions are available in the seed for this snap
 	Unasserted bool `yaml:"unasserted,omitempty"`

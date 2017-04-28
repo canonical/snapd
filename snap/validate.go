@@ -56,6 +56,17 @@ func ValidateHook(hook *HookInfo) error {
 	return nil
 }
 
+var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+
+// ValidateAlias checks if a string can be used as an alias name.
+func ValidateAlias(alias string) error {
+	valid := validAlias.MatchString(alias)
+	if !valid {
+		return fmt.Errorf("invalid alias name: %q", alias)
+	}
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.Name()
@@ -81,6 +92,13 @@ func Validate(info *Info) error {
 		err := ValidateApp(app)
 		if err != nil {
 			return err
+		}
+	}
+
+	// validate aliases
+	for alias, app := range info.LegacyAliases {
+		if !validAlias.MatchString(alias) {
+			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
 		}
 	}
 
@@ -125,7 +143,7 @@ var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
 	switch app.Daemon {
-	case "", "simple", "forking", "oneshot", "dbus":
+	case "", "simple", "forking", "oneshot", "dbus", "notify":
 		// valid
 	default:
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
@@ -140,9 +158,8 @@ func ValidateApp(app *AppInfo) error {
 	checks := map[string]string{
 		"command":           app.Command,
 		"stop-command":      app.StopCommand,
+		"reload-command":    app.ReloadCommand,
 		"post-stop-command": app.PostStopCommand,
-		"socket-mode":       app.SocketMode,
-		"listen-stream":     app.ListenStream,
 		"bus-name":          app.BusName,
 	}
 

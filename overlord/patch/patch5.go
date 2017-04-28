@@ -36,6 +36,8 @@ func (log) Notify(status string) {
 	logger.Noticef("patch 5: %s", status)
 }
 
+// patch5:
+//  - regenerate generated .service files
 func patch5(st *state.State) error {
 	log := log{}
 
@@ -44,12 +46,12 @@ func patch5(st *state.State) error {
 		return err
 	}
 
-	for snapName, snapState := range snapStates {
-		if !snapState.Active {
+	for snapName, snapst := range snapStates {
+		if !snapst.Active {
 			continue
 		}
 
-		info, err := snapState.CurrentInfo()
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,6 @@ import "github.com/snapcore/snapd/interfaces"
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
-# Usage: common
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -35,31 +34,8 @@ const networkConnectedPlugAppArmor = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
-# Usage: common
 bind
-connect
-getpeername
-getsockname
-getsockopt
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 shutdown
-
-# LP: #1446748 - limit this to AF_UNIX/AF_LOCAL and perhaps AF_NETLINK
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
 `
 
 // NewNetworkInterface returns a new "network" interface.
@@ -69,6 +45,5 @@ func NewNetworkInterface() interfaces.Interface {
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

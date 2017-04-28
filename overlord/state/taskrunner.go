@@ -159,7 +159,21 @@ func (r *TaskRunner) run(t *Task) {
 			r.state.EnsureBefore(0)
 		}
 
-		switch err := tomb.Err(); x := err.(type) {
+		err := tomb.Err()
+		switch err.(type) {
+		case nil:
+			// we are ok
+		case *Retry:
+			// preserve
+		default:
+			if r.stopped {
+				// we are shutting down, errors might be due
+				// to cancellations, to be safe retry
+				err = &Retry{}
+			}
+		}
+
+		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.
 			// TODO Allow postponing retries past the next Ensure.
@@ -191,7 +205,7 @@ func (r *TaskRunner) run(t *Task) {
 				r.state.EnsureBefore(0)
 			}
 		default:
-			r.abortChange(t.Change())
+			r.abortLanes(t.Change(), t.Lanes())
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
 		}
@@ -234,8 +248,8 @@ func (r *TaskRunner) clean(t *Task) {
 	})
 }
 
-func (r *TaskRunner) abortChange(chg *Change) {
-	chg.Abort()
+func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
+	chg.AbortLanes(lanes)
 	ensureScheduled := false
 	for _, t := range chg.Tasks() {
 		status := t.Status()
@@ -381,7 +395,7 @@ func mustWait(t *Task) bool {
 	return false
 }
 
-// wait expectes to be called with th r.mu lock held
+// wait expects to be called with th r.mu lock held
 func (r *TaskRunner) wait() {
 	for len(r.tombs) > 0 {
 		for _, t := range r.tombs {

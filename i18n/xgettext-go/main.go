@@ -84,7 +84,7 @@ func constructValue(val interface{}) string {
 		left = left[0 : len(left)-1]
 		right := constructValue(val.(*ast.BinaryExpr).Y)
 		// strip left " (or `)
-		right = right[1:len(right)]
+		right = right[1:]
 		return left + right
 	default:
 		panic(fmt.Sprintf("unknown type: %v", val))

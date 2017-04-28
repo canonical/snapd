@@ -1,4 +1,10 @@
 #!/bin/sh
+if [ "$TRAVIS_BUILD_NUMBER" ]; then
+    echo travis_fold:start:env
+    printenv | sort
+    echo travis_fold:end:env
+fi
+
 export LANG=C.UTF-8
 export LANGUAGE=en
 set -eu
@@ -83,7 +89,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -l $GOPATH/src/$pkg)"
+        s="$(gofmt -s -l $GOPATH/src/$pkg)"
         if [ -n "$s" ]; then
             fmt="$s\n$fmt"
         fi
@@ -101,6 +107,17 @@ if [ "$STATIC" = 1 ]; then
         go vet $pkg
     done
 
+    echo Checking spelling errors
+    go get -u github.com/client9/misspell/cmd/misspell
+    for file in $(ls . | grep -v 'vendor\|po'); do
+        ${GOBIN:-$GOPATH/bin}/misspell -error -i auther $file
+    done
+
+    echo Checking for ineffective assignments
+    go get -u github.com/gordonklaus/ineffassign
+    for file in $(ls . | grep -v 'vendor\|po'); do
+        ${GOBIN:-$GOPATH/bin}/ineffassign $file
+    done
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -116,7 +133,8 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do    
+    for pkg in $(go list ./... | grep -v '/vendor/' ); do
+        go test -i $pkg
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
@@ -131,6 +149,9 @@ if [ "$SPREAD" = 1 ]; then
     ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     spread -v linode:
+
+    # cleanup the debian-ubuntu-14.04
+    rm -rf debian-ubuntu-14.04
 fi
 
 if [ "$DEPRECATED" = 1 ]; then

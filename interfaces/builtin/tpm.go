@@ -23,7 +23,6 @@ import "github.com/snapcore/snapd/interfaces"
 
 const tpmConnectedPlugAppArmor = `
 # Description: for those who need to talk to the system TPM chip over /dev/tpm0
-# Usage: reserved
 
 /dev/tpm0 rw,
 `
@@ -33,6 +32,5 @@ func NewTpmInterface() interfaces.Interface {
 		name: "tpm",
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

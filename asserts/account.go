@@ -21,11 +21,15 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
 
 var (
 	accountValidationCertified = "certified"
+
+	// account ids look like snap-ids or a nice identifier
+	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 )
 
 // Account holds an account assertion, which ties a name for an account
@@ -89,7 +93,10 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// TODO: username is optional (atm) but if it's there it must be a string
+	_, err = checkOptionalString(assert.headers, "username")
+	if err != nil {
+		return nil, err
+	}
 
 	return &Account{
 		assertionBase: assert,

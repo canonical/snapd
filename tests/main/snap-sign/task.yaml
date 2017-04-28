@@ -1,33 +1,10 @@
 summary: Run snap sign to sign a model assertion
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
-    echo "setup fake gpg pinentry environment"
-    cat > /tmp/pinentry-fake <<'EOF'
-    #!/bin/sh
-    set -e
-    echo "OK Pleased to meet you"
-    while true; do
-      read line
-      case $line in
-      GETPIN)
-        echo "D pass"
-        echo "OK"
-        ;;
-      BYE)
-        exit 0
-      ;;
-      *)
-        echo "OK I'm not very smart"
-        ;;
-    esac
-    done
-    EOF
-    chmod +x /tmp/pinentry-fake
-    mkdir -p /root/.snap/gnupg/
-    chmod 0700 /root/.snap/gnupg/
-    echo pinentry-program /tmp/pinentry-fake > /root/.snap/gnupg/gpg-agent.conf
+    . "$TESTSLIB/mkpinentry.sh"
 
 execute: |
     echo "Creating a new key without a password"
@@ -48,7 +25,7 @@ execute: |
       "architecture": "armhf",
       "gadget": "pi3",
       "kernel": "pi2-kernel",
-      "timestamp": "$(date -Iseconds --utc)"
+      "timestamp": "$(date --utc '+%FT%T%:z')"
     }
     EOF
     echo "Sign the model assertion with our key"
@@ -56,3 +33,7 @@ execute: |
 
     echo "Verify that the resulting model assertion is signed"
     grep "sign-key-sha3-384: $key" pi3.model
+
+restore: |
+    rm -f pi3.model
+    rm -f pi3-model.json

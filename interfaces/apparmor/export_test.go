@@ -35,8 +35,15 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 //
 // NOTE: The real apparmor template is long. For testing it is convenient for
 // replace it with a shorter snippet.
-func MockTemplate(fakeTemplate []byte) (restore func()) {
+func MockTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultTemplate
 	defaultTemplate = fakeTemplate
 	return func() { defaultTemplate = orig }
+}
+
+// MockClassicTemplate replaces the classic apprmor template.
+func MockClassicTemplate(fakeTemplate string) (restore func()) {
+	orig := classicTemplate
+	classicTemplate = fakeTemplate
+	return func() { classicTemplate = orig }
 }

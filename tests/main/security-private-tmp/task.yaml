@@ -1,6 +1,7 @@
 summary: Ensure that the security rules for private tmp are in place.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 environment:
     SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
@@ -23,7 +24,7 @@ restore: |
 
 execute: |
     echo "When a temporary file is created by one snap"
-    expect -f tmp-create.exp
+    expect -d -f tmp-create.exp
 
     if [ -e /usr/lib/snapd/snap-discard-ns ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"

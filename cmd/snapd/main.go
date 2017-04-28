@@ -27,8 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/errtracker"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/store"
 )
 
 func init() {
@@ -36,6 +37,9 @@ func init() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
+	// set here to avoid accidental submits in e.g. unit tests
+	errtracker.CrashDbURLBase = "https://daisy.ubuntu.com/"
+	errtracker.SnapdVersion = cmd.Version
 }
 
 func main() {
@@ -47,7 +51,7 @@ func main() {
 }
 
 func run() error {
-	store.SetUserAgentFromVersion(cmd.Version)
+	httputil.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
 	if err != nil {

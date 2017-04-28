@@ -26,8 +26,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"gopkg.in/macaroon.v1"
+	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
@@ -78,6 +82,71 @@ func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 	return caveatID, nil
 }
 
+// retryPostRequestDecodeJSON calls retryPostRequest and decodes the response into either success or failure.
+func retryPostRequestDecodeJSON(endpoint string, headers map[string]string, data []byte, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return retryPostRequest(endpoint, headers, data, func(ok bool, resp *http.Response) error {
+		result := success
+		if !ok {
+			result = failure
+		}
+		if result != nil {
+			return json.NewDecoder(resp.Body).Decode(result)
+		}
+		return nil
+	})
+}
+
+// retryPostRequest calls doRequest and decodes the response in a retry loop.
+func retryPostRequest(endpoint string, headers map[string]string, data []byte, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		maybeLogRetryAttempt(endpoint, attempt, startTime)
+
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+
+		resp, err = httpClient.Do(req)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		} else {
+			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+			// always decode on success; decode failures only if body is not empty
+			if !ok && resp.ContentLength == 0 {
+				resp.Body.Close()
+				break
+			}
+			err = decode(ok, resp)
+			resp.Body.Close()
+			if err != nil {
+				if shouldRetryError(attempt, err) {
+					continue
+				} else {
+					return nil, err
+				}
+			}
+		}
+		// break out from retry loop
+		break
+	}
+	maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
+
+	return resp, err
+}
+
 // requestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
 func requestStoreMacaroon() (string, error) {
 	const errorPrefix = "cannot get snap access permission from store: "
@@ -85,33 +154,30 @@ func requestStoreMacaroon() (string, error) {
 	data := map[string]interface{}{
 		"permissions": []string{"package_access", "package_purchase"},
 	}
+
+	var err error
 	macaroonJSONData, err := json.Marshal(data)
-
-	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	var responseData struct {
+		Macaroon string `json:"macaroon"`
+	}
+
+	headers := map[string]string{
+		"User-Agent":   httputil.UserAgent(),
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	}
+	resp, err := retryPostRequestDecodeJSON(MyAppsMacaroonACLAPI, headers, macaroonJSONData, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	defer resp.Body.Close()
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
-	}
-
-	dec := json.NewDecoder(resp.Body)
-	var responseData struct {
-		Macaroon string `json:"macaroon"`
-	}
-	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	if responseData.Macaroon == "" {
@@ -123,35 +189,30 @@ func requestStoreMacaroon() (string, error) {
 func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
 	const errorPrefix = "cannot authenticate to snap store: "
 
+	var err error
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(dischargeJSONData))
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
+	var responseData struct {
+		Macaroon string `json:"discharge_macaroon"`
 	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
+	var msg ssoMsg
 
-	resp, err := httpClient.Do(req)
+	headers := map[string]string{
+		"User-Agent":   httputil.UserAgent(),
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	}
+	resp, err := retryPostRequestDecodeJSON(endpoint, headers, dischargeJSONData, &responseData, &msg)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	defer resp.Body.Close()
 
 	// check return code, error on 4xx and anything !200
 	switch {
 	case httpStatusCodeClientError(resp.StatusCode):
-		// get error details
-		var msg ssoMsg
-		dec := json.NewDecoder(resp.Body)
-
-		if err := dec.Decode(&msg); err != nil {
-			return "", fmt.Errorf(errorPrefix+"%v", err)
-		}
 		switch msg.Code {
 		case "TWOFACTOR_REQUIRED":
 			return "", ErrAuthenticationNeeds2fa
@@ -168,14 +229,6 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 
 	case !httpStatusCodeSuccess(resp.StatusCode):
 		return "", fmt.Errorf(errorPrefix+"server returned status %d", resp.StatusCode)
-	}
-
-	dec := json.NewDecoder(resp.Body)
-	var responseData struct {
-		Macaroon string `json:"discharge_macaroon"`
-	}
-	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	if responseData.Macaroon == "" {
@@ -211,30 +264,22 @@ func refreshDischargeMacaroon(discharge string) (string, error) {
 func requestStoreDeviceNonce() (string, error) {
 	const errorPrefix = "cannot get nonce from store: "
 
-	req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
+	var responseData struct {
+		Nonce string `json:"nonce"`
 	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
 
-	resp, err := httpClient.Do(req)
+	headers := map[string]string{
+		"User-Agent": httputil.UserAgent(),
+		"Accept":     "application/json",
+	}
+	resp, err := retryPostRequestDecodeJSON(MyAppsDeviceNonceAPI, headers, nil, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	defer resp.Body.Close()
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
-	}
-
-	dec := json.NewDecoder(resp.Body)
-	var responseData struct {
-		Nonce string `json:"nonce"`
-	}
-	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	if responseData.Nonce == "" {
@@ -251,44 +296,39 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		"serial-assertion":       serialAssertion,
 		"device-session-request": sessionRequest,
 	}
+	var err error
 	deviceJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", MyAppsDeviceSessionAPI, bytes.NewReader(deviceJSONData))
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	if previousSession != "" {
-		req.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, previousSession))
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	defer resp.Body.Close()
-
-	// check return code, error on anything !200
-	if resp.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d and body %q", resp.StatusCode, body)
-	}
-
-	dec := json.NewDecoder(resp.Body)
 	var responseData struct {
 		Macaroon string `json:"macaroon"`
 	}
-	if err := dec.Decode(&responseData); err != nil {
+
+	headers := map[string]string{
+		"User-Agent":   httputil.UserAgent(),
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	}
+	if previousSession != "" {
+		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
+	}
+
+	_, err = retryPostRequest(MyAppsDeviceSessionAPI, headers, deviceJSONData, func(ok bool, resp *http.Response) error {
+		if ok {
+			return json.NewDecoder(resp.Body).Decode(&responseData)
+		}
+		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
+		return fmt.Errorf("store server returned status %d and body %q", resp.StatusCode, body)
+	})
+	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	if responseData.Macaroon == "" {
 		return "", fmt.Errorf(errorPrefix + "empty session returned")
 	}
+
 	return responseData.Macaroon, nil
 }

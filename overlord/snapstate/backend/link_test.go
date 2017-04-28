@@ -69,8 +69,9 @@ apps:
    command: svc
    daemon: simple
 `
+	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -98,8 +99,9 @@ func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
 `
+	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -139,8 +141,9 @@ apps:
    command: svc
    daemon: simple
 `
+	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -180,8 +183,9 @@ apps:
    command: svc
    daemon: simple
 `
+	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -205,4 +209,12 @@ apps:
 	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+}
+
+func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
+	info := &snap.Info{
+		SuggestedName: "foo",
+	}
+	err := s.be.LinkSnap(info)
+	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }

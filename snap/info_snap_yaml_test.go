@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -448,7 +449,7 @@ plugs:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
@@ -462,7 +463,7 @@ plugs:
           baz:
           - 1: A
 `))
-	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key in attribute map: 1`)
+	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key: 1`)
 }
 
 // Tests focusing on slots
@@ -790,7 +791,7 @@ slots:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
@@ -1088,14 +1089,15 @@ slots:
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
 	c.Check(info.Plugs, HasLen, 4)
 	c.Check(info.Slots, HasLen, 2)
 	// these don't come from snap.yaml
-	c.Check(info.Developer, Equals, "")
+	c.Check(info.Publisher, Equals, "")
+	c.Check(info.PublisherID, Equals, "")
 	c.Check(info.Channel, Equals, "")
 
 	app1 := info.Apps["daemon"]
@@ -1330,10 +1332,7 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
-   socket-mode: socket_mode
-   listen-stream: listen_stream
    bus-name: busName
-   socket: yes
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1347,9 +1346,6 @@ apps:
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",
-			Socket:          true,
-			SocketMode:      "socket_mode",
-			ListenStream:    "listen_stream",
 			BusName:         "busName",
 		},
 	})
@@ -1365,10 +1361,7 @@ environment:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Environment, DeepEquals, map[string]string{
-		"foo": "bar",
-		"baz": "boom",
-	})
+	c.Assert(info.Environment, DeepEquals, *strutil.NewOrderedMap("foo", "bar", "baz", "boom"))
 }
 
 func (s *YamlSuite) TestSnapYamlPerAppEnvironment(c *C) {
@@ -1383,8 +1376,53 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Apps["foo"].Environment, DeepEquals, map[string]string{
-		"k1": "v1",
-		"k2": "v2",
+	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
+}
+
+// classic confinement
+func (s *YamlSuite) TestClassicConfinement(c *C) {
+	y := []byte(`
+name: foo
+confinement: classic
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
+}
+
+func (s *YamlSuite) TestSnapYamlAliases(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo]
+  bar:
+    aliases: [bar, bar1]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].LegacyAliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].LegacyAliases, DeepEquals, []string{"bar", "bar1"})
+
+	c.Check(info.LegacyAliases, DeepEquals, map[string]*snap.AppInfo{
+		"foo":  info.Apps["foo"],
+		"bar":  info.Apps["bar"],
+		"bar1": info.Apps["bar"],
 	})
+}
+
+func (s *YamlSuite) TestSnapYamlAliasesConflict(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [bar]
+  bar:
+    aliases: [bar]
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }

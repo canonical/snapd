@@ -195,7 +195,6 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
-
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -301,6 +300,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target
@@ -323,7 +323,7 @@ Description=Mount unit for foodir
 What=%s
 Where=/apps/foo/1.0
 Type=none
-Options=bind
+Options=nodev,ro,bind
 
 [Install]
 WantedBy=multi-user.target
@@ -381,6 +381,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
+Options=nodev,ro,allow_other
 
 [Install]
 WantedBy=multi-user.target
@@ -418,6 +419,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target

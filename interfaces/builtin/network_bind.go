@@ -26,7 +26,6 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
-# Usage: common
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -62,34 +61,11 @@ const networkBindConnectedPlugAppArmor = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugSecComp = `
 # Description: Can access the network as a server.
-# Usage: common
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 shutdown
-
-# LP: #1446748 - limit this to AF_INET/AF_INET6
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
 `
 
 // NewNetworkBindInterface returns a new "network-bind" interface.
@@ -99,6 +75,5 @@ func NewNetworkBindInterface() interfaces.Interface {
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

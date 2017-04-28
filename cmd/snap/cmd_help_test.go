@@ -43,8 +43,13 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 		c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
  +snap \[OPTIONS\] <command>
 
-The snap tool interacts with the snapd daemon to control the snappy software
-platform.
+Install, configure, refresh and remove snap packages. Snaps are
+'universal' packages that work across many different Linux systems,
+enabling secure distribution of the latest apps and utilities for
+cloud, servers, desktops and the internet of things.
+
+This is the CLI for snapd, a background service that takes care of
+snaps on the system. Start with 'snap list' to see installed snaps.
 
 
 Application Options:

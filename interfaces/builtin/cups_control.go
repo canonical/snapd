@@ -28,17 +28,11 @@ const cupsControlConnectedPlugAppArmor = `
 #include <abstractions/cups-client>
 `
 
-const cupsControlConnectedPlugSecComp = `
-setsockopt
-`
-
 // NewCupsControlInterface returns a new "cups" interface.
 func NewCupsControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "cups-control",
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  cupsControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

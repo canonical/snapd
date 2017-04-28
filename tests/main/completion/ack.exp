@@ -1,0 +1,8 @@
+source lib.exp0
+
+# ack completes with directories and files
+chat "snap ack ./\t\t" "ack.exp" true
+chat "" " testdir/"
+
+cancel
+brexit

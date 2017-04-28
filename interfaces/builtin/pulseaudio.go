@@ -20,17 +20,19 @@
 package builtin
 
 import (
-	"bytes"
-
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
 
 const pulseaudioConnectedPlugAppArmor = `
-/{run,dev}/shm/pulse-shm-* rwk,
+/{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -46,15 +48,7 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
-getsockopt
-setsockopt
-connect
-sendto
 shmctl
-getsockname
-getpeername
-sendmsg
-recvmsg
 `
 
 const pulseaudioPermanentSlotAppArmor = `
@@ -72,9 +66,12 @@ owner @{PROC}/@{pid}/exe r,
 # Audio related
 @{PROC}/asound/devices r,
 @{PROC}/asound/card** r,
+
+# Should use the alsa interface instead
 /dev/snd/pcm* rw,
 /dev/snd/control* rw,
 /dev/snd/timer r,
+
 /sys/**/sound/** r,
 
 # For udev
@@ -88,28 +85,28 @@ owner /{,var/}run/pulse/ rw,
 owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
-/{run,dev}/shm/pulse-shm-* rwk,
+/{run,dev}/shm/pulse-shm-* mrwk,
+
+/usr/share/applications/ r,
+
+owner /run/pulse/native/ rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioPermanentSlotSecComp = `
 # The following are needed for UNIX sockets
 personality
 setpriority
-setsockopt
-getsockname
 bind
 listen
-sendto
-recvfrom
+accept
 accept4
 shmctl
-getsockname
-getpeername
-sendmsg
-recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
+setgroups32
 `
 
 type PulseAudioInterface struct{}
@@ -118,38 +115,27 @@ func (iface *PulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		if release.OnClassic {
-			b := bytes.NewBuffer([]byte(pulseaudioConnectedPlugAppArmor))
-			b.Write([]byte(pulseaudioConnectedPlugAppArmorDesktop))
-			return b.Bytes(), nil
-		} else {
-			return []byte(pulseaudioConnectedPlugAppArmor), nil
-		}
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioConnectedPlugSecComp), nil
+func (iface *PulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
+	if release.OnClassic {
+		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
 	}
-	return nil, nil
+	return nil
 }
 
-func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(pulseaudioPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioPermanentSlotSecComp), nil
-	}
-	return nil, nil
+func (iface *PulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *PulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+	return nil
+}
+
+func (iface *PulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
@@ -158,10 +144,6 @@ func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
 
 func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *PulseAudioInterface) LegacyAutoConnect() bool {
-	return true
 }
 
 func (iface *PulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

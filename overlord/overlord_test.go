@@ -51,6 +51,7 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
+	snapstate.CanAutoRefresh = nil
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
@@ -86,7 +87,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -173,10 +174,19 @@ func (wm *witnessManager) Stop() {
 func (wm *witnessManager) Wait() {
 }
 
+// markSeeded flags the state under the overlord as seeded to avoid running the seeding code in these tests
+func markSeeded(o *overlord.Overlord) {
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+}
+
 func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
+	markSeeded(o)
 	o.Loop()
 
 	err = o.Stop()
@@ -196,6 +206,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	}
 	o.Engine().AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -231,6 +242,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeImmediate(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -261,6 +273,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -293,6 +306,7 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -324,6 +338,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -343,7 +358,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 5*time.Millisecond, 5*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(20*time.Millisecond, 100*time.Millisecond, 100*time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -355,10 +370,42 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	chg1.AddTask(t1)
 	chg2 := st.NewChange("prune", "...")
 	chg2.SetStatus(state.DoneStatus)
+	t0 := chg2.ReadyTime()
 	st.Unlock()
 
+	// observe the loop cycles to detect when prune should have happened
+	pruneHappened := make(chan struct{})
+	cycles := -1
+	waitForPrune := func(_ *state.State) error {
+		if cycles == -1 {
+			if time.Since(t0) > 100*time.Millisecond {
+				cycles = 2 // wait a couple more loop cycles
+			}
+			return nil
+		}
+		if cycles > 0 {
+			cycles--
+			if cycles == 0 {
+				close(pruneHappened)
+			}
+		}
+		return nil
+	}
+	witness := &witnessManager{
+		ensureCallback: waitForPrune,
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	markSeeded(o)
 	o.Loop()
-	time.Sleep(50 * time.Millisecond)
+
+	select {
+	case <-pruneHappened:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Pruning should have happened by now")
+	}
+
 	err = o.Stop()
 	c.Assert(err, IsNil)
 
@@ -369,6 +416,50 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	c.Assert(st.Change(chg2.ID()), IsNil)
 
 	c.Assert(t1.Status(), Equals, state.HoldStatus)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
+	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 100*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	// create two changes, one that can be pruned now, one in progress
+	st := o.State()
+	st.Lock()
+	t1 := st.NewTask("foo", "...")
+	chg1 := st.NewChange("pruneNow", "...")
+	chg1.AddTask(t1)
+	t1.SetStatus(state.DoneStatus)
+	t2 := st.NewTask("foo", "...")
+	chg2 := st.NewChange("pruneNext", "...")
+	chg2.AddTask(t2)
+	t2.SetStatus(state.DoStatus)
+	c.Check(st.Changes(), HasLen, 2)
+	st.Unlock()
+
+	markSeeded(o)
+	// start the loop that runs the prune ticker
+	o.Loop()
+
+	// ensure the first change is pruned
+	time.Sleep(150 * time.Millisecond)
+	st.Lock()
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// ensure the second is also purged after it is ready
+	st.Lock()
+	chg2.SetStatus(state.DoneStatus)
+	st.Unlock()
+	time.Sleep(150 * time.Millisecond)
+	st.Lock()
+	c.Check(st.Changes(), HasLen, 0)
+	st.Unlock()
+
+	// cleanup loop ticker
+	err = o.Stop()
+	c.Assert(err, IsNil)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {
@@ -465,6 +556,7 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()
@@ -499,6 +591,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()
@@ -541,6 +634,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	chg.AddTask(t)
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()

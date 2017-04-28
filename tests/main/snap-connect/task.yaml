@@ -1,35 +1,56 @@
 summary: Check that snap connect works
 
-environment:
-    SNAP_FILE: "home-consumer_1.0_all.snap"
-
 prepare: |
-    . $TESTSLIB/names.sh
+    . $TESTSLIB/snaps.sh
 
     echo "Install a test snap"
-    snapbuild $TESTSLIB/snaps/home-consumer .
-    snap install --dangerous $SNAP_FILE
+    install_local home-consumer
     # the home interface is not autoconnected on all-snap systems
     if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-        snap disconnect home-consumer:home ${core_name}:home
+        snap disconnect home-consumer:home
     fi
 
-restore: |
-    rm -f *.snap
-
 execute: |
-    . $TESTSLIB/names.sh
-
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :home +home-consumer"
+    CONNECTED_PATTERN=':home +home-consumer'
 
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    snap disconnect home-consumer:home ${core_name}:home
+    snap disconnect home-consumer:home
 
     echo "The plug can be connected to a matching slot with slot name omitted"
-    snap connect home-consumer:home ${core_name}
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap connect home-consumer:home
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    snap disconnect home-consumer:home
+    snap tasks --last=disconnect| MATCH "Disconnect .* from home-consumer:home"
+
+    echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
+    snap connect home-consumer:home :home
+
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    snap tasks --last=connect| MATCH "Connect home-consumer:home to core:home"
+
+    # NOTE: Those only work when installed from the store as otherwise we don't
+    # have snap declaration assertion and cannot check if a given connection
+    # should be allowed.
+    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
+
+    echo "The plug side auto-connects when content is installed"
+    snap install --edge test-snapd-content-slot
+    snap install --edge test-snapd-content-plug
+
+    snap tasks --last=install| MATCH "Mount snap \"test-snapd-content-plug\""
+
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
+
+    # Remove the content snaps so that we can reinstall them the other way around
+    snap remove test-snapd-content-plug
+    snap remove test-snapd-content-slot
+
+    echo "The slot side auto-connects when content snap is installed"
+    snap install --edge test-snapd-content-plug
+    snap install --edge test-snapd-content-slot
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"

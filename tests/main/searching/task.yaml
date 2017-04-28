@@ -1,11 +1,24 @@
 summary: Check snap search
 
 execute: |
-    echo "Try to list all snaps"
-    ( snap find 2>&1 || echo FAILED ) | grep -Pzq "(?ms)you need to specify a query.*FAILED"
+    echo "List all featured snaps"
+    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+    (.*?\n)?\
+    .*"
+    snap find | grep -Pzq "$expected"
+    if [ $(snap find | wc -l) -gt 50 ]; then
+        echo "Found more than 50 featured apps, this seems bogus:"
+        snap find
+        exit 1
+    fi
+    if [ $(snap find | wc -l) -lt 2 ]; then
+        echo "Not found any featured app, this seems bogus:"
+        snap find
+        exit 1
+    fi
 
     echo "Exact matches"
-    for snapName in test-snapd-tools xkcd-webserver
+    for snapName in test-snapd-tools test-snapd-python-webserver
     do
         expected="(?s)Name +Version +Developer +Notes +Summary *\n\
     (.*?\n)?\
@@ -20,3 +33,9 @@ execute: |
     test-snapd-tools +.*? *\n\
     .*"
     snap find test-snapd- | grep -Pzq "$expected"
+
+    # cassandra only available for amd64
+    if [ $(uname -m) = "x86_64" ]; then
+        echo "List of snaps in a section works"
+        snap find --section=database | MATCH cassandra
+    fi

@@ -1,6 +1,6 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     echo Ensure we have a os snap with snap run
@@ -26,3 +26,7 @@ execute: |
     $APP $SNAP/bin/cat > new.txt 2>&1
 
     diff -u orig.txt new.txt
+
+restore: |
+    rm -f orig.txt
+    rm -f new.txt

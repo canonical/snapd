@@ -27,7 +27,7 @@ import (
 
 type cmdAbort struct {
 	Positional struct {
-		ID string
+		ID changeID
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -55,6 +55,6 @@ func (x *cmdAbort) Execute(args []string) error {
 	}
 
 	cli := Client()
-	_, err := cli.Abort(x.Positional.ID)
+	_, err := cli.Abort(string(x.Positional.ID))
 	return err
 }

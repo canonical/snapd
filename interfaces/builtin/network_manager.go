@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,16 +20,18 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
 
-var networkManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const networkManagerPermanentSlotAppArmor = `
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 
 capability net_admin,
 capability net_bind_service,
@@ -69,11 +71,18 @@ network packet,
 
 /run/udev/data/* r,
 
-# Allow access to configuration files generated on the fly
-# from netplan
-/run/NetworkManager/{,**} r,
+# Allow read and write access for all netplan configuration files
+# as NetworkManager will start using them to store the network
+# configuration instead of using its own internal keyfile based
+# format.
+/etc/netplan/{,**} rw,
 
-# Allow writing dhcp files to a well-known system location
+# Allow access to configuration files generated on the fly
+# from netplan and let NetworkManager store its DHCP leases
+# in the dhcp subdirectory so that console-conf can access
+# it.
+/run/NetworkManager/ w,
+/run/NetworkManager/{,**} r,
 /run/NetworkManager/dhcp/{,**} w,
 
 # Needed by the ifupdown plugin to check which interfaces can
@@ -102,7 +111,7 @@ dbus (send)
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
    member={Request,Release}Name
-   peer=(name=org.freedesktop.DBus),
+   peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive, send)
    bus=system
@@ -123,23 +132,32 @@ dbus (bind)
     bus=system
     name="org.freedesktop.NetworkManager",
 
-# Allow traffic to/from our path and interface with any method
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our service.
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
-    interface=org.freedesktop.NetworkManager*,
+    interface=org.freedesktop.NetworkManager*
+    peer=(label=unconfined),
 
 # Allow traffic to/from org.freedesktop.DBus for NetworkManager service
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
-    interface=org.freedesktop.DBus.*,
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
 
 # Allow access to hostname system service
-dbus (send)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+dbus(receive, send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.hostname1
+    member={Set,SetStatic}Hostname
     peer=(label=unconfined),
 
 # Sleep monitor inside NetworkManager needs this
@@ -155,6 +173,12 @@ dbus (receive)
     member=PrepareForSleep
     interface=org.freedesktop.login1.Manager
     peer=(label=unconfined),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Session{New,Removed}
+    peer=(label=unconfined),
 
 # Allow access to wpa-supplicant for managing WiFi networks
 dbus (receive, send)
@@ -167,12 +191,21 @@ dbus (receive, send)
     path=/fi/w1/wpa_supplicant1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
-`)
+`
 
-var networkManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-#  privileged access to the NetworkManager service.
-# Usage: reserved
+const networkManagerConnectedSlotAppArmor = `
+# Allow connected clients to interact with the service
+
+# Allow traffic to/from our DBus path
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/NetworkManager{,/**}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
+const networkManagerConnectedPlugAppArmor = `
+# Description: Allow using NetworkManager service. This gives privileged access
+# to the NetworkManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -181,68 +214,20 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var networkManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const networkManagerPermanentSlotSecComp = `
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
+sethostname
 shutdown
-socketpair
-socket
-# Needed for keyfile settings plugin to allow adding settings
-# for different users. This is currently at runtime only used
-# to make new created network settings files only editable by
-# root:root. The existence of this chown call is only that its
-# used for some tests where a different user:group combination
-# will be supplied.
-# FIXME: adjust after seccomp argument filtering lands so that
-# we only allow chown and its variant to be called for root:root
-# and nothign else (LP: #1446748)
-chown
-chown32
-fchown
-fchown32
-fchownat
-lchown
-lchown32
-`)
+`
 
-var networkManagerConnectedPlugSecComp = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-#  privileged access to the NetworkManager service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-connect
-getsockname
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`)
-
-var networkManagerPermanentSlotDBus = []byte(`
+const networkManagerPermanentSlotDBus = `
 <!-- DBus policy for NetworkManager (upstream version 1.2.2) -->
 <policy user="root">
     <allow own="org.freedesktop.NetworkManager"/>
@@ -384,7 +369,7 @@ var networkManagerPermanentSlotDBus = []byte(`
 
 <limit name="max_replies_per_connection">1024</limit>
 <limit name="max_match_rules_per_connection">2048</limit>
-`)
+`
 
 type NetworkManagerInterface struct{}
 
@@ -392,46 +377,42 @@ func (iface *NetworkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *NetworkManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return nil, nil
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
-		if release.OnClassic {
-			// If we're running on classic NetworkManager will be part
-			// of the OS snap and will run unconfined.
-			new = []byte("unconfined")
-		} else {
-			new = slotAppLabelExpr(slot)
-		}
-		snippet := bytes.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return networkManagerConnectedPlugSecComp, nil
+func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	var new string
+	if release.OnClassic {
+		// If we're running on classic NetworkManager will be part
+		// of the OS snap and will run unconfined.
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
 	}
-	return nil, nil
+	snippet := strings.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return networkManagerPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return networkManagerPermanentSlotSecComp, nil
-	case interfaces.SecurityDBus:
-		return networkManagerPermanentSlotDBus, nil
-	}
-	return nil, nil
+func (iface *NetworkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *NetworkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkManagerPermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *NetworkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkManagerPermanentSlotDBus)
+	return nil
+}
+
+func (iface *NetworkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkManagerPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -440,10 +421,6 @@ func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

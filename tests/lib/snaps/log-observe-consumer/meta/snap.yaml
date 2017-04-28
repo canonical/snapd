@@ -7,3 +7,6 @@ apps:
   log-observe-consumer:
     command: bin/consumer
     plugs: [log-observe]
+  cmd:
+    command: bin/cmd
+    plugs: [log-observe]

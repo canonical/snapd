@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/snap"
@@ -30,32 +31,49 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID            string        `json:"id"`
-	Summary       string        `json:"summary"`
-	Description   string        `json:"description"`
-	DownloadSize  int64         `json:"download-size"`
-	Icon          string        `json:"icon"`
-	InstalledSize int64         `json:"installed-size"`
-	InstallDate   time.Time     `json:"install-date"`
-	Name          string        `json:"name"`
-	Developer     string        `json:"developer"`
-	Status        string        `json:"status"`
-	Type          string        `json:"type"`
-	Version       string        `json:"version"`
-	Channel       string        `json:"channel"`
-	Revision      snap.Revision `json:"revision"`
-	Confinement   string        `json:"confinement"`
-	Private       bool          `json:"private"`
-	DevMode       bool          `json:"devmode"`
-	TryMode       bool          `json:"trymode"`
-	Apps          []AppInfo     `json:"apps"`
-	Broken        string        `json:"broken"`
+	ID              string        `json:"id"`
+	Summary         string        `json:"summary"`
+	Description     string        `json:"description"`
+	DownloadSize    int64         `json:"download-size"`
+	Icon            string        `json:"icon"`
+	InstalledSize   int64         `json:"installed-size"`
+	InstallDate     time.Time     `json:"install-date"`
+	Name            string        `json:"name"`
+	Developer       string        `json:"developer"`
+	Status          string        `json:"status"`
+	Type            string        `json:"type"`
+	Version         string        `json:"version"`
+	Channel         string        `json:"channel"`
+	TrackingChannel string        `json:"tracking-channel"`
+	Revision        snap.Revision `json:"revision"`
+	Confinement     string        `json:"confinement"`
+	Private         bool          `json:"private"`
+	DevMode         bool          `json:"devmode"`
+	JailMode        bool          `json:"jailmode"`
+	TryMode         bool          `json:"trymode"`
+	Apps            []AppInfo     `json:"apps"`
+	Broken          string        `json:"broken"`
+	Contact         string        `json:"contact"`
 
-	Prices map[string]float64 `json:"prices"`
+	Prices      map[string]float64 `json:"prices"`
+	Screenshots []Screenshot       `json:"screenshots"`
+
+	// The flattended channel map with $track/$risk
+	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
+
+	// The ordered list of tracks that contains channels
+	Tracks []string
 }
 
 type AppInfo struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`
+	Daemon string `json:"daemon"`
+}
+
+type Screenshot struct {
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
 }
 
 // Statuses and types a snap may have.
@@ -64,6 +82,7 @@ const (
 	StatusInstalled = "installed"
 	StatusActive    = "active"
 	StatusRemoved   = "removed"
+	StatusPriced    = "priced"
 
 	TypeApp    = "app"
 	TypeKernel = "kernel"
@@ -71,7 +90,8 @@ const (
 	TypeOS     = "os"
 
 	StrictConfinement  = "strict"
-	DevmodeConfinement = "devmode"
+	DevModeConfinement = "devmode"
+	ClassicConfinement = "classic"
 )
 
 type ResultInfo struct {
@@ -87,14 +107,31 @@ type FindOptions struct {
 	Private bool
 	Prefix  bool
 	Query   string
+	Section string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
+type ListOptions struct {
+	All bool
+}
+
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) List(names []string) ([]*Snap, error) {
-	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
+func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
+	if opts == nil {
+		opts = &ListOptions{}
+	}
+
+	q := make(url.Values)
+	if opts.All {
+		q.Add("select", "all")
+	}
+	if len(names) > 0 {
+		q.Add("snaps", strings.Join(names, ","))
+	}
+
+	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
 	if err != nil {
 		return nil, err
 	}
@@ -103,23 +140,17 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 		return nil, ErrNoSnapsInstalled
 	}
 
-	if len(names) == 0 {
-		return snaps, nil
-	}
+	return snaps, nil
+}
 
-	wanted := make(map[string]bool, len(names))
-	for _, name := range names {
-		wanted[name] = true
+// Sections returns the list of existing snap sections in the store
+func (client *Client) Sections() ([]string, error) {
+	var sections []string
+	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap sections: %s", err)
 	}
-
-	var result []*Snap
-	for _, snap := range snaps {
-		if wanted[snap.Name] {
-			result = append(result, snap)
-		}
-	}
-
-	return result, nil
+	return sections, nil
 }
 
 // Find returns a list of snaps available for install from the
@@ -142,6 +173,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	case opts.Private:
 		q.Set("select", "private")
+	}
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
 	}
 
 	return client.snapsFromPath("/v2/find", q)

@@ -1,6 +1,7 @@
+log_user 0
 spawn snap login $env(SPREAD_STORE_USER)
 
-expect "Password: "
+expect "Password of "
 send "$env(SPREAD_STORE_PASSWORD)\n"
 
 expect {

@@ -1,20 +1,15 @@
 summary: Check remove command errors
 
 execute: |
-    echo "An error is returned when trying to remove an non installed snap"
-    if snap remove test-snapd-tools; then
-        echo "An error is expected when trying to remove a non installed snap"
-        exit 1
-    fi
-    echo "================================"
-
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
-    . "$TESTSLIB/names.sh"
 
-    echo "An error is returned when trying to remove it"
-    if snap remove "${core_name}"; then
-        echo "An error is expected when trying to remove ${core_name}"
-        exit 1
-    fi
+    . "$TESTSLIB/names.sh"
+    echo "Ensure the important snaps can not be removed"
+    for sn in core $kernel_name $gadget_name; do
+        if snap remove $sn; then
+            echo "It should not be possible to remove $sn"
+            exit 1
+        fi
+    done

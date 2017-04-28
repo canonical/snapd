@@ -20,22 +20,15 @@
 package partition
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-
-	"github.com/mvo5/goconfigparser"
+	"github.com/snapcore/snapd/partition/grubenv"
 )
 
-// var to make it testable
-var (
-	grubEnvCmd = "/usr/bin/grub-editenv"
-)
-
-type grub struct {
-}
+type grub struct{}
 
 // newGrub create a new Grub bootloader object
 func newGrub() Bootloader {
@@ -63,28 +56,28 @@ func (g *grub) envFile() string {
 	return filepath.Join(g.Dir(), "grubenv")
 }
 
-func (g *grub) GetBootVar(name string) (string, error) {
-	// Grub doesn't provide a get verb, so retrieve all values and
-	// search for the required variable ourselves.
-	output, err := runCommand(grubEnvCmd, g.envFile(), "list")
-	if err != nil {
-		return "", err
+func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
+	out := make(map[string]string)
+
+	env := grubenv.NewEnv(g.envFile())
+	if err := env.Load(); err != nil {
+		return nil, err
 	}
 
-	cfg := goconfigparser.New()
-	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadString(output); err != nil {
-		return "", err
+	for _, name := range names {
+		out[name] = env.Get(name)
 	}
 
-	return cfg.Get("", name)
+	return out, nil
 }
 
-func (g *grub) SetBootVar(name, value string) error {
-	// note that strings are not quoted since because
-	// RunCommand() does not use a shell and thus adding quotes
-	// stores them in the environment file (which is not desirable)
-	arg := fmt.Sprintf("%s=%s", name, value)
-	_, err := runCommand(grubEnvCmd, g.envFile(), "set", arg)
-	return err
+func (g *grub) SetBootVars(values map[string]string) error {
+	env := grubenv.NewEnv(g.envFile())
+	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for k, v := range values {
+		env.Set(k, v)
+	}
+	return env.Save()
 }

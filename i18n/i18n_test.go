@@ -26,47 +26,25 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gosexy/gettext"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type i18nTestSuite struct {
-}
-
-var _ = Suite(&i18nTestSuite{})
-
-func (s *i18nTestSuite) SetUpTest(c *C) {
-	// this dir contains a special hand-crafted en_DK/snappy-test.mo
-	// file
-	localeDir := c.MkDir()
-	makeMockTranslations(c, localeDir)
-
-	// this may fail on systems with no locale support (potentially
-	// minimal build environments)
-	gettext.BindTextdomain("snappy-test", localeDir)
-	locale := gettext.SetLocale(gettext.LC_ALL, "en_DK.UTF-8")
-	if locale != "en_DK.UTF-8" {
-		c.Skip("cannot init locale")
-	}
-	os.Setenv("LANGUAGE", "en_DK")
-
-	// we use a custom test mo file
-	TEXTDOMAIN = "snappy-test"
-}
-
 var mockLocalePo = []byte(`
 msgid ""
 msgstr ""
-"Project-Id-Version: snappy\n"
+"Project-Id-Version: snappy-test\n"
 "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
 "POT-Creation-Date: 2015-06-16 09:08+0200\n"
 "Language: en_DK\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;>\n"
 
 msgid "plural_1"
 msgid_plural "plural_2"
@@ -94,8 +72,33 @@ func makeMockTranslations(c *C, localeDir string) {
 	c.Assert(err, IsNil)
 }
 
+type i18nTestSuite struct {
+	origLang       string
+	origLcMessages string
+}
+
+var _ = Suite(&i18nTestSuite{})
+
+func (s *i18nTestSuite) SetUpTest(c *C) {
+	// this dir contains a special hand-crafted en_DK/snappy-test.mo
+	// file
+	localeDir := c.MkDir()
+	makeMockTranslations(c, localeDir)
+
+	// we use a custom test mo file
+	TEXTDOMAIN = "snappy-test"
+
+	s.origLang = os.Getenv("LANG")
+	s.origLcMessages = os.Getenv("LC_MESSAGES")
+
+	bindTextDomain("snappy-test", localeDir)
+	os.Setenv("LANG", "en_DK.UTF-8")
+	setLocale("")
+}
+
 func (s *i18nTestSuite) TearDownTest(c *C) {
-	gettext.SetLocale(gettext.LC_ALL, "")
+	os.Setenv("LANG", s.origLang)
+	os.Setenv("LC_MESSAGES", s.origLcMessages)
 }
 
 func (s *i18nTestSuite) TestTranslatedSingular(c *C) {
@@ -108,4 +111,52 @@ func (s *i18nTestSuite) TestTranslatesPlural(c *C) {
 	// no NG() to avoid adding the test string to snappy-pot
 	var NGtest = NG
 	c.Assert(NGtest("plural_1", "plural_2", 1), Equals, "translated plural_1")
+}
+
+func (s *i18nTestSuite) TestTranslatedMissingLangNoCrash(c *C) {
+	setLocale("invalid")
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "singular")
+}
+
+func (s *i18nTestSuite) TestInvalidTextDomainDir(c *C) {
+	bindTextDomain("snappy-test", "/random/not/existing/dir")
+	setLocale("invalid")
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "singular")
+}
+
+func (s *i18nTestSuite) TestLangpackResolverFromLangpack(c *C) {
+	root := c.MkDir()
+	localeDir := filepath.Join(root, "/usr/share/locale")
+	err := os.MkdirAll(localeDir, 0755)
+	c.Assert(err, IsNil)
+
+	d := filepath.Join(root, "/usr/share/locale-langpack")
+	makeMockTranslations(c, d)
+	bindTextDomain("snappy-test", localeDir)
+	setLocale("")
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
+}
+
+func (s *i18nTestSuite) TestLangpackResolverFromCore(c *C) {
+	origSnapMountDir := dirs.SnapMountDir
+	defer func() { dirs.SnapMountDir = origSnapMountDir }()
+	dirs.SnapMountDir = c.MkDir()
+
+	d := filepath.Join(dirs.SnapMountDir, "/core/current/usr/share/locale")
+	makeMockTranslations(c, d)
+	bindTextDomain("snappy-test", "/usr/share/locale")
+	setLocale("")
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
 }

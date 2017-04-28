@@ -22,6 +22,7 @@ package state_test
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,7 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 //     <task>:(do|undo)-block - block handler until task tomb dies
 //     <task>:(do|undo)-retry - return from handler with with state.Retry
 //     <task>:(do|undo)-error - return from handler with an error
+//     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
 //     chg:abort              - call abort on the change
 //
 // Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
@@ -127,12 +129,16 @@ var sequenceTests = []struct{ setup, result string }{{
 }, {
 	setup:  "t21:do-set-ready",
 	result: "t11:do t12:do t21:do t31:do t32:do",
-},
-	{
-		setup:  "t31:do-error t21:undo-set-ready",
-		result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
-	},
-}
+}, {
+	setup:  "t31:do-error t21:undo-set-ready",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
+}, {
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:1,2 t31:was-done:1 t32:do-error:2",
+	result: "t31:undo t32:do t32:do-error t21:undo t11:undo",
+}, {
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
+	result: "t31:undo t32:do t32:do-error t21:undo",
+}}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
@@ -181,7 +187,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		st.Lock()
 
 		// Delete previous changes.
-		st.Prune(1, 1)
+		st.Prune(1, 1, 1)
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
@@ -217,15 +223,23 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 			t.Set("undo-block", false)
 		}
 		for _, item := range strings.Fields(test.setup) {
-			if item == "chg:abort" {
+			parts := strings.Split(item, ":")
+			if parts[0] == "chg" && parts[1] == "abort" {
 				chg.Abort()
-				continue
-			}
-			kv := strings.Split(item, ":")
-			if strings.HasPrefix(kv[1], "was-") {
-				tasks[kv[0]].SetStatus(statuses[kv[1][4:]])
 			} else {
-				tasks[kv[0]].Set(kv[1], true)
+				if strings.HasPrefix(parts[1], "was-") {
+					tasks[parts[0]].SetStatus(statuses[parts[1][4:]])
+				} else {
+					tasks[parts[0]].Set(parts[1], true)
+				}
+			}
+			if len(parts) > 2 {
+				lanes := strings.Split(parts[2], ",")
+				for _, lane := range lanes {
+					n, err := strconv.Atoi(lane)
+					c.Assert(err, IsNil)
+					tasks[parts[0]].JoinLane(n)
+				}
 			}
 		}
 		st.Unlock()
@@ -271,41 +285,41 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		}
 		// ... overwrite based on relevant setup
 		for _, item := range strings.Fields(test.setup) {
-			if item == "chg:abort" && strings.Contains(test.setup, "t12:was-doing") {
+			parts := strings.Split(item, ":")
+			if parts[0] == "chg" && parts[1] == "abort" && strings.Contains(test.setup, "t12:was-doing") {
 				// t12 has no undo so must hold if asked to abort when was doing.
 				finalStatus["t12"] = state.HoldStatus
 			}
-			kv := strings.Split(item, ":")
-			if !strings.HasPrefix(kv[1], "was-") {
+			if !strings.HasPrefix(parts[1], "was-") {
 				continue
 			}
-			switch strings.TrimPrefix(kv[1], "was-") {
+			switch strings.TrimPrefix(parts[1], "was-") {
 			case "do", "doing", "done":
-				finalStatus[kv[0]] = state.DoneStatus
+				finalStatus[parts[0]] = state.DoneStatus
 			case "abort", "undo", "undoing", "undone":
-				if kv[0] == "t12" {
-					finalStatus[kv[0]] = state.DoneStatus // no undo for t12
+				if parts[0] == "t12" {
+					finalStatus[parts[0]] = state.DoneStatus // no undo for t12
 				} else {
-					finalStatus[kv[0]] = state.UndoneStatus
+					finalStatus[parts[0]] = state.UndoneStatus
 				}
 			case "was-error":
-				finalStatus[kv[0]] = state.ErrorStatus
+				finalStatus[parts[0]] = state.ErrorStatus
 			case "was-hold":
-				finalStatus[kv[0]] = state.ErrorStatus
+				finalStatus[parts[0]] = state.ErrorStatus
 			}
 		}
 		// ... and overwrite based on events observed.
 		for _, ev := range events {
-			kv := strings.Split(ev, ":")
-			switch kv[1] {
+			parts := strings.Split(ev, ":")
+			switch parts[1] {
 			case "do":
-				finalStatus[kv[0]] = state.DoneStatus
+				finalStatus[parts[0]] = state.DoneStatus
 			case "undo":
-				finalStatus[kv[0]] = state.UndoneStatus
+				finalStatus[parts[0]] = state.UndoneStatus
 			case "do-error", "undo-error":
-				finalStatus[kv[0]] = state.ErrorStatus
+				finalStatus[parts[0]] = state.ErrorStatus
 			case "do-retry":
-				if kv[0] == "t12" && finalStatus["t11"] == state.ErrorStatus {
+				if parts[0] == "t12" && finalStatus["t11"] == state.ErrorStatus {
 					// t12 has no undo so must hold if asked to abort on retry.
 					finalStatus["t12"] = state.HoldStatus
 				}
@@ -385,6 +399,36 @@ func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (ts *taskRunnerSuite) TestErrorsOnStopAreRetried(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("error-on-stop", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		// error here could be due to cancellation, task will be retried
+		return errors.New("error at stop")
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("error-on-stop", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	// still Doing, will be retried
+	c.Check(t.Status(), Equals, state.DoingStatus)
+}
+
 func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
@@ -396,7 +440,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 		ch <- true
 		<-tb.Dying()
 		// ask for retry
-		return &state.Retry{}
+		return &state.Retry{After: 2 * time.Minute}
 	}, nil)
 
 	st.Lock()
@@ -412,6 +456,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {

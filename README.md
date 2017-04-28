@@ -1,10 +1,16 @@
-[![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url]
-# snapd
+[![Build Status][travis-image]][travis-url]
+[![Go Report Card][goreportcard-image]][goreportcard-url]
 
-The snapd and snap tools enable systems to work with .snap files. See
-[snapcraft.io](http://snapcraft.io) for a high level overview about
-snap files and the snapd application.
-  
+## Snaps
+
+Package any app for every Linux desktop, server, cloud or device.
+
+Snaps are faster to install, easier to create, safer to run, and they update
+automatically and transactionally so your app is always fresh and never
+broken. You can bring your own build infrastructure or use ours.
+
+Head over to [snapcraft.io](https://snapcraft.io) to get started.
+
 ## Development
 
 To get started with development off the snapd code itself, please check
@@ -28,6 +34,9 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
 [travis-url]: https://travis-ci.org/snapcore/snapd
+
+[goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
+[goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
 
 [coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
 [coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master

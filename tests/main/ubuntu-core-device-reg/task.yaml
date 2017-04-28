@@ -1,7 +1,7 @@
 summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-*]
 execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
@@ -19,7 +19,9 @@ execute: |
     echo "Check we have a serial"
     snap known serial|grep "authority-id: canonical"
     snap known serial|grep "brand-id: canonical"
-    snap known serial|grep "model: pc"
+    if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+        snap known serial|grep "model: pc"
+    fi
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc

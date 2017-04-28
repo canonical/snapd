@@ -192,7 +192,7 @@ func Users(st *state.State) ([]*UserState, error) {
 	}
 
 	users := make([]*UserState, len(authStateData.Users))
-	for i, _ := range authStateData.Users {
+	for i := range authStateData.Users {
 		users[i] = &authStateData.Users[i]
 	}
 	return users, nil

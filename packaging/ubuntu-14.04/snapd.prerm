@@ -1,0 +1,8 @@
+#! /bin/sh
+
+set -e
+
+if [ -d /run/systemd/system ]; then
+    systemctl stop snapd.autoimport.service snapd.socket snapd.service
+    systemctl disable snapd.autoimport.service snapd.socket snapd.service
+fi

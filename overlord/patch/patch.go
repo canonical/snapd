@@ -24,11 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 // Level is the current implemented patch level of the state format and content.
-var Level = 5
+var Level = 6
 
 // patches maps from patch level L to the function that moves from L-1 to L.
 var patches = make(map[int]func(s *state.State) error)
@@ -70,7 +69,7 @@ func Apply(s *state.State) error {
 		}
 		err := applyOne(patch, s, level)
 		if err != nil {
-			logger.Noticef("Cannnot patch: %v", err)
+			logger.Noticef("Cannot patch: %v", err)
 			return fmt.Errorf("cannot patch system state from level %d to %d: %v", level, level+1, err)
 		}
 		level++
@@ -103,5 +102,3 @@ func Mock(level int, p map[int]func(*state.State) error) (restore func()) {
 		patches = oldPatches
 	}
 }
-
-var readInfo = snap.ReadInfo

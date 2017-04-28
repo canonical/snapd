@@ -1,11 +1,11 @@
 summary: Check snap web servers
 environment:
-    SNAP_NAME/pythonServer: xkcd-webserver
+    SNAP_NAME/pythonServer: test-snapd-python-webserver
     IP_VERSION/pythonServer: 4
     PORT/pythonServer: 80
     TEXT/pythonServer: XKCD rocks!
     LOCALHOST/pythonServer: localhost
-    SNAP_NAME/goServer: go-example-webserver
+    SNAP_NAME/goServer: test-snapd-go-webserver
     IP_VERSION/goServer: 6
     PORT/goServer: 8081
     TEXT/goServer: Hello World
@@ -26,7 +26,7 @@ restore: |
     rm -f request.txt
 
 execute: |
-    response=$(nc -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
+    response=$(nc -q 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 
     statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
     echo "$response" | grep -Pzq "$statusPattern"

@@ -1,0 +1,11 @@
+summary: the essential manual pages are installed by the native package
+# core systems don't ship man or manual pages
+systems: [-ubuntu-core-16-*]
+execute: |
+    for manpage in snap snap-confine snap-discard-ns; do
+        if ! man --what $manpage; then
+            echo "Expected to see manual page for $manpage"
+            exit 1
+        fi
+    done
+# TODO: add manual pages for snapctl, snap-exec and snapd

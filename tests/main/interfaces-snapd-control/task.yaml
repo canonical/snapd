@@ -1,5 +1,9 @@
 summary: Ensure that the snapd-control interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The snapd-control interface allows a snap to access the locale configuration.
 
@@ -16,17 +20,14 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the snapd-control interface is installed"
-    snapbuild $TESTSLIB/snaps/snapd-control-consumer .
-    snap install --dangerous snapd-control-consumer_1.0_all.snap
+    snap install --edge test-snapd-control-consumer
 
 restore: |
-    rm -f snapd-control-consumer_1.0_all.snap snapd.error
+    rm -f snapd.error
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
-    CONNECTED_PATTERN=":snapd-control +snapd-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +snapd-control-consumer:snapd-control"
+    CONNECTED_PATTERN=":snapd-control +test-snapd-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-control-consumer:snapd-control"
 
     echo "Then it is connected by default"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
@@ -34,11 +35,11 @@ execute: |
     echo "================================================"
 
     echo "When the plug is disconnected"
-    snap disconnect snapd-control-consumer:snapd-control ${core_name}:snapd-control
+    snap disconnect test-snapd-control-consumer:snapd-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to control snapd"
-    if snapd-control-consumer.list 2>snapd.error; then
+    if test-snapd-control-consumer.list 2>snapd.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
@@ -47,10 +48,10 @@ execute: |
     echo "================================================"
 
     echo "When the plug is connected"
-    snap connect snapd-control-consumer:snapd-control ${core_name}:snapd-control
+    snap connect test-snapd-control-consumer:snapd-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to control snapd"
-    ! snapd-control-consumer.list | grep -q test-snapd-tools
-    snapd-control-consumer.install test-snapd-tools
-    while ! snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done
+    ! test-snapd-control-consumer.list | grep -q test-snapd-tools
+    test-snapd-control-consumer.install test-snapd-tools
+    while ! test-snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done

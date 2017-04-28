@@ -22,6 +22,7 @@ package state_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -94,6 +95,39 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
 	c.Check(err, Equals, state.ErrNoState)
+}
+
+func (ss *stateSuite) TestSetToNilDeletes(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("a", map[string]int{"a": 1})
+	var v map[string]int
+	err := st.Get("a", &v)
+	c.Assert(err, IsNil)
+	c.Check(v, HasLen, 1)
+
+	st.Set("a", nil)
+
+	var v1 map[string]int
+	err = st.Get("a", &v1)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(v1, HasLen, 0)
+}
+
+func (ss *stateSuite) TestNullMeansNoState(c *C) {
+	buf := bytes.NewBufferString(`{"data": {"a": null}}`)
+	st, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var v1 map[string]int
+	err = st.Get("a", &v1)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(v1, HasLen, 0)
 }
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
@@ -221,25 +255,25 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 10*time.Millisecond)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 80*time.Millisecond)
 	defer restore()
 
 	boom := errors.New("boom")
 	retries := 0
-	error := func() error {
+	errFn := func() error {
 		retries++
 		return boom
 	}
-	b := &fakeStateBackend{error: error}
+	b := &fakeStateBackend{error: errFn}
 	st := state.New(b)
 	st.Lock()
 
 	// implicit checkpoint will panic after all failed retries
 	t0 := time.Now()
-	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10ms of retries every 2ms: boom")
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 80ms of retries every 2ms: boom")
 	// we did at least a couple
-	c.Check(retries > 2, Equals, true)
-	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
+	c.Check(retries > 2, Equals, true, Commentf("expected more than 2 retries got %v", retries))
+	c.Check(time.Since(t0) > 80*time.Millisecond, Equals, true)
 }
 
 func (ss *stateSuite) TestImplicitCheckpointModifiedOnly(c *C) {
@@ -327,6 +361,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 
 	var v int
 	err = chg0.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(chg0.Status(), Equals, state.ErrorStatus)
@@ -392,6 +427,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
 	t1.SetProgress("snap", 5, 10)
+	t1.JoinLane(42)
+	t1.JoinLane(43)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
@@ -432,6 +469,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	var v int
 	err = task0_1.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
@@ -439,6 +477,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	c.Assert(task0_1.Lanes(), DeepEquals, []int{42, 43})
 
 	task0_2 := tasks0[t2ID]
 	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
@@ -534,6 +574,8 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 	st.NewTask("download", "...")
 	st.NewTask("download", "...")
 
+	c.Assert(st.NewLane(), Equals, 1)
+
 	// implicit checkpoint
 	st.Unlock()
 
@@ -549,6 +591,9 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+
+	c.Assert(st2.NewLane(), Equals, 2)
+
 }
 
 func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
@@ -647,6 +692,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewChange("install", "...") },
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
+		func() { st.NewLane() },
 	}
 
 	reads := []func(){
@@ -658,8 +704,8 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Tasks() },
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
-		func() { st.Prune(time.Hour, time.Hour) },
-		func() { st.NumTask() },
+		func() { st.Prune(time.Hour, time.Hour, 100) },
+		func() { st.TaskCount() },
 	}
 
 	for i, f := range reads {
@@ -717,7 +763,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.Task(t5.ID()), IsNil)
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
 	c.Assert(st.Change(chg2.ID()), IsNil)
@@ -737,7 +783,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t3.Status(), Equals, state.DoStatus)
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
-	c.Check(st.NumTask(), Equals, 3)
+	c.Check(st.TaskCount(), Equals, 3)
 }
 
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {
@@ -756,17 +802,128 @@ func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	chg := st.NewChange("abort", "...")
 	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 	c.Assert(st.Change(chg.ID()), IsNil)
+}
+
+func (ss *stateSuite) TestPruneMaxChangesHappy(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	// create 10 changes, chg0 is freshest, chg9 is oldest, but
+	// all changes are not old enough for pruneWait
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+		t.SetStatus(state.DoneStatus)
+
+		when := time.Duration(i) * time.Second
+		state.MockChangeTimes(chg, now.Add(-when), now.Add(-when))
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// and 5 more, all not ready
+	for i := 10; i < 15; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+	}
+
+	// test that nothing is done when we are within pruneWait and
+	// maxReadyChanges
+	maxReadyChanges := 100
+	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	c.Assert(st.Changes(), HasLen, 15)
+
+	// but with maxReadyChanges we remove the ready ones
+	maxReadyChanges = 5
+	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	c.Assert(st.Changes(), HasLen, 10)
+	remaining := map[string]bool{}
+	for _, chg := range st.Changes() {
+		remaining[chg.Kind()] = true
+	}
+	c.Check(remaining, DeepEquals, map[string]bool{
+		// ready and fresh
+		"chg0": true,
+		"chg1": true,
+		"chg2": true,
+		"chg3": true,
+		"chg4": true,
+		// not ready
+		"chg10": true,
+		"chg11": true,
+		"chg12": true,
+		"chg13": true,
+		"chg14": true,
+	})
+}
+
+func (ss *stateSuite) TestPruneMaxChangesSomeNotReady(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	// 10 changes, none ready
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// nothing can be pruned
+	maxChanges := 5
+	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	c.Assert(st.Changes(), HasLen, 10)
+}
+
+func (ss *stateSuite) TestPruneMaxChangesHonored(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	// 10 changes, none ready
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "not-ready")
+		t := st.NewTask("foo", "not-readly")
+		chg.AddTask(t)
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// one extra change that just now entered ready state
+	chg := st.NewChange(fmt.Sprintf("chg99"), "so-ready")
+	t := st.NewTask("foo", "so-ready")
+	when := 1 * time.Second
+	state.MockChangeTimes(chg, time.Now().Add(-when), time.Now().Add(-when))
+	t.SetStatus(state.DoneStatus)
+	chg.AddTask(t)
+
+	// we have 11 changes in total, 10 not-ready, 1 ready
+	//
+	// this test we do not purge the freshly ready change
+	maxChanges := 10
+	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	c.Assert(st.Changes(), HasLen, 11)
 }
 
 func (ss *stateSuite) TestRequestRestart(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)
 
+	c.Check(st.Restarting(), Equals, false)
+
 	st.RequestRestart(state.RestartDaemon)
 
 	c.Check(b.restartRequested, Equals, true)
+
+	c.Check(st.Restarting(), Equals, true)
 }
 
 func (ss *stateSuite) TestReadStateInitsCache(c *C) {

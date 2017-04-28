@@ -45,7 +45,7 @@ Nested values may be modified via a dotted path:
 
 type cmdSet struct {
 	Positional struct {
-		Snap       string
+		Snap       installedSnapName
 		ConfValues []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -79,7 +79,7 @@ func (x *cmdSet) Execute(args []string) error {
 		}
 	}
 
-	return configure(x.Positional.Snap, patchValues)
+	return configure(string(x.Positional.Snap), patchValues)
 }
 
 func configure(snapName string, patchValues map[string]interface{}) error {

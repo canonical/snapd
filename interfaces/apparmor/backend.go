@@ -38,16 +38,20 @@
 package apparmor
 
 import (
-	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -55,8 +59,71 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "apparmor"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityAppArmor
+}
+
+// setupSnapConfineReexec will setup apparmor profiles on a classic
+// system on the hosts /etc/apparmor.d directory. This is needed for
+// running snap-confine from the core snap.
+//
+// Additionally it will cleanup stale apparmor profiles it created.
+func setupSnapConfineReexec(snapInfo *snap.Info) error {
+	// cleanup old
+	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
+
+	glob, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, apparmorProfilePathPattern))
+	if err != nil {
+		return err
+	}
+
+	for _, path := range glob {
+		snapConfineInCore := "/" + strings.Replace(filepath.Base(path), ".", "/", -1)
+		if osutil.FileExists(snapConfineInCore) {
+			continue
+		}
+
+		// not using apparmor.UnloadProfile() because it uses a
+		// different cachedir
+		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
+			logger.Noticef("cannot unload apparmor profile %s: %v", filepath.Base(path), osutil.OutputErr(output, err))
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(filepath.Join(dirs.SystemApparmorCacheDir, filepath.Base(path))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	// add new confinement file
+	coreRoot := snapInfo.MountDir()
+	snapConfineInCore := filepath.Join(coreRoot, "usr/lib/snapd/snap-confine")
+	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
+
+	// we must test the ".real" suffix first, this is a workaround for
+	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real"))
+	if os.IsNotExist(err) {
+		apparmorProfile, err = ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+		if err != nil {
+			return err
+		}
+	}
+	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
+
+	// /etc/apparmor.d is read/write OnClassic, so write out the
+	// new core's profile there
+	if err := osutil.AtomicWriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644, 0); err != nil {
+		return err
+	}
+
+	// not using apparmor.LoadProfile() because it uses a different cachedir
+	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot replace snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+	}
+
+	return nil
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.
@@ -65,15 +132,22 @@ func (b *Backend) Name() string {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
-	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+
+	// core on classic is special
+	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
+		if err := setupSnapConfineReexec(snapInfo); err != nil {
+			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+		}
+	}
+
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, devMode, snippets)
+	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -114,54 +188,70 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern          = regexp.MustCompile("(###[A-Z]+###)")
-	placeholderVar           = []byte("###VAR###")
-	placeholderSnippets      = []byte("###SNIPPETS###")
-	placeholderProfileAttach = []byte("###PROFILEATTACH###")
-	attachPattern            = regexp.MustCompile(`\(attach_disconnected\)`)
-	attachComplain           = []byte("(attach_disconnected,complain)")
+	templatePattern = regexp.MustCompile("(###[A-Z]+###)")
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
 )
 
-// combineSnippets combines security snippets collected from all the interfaces
-// affecting a given snap into a content map applicable to EnsureDirState. The
-// backend delegates writing those files to higher layers.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+const attachComplain = "(attach_disconnected,complain)"
+
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(appInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		securityTag := appInfo.SecurityTag()
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		securityTag := hookInfo.SecurityTag()
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
-	policy := defaultTemplate
-	if devMode {
-		policy = attachPattern.ReplaceAll(policy, attachComplain)
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+	var policy string
+	if opts.Classic && !opts.JailMode {
+		policy = classicTemplate
+	} else {
+		policy = defaultTemplate
 	}
-	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
-		switch {
-		case bytes.Equal(placeholder, placeholderVar):
-			return templateVariables(snapInfo)
-		case bytes.Equal(placeholder, placeholderProfileAttach):
-			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
-		case bytes.Equal(placeholder, placeholderSnippets):
-			return bytes.Join(snippets[securityTag], []byte("\n"))
+	if (opts.DevMode || opts.Classic) && !opts.JailMode {
+		policy = attachPattern.ReplaceAllString(policy, attachComplain)
+	}
+	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
+		switch placeholder {
+		case "###VAR###":
+			return templateVariables(snapInfo, securityTag)
+		case "###PROFILEATTACH###":
+			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###SNIPPETS###":
+			var tagSnippets string
+
+			if opts.Classic && opts.JailMode {
+				// Add a special internal snippet for snaps using classic confinement
+				// and jailmode together. This snippet provides access to the core snap
+				// so that the dynamic linker and shared libraries can be used.
+				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
+			} else if opts.Classic && !opts.JailMode {
+				// When classic confinement (without jailmode) is in effect we
+				// are ignoring all apparmor snippets as they may conflict with
+				// the super-broad template we are starting with.
+			} else {
+				tagSnippets = snippetForTag
+			}
+			return tagSnippets
 		}
-		return nil
+		return ""
 	})
 
 	content[securityTag] = &osutil.FileState{
-		Content: policy,
+		Content: []byte(policy),
 		Mode:    0644,
 	}
 }
@@ -184,4 +274,8 @@ func unloadProfiles(profiles []string) error {
 		}
 	}
 	return nil
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	return &Specification{}
 }

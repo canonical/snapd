@@ -23,3 +23,9 @@ package cmd
 
 // Version will be overwritten at build-time via mkversion.sh
 var Version = "unknown"
+
+func MockVersion(version string) (restore func()) {
+	old := Version
+	Version = version
+	return func() { Version = old }
+}

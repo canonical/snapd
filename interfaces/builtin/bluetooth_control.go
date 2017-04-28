@@ -25,8 +25,7 @@ import (
 
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
-#  because this gives privileged access to the system.
-# Usage: reserved
+# because this gives privileged access to the system.
 
   network bluetooth,
   # For crypto functionality the kernel offers
@@ -47,10 +46,8 @@ const bluetoothControlConnectedPlugAppArmor = `
 
 const bluetoothControlConnectedPlugSecComp = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
-#  because this gives privileged access to the system.
-# Usage: reserved
+# because this gives privileged access to the system.
 bind
-getsockopt
 `
 
 func NewBluetoothControlInterface() interfaces.Interface {

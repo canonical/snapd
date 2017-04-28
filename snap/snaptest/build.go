@@ -176,7 +176,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			if err := os.Mkdir(dest, info.Mode()); err != nil {
 				return err
 			}
-			// ensure that premissions are preserved
+			// ensure that permissions are preserved
 			uid := int(info.Sys().(*syscall.Stat_t).Uid)
 			gid := int(info.Sys().(*syscall.Stat_t).Gid)
 			return os.Chown(dest, uid, gid)

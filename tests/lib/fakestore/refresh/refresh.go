@@ -33,9 +33,9 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-
 	"github.com/snapcore/snapd/store"
 )
 
@@ -52,12 +52,25 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	// for signing
 	db.ImportKey(storePrivKey)
 
-	// XXX: ideally for consistency we should talk to the local snapd
-	// but this allows us to go working until snapd itself
-	// start being fully assertion using
-	sto := store.New(nil, nil)
+	var cliConfig client.Config
+	cli := client.New(&cliConfig)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+		headers := make(map[string]string)
+		for i, k := range ref.Type.PrimaryKey {
+			headers[k] = ref.PrimaryKey[i]
+		}
+		as, err := cli.Known(ref.Type.Name, headers)
+		if err != nil {
+			return nil, err
+		}
+		switch len(as) {
+		case 1:
+			return as[0], nil
+		case 0:
+			return nil, &store.AssertionNotFoundError{Ref: ref}
+		default:
+			panic(fmt.Sprintf("multiple assertions when retrieving by primary key: %v", ref))
+		}
 	}
 
 	save := func(a asserts.Assertion) error {

@@ -35,7 +35,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, ss *SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
 }
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
@@ -45,13 +45,13 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 		task.State().Lock()
 		kind := task.Kind()
 		status := task.Status()
-		ss, err := TaskSnapSetup(task)
+		snapsup, err := TaskSnapSetup(task)
 		task.State().Unlock()
 		if err != nil {
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, ss)
+		tracker.ForeignTask(kind, status, snapsup)
 
 		return nil
 	}
@@ -59,6 +59,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	m.runner.AddHandler("validate-snap", fakeHandler, nil)
+	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -69,6 +70,11 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+}
+
+// AddAdhocTaskHandlers registers handlers for ad hoc test handler
+func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
+	m.runner.AddHandler(adhoc, do, undo)
 }
 
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
@@ -83,13 +89,30 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}
+
 var (
-	CheckSnap            = checkSnap
-	CanRemove            = canRemove
-	CachedStore          = cachedStore
-	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+	CheckSnap              = checkSnap
+	CanRemove              = canRemove
+	CanDisable             = canDisable
+	CachedStore            = cachedStore
+	DefaultRefreshSchedule = defaultRefreshSchedule
+	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// aliases v2
+var (
+	ApplyAliasesChange    = applyAliasesChange
+	AutoAliasesDelta      = autoAliasesDelta
+	RefreshAliases        = refreshAliases
+	CheckAliasesConflicts = checkAliasesConflicts
+	DisableAliases        = disableAliases
+)

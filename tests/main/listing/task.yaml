@@ -5,17 +5,32 @@ prepare: |
     install_local test-snapd-tools
 
 execute: |
-    . "$TESTSLIB/names.sh"
 
     echo "List prints core snap version"
-    if [[ "$SPREAD_BACKEND" = "linode" ]] && [[ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]]; then
+    if [ "$SPREAD_BACKEND" = "linode" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         echo "With customized images the ubuntu-core snap is sideloaded"
-        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + x\d+ +- *"
+        expected="^core +.*? +(\d{2}\-\d+) + x\d+ +- *"
     else
-        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + \d+ +canonical +- *"
+        expected="^core +.*? +(\d{2}\-\d+) + \d+ +canonical +- *"
     fi
     snap list | grep -Pq "$expected"
 
     echo "List prints installed snap version"
     expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +x[0-9]+ +-"
     snap list | grep -Pq "$expected"
+
+    echo "Install test-snapd-tools again"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+    echo "And run snap list --all"
+    output=$(snap list --all |grep test-snapd-tools)
+    if [ $(printf "$output" | grep test-snapd-tools | wc -l) != "2" ]; then
+        echo "Expected two test-snapd-tools in the output, got:"
+        echo $output
+        exit 1
+    fi
+    if [ $(printf "$output" | grep disabled | wc -l) != "1" ]; then
+        echo "Expected one disabled line in in the output, got:"
+        echo $output
+        exit 1
+    fi

@@ -3,6 +3,10 @@
 	"ignore": "test",
 	"package": [
 		{
+			"path": "context",
+			"revision": ""
+		},
+		{
 			"checksumSHA1": "f4UJKXymPS31lDRMfsmPA4PvwVw=",
 			"path": "github.com/cheggaaa/pb",
 			"revision": "6e9d17711bb763b26b68b3931d47f24c1323abab",
@@ -33,12 +37,6 @@
 			"revisionTime": "2016-01-28T16:48:56Z"
 		},
 		{
-			"checksumSHA1": "e0K21bVI674WQms/1HjP1m1hOVE=",
-			"path": "github.com/gosexy/gettext",
-			"revision": "98b7b91596d20b96909e6b60d57411547dd9959c",
-			"revisionTime": "2013-02-21T11:21:43Z"
-		},
-		{
 			"checksumSHA1": "Fsff4Yngdyqbq9ulSyTT4LGrxck=",
 			"path": "github.com/jessevdk/go-flags",
 			"revision": "6b9493b3cb60367edd942144879646604089e3f7",
@@ -61,6 +59,18 @@
 			"path": "github.com/mvo5/uboot-go/uenv",
 			"revision": "361f6ebcbb54f389d15dc9faefa000e996ba3e37",
 			"revisionTime": "2015-07-22T06:53:40Z"
+		},
+		{
+			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
+			"path": "github.com/ojii/gettext.go",
+			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
+			"revisionTime": "2016-07-14T06:47:45Z"
+		},
+		{
+			"checksumSHA1": "j5FytTwC2nAqSrDR7V7O7E4cHKM=",
+			"path": "github.com/ojii/gettext.go/pluralforms",
+			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
+			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
 			"checksumSHA1": "G1Zy6KNKWSz6Nx6GAgaKM2yPDLg=",
@@ -100,10 +110,28 @@
 			"revisionTime": "2015-01-21T11:42:31Z"
 		},
 		{
-			"checksumSHA1": "WiyCOMvfzRdymImAJ3ME6aoYUdM=",
+			"checksumSHA1": "YsB2DChSV9HxdzHaKATllAUKWSI=",
+			"path": "gopkg.in/mgo.v2/bson",
+			"revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+			"revisionTime": "2016-08-18T02:01:20Z"
+		},
+		{
+			"checksumSHA1": "XQsrqoNT1U0KzLxOFcAZVvqhLfk=",
+			"path": "gopkg.in/mgo.v2/internal/json",
+			"revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+			"revisionTime": "2016-08-18T02:01:20Z"
+		},
+		{
+			"checksumSHA1": "lBMMakT63h9ywP4d5wlkhOYMCAs=",
+			"path": "gopkg.in/retry.v1",
+			"revision": "c09f6b86ba4d5d2cf5bdf0665364aec9fd4815db",
+			"revisionTime": "2016-10-25T18:07:18Z"
+		},
+		{
+			"checksumSHA1": "t95/FNK2nGCx3e6IARbO7OrcCuY=",
 			"path": "gopkg.in/tomb.v2",
-			"revision": "14b3d72120e8d10ea6e6b7f87f7175734b1faab8",
-			"revisionTime": "2014-06-26T14:46:23Z"
+			"revision": "d5d1b5820637886def9eef33e03a27a9f166942c",
+			"revisionTime": "2016-12-08T15:16:19Z"
 		},
 		{
 			"checksumSHA1": "hiOUviIMDKo7y918uBiEhfJyOkk=",

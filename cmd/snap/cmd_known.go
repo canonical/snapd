@@ -33,6 +33,7 @@ import (
 
 type cmdKnown struct {
 	KnownOptions struct {
+		// XXX: how to get a list of assert types for completion?
 		AssertTypeName string   `required:"true"`
 		HeaderFilters  []string `required:"0"`
 	} `positional-args:"true" required:"true"`

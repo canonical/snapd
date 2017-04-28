@@ -46,6 +46,12 @@ func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
 	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
 }
 
+func (as *assertsSuite) TestSuggestFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -353,6 +359,7 @@ func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 		checkContent(c, a, streamData)
 
 		a, err = decoder.Decode()
+		c.Check(a, IsNil)
 		c.Check(err, Equals, io.EOF, Commentf("stream: %q", streamData))
 	}
 }
@@ -379,6 +386,7 @@ func (as *assertsSuite) TestDecoderHappyWithTrailerDoubleNewlines(c *C) {
 		checkContent(c, a, streamData)
 
 		a, err = decoder.Decode()
+		c.Check(a, IsNil)
 		c.Check(err, Equals, io.EOF, Commentf("stream: %q", streamData))
 	}
 }
@@ -578,6 +586,7 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 	}
 
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
 
 	c.Check(a.Revision(), Equals, 11)
 	c.Check(a.Format(), Equals, 1)
@@ -762,6 +771,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-declaration",
 		"snap-build",
 		"snap-revision",
+		"snap-developer",
 		"model",
 		"serial",
 		"system-user",

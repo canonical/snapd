@@ -23,18 +23,13 @@ import "github.com/snapcore/snapd/interfaces"
 
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
+/etc/libvirt/* r,
 `
 
 const libvirtConnectedPlugSecComp = `
-connect
-getsockname
-recv
-recvmsg
-send
-sendto
-sendmsg
-socket
-socketpair
+listen
+accept
+accept4
 `
 
 func NewLibvirtInterface() interfaces.Interface {
@@ -43,7 +38,5 @@ func NewLibvirtInterface() interfaces.Interface {
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
-		// cannot auto-connect, it grants too much power
-		autoConnect: false,
 	}
 }

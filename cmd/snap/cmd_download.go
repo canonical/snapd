@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,9 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 type cmdDownload struct {
@@ -41,7 +39,7 @@ type cmdDownload struct {
 	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string
+		Snap remoteSnapName
 	} `positional-args:"true" required:"true"`
 }
 
@@ -62,7 +60,7 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {
+func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) error {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -82,9 +80,10 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 	save := func(a asserts.Assertion) error {
 		return encoder.Encode(a)
 	}
-	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
+	f := tsto.AssertionFetcher(db, save)
 
-	return image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
+	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
+	return err
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -107,31 +106,25 @@ func (x *cmdDownload) Execute(args []string) error {
 		}
 	}
 
-	snapName := x.Positional.Snap
+	snapName := string(x.Positional.Snap)
 
-	// FIXME: set auth context
-	var authContext auth.AuthContext
-	var user *auth.UserState
-
-	sto := store.New(nil, authContext)
-	// we always allow devmode for downloads
-	devMode := true
-
-	dlOpts := image.DownloadOptions{
-		TargetDir: "", // cwd
-		DevMode:   devMode,
-		Channel:   x.Channel,
-		User:      user,
+	tsto, err := image.NewToolingStore()
+	if err != nil {
+		return err
 	}
 
 	fmt.Fprintf(Stderr, i18n.G("Fetching snap %q\n"), snapName)
-	snapPath, snapInfo, err := image.DownloadSnap(sto, snapName, revision, &dlOpts)
+	dlOpts := image.DownloadOptions{
+		TargetDir: "", // cwd
+		Channel:   x.Channel,
+	}
+	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, revision, &dlOpts)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
-	err = fetchSnapAssertions(sto, snapPath, snapInfo, &dlOpts)
+	err = fetchSnapAssertions(tsto, snapPath, snapInfo)
 	if err != nil {
 		return err
 	}

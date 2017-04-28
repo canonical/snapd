@@ -21,11 +21,11 @@ package release
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -37,28 +37,34 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+var (
+	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
+	requiredApparmorFeatures = []string{
+		"caps",
+		"dbus",
+		"domain",
+		"file",
+		"mount",
+		"namespaces",
+		"network",
+		"ptrace",
+		"signal",
+	}
+)
+
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
-func (os *OS) ForceDevMode() bool {
-	switch os.ID {
-	case "neon":
-		fallthrough
-	case "ubuntu":
-		return false
-	case "elementary":
-		switch os.VersionID {
-		case "0.4":
-			return false
-		default:
+func (o *OS) ForceDevMode() bool {
+	for _, req := range requiredApparmorFeatures {
+		// Also ensure appamor is enabled (cannot use
+		// osutil.FileExists() here because of cyclic imports)
+		p := filepath.Join(apparmorFeaturesSysPath, req)
+		if _, err := os.Stat(p); err != nil {
 			return true
 		}
-	default:
-		// NOTE: Other distributions can move out of devmode by
-		// integrating with the interface security backends. This will
-		// be documented separately in the porting guide.
-		return true
 	}
 
+	return false
 }
 
 var (
@@ -123,14 +129,8 @@ var ReleaseInfo OS
 
 func init() {
 	ReleaseInfo = readOSRelease()
-	// Assume that we are running on Classic
-	OnClassic = true
-	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
-	// dpkg status file can be used as an indicator for a classic vs all-snap
-	// system.
-	if ReleaseInfo.ID == "ubuntu" {
-		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
-	}
+
+	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 }
 
 // MockOnClassic forces the process to appear inside a classic
@@ -147,4 +147,31 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 	old := ReleaseInfo
 	ReleaseInfo = *osRelease
 	return func() { ReleaseInfo = old }
+}
+
+// MockForcedDevmode fake the system to believe its in a distro
+// that is in ForcedDevmode
+func MockForcedDevmode(isDevmode bool) (restore func()) {
+	oldApparmorFeaturesSysPath := apparmorFeaturesSysPath
+
+	temp, err := ioutil.TempDir("", "mock-forced-devmode")
+	if err != nil {
+		panic(err)
+	}
+	fakeApparmorFeaturesSysPath := filepath.Join(temp, "apparmor")
+	if !isDevmode {
+		for _, req := range requiredApparmorFeatures {
+			if err := os.MkdirAll(filepath.Join(fakeApparmorFeaturesSysPath, req), 0755); err != nil {
+				panic(err)
+			}
+		}
+	}
+	apparmorFeaturesSysPath = fakeApparmorFeaturesSysPath
+
+	return func() {
+		if err := os.RemoveAll(temp); err != nil {
+			panic(err)
+		}
+		apparmorFeaturesSysPath = oldApparmorFeaturesSysPath
+	}
 }

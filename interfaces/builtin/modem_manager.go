@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,16 +20,19 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
-var modemManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const modemManagerPermanentSlotAppArmor = `
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
 
 # To check present devices
 /run/udev/data/* r,
@@ -47,6 +50,10 @@ var modemManagerPermanentSlotAppArmor = []byte(`
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
 
+# For {mbim,qmi}-proxy
+unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
+/sys/devices/**/usb**/descriptors r,
+
 include <abstractions/nameservice>
 
 # DBus accesses
@@ -63,9 +70,22 @@ dbus (send)
 dbus (bind)
     bus=system
     name="org.freedesktop.ModemManager1",
-`)
 
-var modemManagerConnectedSlotAppArmor = []byte(`
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our modem-manager services.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+`
+
+const modemManagerConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service
 
 # Allow traffic to/from our path and interface with any method
@@ -81,12 +101,11 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var modemManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using ModemManager service. Reserved because this gives
-#  privileged access to the ModemManager service.
-# Usage: reserved
+const modemManagerConnectedPlugAppArmor = `
+# Description: Allow using ModemManager service. This gives privileged access
+# to the ModemManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -94,66 +113,56 @@ var modemManagerConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
 
-var modemManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const modemManagerConnectedPlugAppArmorClassic = `
+# Allow access to the unconfined ModemManager service on classic.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+`
+
+const modemManagerPermanentSlotSecComp = `
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
+
 # TODO: add ioctl argument filters when seccomp arg filtering is implemented
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 shutdown
-socketpair
-socket
-`)
+`
 
-var modemManagerConnectedPlugSecComp = []byte(`
-# Description: Allow using ModemManager service. Reserved because this gives
-#  privileged access to the ModemManager service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-connect
-getsockname
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`)
-
-var modemManagerPermanentSlotDBus = []byte(`
-<!-- DBus policy for ModemManager (upstream version 1.4.0)
-  - TODO change to polkit one when we enable it -->
-<policy context="default">
-    <allow send_destination="org.freedesktop.ModemManager1"/>
-</policy>
-
+const modemManagerPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.ModemManager1"/>
+    <allow send_destination="org.freedesktop.ModemManager1"/>
 </policy>
-`)
+`
 
-var modemManagerPermanentSlotUdev = []byte(`
+const modemManagerConnectedPlugDBus = `
+<policy context="default">
+    <deny own="org.freedesktop.ModemManager1"/>
+    <deny send_destination="org.freedesktop.ModemManager1"/>
+</policy>
+`
+
+const modemManagerPermanentSlotUDev = `
 # Concatenation of all ModemManager udev rules
 # do not edit this file, it will be overwritten on update
 
@@ -1142,7 +1151,7 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usb", ENV{ID_MM_CANDIDATE}="1"
 KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 
 LABEL="mm_candidate_end"
-`)
+`
 
 type ModemManagerInterface struct{}
 
@@ -1150,55 +1159,48 @@ func (iface *ModemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
+	if release.OnClassic {
+		// Let confined apps access unconfined ofono on classic
+		spec.AddSnippet(modemManagerConnectedPlugAppArmorClassic)
+	}
+	return nil
 }
 
-func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return nil, nil
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
-		if release.OnClassic {
-			// If we're running on classic ModemManager will be part
-			// of the OS snap and will run unconfined.
-			new = []byte("unconfined")
-		} else {
-			new = slotAppLabelExpr(slot)
-		}
-		snippet := bytes.Replace(modemManagerConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return modemManagerConnectedPlugSecComp, nil
-	}
-	return nil, nil
+func (iface *ModemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerConnectedPlugDBus)
+	return nil
 }
 
-func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return modemManagerPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return modemManagerPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
-		return modemManagerPermanentSlotUdev, nil
-	case interfaces.SecurityDBus:
-		return modemManagerPermanentSlotDBus, nil
-	}
-	return nil, nil
+func (iface *ModemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *ModemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotDBus)
+	return nil
+}
+
+func (iface *ModemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotUDev)
+	return nil
+}
+
+func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *ModemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -1207,10 +1209,6 @@ func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *ModemManagerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

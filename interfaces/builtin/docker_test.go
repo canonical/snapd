@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,126 +37,52 @@ type DockerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&DockerInterfaceSuite{
-	iface: &builtin.DockerInterface{},
-	slot: &interfaces.Slot{
+const dockerMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [docker]
+`
+
+var _ = Suite(&DockerInterfaceSuite{})
+
+func (s *DockerInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.DockerInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-daemon",
 			Interface: "docker",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "docker"},
-			Name:      "docker-client",
-			Interface: "docker",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, dockerMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["docker"]}
+}
 
 func (s *DockerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker")
 }
 
-func (s *DockerInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *DockerInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
-
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `run/docker.sock`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `run/docker.sock`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `bind`)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "bind\n")
 }
 
-func (s *DockerInterfaceSuite) TestSanitizeSlotDockerDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "docker"},
-		},
-		Name:      "docker",
-		Interface: "docker",
-	}})
+func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {
+	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-}
-
-func (s *DockerInterfaceSuite) TestSanitizeSlotCanonicalDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "docker",
-		Interface: "docker",
-	}})
-	c.Assert(err, IsNil)
-}
-
-func (s *DockerInterfaceSuite) TestSanitizeSlotOtherDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "notdocker"},
-		},
-		Name:      "docker",
-		Interface: "docker",
-	}})
-	c.Assert(err, ErrorMatches, "docker slot interface is reserved for the upstream docker project")
-}
-
-func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerDockerDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "docker"},
-		},
-		Name:      "notdocker",
-		Interface: "docker",
-	}})
-	c.Assert(err, ErrorMatches, "docker slot interface is reserved for the upstream docker project")
-}
-
-func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerCanonicalDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "notdocker",
-		Interface: "docker",
-	}})
-	c.Assert(err, ErrorMatches, "docker slot interface is reserved for the upstream docker project")
-}
-
-func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerOtherDev(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "notdocker"},
-		},
-		Name:      "notdocker",
-		Interface: "docker",
-	}})
-	c.Assert(err, ErrorMatches, "docker slot interface is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlug(c *C) {

@@ -1,10 +1,20 @@
 summary: Checks for snap sideload install
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 prepare: |
-    for snap in basic test-snapd-tools basic-desktop basic-devmode
+    for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
         snapbuild $TESTSLIB/snaps/$snap .
     done
+
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
 
 restore: |
     for snap in basic test-snapd-tools basic-desktop
@@ -21,7 +31,7 @@ execute: |
     echo "Sideloaded snap with (deprecated) --force-dangerous option"
     snap remove basic
     snap install --force-dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
-    
+
     echo "Sideloaded snap executes commands"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
@@ -37,23 +47,23 @@ execute: |
 
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    ( snap install --dangerous ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    ( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
-    expected="basic-devmode 1.0 installed"
-    snap install --devmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
-    expected="^basic-devmode +.* +devmode"
+    expected="test-snapd-devmode 1.0 installed"
+    snap install --devmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+    expected="^test-snapd-devmode +.* +devmode"
     snap list | grep -Pq  "$expected"
 
     echo "Sideload devmode snap succeeds with --jailmode"
-    expected="basic-devmode 1.0 installed"
-    snap install --dangerous --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
-    expected="^basic-devmode +.* +jailmode"
+    expected="test-snapd-devmode 1.0 installed"
+    snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+    expected="^test-snapd-devmode +.* +jailmode"
     snap list | grep -Pq  "$expected"
 
     echo "Sideload devmode snap fails with both --devmode and --jailmode"
     expected="cannot use devmode and jailmode flags together"
-    ( snap install --devmode --jailmode ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    ( snap install --devmode --jailmode ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload a second time succeeds"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap

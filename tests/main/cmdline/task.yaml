@@ -7,3 +7,5 @@ execute: |
     fi
     cat err.msg
     grep "Please specify a single channel" err.msg
+restore: |
+    rm -f err.msg

@@ -1,0 +1,16 @@
+summary: snap install a large snap from the store (bigger than tmpfs)
+
+prepare: |
+    systemctl stop snapd.{service,socket}
+    mount -t tmpfs -o rw,nosuid,nodev,size=4 none /tmp
+    systemctl start snapd.{socket,service}
+
+restore: |
+    systemctl stop snapd.{service,socket}
+    umount /tmp || true
+    systemctl start snapd.{socket,service}
+
+execute: |
+    # test-snapd-tools is about 8k, tmpfs is 4k :-)
+    snap install test-snapd-tools
+    snap remove test-snapd-tools

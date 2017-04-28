@@ -1,0 +1,8 @@
+summary: check that os-release is correct
+systems: [ubuntu-core-16-*]
+execute: |
+    cat /etc/os-release
+    grep "ID=ubuntu-core" /etc/os-release
+
+    cat /etc/lsb-release
+    grep "DISTRIB_RELEASE=16" /etc/lsb-release

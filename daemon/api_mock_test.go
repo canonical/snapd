@@ -33,7 +33,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		panic("call s.daemon(c) in your test first")
 	}
 
-	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
+	snapInfo := snaptest.MockSnap(c, yamlText, "", &snap.SideInfo{Revision: snap.R(1)})
 	snap.AddImplicitSlots(snapInfo)
 
 	st := s.d.overlord.State()
@@ -115,4 +115,11 @@ name: config-snap
 version: 1
 hooks:
     configure:
+`
+var aliasYaml = `
+name: alias-snap
+version: 1
+apps:
+ app:
+ app2:
 `

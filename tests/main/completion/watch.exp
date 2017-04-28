@@ -1,0 +1,7 @@
+source lib.exp0
+
+# watch completes with change ids
+rechat "snap watch \t\t" "1 *2"
+
+cancel
+brexit

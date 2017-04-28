@@ -57,6 +57,12 @@ func (notesSuite) TestNotesJailMode(c *check.C) {
 	}).String(), check.Equals, "jailmode")
 }
 
+func (notesSuite) TestNotesClassic(c *check.C) {
+	c.Check((&snap.Notes{
+		Classic: true,
+	}).String(), check.Equals, "classic")
+}
+
 func (notesSuite) TestNotesTryMode(c *check.C) {
 	c.Check((&snap.Notes{
 		TryMode: true,

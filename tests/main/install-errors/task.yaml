@@ -1,9 +1,13 @@
 summary: Checks for cli errors installing snaps
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 environment:
     SNAP_NAME: test-snapd-tools
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/noreexec: 0
+    SNAP_REEXEC/withreexec: 1
 
 prepare: |
     echo "Given a snap with a failing command is installed"
@@ -44,8 +48,7 @@ execute: |
 
     echo "============================================"
 
-    echo "Install a snap already installed fails"
-    if snap install $SNAP_NAME; then
-        echo "Trying to install an already installed snap should fail"
-        exit 1
-    fi
+    echo "Install a snap that is already installed shows a message"
+    echo "but does "exit 0" (LP: #1622782)"
+    snap install $SNAP_NAME 2> stderr.out
+    cat stderr.out | MATCH "snap \"$SNAP_NAME\" is already installed"

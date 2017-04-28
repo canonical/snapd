@@ -34,6 +34,7 @@ type snapDetails struct {
 	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
+	Epoch            string             `json:"epoch"`
 	IconURL          string             `json:"icon_url"`
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
@@ -43,19 +44,30 @@ type snapDetails struct {
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
-	SupportURL       string             `json:"support_url"`
-	Title            string             `json:"title"`
-	Type             snap.Type          `json:"content,omitempty"`
-	Version          string             `json:"version"`
 
-	// FIXME: the store should return "developer" to us instead of
-	//        origin
-	// This will be retired/obsoleted soon
-	Developer string `json:"origin"`
-	// The developer id is the new relevant field that we track
+	// FIXME: the store should send "contact" here, once it does we
+	//        can remove support_url
+	SupportURL string `json:"support_url"`
+	Contact    string `json:"contact"`
+
+	Title   string    `json:"title"`
+	Type    snap.Type `json:"content,omitempty"`
+	Version string    `json:"version"`
+
+	// TODO: have the store return a 'developer_username' for this
+	Developer   string `json:"origin"`
 	DeveloperID string `json:"developer_id"`
+
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
+
+	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
+}
+
+// channelMap contains
+type channelMap struct {
+	Track       string                   `json:"track"`
+	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
 }
 
 type snapDeltaDetail struct {
@@ -66,4 +78,16 @@ type snapDeltaDetail struct {
 	DownloadURL     string `json:"download_url,omitempty"`
 	Size            int64  `json:"binary_filesize,omitempty"`
 	Sha3_384        string `json:"download_sha3_384,omitempty"`
+}
+
+// channelSnapInfoDetails is the subset of snapDetails we need to get
+// information about the snaps in the various channels
+type channelSnapInfoDetails struct {
+	Revision     int    `json:"revision"` // store revisions are ints starting at 1
+	Confinement  string `json:"confinement"`
+	Version      string `json:"version"`
+	Channel      string `json:"channel"`
+	Epoch        string `json:"epoch"`
+	DownloadSize int64  `json:"binary_filesize"`
+	Info         string `json:"info"`
 }

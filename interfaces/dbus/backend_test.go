@@ -28,19 +28,27 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 )
 
 type backendSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 }
 
 var _ = Suite(&backendSuite{})
 
+var testedConfinementOpts = []interfaces.ConfinementOptions{
+	{},
+	{DevMode: true},
+	{JailMode: true},
+	{Classic: true},
+}
+
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &dbus.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Prepare a directory for DBus configuration files.
 	// NOTE: Normally this is a part of the OS snap.
@@ -54,16 +62,17 @@ func (s *backendSuite) TearDownTest(c *C) {
 
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "dbus")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityDBus)
 }
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was created
 		_, err := os.Stat(profile)
@@ -74,14 +83,16 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
 
 		// Verify that "snap.foo.hook.configure.conf" was created
@@ -93,11 +104,12 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was removed
@@ -108,14 +120,16 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
 
@@ -127,12 +141,13 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1WithNmbd, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was created
 		_, err := os.Stat(profile)
@@ -143,15 +158,17 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlWithHook, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was created
@@ -163,12 +180,13 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1WithNmbd, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was removed
 		_, err := os.Stat(profile)
@@ -179,15 +197,17 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlWithHook, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was removed
@@ -201,24 +221,26 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
 	restore := dbus.MockXMLEnvelope([]byte("<?xml>\n"), []byte("</xml>"))
 	defer restore()
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy>...</policy>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy>...</policy>")
+		return nil
 	}
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, "<?xml>\n<policy>...</policy>\n</xml>")
 		stat, err := os.Stat(profile)
+		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.RemoveSnap(c, snapInfo)
 	}
 }
 
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		_, err := os.Stat(profile)
 		// Without any snippets, there the .conf file is not created.
@@ -239,12 +261,13 @@ apps:
 
 func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	// Install a snap with two apps, only one of which needs a .conf file
 	// because the interface is app-bound.
-	snapInfo := s.InstallSnap(c, false, sambaYamlWithIfaceBoundToNmbd, 0)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, sambaYamlWithIfaceBoundToNmbd, 0)
 	defer s.RemoveSnap(c, snapInfo)
 	// Check that only one of the .conf files is actually created
 	_, err := os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf"))

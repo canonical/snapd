@@ -1,0 +1,7 @@
+source lib.exp0
+
+# change completes with change ids
+rechat "snap change \t\t" "1 *2"
+
+cancel
+brexit

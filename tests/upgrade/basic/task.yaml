@@ -1,29 +1,43 @@
 summary: Check that upgrade works
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 restore: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     rm -f /var/tmp/myevil.txt
 execute: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     . "$TESTSLIB/apt.sh"
 
     echo Install previous version...
+    dpkg -l snapd snap-confine || true
     apt-get install -y snapd
 
     prevsnapdver=$(snap --version|grep "snapd ")
 
-    echo Install a snap with it
+    echo Install sanity check snaps with it
     snap install test-snapd-tools
+    snap install test-snapd-auto-aliases
 
-    echo Sanity check install
+    echo Sanity check installs
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
 
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
-        apt_install_local ${SPREAD_PATH}/../snapd*.deb
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # apt_install_local uses dpkg directly which happily downgrades
+        apt_install_local ${GOPATH}/snapd*.deb
     else
-        apt install -y --allow-downgrades ${SPREAD_PATH}/../snapd*.deb
+        # not using apt_install_local here as this will not have
+        # --allow-downgrades
+        apt install -y --allow-downgrades ${GOPATH}/snapd*.deb
     fi
 
     snapdver=$(snap --version|grep "snapd ")
@@ -34,13 +48,23 @@ execute: |
     snap list | grep test-snapd-tools
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
-    echo Hello > /var/tmp/myevil.txt
-    test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
 
-    . "$TESTSLIB/names.sh"
+    # only test if confinement works and we actually have apparmor available
+    # FIXME: this will be converted to a better check once we added the
+    # plumbing for that into the snap command.
+    if [ -e /sys/kernel/security/apparmor ]; then
+        echo Hello > /var/tmp/myevil.txt
+        test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+    fi
+
+    # check that automatic aliases survived
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
 
     echo Check migrating to types in state
-    coreType=$(jq -r '.data.snaps["'${core_name}'"].type' /var/lib/snapd/state.json)
+    coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
     testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
     [ "$testSnapType" = "app" ]

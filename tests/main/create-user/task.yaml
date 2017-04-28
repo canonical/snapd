@@ -1,6 +1,6 @@
 summary: Ensure create-user functionality
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
@@ -20,7 +20,7 @@ execute: |
 
     echo "snap create-user -- ensure success when run as non-root user with sudo"
     expected="created user \"$USER_NAME\""
-    obtained=$(su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL 2>&1")
+    obtained=$(su - test /bin/sh -c "sudo snap create-user --force-managed --sudoer $USER_EMAIL 2>&1")
     [[ "$obtained" =~ "$expected" ]]
 
     echo "ensure user exists in /etc/passwd"

@@ -1,5 +1,9 @@
 summary: Ensure that the hardware-observe interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 summary: |
     The hardware-observe interface allows a snap to access hardware information.
 
@@ -18,8 +22,6 @@ restore: |
     rm -f hardware-observe-consumer_1.0_all.snap hw.error
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN=":hardware-observe +hardware-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +hardware-observe-consumer:hardware-observe"
 
@@ -29,7 +31,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect hardware-observe-consumer:hardware-observe ${core_name}:hardware-observe
+    snap connect hardware-observe-consumer:hardware-observe
 
     echo "Then the snap is able to read hardware information"
     hardware-observe-consumer.consumer
@@ -37,7 +39,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect hardware-observe-consumer:hardware-observe ${core_name}:hardware-observe
+    snap disconnect hardware-observe-consumer:hardware-observe
 
     echo "Then the snap is not able to read the hardware information"
     if hardware-observe-consumer.consumer 2>hw.error; then

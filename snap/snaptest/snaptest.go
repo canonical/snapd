@@ -35,7 +35,7 @@ import (
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
-func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(sideInfo, check.Not(check.IsNil))
 
 	// Parse the yaml (we need the Name).
@@ -51,6 +51,13 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(err, check.IsNil)
 	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
 	c.Assert(err, check.IsNil)
+
+	// Write the .snap to disk
+	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
+	c.Assert(err, check.IsNil)
+	snapInfo.Size = int64(len(snapContents))
 
 	return snapInfo
 }
@@ -69,6 +76,23 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	snapInfo.SideInfo = *sideInfo
 	err = snap.Validate(snapInfo)
 	c.Assert(err, check.IsNil)
+	return snapInfo
+}
+
+// MockInvalidInfo parses the given snap.yaml text and returns the snap.Info object including the optional SideInfo.
+//
+// The result is just kept in memory, there is nothing kept on disk. If that is
+// desired please use MockSnap instead.
+func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	if sideInfo == nil {
+		sideInfo = &snap.SideInfo{}
+	}
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, check.IsNil)
+	snapInfo.SideInfo = *sideInfo
+	err = snap.Validate(snapInfo)
+	c.Assert(err, check.NotNil)
 	return snapInfo
 }
 
