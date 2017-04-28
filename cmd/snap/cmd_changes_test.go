@@ -138,7 +138,7 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"tasks", "--last=install", "42"})
 	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, `change use ID and type together`)
+	c.Assert(err, check.ErrorMatches, `cannot use change ID and type together`)
 
 	_, err = snap.Parser().ParseArgs([]string{"tasks"})
 	c.Assert(err, check.NotNil)

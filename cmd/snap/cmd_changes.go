@@ -61,7 +61,7 @@ func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
 	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
 	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, map[string]string{
-		"last": "Show last change of given type (install, refresh, remove, try, auto-refresh etc.)",
+		"last": i18n.G("Show last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
 	}, nil)
 }
 
@@ -130,7 +130,7 @@ func (c *cmdTasks) Execute([]string) error {
 		return fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
 	}
 	if c.Positional.ID != "" && c.LastChangeType != "" {
-		return fmt.Errorf(i18n.G("change use ID and type together"))
+		return fmt.Errorf(i18n.G("cannot use change ID and type together"))
 	}
 	if c.LastChangeType != "" {
 		kind := c.LastChangeType
