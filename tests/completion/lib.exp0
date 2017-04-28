@@ -1,14 +1,14 @@
 # -*- tcl -*-
 
-set send_slow {1 0.1}
-set timeout 5
+set send_slow {1 0.001}
+set timeout 10
 
 proc delay {} {
     sleep 0.5
 }
 
 proc chat {outstr instr {keep false}} {
-    send " $outstr"
+    send -s "$outstr"
     delay
     if $keep {
         expect {
@@ -24,7 +24,7 @@ proc chat {outstr instr {keep false}} {
 }
 
 proc rechat {outstr inre {keep false}} {
-    send " $outstr"
+    send -s "$outstr"
     delay
     if $keep {
         expect {
@@ -48,12 +48,12 @@ proc next {} {
 }
 
 proc cancel {} {
-    send "\r"
+    send -s "\r"
     next
 }
 
 proc brexit {} {
-    send " exit\r"
+    send -s " exit\r"
     expect {
         timeout {puts "timeout"; exit 1}
         eof     {exit 0}
@@ -64,6 +64,6 @@ proc brexit {} {
 # set up
 spawn bash --norc --noprofile -i
 next
-send { export PS1='\w:\s-\v\$ '}
-send "\n"
+send -s { export PS1='\w:\s-\v\$ '}
+send -s "\n"
 next

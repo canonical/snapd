@@ -19,4 +19,4 @@ execute: |
   d="$PWD"
   source "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.vars"
   export _OUT0 _OUT1 _OUT2 _KEY1 _KEY2 _COMP
-  sudo -E -u test expect -d -f "$d"/task.exp
+  sudo PATH=$PATH -E -u test expect -d -f "$d"/task.exp
