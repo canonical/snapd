@@ -96,7 +96,7 @@ func Validate(info *Info) error {
 	}
 
 	// validate aliases
-	for alias, app := range info.Aliases {
+	for alias, app := range info.LegacyAliases {
 		if !validAlias.MatchString(alias) {
 			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
 		}

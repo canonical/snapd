@@ -330,14 +330,15 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// alias related
 	// FIXME: drop the task entirely after a while
 	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
-	runner.AddHandler("set-auto-aliases", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("setup-aliases", m.doSetupAliasesV2, m.doRemoveAliasesV2)
-	runner.AddHandler("refresh-aliases", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("remove-aliases", m.doRemoveAliasesV2, m.doSetupAliasesV2)
-	runner.AddHandler("alias", m.doAliasV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("unalias", m.doUnaliasV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("disable-aliases", m.doDisableAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoRefreshAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
+	runner.AddHandler("refresh-aliases", m.doRefreshAliases, m.undoRefreshAliases)
+	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliases, m.undoRefreshAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+	runner.AddHandler("alias", m.doAlias, m.undoRefreshAliases)
+	runner.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
+	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
+	runner.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
