@@ -575,9 +575,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  "",
-		Revision: snap.R(0),
+		Name:       name,
+		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
@@ -1061,9 +1060,10 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsMode:
-		result.Kind = errorKindSnapNeedsMode
-		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsDevMode:
+		result.Kind = errorKindSnapNeedsDevMode
+	case *snapstate.ErrSnapNeedsClassic:
+		result.Kind = errorKindSnapNeedsClassic
 	case *snapstate.ErrSnapNeedsClassicSystem:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
@@ -2272,39 +2272,73 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
 
-	var summary string
 	var taskset *state.TaskSet
 	var err error
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	switch a.Action {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
-		taskset, err = snapstate.Alias(state, a.Snap, a.App, a.Alias)
+		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
 	case "unalias":
-		return BadRequest("cannot yet interpret request")
+		if a.Alias == a.Snap {
+			// Do What I mean:
+			// check if a snap is referred/intended
+			// or just an alias
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, a.Snap, &snapst)
+			if err != nil && err != state.ErrNoState {
+				return InternalError("%v", err)
+			}
+			if err == state.ErrNoState { // not a snap
+				a.Snap = ""
+			}
+		}
+		if a.Snap != "" {
+			a.Alias = ""
+			taskset, err = snapstate.DisableAllAliases(st, a.Snap)
+		} else {
+			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
+		}
+	case "prefer":
+		taskset, err = snapstate.Prefer(st, a.Snap)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
 	}
 
-	change := state.NewChange(a.Action, summary)
+	var summary string
+	switch a.Action {
+	case "alias":
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
+	case "unalias":
+		if a.Alias != "" {
+			summary = fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), a.Alias, a.Snap)
+		} else {
+			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
+		}
+	case "prefer":
+		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
+	}
+
+	change := st.NewChange(a.Action, summary)
 	change.Set("snap-names", []string{a.Snap})
 	change.AddAll(taskset)
 
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
 type aliasStatus struct {
-	App    string `json:"app,omitempty"`
-	Status string `json:"status,omitempty"`
+	Command string `json:"command"`
+	Status  string `json:"status"`
+	Manual  string `json:"manual,omitempty"`
+	Auto    string `json:"auto,omitempty"`
 }
 
 // getAliases produces a response with a map snap -> alias -> aliasStatus
@@ -2320,37 +2354,31 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	allAliases, err := snapstate.Aliases(state)
-	if err != nil {
-		return InternalError("cannot list aliases: %v", err)
-	}
-
 	for snapName, snapst := range allStates {
-		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
 		}
-		if len(info.Aliases) != 0 {
+		if len(snapst.Aliases) != 0 {
 			snapAliases := make(map[string]aliasStatus)
 			res[snapName] = snapAliases
-			for alias, aliasApp := range info.Aliases {
-				snapAliases[alias] = aliasStatus{
-					App: filepath.Base(aliasApp.WrapperPath()),
+			autoDisabled := snapst.AutoAliasesDisabled
+			for alias, aliasTarget := range snapst.Aliases {
+				aliasStatus := aliasStatus{
+					Manual: aliasTarget.Manual,
+					Auto:   aliasTarget.Auto,
 				}
+				status := "auto"
+				tgt := aliasTarget.Effective(autoDisabled)
+				if tgt == "" {
+					status = "disabled"
+					tgt = aliasTarget.Auto
+				} else if aliasTarget.Manual != "" {
+					status = "manual"
+				}
+				aliasStatus.Status = status
+				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
+				snapAliases[alias] = aliasStatus
 			}
-		}
-	}
-
-	for snapName, aliasStatuses := range allAliases {
-		snapAliases := res[snapName]
-		if snapAliases == nil {
-			snapAliases = make(map[string]aliasStatus)
-			res[snapName] = snapAliases
-		}
-		for alias, status := range aliasStatuses {
-			entry := snapAliases[alias]
-			entry.Status = status
-			snapAliases[alias] = entry
 		}
 	}
 
