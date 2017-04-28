@@ -75,6 +75,9 @@ _complete_from_snap() {
             compopt $(printf " -o %s" "${opts[@]}")
         fi
         if [ "$bounced" ]; then
+            # We validated '$bounced' above and '${COMP_WORDS[$COMP_CWORD]}' is
+            # coming from the user's session, not the snap so skip input
+            # validation: we aren't trying to protect the user from themselves.
             COMPREPLY+=(compgen -A "$bounced" -- "${COMP_WORDS[$COMP_CWORD]}")
         fi
     } < <(
