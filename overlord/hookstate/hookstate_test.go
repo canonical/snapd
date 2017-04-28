@@ -765,7 +765,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	})
 
 	var testSnap1HookCalls, testSnap2HookCalls int
-	ch := make(chan struct{}, 0)
+	ch := make(chan struct{})
 	mockHandler1 := NewMockConcurrentHandler(func() {
 		ch <- struct{}{}
 		testSnap1HookCalls++
