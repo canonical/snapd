@@ -326,10 +326,10 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet5 := `/dev/ttyACM0 rw,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, expectedSnippet5)
 
-	expectedSnippet5 := `/dev/ttyAMA0 rw,`
+	expectedSnippet6 := `/dev/ttyAMA0 rw,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, expectedSnippet6)
 
-	expectedSnippet6 := `/dev/ttyXRUSB0 rw,`
+	expectedSnippet7 := `/dev/ttyXRUSB0 rw,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot7, expectedSnippet7)
 
 	expectedSnippet8 := `/dev/tty[A-Z]*[0-9] rw,`
