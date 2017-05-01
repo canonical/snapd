@@ -85,6 +85,9 @@ backends:
             - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
     autopkgtest:
         type: adhoc
         allocate: |
@@ -98,12 +101,14 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            # Trusty
             - ubuntu-14.04-amd64:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-14.04-i386:
                 username: ubuntu
                 password: ubuntu
+            # Xenial
             - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -116,6 +121,7 @@ backends:
             - ubuntu-16.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Yakkety
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -128,6 +134,7 @@ backends:
             - ubuntu-16.10-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Zesty
             - ubuntu-17.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -138,6 +145,19 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            # Artful
+            - ubuntu-17.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
