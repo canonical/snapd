@@ -22,6 +22,7 @@ package mount_test
 import (
 	"bytes"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -67,6 +68,11 @@ func (s *profileSuite) TestSaveProfile1(c *C) {
 	}
 	err := p.Save(fname)
 	c.Assert(err, IsNil)
+
+	stat, err := os.Stat(fname)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
+
 	data, err := ioutil.ReadFile(fname)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "name-1 dir-1 type-1 options-1 1 1\n")

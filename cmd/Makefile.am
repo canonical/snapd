@@ -72,6 +72,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/error.h \
 	libsnap-confine-private/fault-injection.c \
 	libsnap-confine-private/fault-injection.h \
+	libsnap-confine-private/locking.c \
+	libsnap-confine-private/locking.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
@@ -94,6 +96,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
 	libsnap-confine-private/privs-test.c \
@@ -157,6 +160,7 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args \
     snap-confine/tests/test_bad_seccomp_filter_args_clone \
+    snap-confine/tests/test_bad_seccomp_filter_args_mknod \
     snap-confine/tests/test_bad_seccomp_filter_args_null \
     snap-confine/tests/test_bad_seccomp_filter_args_prctl \
     snap-confine/tests/test_bad_seccomp_filter_args_prio \
@@ -172,6 +176,7 @@ all_tests = \
     snap-confine/tests/test_restrictions_working \
     snap-confine/tests/test_restrictions_working_args \
     snap-confine/tests/test_restrictions_working_args_clone \
+    snap-confine/tests/test_restrictions_working_args_mknod \
     snap-confine/tests/test_restrictions_working_args_prctl \
     snap-confine/tests/test_restrictions_working_args_prio \
     snap-confine/tests/test_restrictions_working_args_quotactl \
