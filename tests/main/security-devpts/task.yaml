@@ -1,7 +1,7 @@
 summary: Ensure that the basic devpts security rules are in place.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-*-ppc64el]
 
 prepare: |
     echo "Given a basic snap is installed"
