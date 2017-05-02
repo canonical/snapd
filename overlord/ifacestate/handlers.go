@@ -444,16 +444,25 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var snapStates []snapstate.SnapState
+	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				task.Logf("skipping disconnect operation for connection %s %s, snap %q doesn't exist", plugRef, slotRef, snapName)
+				return nil
+			}
+			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
+		} else {
+			snapStates = append(snapStates, snapst)
+		}
+	}
+
 	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
 		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
-	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
-			continue
-		}
+	for _, snapst := range snapStates {
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
