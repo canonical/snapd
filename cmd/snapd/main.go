@@ -50,6 +50,15 @@ var opts struct {
 	User bool `long:"user" description:"Start the user session instance of snapd"`
 }
 
+// Daemon describes all operations necessary to deal with a daemon instance
+type Daemon interface {
+	Init() error
+	Start()
+	Stop() error
+	Dying() <-chan struct{}
+	SetVersion(version string)
+}
+
 func main() {
 	cmd.ExecInCoreSnap()
 
@@ -60,55 +69,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	var realRun func() error
-
+	var d Daemon
 	if opts.User {
-		realRun = runUser
+		d, err = user.NewDaemon()
 	} else {
-		realRun = run
+		httputil.SetUserAgentFromVersion(cmd.Version)
+		d, err = daemon.New()
 	}
 
-	if err := realRun(); err != nil {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := run(d); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	httputil.SetUserAgentFromVersion(cmd.Version)
-
-	d, err := daemon.New()
-	if err != nil {
-		return err
-	}
+func run(d Daemon) error {
 	if err := d.Init(); err != nil {
 		return err
 	}
-	d.Version = cmd.Version
-
-	d.Start()
-
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	select {
-	case sig := <-ch:
-		logger.Noticef("Exiting on %s signal.\n", sig)
-	case <-d.Dying():
-		// something called Stop()
-	}
-
-	return d.Stop()
-}
-
-func runUser() error {
-	d, err := user.NewDaemon()
-	if err != nil {
-		return err
-	}
-	if err := d.Init(); err != nil {
-		return err
-	}
-	d.Version = cmd.Version
+	d.SetVersion(cmd.Version)
 
 	d.Start()
 

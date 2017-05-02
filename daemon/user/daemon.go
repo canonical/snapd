@@ -42,15 +42,19 @@ type registeredInterface interface {
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version string
-	tomb    tomb.Tomb
-	conn    *dbus.Conn
-	ifaces  []registeredInterface
+	tomb   tomb.Tomb
+	conn   *dbus.Conn
+	ifaces []registeredInterface
 }
 
 // NewDaemon creates a new daemon instance
 func NewDaemon() (*Daemon, error) {
 	return &Daemon{}, nil
+}
+
+// SetVersion sets the version of the daemon
+func (d *Daemon) SetVersion(version string) {
+	// Nothing to do for us here
 }
 
 // Init sets up the Daemon's internal workings.
