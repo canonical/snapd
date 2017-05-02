@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/daemon/user"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -100,5 +101,25 @@ func run() error {
 }
 
 func runUser() error {
-	return nil
+	d, err := user.NewDaemon()
+	if err != nil {
+		return err
+	}
+	if err := d.Init(); err != nil {
+		return err
+	}
+	d.Version = cmd.Version
+
+	d.Start()
+
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	select {
+	case sig := <-ch:
+		logger.Noticef("Exiting on %s signal.\n", sig)
+	case <-d.Dying():
+		// something called Stop()
+	}
+
+	return d.Stop()
 }
