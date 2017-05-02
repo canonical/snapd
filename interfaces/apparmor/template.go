@@ -144,6 +144,8 @@ var defaultTemplate = `
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,
   /{,usr/}bin/mkdir ixr,
+  /{,usr/}bin/mkfifo ixr,
+  /{,usr/}bin/mknod ixr,
   /{,usr/}bin/mktemp ixr,
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
@@ -169,6 +171,7 @@ var defaultTemplate = `
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/stty ixr,
+  /{,usr/}bin/systemd-cat ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -220,6 +223,8 @@ var defaultTemplate = `
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
+  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
+                                  # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,

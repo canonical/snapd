@@ -26,6 +26,7 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
+    GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
@@ -55,6 +56,9 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
                 workers: 2
+            - debian-unstable-64:
+                kernel: GRUB 2
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -81,6 +85,9 @@ backends:
             - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
     autopkgtest:
         type: adhoc
         allocate: |
@@ -94,12 +101,14 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            # Trusty
             - ubuntu-14.04-amd64:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-14.04-i386:
                 username: ubuntu
                 password: ubuntu
+            # Xenial
             - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -112,6 +121,7 @@ backends:
             - ubuntu-16.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Yakkety
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -124,6 +134,7 @@ backends:
             - ubuntu-16.10-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Zesty
             - ubuntu-17.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -134,6 +145,19 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            # Artful
+            - ubuntu-17.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -188,9 +212,9 @@ debug-each: |
     echo '# journal messages for snapd'
     journalctl -u snapd
     echo '# apparmor denials '
-    dmesg | grep DENIED || true
+    dmesg --ctime | grep DENIED || true
     echo '# seccomp denials (kills) '
-    dmesg | grep 1326 || true
+    dmesg --ctime | grep type=1326 || true
     echo '# snap interfaces'
     snap interfaces || true
 
