@@ -25,6 +25,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/errtracker"
@@ -42,9 +44,30 @@ func init() {
 	errtracker.SnapdVersion = cmd.Version
 }
 
+// commandline args
+var opts struct {
+	User bool `long:"user" description:"Start the user session instance of snapd"`
+}
+
 func main() {
 	cmd.ExecInCoreSnap()
-	if err := run(); err != nil {
+
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	_, err := parser.ParseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	var realRun func() error
+
+	if opts.User {
+		realRun = runUser
+	} else {
+		realRun = run
+	}
+
+	if err := realRun(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -74,4 +97,8 @@ func run() error {
 	}
 
 	return d.Stop()
+}
+
+func runUser() error {
+	return nil
 }
