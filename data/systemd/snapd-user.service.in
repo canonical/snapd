@@ -1,0 +1,10 @@
+[Unit]
+Description=Snappy daemon
+
+[Service]
+ExecStart=@libexecdir@/snapd/snapd --user
+EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+Restart=always
+
+[Install]
+WantedBy=default.target
