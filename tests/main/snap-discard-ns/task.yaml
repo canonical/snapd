@@ -25,6 +25,7 @@ execute: |
     echo "We can discard the namespace after a snap runs"
     test-snapd-tools.success
     # The last hex is the same as nsfs but older stat on ubuntu 14.04 doesn't know
+    # proc is there because on older kernels /proc/*/ns/mnt is not on nsfs but still on procfs.
     stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'proc|nsfs|0x6e736673'
     $LIBEXECDIR/snap-discard-ns test-snapd-tools
     stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'tmpfs'
