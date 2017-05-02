@@ -360,8 +360,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		typ := info.Type
 
 		// if it comes from the store fetch the snap assertions too
-		// TODO: support somehow including available assertions
-		// also for local snaps
 		if info.SnapID != "" {
 			snapDecl, err := FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {
