@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -85,7 +86,7 @@ func (li *localInfos) Info(name string) *snap.Info {
 	return nil
 }
 
-func localSnaps(opts *Options) (*localInfos, error) {
+func localSnaps(opts *Options, tsto *ToolingStore) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
@@ -102,6 +103,12 @@ func localSnaps(opts *Options) (*localInfos, error) {
 			info.Revision = snap.R(-1)
 			nameToPath[info.Name()] = snapName
 			local[snapName] = info
+
+			if si, err := snapasserts.DeriveSideInfo(snapName, &rdb{tsto}); err == nil {
+				info.SnapID = si.SnapID
+				info.Revision = si.Revision
+				info.Channel = opts.Channel
+			}
 		}
 	}
 	return &localInfos{
@@ -121,7 +128,12 @@ func Prepare(opts *Options) error {
 		return fmt.Errorf("cannot prepare image of a classic model")
 	}
 
-	local, err := localSnaps(opts)
+	tsto, err := NewToolingStoreFromModel(model)
+	if err != nil {
+		return err
+	}
+
+	local, err := localSnaps(opts, tsto)
 	if err != nil {
 		return err
 	}
@@ -129,10 +141,6 @@ func Prepare(opts *Options) error {
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
-	}
-	tsto, err := NewToolingStoreFromModel(model)
-	if err != nil {
-		return err
 	}
 
 	if err := downloadUnpackGadget(tsto, model, opts, local); err != nil {
@@ -249,6 +257,20 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	return func() {
 		trusted = prevTrusted
 	}
+}
+
+// rdb provides the interface for snapasserts.DerviceSideInfo from the
+// store
+type rdb struct {
+	tsto *ToolingStore
+}
+
+func (r *rdb) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
+	pk := make([]string, len(at.PrimaryKey))
+	for i, k := range at.PrimaryKey {
+		pk[i] = headers[k]
+	}
+	return r.tsto.sto.Assertion(at, pk, r.tsto.user)
 }
 
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
