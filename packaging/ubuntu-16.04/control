@@ -112,3 +112,11 @@ Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
 Description: Transitional package for snapd
  This is a transitional dummy package. It can safely be removed.
+
+Package: snapd-xdg-open
+Architecture: any
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Section: oldlibs
+Pre-Depends: dpkg (>= 1.15.7.2)
+Description: Transitional package for snapd
+ This is a transitional dummy package. It can safely be removed.
