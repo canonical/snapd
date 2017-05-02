@@ -112,7 +112,7 @@ static struct sc_map_list sc_map_entries;
  */
 static scmp_datum_t sc_map_search(const char *s)
 {
-	ENTRY e;
+	ENTRY e = { 0, 0 };
 	ENTRY *ep = NULL;
 	scmp_datum_t val = 0;
 	errno = 0;
