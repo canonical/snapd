@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package backend
+package mount
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func mountNsPath(snapName string) string {
 }
 
 // Run an internal tool on a given snap namespace, if one exists.
-func (b Backend) runNamespaceTool(toolName, snapName string) ([]byte, error) {
+func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
 		toolPath := filepath.Join(dirs.DistroLibExecDir, toolName)
@@ -47,8 +47,8 @@ func (b Backend) runNamespaceTool(toolName, snapName string) ([]byte, error) {
 }
 
 // Discard the mount namespace of a given snap.
-func (b Backend) DiscardSnapNamespace(snapName string) error {
-	output, err := b.runNamespaceTool("snap-discard-ns", snapName)
+func DiscardSnapNamespace(snapName string) error {
+	output, err := runNamespaceTool("snap-discard-ns", snapName)
 	if err != nil {
 		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
@@ -56,8 +56,8 @@ func (b Backend) DiscardSnapNamespace(snapName string) error {
 }
 
 // Update the mount namespace of a given snap.
-func (b Backend) UpdateSnapNamespace(snapName string) error {
-	output, err := b.runNamespaceTool("snap-update-ns", snapName)
+func UpdateSnapNamespace(snapName string) error {
+	output, err := runNamespaceTool("snap-update-ns", snapName)
 	if err != nil {
 		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}

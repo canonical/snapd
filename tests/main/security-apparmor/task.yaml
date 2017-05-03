@@ -1,5 +1,9 @@
 summary: Check basic apparmor confinement rules.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 prepare: |
     echo "Given a basic snap is installed"
     . $TESTSLIB/snaps.sh

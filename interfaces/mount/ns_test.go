@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package backend_test
+package mount_test
 
 import (
 	"io/ioutil"
@@ -27,14 +27,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
-	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type nsSuite struct {
-	be                  backend.Backend
-	nullProgress        progress.NullProgress
 	oldDistroLibExecDir string
 }
 
@@ -89,7 +86,7 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
 
-		err := s.be.DiscardSnapNamespace("snap-name")
+		err := mount.DiscardSnapNamespace("snap-name")
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {
@@ -137,7 +134,7 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
 
-		err := s.be.UpdateSnapNamespace("snap-name")
+		err := mount.UpdateSnapNamespace("snap-name")
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {
