@@ -20,7 +20,6 @@ for pre in AF PF ; do
     if $L snap.name.app /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 
@@ -50,7 +49,6 @@ for i in NETLINK_ROUTE NETLINK_USERSOCK NETLINK_FIREWALL NETLINK_SOCK_DIAG NETLI
         if $L snap.name.app /bin/true ; then
             PASS
         else
-            dmesg|tail -n1
             FAIL
         fi
     done
