@@ -102,7 +102,7 @@ func (d *Daemon) Start() {
 
 		ch := make(chan *dbus.Signal)
 		d.conn.Signal(ch)
-		for _ = range ch {
+		for range ch {
 		}
 
 		return nil
