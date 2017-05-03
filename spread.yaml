@@ -240,6 +240,13 @@ repack: |
     fi
 
 prepare: |
+    # check if running inside a container, the testsuite will not
+    # work in such an environment
+    if systemd-detect-virt -c; then
+        echo "Tests cannot run inside a container"
+        exit 1
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
