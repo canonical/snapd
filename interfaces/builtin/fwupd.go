@@ -111,6 +111,14 @@ const fwupdConnectedPlugAppArmor = `
       path=/
       interface=org.freedesktop.DBus.Properties
       peer=(label=###SLOT_SECURITY_TAGS###),
+
+  # Allow clients to introspect the service on non-classic
+  dbus (send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const fwupdConnectedSlotAppArmor = `
