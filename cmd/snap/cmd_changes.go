@@ -51,15 +51,18 @@ type cmdChange struct {
 }
 
 type cmdTasks struct {
-	Positional struct {
-		ID changeID `positional-arg-name:"<id>" required:"yes"`
+	LastChangeType string `long:"last"`
+	Positional     struct {
+		ID changeID `positional-arg-name:"<id>"`
 	} `positional-args:"yes"`
 }
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
 	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
-	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, nil, nil)
+	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, map[string]string{
+		"last": i18n.G("Show last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
+	}, nil)
 }
 
 type changesByTime []*client.Change
@@ -122,12 +125,52 @@ func (c *cmdChanges) Execute(args []string) error {
 
 func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
-	return showChange(cli, c.Positional.ID)
+	var id changeID
+	switch {
+	case c.Positional.ID == "" && c.LastChangeType == "":
+		return fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
+	case c.Positional.ID != "" && c.LastChangeType != "":
+		return fmt.Errorf(i18n.G("cannot use change ID and type together"))
+	case c.LastChangeType != "":
+		kind := c.LastChangeType
+		// our internal change types use "-snap" postfix but let user skip it and use short form.
+		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
+			kind += "-snap"
+		}
+		opts := client.ChangesOptions{
+			Selector: client.ChangesAll,
+		}
+		changes, err := cli.Changes(&opts)
+		if err != nil {
+			return err
+		}
+		if len(changes) == 0 {
+			return fmt.Errorf(i18n.G("no changes found"))
+		}
+		chg := findLatestChangeByKind(changes, kind)
+		if chg == nil {
+			return fmt.Errorf(i18n.G("no changes of type %q found"), c.LastChangeType)
+		}
+		id = changeID(chg.ID)
+	default:
+		id = c.Positional.ID
+	}
+
+	return showChange(cli, id)
 }
 
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
 	return showChange(cli, c.Positional.ID)
+}
+
+func findLatestChangeByKind(changes []*client.Change, kind string) (latest *client.Change) {
+	for _, chg := range changes {
+		if chg.Kind == kind && (latest == nil || latest.SpawnTime.Before(chg.SpawnTime)) {
+			latest = chg
+		}
+	}
+	return latest
 }
 
 func showChange(cli *client.Client, chid changeID) error {

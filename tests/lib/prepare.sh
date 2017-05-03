@@ -5,6 +5,15 @@ set -eux
 . $TESTSLIB/apt.sh
 . $TESTSLIB/snaps.sh
 
+disable_kernel_rate_limiting() {
+    # kernel rate limiting hinders debugging security policy so turn it off
+    echo "Turning off kernel rate-limiting"
+    # TODO: we should be able to run the tests with rate limiting disabled so
+    # debug output is robust, but we currently can't :(
+    echo "SKIPPED: see https://forum.snapcraft.io/t/snapd-spread-tests-should-be-able-to-run-with-kernel-rate-limiting-disabled/424"
+    #sysctl -w kernel.printk_ratelimit=0
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -146,6 +155,16 @@ EOF
         done
         systemctl start snapd.socket
     fi
+
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        # Improve entropy for the whole system quite a lot to get fast
+        # key generation during our test cycles
+        apt-get install rng-tools
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+    fi
+
+    disable_kernel_rate_limiting
 }
 
 setup_reflash_magic() {
@@ -375,4 +394,6 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
+
+    disable_kernel_rate_limiting
 }

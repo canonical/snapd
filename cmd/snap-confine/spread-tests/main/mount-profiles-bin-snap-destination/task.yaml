@@ -18,7 +18,7 @@ execute: |
     ! /snap/bin/snapd-hacker-toolbelt.busybox true
     sysctl -w kernel.printk_ratelimit=$orig_ratelimit
     echo "Not only the command failed because snap-confine failed, we see why!"
-    dmesg | grep 'apparmor="DENIED" operation="mount" info="failed srcname match" error=-13 profile="/usr/lib/snapd/snap-confine" name="/snap/bin/" pid=[0-9]\+ comm="ubuntu-core-lau" srcname="/snap/snapd-hacker-toolbelt/[0-9]\+/mnt/" flags="rw, bind"'
+    dmesg --ctime | grep 'apparmor="DENIED" operation="mount" info="failed srcname match" error=-13 profile="/usr/lib/snapd/snap-confine" name="/snap/bin/" pid=[0-9]\+ comm="ubuntu-core-lau" srcname="/snap/snapd-hacker-toolbelt/[0-9]\+/mnt/" flags="rw, bind"'
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt

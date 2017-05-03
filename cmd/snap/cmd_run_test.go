@@ -563,6 +563,6 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(info.Mode().Perm(), check.Equals, os.FileMode(0600))
 
-	err = x11.ValidateXauthority(expectedXauthPath)
+	err = x11.ValidateXauthorityFile(expectedXauthPath)
 	c.Assert(err, check.IsNil)
 }

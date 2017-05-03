@@ -1403,10 +1403,10 @@ apps:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 
-	c.Check(info.Apps["foo"].Aliases, DeepEquals, []string{"foo"})
-	c.Check(info.Apps["bar"].Aliases, DeepEquals, []string{"bar", "bar1"})
+	c.Check(info.Apps["foo"].LegacyAliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].LegacyAliases, DeepEquals, []string{"bar", "bar1"})
 
-	c.Check(info.Aliases, DeepEquals, map[string]*snap.AppInfo{
+	c.Check(info.LegacyAliases, DeepEquals, map[string]*snap.AppInfo{
 		"foo":  info.Apps["foo"],
 		"bar":  info.Apps["bar"],
 		"bar1": info.Apps["bar"],
