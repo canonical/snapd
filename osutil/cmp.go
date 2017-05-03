@@ -58,15 +58,17 @@ func FilesAreEqual(a, b string) bool {
 		return false
 	}
 
-	return streamsEqual(fa, fb)
+	return StreamsEqual(fa, fb)
 }
 
-func streamsEqual(fa, fb io.Reader) bool {
+// StreamsEqual compares two streams and returns true if both
+// have the same content.
+func StreamsEqual(a, b io.Reader) bool {
 	bufa := make([]byte, bufsz)
 	bufb := make([]byte, bufsz)
 	for {
-		ra, erra := io.ReadAtLeast(fa, bufa, bufsz)
-		rb, errb := io.ReadAtLeast(fb, bufb, bufsz)
+		ra, erra := io.ReadAtLeast(a, bufa, bufsz)
+		rb, errb := io.ReadAtLeast(b, bufb, bufsz)
 		if erra == io.EOF && errb == io.EOF {
 			return true
 		}

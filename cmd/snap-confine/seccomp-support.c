@@ -32,6 +32,7 @@
 #include <sys/quota.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <termios.h>
@@ -392,6 +393,13 @@ static void sc_map_init()
 	sc_map_add(Q_XGETQSTAT);
 	sc_map_add(Q_XQUOTARM);
 
+	// man 2 mknod
+	sc_map_add(S_IFREG);
+	sc_map_add(S_IFCHR);
+	sc_map_add(S_IFBLK);
+	sc_map_add(S_IFIFO);
+	sc_map_add(S_IFSOCK);
+
 	// man 7 netlink (uapi/linux/netlink.h)
 	sc_map_add(NETLINK_ROUTE);
 	sc_map_add(NETLINK_USERSOCK);
@@ -548,6 +556,10 @@ static int parse_line(char *line, struct seccomp_args *sargs)
 			// syscall <N
 			op = SCMP_CMP_LT;
 			value = read_number(&buf_token[1]);
+		} else if (strncmp(buf_token, "|", 1) == 0) {
+			// syscall |N
+			op = SCMP_CMP_MASKED_EQ;
+			value = read_number(&buf_token[1]);
 		} else {
 			// syscall NNN
 			op = SCMP_CMP_EQ;
@@ -556,7 +568,12 @@ static int parse_line(char *line, struct seccomp_args *sargs)
 		if (errno != 0)
 			return PARSE_ERROR;
 
-		sargs->arg_cmp[sargs->length] = SCMP_CMP(pos, op, value);
+		if (op == SCMP_CMP_MASKED_EQ)
+			sargs->arg_cmp[sargs->length] =
+			    SCMP_CMP(pos, op, value, value);
+		else
+			sargs->arg_cmp[sargs->length] =
+			    SCMP_CMP(pos, op, value);
 		sargs->length++;
 
 		//printf("\nDEBUG: SCMP_CMP(%d, %d, %llu)\n", pos, op, value);
