@@ -19,6 +19,18 @@
 			"revisionTime": "2014-05-03T19:37:39Z"
 		},
 		{
+			"checksumSHA1": "prN+IUOs6KunsgMUPhYcUgfhTbs=",
+			"path": "github.com/godbus/dbus",
+			"revision": "b038411ec341afd52c6d36d8baae92a29e6e8a9e",
+			"revisionTime": "2017-03-22T22:34:42Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "b038411ec341afd52c6d36d8baae92a29e6e8a9e",
+			"revisionTime": "2017-03-22T22:34:42Z"
+		},
+		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
 			"path": "github.com/gorilla/context",
 			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
