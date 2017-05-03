@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoSetAutoAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -84,7 +84,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FirstInstall(c *C) {
+func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstall(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -134,7 +134,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FirstInstall(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoSetAutoAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -195,7 +195,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2Conflict(c *C) {
+func (s *snapmgrTestSuite) TestDoSetAutoAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -251,7 +251,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2Conflict(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias4" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -348,7 +348,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
 	c.Check(t.Log()[0], Matches, `.* ERROR cannot reinstate alias state because of conflicts, disabling: cannot enable alias "alias3" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestDoSetupAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoSetupAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -398,7 +398,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2(c *C) {
 	c.Check(snapst.AliasesPending, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -458,7 +458,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
 	c.Check(snapst.AliasesPending, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
+func (s *snapmgrTestSuite) TestDoSetupAliasesAuto(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -508,7 +508,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
 	c.Check(snapst.AliasesPending, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAuto(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -568,7 +568,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
 	c.Check(snapst.AliasesPending, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
+func (s *snapmgrTestSuite) TestDoSetupAliasesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -614,7 +614,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
 	c.Check(snapst.AliasesPending, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoSetupAliasesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -668,7 +668,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
 	c.Check(snapst.AliasesPending, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2Auto(c *C) {
+func (s *snapmgrTestSuite) TestDoPruneAutoAliasesAuto(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -725,7 +725,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2Auto(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2AutoPending(c *C) {
+func (s *snapmgrTestSuite) TestDoPruneAutoAliasesAutoPending(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -772,7 +772,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2AutoPending(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2ManualAndDisabled(c *C) {
+func (s *snapmgrTestSuite) TestDoPruneAutoAliasesManualAndDisabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -829,7 +829,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2ManualAndDisabled(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoRefreshAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoRefreshAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -902,7 +902,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoRefreshAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -992,7 +992,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2FromEmpty(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesFromEmpty(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1067,7 +1067,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2FromEmpty(c *C) {
 	c.Check(snapst.Aliases, HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
+func (s *snapmgrTestSuite) TestDoRefreshAliasesPending(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1126,7 +1126,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Pending(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesPending(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1191,7 +1191,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Pending(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Conflict(c *C) {
+func (s *snapmgrTestSuite) TestDoRefreshAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1245,7 +1245,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Conflict(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias4" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1442,7 +1442,7 @@ func (s *snapmgrTestSuite) TestDoUndoDisableAliases(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoPreferAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1566,7 +1566,7 @@ func (s *snapmgrTestSuite) TestDoPreferAliasesV2(c *C) {
 	c.Check(trace.Removed, HasLen, 4)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoPreferAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1690,7 +1690,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoUndoPreferAliasesV2Conflict(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoPreferAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

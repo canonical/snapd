@@ -145,7 +145,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
-	Aliases          map[string]*AppInfo
+	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
@@ -362,9 +362,9 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name    string
-	Aliases []string
-	Command string
+	Name          string
+	LegacyAliases []string // FIXME: eventually drop this
+	Command       string
 
 	Daemon          string
 	StopTimeout     timeout.Timeout

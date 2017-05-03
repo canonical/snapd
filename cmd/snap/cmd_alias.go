@@ -71,13 +71,14 @@ func (x *cmdAlias) Execute(args []string) error {
 	}
 
 	chg, err := wait(cli, id)
-	if err == nil {
-		if err := showAliasChanges(chg); err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
+	if err := showAliasChanges(chg); err != nil {
+		return err
 	}
 
-	return err
+	return nil
 }
 
 type changedAlias struct {
@@ -108,6 +109,6 @@ func showAliasChanges(chg *client.Change) error {
 func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
 	fmt.Fprintf(w, "%s:\n", label)
 	for _, a := range changed {
-		fmt.Fprintf(w, "\t- %s => %s\n", a.Alias, snap.JoinSnapApp(a.Snap, a.App))
+		fmt.Fprintf(w, "\t- %s as %s\n", snap.JoinSnapApp(a.Snap, a.App), a.Alias)
 	}
 }
