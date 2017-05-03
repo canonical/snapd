@@ -162,6 +162,14 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const locationControlPermanentSlotDBus = `
