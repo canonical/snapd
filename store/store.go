@@ -120,6 +120,35 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		info.Contact = d.SupportURL
 	}
 
+	// fill in the tracks data
+	if len(d.ChannelMapList) > 0 {
+		info.Channels = make(map[string]*snap.ChannelSnapInfo)
+		info.Tracks = make([]string, len(d.ChannelMapList))
+		for i, cm := range d.ChannelMapList {
+			info.Tracks[i] = cm.Track
+			for _, ch := range cm.SnapDetails {
+				// nothing in this channel
+				if ch.Info == "" {
+					continue
+				}
+				var k string
+				if strings.HasPrefix(ch.Channel, cm.Track) {
+					k = ch.Channel
+				} else {
+					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
+				}
+				info.Channels[k] = &snap.ChannelSnapInfo{
+					Revision:    snap.R(ch.Revision),
+					Confinement: snap.ConfinementType(ch.Confinement),
+					Version:     ch.Version,
+					Channel:     ch.Channel,
+					Epoch:       ch.Epoch,
+					Size:        ch.DownloadSize,
+				}
+			}
+		}
+	}
+
 	return info
 }
 
@@ -822,7 +851,7 @@ type order struct {
 }
 
 // decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
-func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
+func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
@@ -884,69 +913,13 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 	return !bought
 }
 
-// fakeChannels is a stopgap method of getting pseudo-channels until
-// the details endpoint provides the real thing for us. The main
-// difference between this pseudo one and the real thing is that a
-// channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
-	snaps := make([]currentSnapJson, 4)
-	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
-		snaps[i] = currentSnapJson{
-			SnapID:  snapID,
-			Channel: channel,
-			// revision, confinement, epoch purposely left empty
-		}
-	}
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  snaps,
-		Fields: channelSnapInfoFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	var results struct {
-		Payload struct {
-			ChannelSnapInfoDetails []*channelSnapInfoDetails `json:"clickindex:package"`
-		} `json:"_embedded"`
-	}
-
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &results, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for channel information")
-	}
-
-	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.ChannelSnapInfoDetails {
-		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
-			Revision:    snap.R(item.Revision),
-			Confinement: snap.ConfinementType(item.Confinement),
-			Version:     item.Version,
-			Channel:     item.Channel,
-			Epoch:       item.Epoch,
-			Size:        item.DownloadSize,
-		}
-	}
-
-	return channelInfos, nil
-}
-
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name     string
-	Channel  string
+	Name    string
+	Channel string
+	// AnyChannel can be set to query for any revision independent of channel
+	AnyChannel bool
+	// Revision can be set to query for an exact revision
 	Revision snap.Revision
 }
 
@@ -959,11 +932,23 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		return nil, err
 	}
 
-	query.Set("channel", snapSpec.Channel)
+	channel := snapSpec.Channel
+	var sel string
+	if channel == "" {
+		channel = "stable" // default
+	}
+	if snapSpec.AnyChannel {
+		channel = ""
+	}
 	if !snapSpec.Revision.Unset() {
 		query.Set("revision", snapSpec.Revision.String())
-		query.Set("channel", "")
+		channel = ""
+		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
 	}
+	if channel != "" {
+		sel = fmt.Sprintf(" in channel %q", channel)
+	}
+	query.Set("channel", channel)
 
 	u.RawQuery = query.Encode()
 
@@ -986,23 +971,13 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
+		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
-	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
-		channels, err := s.fakeChannels(info.SnapID, user)
-		if err != nil {
-			logger.Noticef("cannot get channels: %v", err)
-		} else {
-			info.Channels = channels
-		}
-	}
-
-	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1095,7 +1070,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decorateOrders(snaps, "", user)
+	err = s.decorateOrders(snaps, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1183,9 +1158,14 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
+		channel := cs.Channel
+		if channel == "" {
+			channel = "stable"
+		}
+
 		currentSnaps = append(currentSnaps, currentSnapJson{
 			SnapID:   cs.SnapID,
-			Channel:  cs.Channel,
+			Channel:  channel,
 			Epoch:    cs.Epoch,
 			Revision: revision,
 			// confinement purposely left empty
@@ -1266,7 +1246,7 @@ type HashError struct {
 }
 
 func (e HashError) Error() string {
-	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1318,10 +1298,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-	// Note that we will retry this way only once.
-	if _, ok := err.(HashError); ok && resume > 0 {
-		logger.Debugf("Error on resumed download: %v", err.Error())
+	// If hashsum is incorrect retry once
+	if _, ok := err.(HashError); ok {
+		logger.Debugf("Hashsum error on download: %v", err.Error())
 		err = w.Truncate(0)
 		if err != nil {
 			return err

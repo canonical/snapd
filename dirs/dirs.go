@@ -47,6 +47,7 @@ var (
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
+	SnapRunDir                string
 	SnapRunNsDir              string
 
 	SnapSeedDir   string
@@ -63,6 +64,9 @@ var (
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
 
+	SystemApparmorDir      string
+	SystemApparmorCacheDir string
+
 	CloudMetaDataFile string
 
 	ClassicDir string
@@ -70,7 +74,12 @@ var (
 	DistroLibExecDir string
 	CoreLibExecDir   string
 
+	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
+)
+
+const (
+	defaultSnapMountDir = "/snap"
 )
 
 var (
@@ -100,6 +109,11 @@ func StripRootDir(dir string) string {
 	return "/" + result
 }
 
+// SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
+func SupportsClassicConfinement() bool {
+	return SnapMountDir == defaultSnapMountDir
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -109,10 +123,10 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel":
+	case "fedora", "centos", "rhel", "arch":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
-		SnapMountDir = filepath.Join(rootdir, "/snap")
+		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
@@ -125,7 +139,8 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
-	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
+	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
+	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -142,6 +157,9 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+
+	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
+	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 
@@ -161,5 +179,6 @@ func SetRootDir(rootdir string) {
 
 	CoreLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 
-	XdgRuntimeDirGlob = filepath.Join(rootdir, "/run/user/*/")
+	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
+	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 }

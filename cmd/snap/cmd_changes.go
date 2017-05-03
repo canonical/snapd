@@ -50,9 +50,19 @@ type cmdChange struct {
 	} `positional-args:"yes"`
 }
 
+type cmdTasks struct {
+	LastChangeType string `long:"last"`
+	Positional     struct {
+		ID changeID `positional-arg-name:"<id>"`
+	} `positional-args:"yes"`
+}
+
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
+	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, map[string]string{
+		"last": i18n.G("Show last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
+	}, nil)
 }
 
 type changesByTime []*client.Change
@@ -70,7 +80,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	if allDigits(c.Positional.Snap) {
 		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap tasks %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
@@ -113,9 +123,58 @@ func (c *cmdChanges) Execute(args []string) error {
 	return nil
 }
 
+func (c *cmdTasks) Execute([]string) error {
+	cli := Client()
+	var id changeID
+	switch {
+	case c.Positional.ID == "" && c.LastChangeType == "":
+		return fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
+	case c.Positional.ID != "" && c.LastChangeType != "":
+		return fmt.Errorf(i18n.G("cannot use change ID and type together"))
+	case c.LastChangeType != "":
+		kind := c.LastChangeType
+		// our internal change types use "-snap" postfix but let user skip it and use short form.
+		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
+			kind += "-snap"
+		}
+		opts := client.ChangesOptions{
+			Selector: client.ChangesAll,
+		}
+		changes, err := cli.Changes(&opts)
+		if err != nil {
+			return err
+		}
+		if len(changes) == 0 {
+			return fmt.Errorf(i18n.G("no changes found"))
+		}
+		chg := findLatestChangeByKind(changes, kind)
+		if chg == nil {
+			return fmt.Errorf(i18n.G("no changes of type %q found"), c.LastChangeType)
+		}
+		id = changeID(chg.ID)
+	default:
+		id = c.Positional.ID
+	}
+
+	return showChange(cli, id)
+}
+
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(string(c.Positional.ID))
+	return showChange(cli, c.Positional.ID)
+}
+
+func findLatestChangeByKind(changes []*client.Change, kind string) (latest *client.Change) {
+	for _, chg := range changes {
+		if chg.Kind == kind && (latest == nil || latest.SpawnTime.Before(chg.SpawnTime)) {
+			latest = chg
+		}
+	}
+	return latest
+}
+
+func showChange(cli *client.Client, chid changeID) error {
+	chg, err := cli.Change(string(chid))
 	if err != nil {
 		return err
 	}

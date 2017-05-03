@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	"golang.org/x/net/context"
 
@@ -321,20 +323,15 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "core" {
 		info.Type = snap.TypeOS
 	}
-	if name == "alias-snap" {
+	if strings.Contains(name, "alias-snap") {
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
   cmd1:
-    aliases: [alias1, alias1.cmd1]
   cmd2:
-    aliases: [alias2]
   cmd3:
-    aliases: [alias3]
   cmd4:
-    aliases: [alias4]
   cmd5:
-    aliases: [alias5]
 `))
 		if err != nil {
 			panic(err)
@@ -511,23 +508,23 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 	})
 }
 
-func (f *fakeSnappyBackend) MatchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "matching-aliases",
-		aliases: aliases,
-	})
-	return aliases, nil
-}
+type byAlias []*backend.Alias
 
-func (f *fakeSnappyBackend) MissingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "missing-aliases",
-		aliases: aliases,
-	})
-	return aliases, nil
+func (ba byAlias) Len() int      { return len(ba) }
+func (ba byAlias) Swap(i, j int) { ba[i], ba[j] = ba[j], ba[i] }
+func (ba byAlias) Less(i, j int) bool {
+	return ba[i].Name < ba[j].Name
 }
 
 func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error {
+	if len(add) != 0 {
+		add = append([]*backend.Alias(nil), add...)
+		sort.Sort(byAlias(add))
+	}
+	if len(remove) != 0 {
+		remove = append([]*backend.Alias(nil), remove...)
+		sort.Sort(byAlias(remove))
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:        "update-aliases",
 		aliases:   add,

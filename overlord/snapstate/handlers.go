@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,8 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -76,11 +76,46 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	return snapsup, &snapst, nil
 }
 
+/* State Locking
+
+   do* / undo* handlers should usually lock the state just once with:
+
+	st.Lock()
+	defer st.Unlock()
+
+   For tasks doing slow operations (long i/o, networking operations) it's OK
+   to unlock the state temporarily:
+
+        st.Unlock()
+        err := slowIOOp()
+        st.Lock()
+        if err != nil {
+           ...
+        }
+
+    but if a task Get and then Set the SnapState of a snap it must avoid
+    releasing the state lock in between, other tasks might have
+    reasons to update the SnapState independently:
+
+        // DO NOT DO THIS!:
+        snapst := ...
+        snapst.Attr = ...
+        st.Unlock()
+        ...
+        st.Lock()
+        Set(st, snapName, snapst)
+
+    if a task really needs to mix mutating a SnapState and releasing the state
+    lock it should be serialized at the task runner level, see
+    SnapManger.blockedTask and TaskRunner.SetBlocked
+
+*/
+
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -99,9 +134,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapsup.SideInfo.Revision = revision
 	}
 
-	st.Lock()
 	t.Set("snap-setup", snapsup)
-	st.Unlock()
 	return nil
 }
 
@@ -115,10 +148,6 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// report this error to an error tracker
-	if osutil.GetenvBool("SNAPPY_TESTING") {
-		return nil
-	}
 	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
@@ -189,8 +218,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	meter := &TaskProgressAdapter{task: t}
-
 	st.Lock()
 	theStore := Store(st)
 	user, err := userFromUserID(st, snapsup.UserID)
@@ -199,6 +226,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
@@ -251,7 +279,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	if err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb); err != nil {
@@ -295,13 +323,12 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -315,12 +342,15 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Make a copy of configuration of given snap revision
+	if err = config.SaveRevisionConfig(st, snapsup.Name(), snapst.Current); err != nil {
+		return err
+	}
+
 	snapst.Active = false
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(oldInfo, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -332,7 +362,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -347,9 +376,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	st.Unlock()
 	err = m.backend.LinkSnap(oldInfo)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -382,7 +409,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
@@ -404,13 +431,12 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -436,7 +462,6 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -485,21 +510,24 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// record type
 	snapst.SetType(newInfo.Type)
 
-	st.Unlock()
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	err = m.backend.LinkSnap(newInfo)
 	if err != nil {
-		pb := &TaskProgressAdapter{task: t}
+		pb := NewTaskProgressAdapterLocked(t)
 		err := m.backend.UnlinkSnap(newInfo, pb)
 		if err != nil {
-			st.Lock()
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.Name(), err)
-			st.Unlock()
 		}
 	}
-	st.Lock()
 	if err != nil {
 		return err
+	}
+
+	// Restore configuration of the target revision (if available) on revert
+	if snapsup.Revert {
+		if err = config.RestoreRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {
+			return err
+		}
 	}
 
 	// save for undoLinkSnap
@@ -528,21 +556,16 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 	if release.OnClassic && info.Type == snap.TypeOS {
 		t.Logf("Requested daemon restart.")
-		st.Unlock()
 		st.RequestRestart(state.RestartDaemon)
-		st.Lock()
 	}
 	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
 		t.Logf("Requested system restart.")
-		st.Unlock()
 		st.RequestRestart(state.RestartSystem)
-		st.Lock()
 	}
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -614,10 +637,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	if err = config.RestoreRevisionConfig(st, snapsup.Name(), oldCurrent); err != nil {
+		return err
+	}
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(newInfo, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -654,7 +678,6 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -668,7 +691,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
 	err = m.backend.StartSnapServices(currentInfo, pb)
 	st.Lock()
@@ -677,7 +700,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -691,19 +713,16 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
 	err = m.backend.StopSnapServices(currentInfo, pb)
 	st.Lock()
-
 	return err
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// invoked only if snap has a current active revision
-
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -717,10 +736,8 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(info, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -762,10 +779,10 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
+	defer st.Unlock()
+
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -792,36 +809,576 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterLocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
 		return err
 	}
 	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
 	if err != nil {
-		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.Name(), err)
-		st.Unlock()
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
 		// Remove configuration associated with this snap.
-		st.Lock()
 		err = config.DeleteSnapConfig(st, snapsup.Name())
-		st.Unlock()
 		if err != nil {
 			return err
 		}
 		err = m.backend.DiscardSnapNamespace(snapsup.Name())
 		if err != nil {
-			st.Lock()
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.Name(), err)
-			st.Unlock()
 			return &state.Retry{After: 3 * time.Minute}
 		}
 	}
-	st.Lock()
+	if err = config.DiscardRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {
+		return err
+	}
 	Set(st, snapsup.Name(), snapst)
-	st.Unlock()
+	return nil
+}
+
+/* aliases v2
+
+aliases v2 implementation uses the following tasks:
+
+  * for install/refresh/remove/enable/disable etc
+
+    - remove-aliases: remove aliases of a snap from disk and mark them pending
+
+    - setup-aliases: (re)creates aliases from snap state, mark them as
+      not pending
+
+    - set-auto-aliases: updates aliases snap state based on the
+      snap-declaration and current revision info of the snap
+
+  * for refresh & when the snap-declaration aliases change without a
+    new revision
+
+    - refresh-aliases: updates aliases snap state and updates them on disk too;
+      its undo is used generically by other tasks as well
+
+    - prune-auto-aliases: used for the special case of automatic
+      aliases transferred from one snap to another to prune them from
+      the source snaps to avoid conflicts in later operations
+
+  * for alias/unalias/prefer:
+
+    - alias: creates a manual alias
+
+    - unalias: removes a manual alias
+
+    - disable-aliases: disable the automatic aliases of a snap and
+      removes all manual ones as well
+
+    - prefer-aliases: enables the automatic aliases of a snap after
+      disabling any other snap conflicting aliases
+
+*/
+
+func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	curAliases := snapst.Aliases
+	// TODO: implement --prefer/--unaliased logic
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
+	if err != nil {
+		return err
+	}
+	_, err = checkAliasesConflicts(st, snapName, snapst.AutoAliasesDisabled, newAliases, nil)
+	if err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	// noop, except on first install where we need to set this here
+	snapst.AliasesPending = true
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	err = m.backend.RemoveSnapAliases(snapName)
+	if err != nil {
+		return err
+	}
+
+	snapst.AliasesPending = true
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curAliases := snapst.Aliases
+
+	_, _, err = applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply)
+	if err != nil {
+		return err
+	}
+
+	snapst.AliasesPending = false
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	autoDisabled := snapst.AutoAliasesDisabled
+	curAliases := snapst.Aliases
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
+	if err != nil {
+		return err
+	}
+	_, err = checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil)
+	if err != nil {
+		return err
+	}
+
+	if !snapst.AliasesPending {
+		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
+			return err
+		}
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	var oldAliases map[string]*AliasTarget
+	err := t.Get("old-aliases-v2", &oldAliases)
+	if err == state.ErrNoState {
+		// nothing to do
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curAutoDisabled := snapst.AutoAliasesDisabled
+	autoDisabled := curAutoDisabled
+	if err = t.Get("old-auto-aliases-disabled", &autoDisabled); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	var otherSnapDisabled map[string]*otherDisabledAliases
+	if err = t.Get("other-disabled-aliases", &otherSnapDisabled); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// check if the old states creates conflicts now
+	_, err = checkAliasesConflicts(st, snapName, autoDisabled, oldAliases, nil)
+	if _, ok := err.(*AliasConflictError); ok {
+		// best we can do is reinstate with all aliases disabled
+		t.Errorf("cannot reinstate alias state because of conflicts, disabling: %v", err)
+		oldAliases, _ = disableAliases(oldAliases)
+		autoDisabled = true
+	} else if err != nil {
+		return err
+	}
+
+	if !snapst.AliasesPending {
+		curAliases := snapst.Aliases
+		if _, _, err := applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend, doApply); err != nil {
+			return err
+		}
+	}
+
+	snapst.AutoAliasesDisabled = autoDisabled
+	snapst.Aliases = oldAliases
+	newSnapStates := make(map[string]*SnapState, 1+len(otherSnapDisabled))
+	newSnapStates[snapName] = snapst
+
+	// if we disabled other snap aliases try to undo that
+	conflicting := make(map[string]bool, len(otherSnapDisabled))
+	otherCurSnapStates := make(map[string]*SnapState, len(otherSnapDisabled))
+	for otherSnap, otherDisabled := range otherSnapDisabled {
+		var otherSnapState SnapState
+		err := Get(st, otherSnap, &otherSnapState)
+		if err != nil {
+			return err
+		}
+		otherCurInfo, err := otherSnapState.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		otherCurSnapStates[otherSnap] = &otherSnapState
+
+		autoDisabled := otherSnapState.AutoAliasesDisabled
+		if otherDisabled.Auto {
+			// automatic aliases of other were disabled, undo that
+			autoDisabled = false
+		}
+		otherAliases := reenableAliases(otherCurInfo, otherSnapState.Aliases, otherDisabled.Manual)
+		// check for conflicts taking into account
+		// re-enabled aliases
+		conflicts, err := checkAliasesConflicts(st, otherSnap, autoDisabled, otherAliases, newSnapStates)
+		if _, ok := err.(*AliasConflictError); ok {
+			conflicting[otherSnap] = true
+			for conflictSnap := range conflicts {
+				conflicting[conflictSnap] = true
+			}
+		} else if err != nil {
+			return err
+		}
+
+		newSnapState := otherSnapState
+		newSnapState.Aliases = otherAliases
+		newSnapState.AutoAliasesDisabled = autoDisabled
+		newSnapStates[otherSnap] = &newSnapState
+	}
+
+	// apply non-conflicting other
+	for otherSnap, otherSnapState := range otherCurSnapStates {
+		if conflicting[otherSnap] {
+			// keep as it was
+			continue
+		}
+		newSnapSt := newSnapStates[otherSnap]
+		if !otherSnapState.AliasesPending {
+			if _, _, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, doApply); err != nil {
+				return err
+			}
+		}
+	}
+
+	for snapName, snapst := range newSnapStates {
+		if conflicting[snapName] {
+			// keep as it was
+			continue
+		}
+		Set(st, snapName, snapst)
+	}
+	return nil
+}
+
+func (m *SnapManager) doPruneAutoAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var which []string
+	err = t.Get("aliases", &which)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	autoDisabled := snapst.AutoAliasesDisabled
+	curAliases := snapst.Aliases
+
+	newAliases := pruneAutoAliases(curAliases, which)
+
+	if !snapst.AliasesPending {
+		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
+			return err
+		}
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json:"alias"`
+}
+
+func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
+	chg := t.Change()
+	var data map[string]interface{}
+	err := chg.Get("api-data", &data)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if len(data) == 0 {
+		data = make(map[string]interface{})
+	}
+
+	curAdded, _ := data["aliases-added"].([]interface{})
+	for _, a := range added {
+		snap, app := snap.SplitSnapApp(a.Target)
+		curAdded = append(curAdded, &changedAlias{
+			Snap:  snap,
+			App:   app,
+			Alias: a.Name,
+		})
+	}
+	data["aliases-added"] = curAdded
+
+	curRemoved, _ := data["aliases-removed"].([]interface{})
+	for _, a := range removed {
+		snap, app := snap.SplitSnapApp(a.Target)
+		curRemoved = append(curRemoved, &changedAlias{
+			Snap:  snap,
+			App:   app,
+			Alias: a.Name,
+		})
+	}
+	data["aliases-removed"] = curRemoved
+
+	chg.Set("api-data", data)
+	return nil
+}
+
+func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var target, alias string
+	err = t.Get("target", &target)
+	if err != nil {
+		return err
+	}
+	err = t.Get("alias", &alias)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	autoDisabled := snapst.AutoAliasesDisabled
+	curAliases := snapst.Aliases
+	newAliases, err := manualAlias(curInfo, curAliases, target, alias)
+	if err != nil {
+		return err
+	}
+	_, err = checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil)
+	if err != nil {
+		return err
+	}
+
+	added, removed, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending)
+	if err != nil {
+		return err
+	}
+	if err := aliasesTrace(t, added, removed); err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doDisableAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	oldAutoDisabled := snapst.AutoAliasesDisabled
+	oldAliases := snapst.Aliases
+	newAliases, _ := disableAliases(oldAliases)
+
+	added, removed, err := applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDis, newAliases, m.backend, snapst.AliasesPending)
+	if err != nil {
+		return err
+	}
+	if err := aliasesTrace(t, added, removed); err != nil {
+		return err
+	}
+
+	t.Set("old-auto-aliases-disabled", oldAutoDisabled)
+	snapst.AutoAliasesDisabled = true
+	t.Set("old-aliases-v2", oldAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doUnalias(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var alias string
+	err = t.Get("alias", &alias)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	autoDisabled := snapst.AutoAliasesDisabled
+	oldAliases := snapst.Aliases
+	newAliases, err := manualUnalias(oldAliases, alias)
+	if err != nil {
+		return err
+	}
+
+	added, removed, err := applyAliasesChange(snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending)
+	if err != nil {
+		return err
+	}
+	if err := aliasesTrace(t, added, removed); err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", oldAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+// otherDisabledAliases is used to track for the benefit of undo what
+// changes were made aka what aliases were disabled of another
+// conflicting snap by prefer logic
+type otherDisabledAliases struct {
+	// Auto records whether prefer had to disable automatic aliases
+	Auto bool `json:"auto,omitempty"`
+	// Manual records which manual aliases were removed by prefer
+	Manual map[string]string `json:"manual,omitempty"`
+}
+
+func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	if !snapst.AutoAliasesDisabled {
+		// already enabled, nothing to do
+		return nil
+	}
+
+	curAliases := snapst.Aliases
+	aliasConflicts, err := checkAliasesConflicts(st, snapName, autoEn, curAliases, nil)
+	conflErr, isConflErr := err.(*AliasConflictError)
+	if err != nil && !isConflErr {
+		return err
+	}
+	if isConflErr && conflErr.Conflicts == nil {
+		// it's a snap command namespace conflict, we cannot remedy it
+		return conflErr
+	}
+	// proceed to disable conflicting aliases as needed
+	// before re-enabling snapName aliases
+
+	otherSnapStates := make(map[string]*SnapState, len(aliasConflicts))
+	otherSnapDisabled := make(map[string]*otherDisabledAliases, len(aliasConflicts))
+	for otherSnap := range aliasConflicts {
+		var otherSnapState SnapState
+		err := Get(st, otherSnap, &otherSnapState)
+		if err != nil {
+			return err
+		}
+
+		otherAliases, disabledManual := disableAliases(otherSnapState.Aliases)
+
+		added, removed, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, autoDis, otherAliases, m.backend, otherSnapState.AliasesPending)
+		if err != nil {
+			return err
+		}
+		if err := aliasesTrace(t, added, removed); err != nil {
+			return err
+		}
+
+		var otherDisabled otherDisabledAliases
+		otherDisabled.Manual = disabledManual
+		otherSnapState.Aliases = otherAliases
+		// disable automatic aliases as needed
+		if !otherSnapState.AutoAliasesDisabled && len(otherAliases) != 0 {
+			// record that we did disable automatic aliases
+			otherDisabled.Auto = true
+			otherSnapState.AutoAliasesDisabled = true
+		}
+		otherSnapDisabled[otherSnap] = &otherDisabled
+		otherSnapStates[otherSnap] = &otherSnapState
+	}
+
+	added, removed, err := applyAliasesChange(snapName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending)
+	if err != nil {
+		return err
+	}
+	if err := aliasesTrace(t, added, removed); err != nil {
+		return err
+	}
+
+	for otherSnap, otherSnapState := range otherSnapStates {
+		Set(st, otherSnap, otherSnapState)
+	}
+	if len(otherSnapDisabled) != 0 {
+		t.Set("other-disabled-aliases", otherSnapDisabled)
+	}
+	t.Set("old-auto-aliases-disabled", true)
+	t.Set("old-aliases-v2", curAliases)
+	snapst.AutoAliasesDisabled = false
+	Set(st, snapName, snapst)
 	return nil
 }

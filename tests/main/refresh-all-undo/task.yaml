@@ -64,3 +64,9 @@ execute: |
     snap change $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
     snap change $chg_id | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
     snap change $chg_id | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
+
+    echo "Verify the 'snap tasks' is the same as 'snap change'"
+    snap tasks $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+
+    echo "Verify the 'snap tasks --last' shows last refresh change"
+    snap tasks --last=refresh | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
