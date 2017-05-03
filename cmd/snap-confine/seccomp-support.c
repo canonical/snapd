@@ -21,6 +21,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <linux/can.h>		// needed for search mappings
+#include <linux/netlink.h>
 #include <sched.h>
 #include <search.h>
 #include <stdbool.h>
@@ -177,7 +178,10 @@ static void sc_map_init()
 
 	// build up the map linked list
 
-	// man 2 socket - domain
+	// man 2 socket - domain and man 5 apparmor.d. AF_ and PF_ are
+	// synonymous in the kernel and can be used interchangeably in
+	// policy (ie, if use AF_UNIX, don't need a corresponding PF_UNIX
+	// rule). See include/linux/socket.h
 	sc_map_add(AF_UNIX);
 	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
@@ -202,6 +206,66 @@ static void sc_map_init()
 	sc_map_add(PF_PACKET);
 	sc_map_add(AF_ALG);
 	sc_map_add(PF_ALG);
+	sc_map_add(AF_BRIDGE);
+	sc_map_add(PF_BRIDGE);
+	sc_map_add(AF_NETROM);
+	sc_map_add(PF_NETROM);
+	sc_map_add(AF_ROSE);
+	sc_map_add(PF_ROSE);
+	sc_map_add(AF_NETBEUI);
+	sc_map_add(PF_NETBEUI);
+	sc_map_add(AF_SECURITY);
+	sc_map_add(PF_SECURITY);
+	sc_map_add(AF_KEY);
+	sc_map_add(PF_KEY);
+	sc_map_add(AF_ASH);
+	sc_map_add(PF_ASH);
+	sc_map_add(AF_ECONET);
+	sc_map_add(PF_ECONET);
+	sc_map_add(AF_SNA);
+	sc_map_add(PF_SNA);
+	sc_map_add(AF_IRDA);
+	sc_map_add(PF_IRDA);
+	sc_map_add(AF_PPPOX);
+	sc_map_add(PF_PPPOX);
+	sc_map_add(AF_WANPIPE);
+	sc_map_add(PF_WANPIPE);
+	sc_map_add(AF_BLUETOOTH);
+	sc_map_add(PF_BLUETOOTH);
+	sc_map_add(AF_RDS);
+	sc_map_add(PF_RDS);
+	sc_map_add(AF_LLC);
+	sc_map_add(PF_LLC);
+	sc_map_add(AF_TIPC);
+	sc_map_add(PF_TIPC);
+	sc_map_add(AF_IUCV);
+	sc_map_add(PF_IUCV);
+	sc_map_add(AF_RXRPC);
+	sc_map_add(PF_RXRPC);
+	sc_map_add(AF_ISDN);
+	sc_map_add(PF_ISDN);
+	sc_map_add(AF_PHONET);
+	sc_map_add(PF_PHONET);
+	sc_map_add(AF_IEEE802154);
+	sc_map_add(PF_IEEE802154);
+	sc_map_add(AF_CAIF);
+	sc_map_add(PF_CAIF);
+	sc_map_add(AF_NFC);
+	sc_map_add(PF_NFC);
+	sc_map_add(AF_VSOCK);
+	sc_map_add(PF_VSOCK);
+#ifndef AF_IB
+#define AF_IB 27
+#define PF_IB AF_IB
+#endif				// AF_IB
+	sc_map_add(AF_IB);
+	sc_map_add(PF_IB);
+#ifndef AF_MPLS
+#define AF_MPLS 28
+#define PF_MPLS AF_MPLS
+#endif				// AF_MPLS
+	sc_map_add(AF_MPLS);
+	sc_map_add(PF_MPLS);
 	// linux/can.h
 	sc_map_add(AF_CAN);
 	sc_map_add(PF_CAN);
@@ -335,6 +399,29 @@ static void sc_map_init()
 	sc_map_add(S_IFBLK);
 	sc_map_add(S_IFIFO);
 	sc_map_add(S_IFSOCK);
+
+	// man 7 netlink (uapi/linux/netlink.h)
+	sc_map_add(NETLINK_ROUTE);
+	sc_map_add(NETLINK_USERSOCK);
+	sc_map_add(NETLINK_FIREWALL);
+	sc_map_add(NETLINK_SOCK_DIAG);
+	sc_map_add(NETLINK_NFLOG);
+	sc_map_add(NETLINK_XFRM);
+	sc_map_add(NETLINK_SELINUX);
+	sc_map_add(NETLINK_ISCSI);
+	sc_map_add(NETLINK_AUDIT);
+	sc_map_add(NETLINK_FIB_LOOKUP);
+	sc_map_add(NETLINK_CONNECTOR);
+	sc_map_add(NETLINK_NETFILTER);
+	sc_map_add(NETLINK_IP6_FW);
+	sc_map_add(NETLINK_DNRTMSG);
+	sc_map_add(NETLINK_KOBJECT_UEVENT);
+	sc_map_add(NETLINK_GENERIC);
+	sc_map_add(NETLINK_SCSITRANSPORT);
+	sc_map_add(NETLINK_ECRYPTFS);
+	sc_map_add(NETLINK_RDMA);
+	sc_map_add(NETLINK_CRYPTO);
+	sc_map_add(NETLINK_INET_DIAG);	// synonymous with NETLINK_SOCK_DIAG
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));

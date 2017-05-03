@@ -37,6 +37,9 @@ const bluezPermanentSlotAppArmor = `
   capability net_admin,
   capability net_bind_service,
 
+  # libudev
+  network netlink raw,
+
   # File accesses
   /sys/bus/usb/drivers/btusb/     r,
   /sys/bus/usb/drivers/btusb/**   r,
@@ -152,6 +155,8 @@ accept4
 bind
 listen
 shutdown
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const bluezPermanentSlotDBus = `
