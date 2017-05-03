@@ -60,7 +60,7 @@ SHM="$(mktemp -d -p /run/shm)"
 trap 'rm -rf $TMP $SHM' EXIT
 
 # name snap-confine as the test name for improved logging
-L="$TMP/`basename $0`"
+L="$TMP/$(basename "$0")"
 cp "$(pwd)/snap-confine/snap-confine" "$L"
 export L
 
