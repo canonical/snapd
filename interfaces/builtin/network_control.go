@@ -198,6 +198,16 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# For various network related netlink sockets
+socket AF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
+socket AF_NETLINK - NETLINK_ISCSI
+socket AF_NETLINK - NETLINK_RDMA
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.
