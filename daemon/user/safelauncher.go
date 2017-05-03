@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	allowedUrlSchemes = []string{"http", "https", "mailto"}
+	allowedURLSchemes = []string{"http", "https", "mailto"}
 )
 
 // SafeLauncher implements the 'com.canonical.SafeLauncher' interface
@@ -72,11 +72,11 @@ var XdgOpenCommand = runXdgOpen
 func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 	u, err := url.Parse(addr)
 	if err != nil {
-		return dbus.NewError("Invalid URL", nil)
+		return &dbus.ErrMsgInvalidArg
 	}
 
 	validScheme := false
-	for _, s := range allowedUrlSchemes {
+	for _, s := range allowedURLSchemes {
 		if s == u.Scheme {
 			validScheme = true
 			break
@@ -84,14 +84,15 @@ func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 	}
 
 	if !validScheme {
-		msg := fmt.Sprintf("Scheme '%s' is not allowed", u.Scheme)
-		return dbus.NewError(msg, nil)
+		return &dbus.Error{
+			Name: "org.freedesktop.DBus.Error.AccessDenied",
+			Body: []interface{}{fmt.Sprintf("Supplied URL scheme '%s' is not allowed", u.Scheme)},
+		}
 	}
 
 	err = XdgOpenCommand(addr)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to run xdg-open: %s", err)
-		return dbus.NewError(msg, nil)
+		return dbus.MakeFailedError(fmt.Errorf("Can not open supplied URL"))
 	}
 
 	return nil
