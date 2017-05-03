@@ -70,7 +70,7 @@ snapd (2.25~14.04) trusty; urgency=medium
     - tests: copy snap-confine apparmor profile into testbed
     - interfaces/mount: improve go identifier names of mountinfo, parse
       optional fields
-    - - Arch Linux wants to respect FHS
+    - Arch Linux wants to respect FHS
       (https://bugs.archlinux.org/task/53656),
     - daemon: do not set RemoveSnapPath flag when doing a try
     - debian: add maintscript helper to remove usr.lib.snapd.snap-
