@@ -1,5 +1,9 @@
 summary: Checks for snap sideload install
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
