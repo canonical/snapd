@@ -24,11 +24,14 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     snap disconnect home-consumer:home
+    snap tasks --last=disconnect| MATCH "Disconnect .* from home-consumer:home"
 
     echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
     snap connect home-consumer:home :home
 
     snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    snap tasks --last=connect| MATCH "Connect home-consumer:home to core:home"
 
     # NOTE: Those only work when installed from the store as otherwise we don't
     # have snap declaration assertion and cannot check if a given connection
@@ -38,6 +41,8 @@ execute: |
     echo "The plug side auto-connects when content is installed"
     snap install --edge test-snapd-content-slot
     snap install --edge test-snapd-content-plug
+
+    snap tasks --last=install| MATCH "Mount snap \"test-snapd-content-plug\""
 
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
 

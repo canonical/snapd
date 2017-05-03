@@ -159,6 +159,8 @@ mount
 shmctl
 umount
 umount2
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `
