@@ -399,6 +399,13 @@ var defaultTemplate = `
   capability sys_chroot,
   /{,usr/}sbin/chroot ixr,
 
+###SNIPPETS###
+}
+`
+
+// encryptedHomeTrySnippet contains apparmor snippet that allows for "snap try"
+// operations to work even if the home directory is encrypted.
+var encryptedHomeTrySnippet = `
   # Workaround https://launchpad.net/bugs/359338 until upstream handles
   # stacked filesystems generally.
   # encrypted ~/.Private and old-style encrypted $HOME
@@ -407,9 +414,6 @@ var defaultTemplate = `
   # new-style encrypted $HOME
   @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
   @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
-
-###SNIPPETS###
-}
 `
 
 // classicTemplate contains apparmor template used for snaps with classic
