@@ -1,7 +1,21 @@
 #!/bin/bash
+#
+#  Copyright (C) 2017 Canonical Ltd
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 3 as
+#  published by the Free Software Foundation.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# etelpmoc is the backwards half of complete: it de-serialises the tab
-# completion request into the appropriate environs expected by the tab
+# etelpmoc is the reverse of complete: it de-serialises the tab completion
+# request into the appropriate environment variables expected by the tab
 # completion tools, performs whatever action is wanted, and serialises the
 # result. It accomplishes this by having functions override the builtin
 # completion commands.
@@ -86,6 +100,7 @@ compopt() {
     local i
 
     for ((i=0; i<$#; i++)); do
+        # in bash, ${!x} does variable indirection. Thus if x=1, ${!x} becomes $1.
         case "${!i}" in
             -o)
                 ((i++))
