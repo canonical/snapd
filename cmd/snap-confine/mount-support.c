@@ -348,7 +348,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	//
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018
 	const char *dirs_from_core[] = { "/etc/alternatives", "/etc/ssl", NULL };
-	for (const char *dir = dirs_from_core[0]; dir != NULL; dir++) {
+	for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
+		const char *dir = *dirs;
 		if (access(dir, F_OK) == 0) {
 			sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir, dir);
 			sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, dir);
