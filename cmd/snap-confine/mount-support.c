@@ -198,8 +198,6 @@ static void sc_setup_mount_profiles(const char *snap_name)
 		// It is ok for the desired profile to not exist. Note that in this
 		// case we also "update" the current profile as we already opened and
 		// truncated it above.
-		debug("desired mount profile %s doesn't exist, ignoring",
-		      profile_path);
 		return;
 	}
 	if (desired == NULL) {

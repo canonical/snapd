@@ -19,6 +19,5 @@ printf "Test that good whitelist"
 if "$L" snap.name.app /bin/true 2>/dev/null; then
    PASS
 else
-    dmesg|tail -n1
     FAIL
 fi

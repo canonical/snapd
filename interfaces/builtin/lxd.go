@@ -39,6 +39,7 @@ const lxdConnectedPlugSecComp = `
 # access to the system via LXD's socket API.
 
 shutdown
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 type LxdInterface struct{}
