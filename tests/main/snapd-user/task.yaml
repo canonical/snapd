@@ -1,4 +1,4 @@
-summary: TBD
+summary: Ensure snapd --user allows opening a URL via xdg-open
 
 systems:
     # Not supposed to work on Ubuntu Core systems as we don't have
