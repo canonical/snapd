@@ -187,8 +187,10 @@ all_tests = \
     snap-confine/tests/test_whitelist
 
 libexec_PROGRAMS += snap-confine/snap-confine
+if HAVE_RST2MAN
 dist_man_MANS += snap-confine/snap-confine.5
 CLEANFILES += snap-confine/snap-confine.5
+endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 EXTRA_DIST += $(all_tests) snap-confine/tests/common.sh
@@ -307,9 +309,11 @@ snap-confine/unit-tests$(EXEEXT): $(snap_confine_unit_tests_OBJECTS) $(snap_conf
 snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests_STATIC) -Wl,-Bdynamic -pthread
 endif  # WITH_UNIT_TESTS
 
+if HAVE_RST2MAN
 snap-confine/%.5: snap-confine/%.rst
 	mkdir -p snap-confine
 	$(HAVE_RST2MAN) $^ > $@
+endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
 	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
@@ -372,8 +376,10 @@ install-exec-local::
 ##
 
 libexec_PROGRAMS += snap-discard-ns/snap-discard-ns
+if HAVE_RST2MAN
 dist_man_MANS += snap-discard-ns/snap-discard-ns.5
 CLEANFILES += snap-discard-ns/snap-discard-ns.5
+endif
 EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
 snap_discard_ns_snap_discard_ns_SOURCES = \
@@ -409,9 +415,11 @@ snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJE
 
 snap-discard-ns/snap-discard-ns$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_discard_ns_snap_discard_ns_STATIC) -Wl,-Bdynamic -pthread
 
+if HAVE_RST2MAN
 snap-discard-ns/%.5: snap-discard-ns/%.rst
 	mkdir -p snap-discard-ns
 	$(HAVE_RST2MAN) $^ > $@
+endif
 
 ##
 ## system-shutdown

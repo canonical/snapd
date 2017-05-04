@@ -19,6 +19,9 @@ debug: |
     dmesg
 
 execute: |
+    # wait for the socket to be listening
+    while ! printf "GET /" | nc -U -q 1 /var/run/docker.sock; do sleep 1; done
+
     echo "Check that docker info and run basically work"
     docker info
 
