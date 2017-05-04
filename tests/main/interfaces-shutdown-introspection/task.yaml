@@ -33,7 +33,7 @@ execute: |
 
     echo "Then the snap is able to get introspect org.freedesktop.login1"
     expected="<interface name=\"org.freedesktop.login1.Manager\">"
-    su -l -c "shutdown-introspection-consumer" test | MATCH"$expected"
+    su -l -c "shutdown-introspection-consumer" test | MATCH "$expected"
 
     echo "==========================================="
 
