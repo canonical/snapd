@@ -267,7 +267,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 // procSelfMountInfo is exposed as a variable for testing anyEncryptedDirectory.
 var procSelfMountInfo = mount.ProcSelfMountInfo
 
-// anyEncryptedDirectory returns true ecryptfs is mounted anywhere.
+// anyEncryptedDirectory returns true if ecryptfs is mounted anywhere.
 // TODO: Make this look for the place where the snap is mounted from, once that
 // information becomes available.
 func anyEncryptedDirectory() bool {
