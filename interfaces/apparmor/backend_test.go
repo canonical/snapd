@@ -505,3 +505,30 @@ func (s *backendSuite) TestAnyEncryptedDirectory(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmor.AnyEncryptedDirectory(), Equals, true)
 }
+
+func (s *backendSuite) TestTryModeSnapsAndEncryptionGetExtraSnippet(c *C) {
+	// Mock the location of /proc/self/mountinfo and place a mount entry
+	// where the filesystem type is "ecryptfs".
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	restorer := apparmor.MockProcSelfMountInfo(fname)
+	defer restorer()
+	err := ioutil.WriteFile(fname, []byte(`668 25 0:52 /test-encrypted /snap/test-encrypted/x1 rw,nosuid,nodev,relatime shared:177 - ecryptfs /home/foo/.Private rw,ecryptfs_fnek_sig=987ee2ca60efd36f,ecryptfs_sig=0a250b04159c25f9,ecryptfs_cipher=aes,ecryptfs_key_bytes=16,ecryptfs_unlink_sigs`), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock a classic system that is not in forced devmode.
+	restorer = release.MockOnClassic(true)
+	defer restorer()
+	restorer = release.MockForcedDevmode(false)
+	defer restorer()
+
+	// Install a demo snap with confinement options that say it is in try mode.
+	opts := interfaces.ConfinementOptions{TryMode: true}
+	s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 1)
+
+	// Check that the generated apparmor profile allows for access to the
+	// encrypted home directory.
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "@{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,")
+}

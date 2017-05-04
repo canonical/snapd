@@ -246,6 +246,13 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 			} else {
 				tagSnippets = snippetForTag
 			}
+			if opts.TryMode && anyEncryptedDirectory() {
+				// Add a special internal snippet for snaps that are in try
+				// mode on an encrypted home directory. This snippet provides
+				// access to the encrypted files for users other than the owner
+				// and thus allows daemons and hooks to run correctly.
+				tagSnippets += encryptedHomeTrySnippet
+			}
 			return tagSnippets
 		}
 		return ""
