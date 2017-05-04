@@ -190,8 +190,8 @@ libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
 dist_man_MANS += snap-confine/snap-confine.5
 CLEANFILES += snap-confine/snap-confine.5
-EXTRA_DIST += snap-confine/snap-confine.rst
 endif
+EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 EXTRA_DIST += $(all_tests) snap-confine/tests/common.sh
 if SECCOMP
@@ -379,8 +379,8 @@ libexec_PROGRAMS += snap-discard-ns/snap-discard-ns
 if HAVE_RST2MAN
 dist_man_MANS += snap-discard-ns/snap-discard-ns.5
 CLEANFILES += snap-discard-ns/snap-discard-ns.5
-EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 endif
+EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
 snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-confine/ns-support.c \
