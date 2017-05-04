@@ -493,7 +493,7 @@ func (s *backendSuite) TestAnyEncryptedDirectory(c *C) {
 	restorer := apparmor.MockProcSelfMountInfo(fname)
 	defer restorer()
 
-	// Without the file created we just swallow the error and say nothing is encrypted.
+	// With non-existent mountinfo we say nothing is encrypted.
 	c.Assert(apparmor.AnyEncryptedDirectory(), Equals, false)
 
 	// With empty mountinfo we say nothing is encrypted.
