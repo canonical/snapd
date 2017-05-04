@@ -23,23 +23,23 @@ execute: |
     DISCONNECTED_PATTERN="(?s).*?\n- +shutdown-introspection-consumer:shutdown"
 
     echo "Then the plug is shown as disconnected"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "==========================================="
 
     echo "When the plug is connected"
     snap connect shutdown-introspection-consumer:shutdown
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to get introspect org.freedesktop.login1"
     expected="<interface name=\"org.freedesktop.login1.Manager\">"
-    su -l -c "shutdown-introspection-consumer" test | grep -Pq "$expected"
+    su -l -c "shutdown-introspection-consumer" test | MATCH"$expected"
 
     echo "==========================================="
 
     echo "When the plug is disconnected"
     snap disconnect shutdown-introspection-consumer:shutdown
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to get system information"
     if su -l -c "shutdown-introspection-consumer" test; then
