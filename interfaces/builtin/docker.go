@@ -40,6 +40,7 @@ const dockerConnectedPlugSecComp = `
 # access to the system via Docker's socket API.
 
 bind
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 type DockerInterface struct{}

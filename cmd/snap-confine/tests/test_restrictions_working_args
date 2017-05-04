@@ -78,7 +78,7 @@ cat "$TMP"/tmpl >"$TMP"/snap.name.app
 echo "mknod - |S_IFIFO" >>"$TMP"/snap.name.app
 
 # use "$SHM"/pipe here since snap-confine uses a mount namespace for /tmp
-printf "Test good seccomp arg filtering (mkfifo "$SHM"/pipe)"
+printf "Test good seccomp arg filtering (mkfifo %s/pipe)" "$SHM"
 if $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe ; then
     if [ -p "$SHM"/pipe ]; then
         PASS
@@ -89,12 +89,12 @@ else
     FAIL
 fi
 
-printf "Test good seccomp arg filtering (mkfifo -m 0400 "$SHM"/rpipe)"
+printf "Test good seccomp arg filtering (mkfifo -m 0400 %s/rpipe)" "$SHM"
 if $L snap.name.app /usr/bin/mkfifo -m 0400 "$SHM"/rpipe ; then
     if [ -p "$SHM"/rpipe ]; then
         # Use stat instead of 'test -w' since the unit tests run as root in
         # spread and 'test -w' returns true regardless of permissions
-        perms=`stat -c "%a" "$SHM"/rpipe`
+		perms=$(stat -c "%a" "$SHM"/rpipe)
         if [ "$perms" = "400" ]; then
             PASS
         else
@@ -114,7 +114,7 @@ fi
 cat "$TMP"/tmpl >"$TMP"/snap.name.app
 echo "mknod - |S_IFREG" >>"$TMP"/snap.name.app
 
-printf "Test good seccomp arg filtering (mkfifo "$SHM"/pipe blocked)"
+printf "Test good seccomp arg filtering (mkfifo %s/pipe blocked)" "$SHM"
 if $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe 2>/dev/null ; then
     FAIL
 else
