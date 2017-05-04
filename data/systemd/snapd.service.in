@@ -3,6 +3,8 @@ Description=Snappy daemon
 Requires=snapd.socket
 
 [Service]
+Nice=-5
+OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
