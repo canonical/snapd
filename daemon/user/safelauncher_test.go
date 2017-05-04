@@ -32,16 +32,16 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type daemonSuite struct {
+type safeLauncherSuite struct {
 	i      int
 	args   [][]string
 	errors []error
 	outs   [][]byte
 }
 
-var _ = Suite(&daemonSuite{})
+var _ = Suite(&safeLauncherSuite{})
 
-func (s *daemonSuite) myXdgOpen(args ...string) (err error) {
+func (s *safeLauncherSuite) myXdgOpen(args ...string) (err error) {
 	s.args = append(s.args, args)
 	if s.i < len(s.errors) {
 		err = s.errors[s.i]
@@ -50,7 +50,7 @@ func (s *daemonSuite) myXdgOpen(args ...string) (err error) {
 	return err
 }
 
-func (s *daemonSuite) SetUpTest(c *C) {
+func (s *safeLauncherSuite) SetUpTest(c *C) {
 	user.XdgOpenCommand = s.myXdgOpen
 	s.i = 0
 	s.args = nil
@@ -58,46 +58,46 @@ func (s *daemonSuite) SetUpTest(c *C) {
 	s.outs = nil
 }
 
-func (s *daemonSuite) TestOpenURLWithNotAllowedScheme(c *C) {
+func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("tel://049112233445566")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "Scheme 'tel' is not allowed")
+	c.Assert(err, ErrorMatches, "Supplied URL scheme 'tel' is not allowed")
 	c.Assert(s.args, IsNil)
 
 	err = launcher.OpenURL("aabbccdd0011")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "Scheme '' is not allowed")
+	c.Assert(err, ErrorMatches, "Supplied URL scheme '' is not allowed")
 	c.Assert(s.args, IsNil)
 }
 
-func (s *daemonSuite) TestOpenURLWithAllowedSchemeHTTP(c *C) {
+func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTP(c *C) {
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("http://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"http://snapcraft.io"}})
 }
 
-func (s *daemonSuite) TestOpenURLWithAllowedSchemeHTTPS(c *C) {
+func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTPS(c *C) {
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"https://snapcraft.io"}})
 }
 
-func (s *daemonSuite) TestOpenURLWithAllowedSchemeMailto(c *C) {
+func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeMailto(c *C) {
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("mailto:foo@bar.org")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"mailto:foo@bar.org"}})
 }
 
-func (s *daemonSuite) TestOpenURLWithFailingXdgOpen(c *C) {
+func (s *safeLauncherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 	user.XdgOpenCommand = func(args ...string) error {
 		return fmt.Errorf("failed")
 	}
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "Failed to run xdg-open: failed")
+	c.Assert(err, ErrorMatches, "Can not open supplied URL")
 }

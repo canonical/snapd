@@ -35,15 +35,28 @@ const (
 	basePath = "/"
 )
 
+var connectSessionBus = func() (DBusConnection, error) {
+	return dbus.SessionBus()
+}
+
 type registeredInterface interface {
 	Name() string
 	IntrospectionData() string
 }
 
+// DBusConnection describes the interface used for a connection to
+// a specific bus.
+type DBusConnection interface {
+	Export(v interface{}, path dbus.ObjectPath, iface string) error
+	RequestName(name string, flags dbus.RequestNameFlags) (dbus.RequestNameReply, error)
+	Signal(ch chan<- *dbus.Signal)
+	Close() error
+}
+
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
 	tomb   tomb.Tomb
-	conn   *dbus.Conn
+	conn   DBusConnection
 	ifaces []registeredInterface
 }
 
@@ -84,7 +97,7 @@ func (d *Daemon) createAndExportInterfaces() {
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
 		var err error
-		d.conn, err = dbus.SessionBus()
+		d.conn, err = connectSessionBus()
 		if err != nil {
 			return err
 		}
@@ -100,6 +113,7 @@ func (d *Daemon) Start() {
 
 		d.createAndExportInterfaces()
 
+		// Listen for any signals to keep our thread up and running
 		ch := make(chan *dbus.Signal)
 		d.conn.Signal(ch)
 		for range ch {
@@ -112,7 +126,9 @@ func (d *Daemon) Start() {
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
-	d.conn.Close()
+	if d.conn != nil {
+		d.conn.Close()
+	}
 	return d.tomb.Wait()
 }
 
