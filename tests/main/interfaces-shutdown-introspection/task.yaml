@@ -3,7 +3,8 @@ summary: Ensures that introspection of login1 of the shutdown interface works.
 systems:
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
-    # unity7 implicit slot (used to access dbus-send), not available on core
+    # unity7 implicit classic slot needed (used to access dbus-send) not
+    # available on core
     - -ubuntu-core-*
 
 details: |
@@ -20,7 +21,7 @@ restore: |
 
 execute: |
     CONNECTED_PATTERN=":shutdown +shutdown-introspection-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +shutdown-introspection-consumer:shutdown"
+    DISCONNECTED_PATTERN="\- +shutdown-introspection-consumer:shutdown"
 
     echo "Then the plug is shown as disconnected"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
