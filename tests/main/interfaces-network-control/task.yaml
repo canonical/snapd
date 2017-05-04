@@ -40,59 +40,116 @@ restore: |
     . "$TESTSLIB/network.sh"
 
     systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
+    rm -f network-control-consumer_1.0_all.snap *.output $SERVICE_FILE
     arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
+
+    ip netns delete test-ns || true
+    ip link delete veth0 || true
 
 execute: |
     . "$TESTSLIB/network.sh"
 
     CONNECTED_PATTERN=":network-control +network-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +network-control-consumer:network-control"
+    DISCONNECTED_PATTERN="^- +network-control-consumer:network-control$"
     INTERFACE=$(get_default_iface)
 
     echo "Then the plug disconnected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "===================================="
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap command can query network status information"
-    network-control-consumer.query | grep -P "0.0.0.0:$PORT.*?LISTEN"
+    network-control-consumer.cmd netstat -lnt | MATCH "0.0.0.0:$PORT.*?LISTEN"
 
     echo "===================================="
 
     echo "When the plug is disconnected"
     snap disconnect network-control-consumer:network-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not query network status information"
-    if network-control-consumer.query 2>net-query.output; then
+    if network-control-consumer.cmd netstat -lnt 2>net-query.output; then
         echo "Expected error caling command with disconnected plug"
+        exit 1
     fi
-    cat net-query.output | grep -Pq "Permission denied"
+    cat net-query.output | MATCH "Permission denied"
 
     echo "===================================="
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap command can modify the network configuration"
-    network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE
+    network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
     expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
-    arp | grep -Pq "$ARP_ENTRY_ADDR.*?ether.*?CM"
+    arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
 
     echo "===================================="
 
     echo "When the plug is disconnected"
     snap disconnect network-control-consumer:network-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not modify the network configuration"
-    if network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE 2>net-command.output; then
-        echo "Expected error caling command with disconnected plug"
+    if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
+        echo "Expected error calling command with disconnected plug"
+        exit 1
     fi
-    cat net-command.output | grep -Pq "Permission denied"
+    cat net-command.output | MATCH "Permission denied"
+
+    echo "===================================="
+
+    echo "When the plug is connected"
+    snap connect network-control-consumer:network-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "A network namespace can be created"
+    network-control-consumer.cmd ip netns add test-ns
+    ip netns list | MATCH test-ns
+
+    echo "And a veth interface can be added to the namespace"
+
+    ip link add veth0 type veth peer name veth1
+    ip link list | MATCH "veth0.*veth1"
+
+    network-control-consumer.cmd ip link set veth1 netns test-ns
+
+    ip link list | MATCH "veth0"
+    ip link list | MATCH -v "veth1"
+
+    echo "And a command can be executed in the context of the namespace"
+    network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
+
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect network-control-consumer:network-control
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "The snap is not able to create a network namespace"
+    if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
+        echo "Expected error calling ns create command with disconnected plug"
+    fi
+    cat ns-create.output | MATCH "Permission denied"
+
+    echo "And the snap can't add a veth interface to an existing namespace"
+    # first, move veth1 back to the root namespace
+    ip netns exec test-ns ip link set veth1 netns 1
+    if network-control-consumer.cmd ip link set veth1 netns test-ns 2>ns-move.output; then
+        echo "Expected error trying to move veth to network namespace with disconnected plug"
+        exit 1
+    fi
+    cat ns-move.output | MATCH "Permission denied"
+
+
+    echo "And the snap can't execute a command in the context of the namespace"
+    if network-control-consumer.cmd ip netns exec test-ns ip link list 2>ns-exec.output; then
+        echo "Expected error trying to execute command in a network namespace context with disconnected plug"
+        exit 1
+    fi
+    cat ns-exec.output | MATCH "Permission denied"

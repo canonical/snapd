@@ -111,6 +111,15 @@ const fwupdConnectedPlugAppArmor = `
       path=/
       interface=org.freedesktop.DBus.Properties
       peer=(label=###SLOT_SECURITY_TAGS###),
+
+  # Allow clients to introspect the service on non-classic (due to the path,
+  # allowing on classic would reveal too much for unconfined)
+  dbus (send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const fwupdConnectedSlotAppArmor = `
@@ -163,8 +172,9 @@ const fwupdPermanentSlotSecComp = `
 # access to the system.
 # Can communicate with DBus system service
 bind
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
-
 const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.
