@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type HomeInterfaceSuite struct {
@@ -33,23 +36,27 @@ type HomeInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HomeInterfaceSuite{
-	iface: builtin.NewHomeInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&HomeInterfaceSuite{})
+
+func (s *HomeInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [home]
+`
+	s.iface = builtin.NewHomeInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "home",
 			Interface: "home",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "home",
-			Interface: "home",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["home"]}
+}
 
 func (s *HomeInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "home")
@@ -80,7 +87,9 @@ func (s *HomeInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @{HOME}/ r,`)
 }

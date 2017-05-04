@@ -45,7 +45,7 @@ type PlugRef struct {
 }
 
 // String returns the "snap:plug" representation of a plug reference.
-func (ref *PlugRef) String() string {
+func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
@@ -67,7 +67,7 @@ type SlotRef struct {
 }
 
 // String returns the "snap:slot" representation of a slot reference.
-func (ref *SlotRef) String() string {
+func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
@@ -119,66 +119,6 @@ type Interface interface {
 
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
-
-	// PermanentPlugSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the plug is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a plug of a given interface even before the plug is connected to a
-	// slot.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedPlugSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a plug of a given interface connected to a slot in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot. If the
-	// slot is not necessary then consider using PermanentPlugSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// PermanentSlotSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the slot is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a slot of a given interface even before the first connection to that
-	// slot is made.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedSlotSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a slot of a given interface connected to a plug in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot, if the
-	// plug is not necessary then consider using PermanentSlotSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an

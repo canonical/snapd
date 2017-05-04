@@ -1,4 +1,9 @@
-summary: Check that snap-confine refuses to run unconfined 
+summary: Check that snap-confine refuses to run unconfined
+
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     snap-confine is setuid root but is only confined with an apparmor profile
     when invoked as a system-installed package or when running in the core from
@@ -7,16 +12,24 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
+    echo "Ensure the snap-confine profiles on core are not loaded"
+    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+        apparmor_parser -R "$p"
+    done
+restore: |
+    echo "Ensure the snap-confine profiles are restored"
+    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+        apparmor_parser -r $p
+    done
 execute: |
-    . $TESTSLIB/names.sh
     # NOTE: This has to run as the test user because the protection is only
     # active if user gains elevated permissions as a result of using setuid
     # root snap-confine.
-    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/${core_name}/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
+    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
         echo "snap-confine didn't refuse to run!"
         exit 1
     fi
-    su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/${core_name}/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
+    su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
 debug: |
     ls -ld /snap/core/current/usr/lib/snapd/snap-confine || true
     ls -ld /snap/ubuntu-core/current/usr/lib/snapd/snap-confine || true

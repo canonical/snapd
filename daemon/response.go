@@ -51,7 +51,7 @@ type Response interface {
 type resp struct {
 	Status int          `json:"status-code"`
 	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result"`
+	Result interface{}  `json:"result,omitempty"`
 	*Meta
 }
 
@@ -131,7 +131,8 @@ const (
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
-	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
+	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
+	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 )
 

@@ -26,13 +26,13 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const logObserveConnectedPlugAppArmor = `
 # Description: Can read system logs and set kernel log rate-limiting
-# Usage: reserved
 
 /var/log/ r,
 /var/log/** r,
 /run/log/journal/ r,
 /run/log/journal/** r,
 /var/lib/systemd/catalog/database r,
+/{,usr/}bin/journalctl ixr,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
 /{,usr/}sbin/sysctl ixr,

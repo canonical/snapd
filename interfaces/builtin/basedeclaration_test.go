@@ -139,6 +139,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":         true,
 		"gsettings":               true,
+		"media-hub":               true,
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
@@ -147,6 +148,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
+		"unity8":                  true,
 		"ubuntu-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
@@ -176,9 +178,10 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":     true,
-		"home":        true,
-		"lxd-support": true,
+		"classic-support": true,
+		"content":         true,
+		"home":            true,
+		"lxd-support":     true,
 	}
 
 	for _, iface := range all {
@@ -343,6 +346,42 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
+	cand := s.connectCand(c, "classic-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-support\"")
+
+	plugsSlots := `
+plugs:
+  classic-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "classic", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionKubernetesSupportOverride(c *C) {
+	cand := s.connectCand(c, "kubernetes-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kubernetes-support\"")
+
+	plugsSlots := `
+plugs:
+  kubernetes-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -394,6 +433,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -406,9 +446,12 @@ var (
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
 		"iio":                     {"core", "gadget"},
+		"kubernetes-support":      {"core"},
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"maliit":                  {"app"},
+		"media-hub":               {"app", "core"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
@@ -417,15 +460,18 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"thumbnailer-service":     {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
+		"unity8":                  {"app"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"ubuntu-download-manager": {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
-		"docker": nil,
-		"lxd":    nil,
+		"classic-support": nil,
+		"docker":          nil,
+		"lxd":             nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -503,10 +549,13 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -545,14 +594,16 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                   true,
-		"content":                 true,
-		"docker":                  true,
-		"fwupd":                   true,
-		"location-control":        true,
-		"location-observe":        true,
-		"lxd":                     true,
-		"mir":                     true,
+		"bluez":            true,
+		"content":          true,
+		"docker":           true,
+		"fwupd":            true,
+		"location-control": true,
+		"location-observe": true,
+		"lxd":              true,
+		"maliit":           true,
+		"mir":              true,
+		"thumbnailer-service":     true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
@@ -620,11 +671,14 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {

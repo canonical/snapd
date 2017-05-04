@@ -1,8 +1,9 @@
 summary: Run the test suite for C code
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 environment:
     EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils udev
 prepare: |
+    # Sanity check, the core snap is installed
+    snap info core | MATCH "installed:"
     # Install build dependencies for the test
     dpkg --get-selections > pkg-list
     apt-get install --yes $EXTRA_PKGS
@@ -16,8 +17,12 @@ execute: |
     # Do an out-of-tree build in the autogarbage directory
     mkdir -p $SPREAD_PATH/cmd/autogarbage
     cd $SPREAD_PATH/cmd/autogarbage
+    EXTRA_CONF=
+    if [ ! -d /sys/kernel/security/apparmor ]; then
+        EXTRA_CONF="--disable-apparmor --disable-seccomp"
+    fi
     $SPREAD_PATH/cmd/configure \
-        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu $EXTRA_CONF
     # Build and run unit tests
     make check
 restore: |
@@ -31,5 +36,3 @@ restore: |
 debug: |
     # Show the test suite failure log if there's one
     cat $SPREAD_PATH/cmd/autogarbage/test-suite.log || true
-    # Show seccomp audit messages
-    tail /var/log/kern.log | grep -F type=1326

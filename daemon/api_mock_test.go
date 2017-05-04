@@ -121,7 +121,5 @@ name: alias-snap
 version: 1
 apps:
  app:
-  aliases: [alias1]
  app2:
-  aliases: [alias2]
 `

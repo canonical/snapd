@@ -27,24 +27,24 @@ import (
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
 #include <abstractions/X>
 #include <abstractions/fonts>
 
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+
+# Allow access to the user specific copy of the xauth file specified
+# in the XAUTHORITY environment variable, that "snap run" creates on
+# startup.
+owner /run/user/[0-9]*/.Xauthority r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
-recvfrom
-recvmsg
-sendmsg
 shutdown
 `
 

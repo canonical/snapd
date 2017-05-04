@@ -28,19 +28,38 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
+
+// grubEditenvCmd finds the right grub{,2}-editenv command
+func grubEditenvCmd() string {
+	for _, exe := range []string{"grub2-editenv", "grub-editenv"} {
+		if osutil.ExecutableExists(exe) {
+			return exe
+		}
+	}
+	return ""
+}
 
 func grubEnvPath() string {
 	return filepath.Join(dirs.GlobalRootDir, "boot/grub/grubenv")
 }
 
 func grubEditenvSet(c *C, key, value string) {
-	_, err := runCommand("/usr/bin/grub-editenv", grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value))
+	if grubEditenvCmd() == "" {
+		c.Skip("grub{,2}-editenv is not available")
+	}
+
+	_, err := runCommand(grubEditenvCmd(), grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value))
 	c.Assert(err, IsNil)
 }
 
 func grubEditenvGet(c *C, key string) string {
-	output, err := runCommand("/usr/bin/grub-editenv", grubEnvPath(), "list")
+	if grubEditenvCmd() == "" {
+		c.Skip("grub{,2}-editenv is not available")
+	}
+
+	output, err := runCommand(grubEditenvCmd(), grubEnvPath(), "list")
 	c.Assert(err, IsNil)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true

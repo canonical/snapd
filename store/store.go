@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -91,6 +91,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Contact = d.Contact
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -113,6 +114,40 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		})
 	}
 	info.Screenshots = screenshots
+	// FIXME: once the store sends "contact" for everything, remove
+	//        the "SupportURL" part of the if
+	if info.Contact == "" {
+		info.Contact = d.SupportURL
+	}
+
+	// fill in the tracks data
+	if len(d.ChannelMapList) > 0 {
+		info.Channels = make(map[string]*snap.ChannelSnapInfo)
+		info.Tracks = make([]string, len(d.ChannelMapList))
+		for i, cm := range d.ChannelMapList {
+			info.Tracks[i] = cm.Track
+			for _, ch := range cm.SnapDetails {
+				// nothing in this channel
+				if ch.Info == "" {
+					continue
+				}
+				var k string
+				if strings.HasPrefix(ch.Channel, cm.Track) {
+					k = ch.Channel
+				} else {
+					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
+				}
+				info.Channels[k] = &snap.ChannelSnapInfo{
+					Revision:    snap.R(ch.Revision),
+					Confinement: snap.ConfinementType(ch.Confinement),
+					Version:     ch.Version,
+					Channel:     ch.Channel,
+					Epoch:       ch.Epoch,
+					Size:        ch.DownloadSize,
+				}
+			}
+		}
+	}
 
 	return info
 }
@@ -195,10 +230,14 @@ func getStructFields(s interface{}) []string {
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	deltasDefault := release.OnClassic
 	// only xdelta3 is supported for now, so check the binary exists here
 	// TODO: have a per-format checker instead
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
+	if _, err := getXdelta3Cmd(); err != nil {
+		return false
+	}
+
+	deltasDefault := release.OnClassic
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
 }
 
 func useStaging() bool {
@@ -432,6 +471,23 @@ func hasStoreAuth(user *auth.UserState) bool {
 	return user != nil && user.StoreMacaroon != ""
 }
 
+// authAvailable returns true if there is a user and/or device session setup
+func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
+	if hasStoreAuth(user) {
+		return true, nil
+	} else {
+		var device *auth.DeviceState
+		var err error
+		if s.authContext != nil {
+			device, err = s.authContext.Device()
+			if err != nil {
+				return false, err
+			}
+		}
+		return device != nil && device.SessionMacaroon != "", nil
+	}
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -487,19 +543,20 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
+	if s.authContext == nil {
+		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
+	}
 	newDischarges, err := refreshDischarges(user)
 	if err != nil {
 		return err
 	}
 
-	if s.authContext != nil {
-		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
-		if err != nil {
-			return err
-		}
-		// update in place
-		*user = *curUser
+	curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+	if err != nil {
+		return err
 	}
+	// update in place
+	*user = *curUser
 
 	return nil
 }
@@ -794,7 +851,7 @@ type order struct {
 }
 
 // decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
-func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
+func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
@@ -856,69 +913,13 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 	return !bought
 }
 
-// fakeChannels is a stopgap method of getting pseudo-channels until
-// the details endpoint provides the real thing for us. The main
-// difference between this pseudo one and the real thing is that a
-// channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
-	snaps := make([]currentSnapJson, 4)
-	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
-		snaps[i] = currentSnapJson{
-			SnapID:  snapID,
-			Channel: channel,
-			// revision, confinement, epoch purposely left empty
-		}
-	}
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  snaps,
-		Fields: channelSnapInfoFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	var results struct {
-		Payload struct {
-			ChannelSnapInfoDetails []*channelSnapInfoDetails `json:"clickindex:package"`
-		} `json:"_embedded"`
-	}
-
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &results, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for channel information")
-	}
-
-	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.ChannelSnapInfoDetails {
-		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
-			Revision:    snap.R(item.Revision),
-			Confinement: snap.ConfinementType(item.Confinement),
-			Version:     item.Version,
-			Channel:     item.Channel,
-			Epoch:       item.Epoch,
-			Size:        item.DownloadSize,
-		}
-	}
-
-	return channelInfos, nil
-}
-
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name     string
-	Channel  string
+	Name    string
+	Channel string
+	// AnyChannel can be set to query for any revision independent of channel
+	AnyChannel bool
+	// Revision can be set to query for an exact revision
 	Revision snap.Revision
 }
 
@@ -931,11 +932,23 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		return nil, err
 	}
 
-	query.Set("channel", snapSpec.Channel)
+	channel := snapSpec.Channel
+	var sel string
+	if channel == "" {
+		channel = "stable" // default
+	}
+	if snapSpec.AnyChannel {
+		channel = ""
+	}
 	if !snapSpec.Revision.Unset() {
 		query.Set("revision", snapSpec.Revision.String())
-		query.Set("channel", "")
+		channel = ""
+		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
 	}
+	if channel != "" {
+		sel = fmt.Sprintf(" in channel %q", channel)
+	}
+	query.Set("channel", channel)
 
 	u.RawQuery = query.Encode()
 
@@ -958,23 +971,13 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
+		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
-	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
-		channels, err := s.fakeChannels(info.SnapID, user)
-		if err != nil {
-			logger.Noticef("cannot get channels: %v", err)
-		} else {
-			info.Channels = channels
-		}
-	}
-
-	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1067,7 +1070,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decorateOrders(snaps, "", user)
+	err = s.decorateOrders(snaps, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1155,9 +1158,14 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
+		channel := cs.Channel
+		if channel == "" {
+			channel = "stable"
+		}
+
 		currentSnaps = append(currentSnaps, currentSnapJson{
 			SnapID:   cs.SnapID,
-			Channel:  cs.Channel,
+			Channel:  channel,
 			Epoch:    cs.Epoch,
 			Revision: revision,
 			// confinement purposely left empty
@@ -1238,7 +1246,7 @@ type HashError struct {
 }
 
 func (e HashError) Error() string {
-	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1279,16 +1287,20 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 	}()
 
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return err
+	}
+
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || authAvail {
 		url = downloadInfo.DownloadURL
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-	// Note that we will retry this way only once.
-	if _, ok := err.(HashError); ok && resume > 0 {
-		logger.Debugf("Error on resumed download: %v", err.Error())
+	// If hashsum is incorrect retry once
+	if _, ok := err.(HashError); ok {
+		logger.Debugf("Hashsum error on download: %v", err.Error())
 		err = w.Truncate(0)
 		if err != nil {
 			return err
@@ -1372,7 +1384,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusUnauthorized:
-			return fmt.Errorf("cannot download non-free snap without purchase")
+
+			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
 			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
@@ -1423,12 +1436,27 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return err
+	}
+
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || authAvail {
 		url = deltaInfo.DownloadURL
 	}
 
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+}
+
+func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
+	switch {
+	case osutil.ExecutableExists("xdelta3"):
+		return exec.Command("xdelta3", args...), nil
+	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
+		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+	}
+	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1447,7 +1475,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	partialTargetPath := targetPath + ".partial"
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd := exec.Command("xdelta3", xdelta3Args...)
+	cmd, err := getXdelta3Cmd(xdelta3Args...)
+	if err != nil {
+		return err
+	}
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {

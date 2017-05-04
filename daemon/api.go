@@ -85,6 +85,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	debugCmd,
 }
 
 var (
@@ -175,6 +176,11 @@ var (
 		GET:    getChanges,
 	}
 
+	debugCmd = &Command{
+		Path: "/v2/debug",
+		POST: postDebug,
+	}
+
 	createUserCmd = &Command{
 		Path:   "/v2/create-user",
 		UserOK: false,
@@ -233,11 +239,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	m := map[string]interface{}{
-		"series":     release.Series,
-		"version":    c.d.Version,
-		"os-release": release.ReleaseInfo,
-		"on-classic": release.OnClassic,
-		"managed":    len(users) > 0,
+		"series":         release.Series,
+		"version":        c.d.Version,
+		"os-release":     release.ReleaseInfo,
+		"on-classic":     release.OnClassic,
+		"managed":        len(users) > 0,
+		"kernel-version": release.KernelVersion(),
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
 	}
 
 	// TODO: set the store-id here from the model information
@@ -564,9 +575,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  "",
-		Revision: snap.R(0),
+		Name:       name,
+		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
@@ -662,8 +672,9 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	query := r.URL.Query()
 	var all bool
-	sel := r.URL.Query().Get("select")
+	sel := query.Get("select")
 	switch sel {
 	case "all":
 		all = true
@@ -672,7 +683,19 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
+	var wanted map[string]bool
+	if ns := query.Get("snaps"); len(ns) > 0 {
+		nsl := strings.Split(ns, ",")
+		wanted = make(map[string]bool, len(nsl))
+		for _, name := range nsl {
+			name = strings.TrimSpace(name)
+			if len(name) > 0 {
+				wanted[name] = true
+			}
+		}
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
@@ -826,7 +849,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	// confinement.
 	flags.JailMode = jailMode
 	flags.Classic = classic
-	flags.DevMode = devMode || devModeOS && !classic
+	flags.DevMode = devMode
 	return flags, nil
 }
 
@@ -1037,9 +1060,10 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsMode:
-		result.Kind = errorKindSnapNeedsMode
-		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsDevMode:
+		result.Kind = errorKindSnapNeedsDevMode
+	case *snapstate.ErrSnapNeedsClassic:
+		result.Kind = errorKindSnapNeedsClassic
 	case *snapstate.ErrSnapNeedsClassicSystem:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
@@ -1256,7 +1280,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	flags.RemoveSnapPath = true
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1264,6 +1287,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
+	flags.RemoveSnapPath = true
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -1469,7 +1493,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	taskset := configstate.Configure(st, snapName, patchValues)
+	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2115,6 +2139,30 @@ func convertBuyError(err error) Response {
 	}
 }
 
+type debugAction struct {
+	Action string `json:"action"`
+}
+
+func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
+	var a debugAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into a debug action: %v", err)
+	}
+
+	switch a.Action {
+	case "ensure-state-soon":
+		st := c.d.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+		ensureStateSoon(st)
+	default:
+		return BadRequest("unknown debug action: %v", a.Action)
+	}
+
+	return SyncResponse(true, nil)
+}
+
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts store.BuyOptions
 
@@ -2182,7 +2230,7 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
 	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
+		return BadRequest("cannot get users as non-root")
 	}
 
 	st := c.d.overlord.State()
@@ -2206,8 +2254,11 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 
 // aliasAction is an action performed on aliases
 type aliasAction struct {
-	Action  string   `json:"action"`
-	Snap    string   `json:"snap"`
+	Action string `json:"action"`
+	Snap   string `json:"snap"`
+	App    string `json:"app"`
+	Alias  string `json:"alias"`
+	// old now unsupported api
 	Aliases []string `json:"aliases"`
 }
 
@@ -2217,47 +2268,77 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&a); err != nil {
 		return BadRequest("cannot decode request body into an alias action: %v", err)
 	}
-	if len(a.Aliases) == 0 {
-		return BadRequest("at least one alias name is required")
+	if len(a.Aliases) != 0 {
+		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
 
-	var summary string
 	var taskset *state.TaskSet
 	var err error
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	switch a.Action {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
 	case "unalias":
-		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
-	case "reset":
-		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
+		if a.Alias == a.Snap {
+			// Do What I mean:
+			// check if a snap is referred/intended
+			// or just an alias
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, a.Snap, &snapst)
+			if err != nil && err != state.ErrNoState {
+				return InternalError("%v", err)
+			}
+			if err == state.ErrNoState { // not a snap
+				a.Snap = ""
+			}
+		}
+		if a.Snap != "" {
+			a.Alias = ""
+			taskset, err = snapstate.DisableAllAliases(st, a.Snap)
+		} else {
+			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
+		}
+	case "prefer":
+		taskset, err = snapstate.Prefer(st, a.Snap)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
 	}
 
-	change := state.NewChange(a.Action, summary)
+	var summary string
+	switch a.Action {
+	case "alias":
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
+	case "unalias":
+		if a.Alias != "" {
+			summary = fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), a.Alias, a.Snap)
+		} else {
+			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
+		}
+	case "prefer":
+		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
+	}
+
+	change := st.NewChange(a.Action, summary)
 	change.Set("snap-names", []string{a.Snap})
 	change.AddAll(taskset)
 
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
 type aliasStatus struct {
-	App    string `json:"app,omitempty"`
-	Status string `json:"status,omitempty"`
+	Command string `json:"command"`
+	Status  string `json:"status"`
+	Manual  string `json:"manual,omitempty"`
+	Auto    string `json:"auto,omitempty"`
 }
 
 // getAliases produces a response with a map snap -> alias -> aliasStatus
@@ -2273,37 +2354,31 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	allAliases, err := snapstate.Aliases(state)
-	if err != nil {
-		return InternalError("cannot list aliases: %v", err)
-	}
-
 	for snapName, snapst := range allStates {
-		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
 		}
-		if len(info.Aliases) != 0 {
+		if len(snapst.Aliases) != 0 {
 			snapAliases := make(map[string]aliasStatus)
 			res[snapName] = snapAliases
-			for alias, aliasApp := range info.Aliases {
-				snapAliases[alias] = aliasStatus{
-					App: filepath.Base(aliasApp.WrapperPath()),
+			autoDisabled := snapst.AutoAliasesDisabled
+			for alias, aliasTarget := range snapst.Aliases {
+				aliasStatus := aliasStatus{
+					Manual: aliasTarget.Manual,
+					Auto:   aliasTarget.Auto,
 				}
+				status := "auto"
+				tgt := aliasTarget.Effective(autoDisabled)
+				if tgt == "" {
+					status = "disabled"
+					tgt = aliasTarget.Auto
+				} else if aliasTarget.Manual != "" {
+					status = "manual"
+				}
+				aliasStatus.Status = status
+				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
+				snapAliases[alias] = aliasStatus
 			}
-		}
-	}
-
-	for snapName, aliasStatuses := range allAliases {
-		snapAliases := res[snapName]
-		if snapAliases == nil {
-			snapAliases = make(map[string]aliasStatus)
-			res[snapName] = snapAliases
-		}
-		for alias, status := range aliasStatuses {
-			entry := snapAliases[alias]
-			entry.Status = status
-			snapAliases[alias] = entry
 		}
 	}
 

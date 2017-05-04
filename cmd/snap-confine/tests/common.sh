@@ -7,6 +7,9 @@ get_common_syscalls() {
 open
 close
 
+# for writing to stderr
+write
+
 mmap
 mmap2
 munmap
@@ -35,22 +38,43 @@ setuid
 setuid32
 
 set_thread_area
+
+# for mknod
+chmod
+futex
+getrlimit
+ugetrlimit
+rt_sigaction
+rt_sigprocmask
+set_robust_list
+set_tid_address
+statfs
+statfs64
+umask
+uname
 EOF
 }
 
-L="$(pwd)/snap-confine/snap-confine"
-export L
-
 TMP="$(mktemp -d)"
-trap 'rm -rf $TMP' EXIT
+SHM="$(mktemp -d -p /run/shm)"
+trap 'rm -rf $TMP $SHM' EXIT
+
+# name snap-confine as the test name for improved logging
+L="$TMP/$(basename "$0")"
+cp "$(pwd)/snap-confine/snap-confine" "$L"
+export L
 
 export SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR="$TMP"
 export SNAPPY_LAUNCHER_INSIDE_TESTS="1"
 export SNAP_CONFINE_NO_ROOT=1
-export SNAP_NAME=name.app
+export SNAP_NAME=name
 
 FAIL() {
     printf ": FAIL\n"
+    printf "Seccomp:\n"
+    dmesg --ctime | tail -10 | grep type=1326
+    printf "Time: "
+    date
     exit 1
 }
 

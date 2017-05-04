@@ -42,24 +42,107 @@ var mockChangeJSON = `{"type": "sync", "result": {
 func (s *SnapSuite) TestChangeSimple(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
+		if n < 2 {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
 			fmt.Fprintln(w, mockChangeJSON)
-		default:
+		} else {
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
+	expectedChange := `(?ms)Status +Spawn +Ready +Summary
+Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
+`
 	rest, err := snap.Parser().ParseArgs([]string{"change", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?ms)Status +Spawn +Ready +Summary
-Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
-`)
+	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
+
+	rest, err = snap.Parser().ParseArgs([]string{"tasks", "42"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, expectedChange)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+var mockChangesJSON = `{"type": "sync", "result": [
+  {
+    "id":   "four",
+    "kind": "install-snap",
+    "summary": "...",
+    "status": "Do",
+    "ready": false,
+    "spawn-time": "2015-02-21T01:02:03Z",
+    "ready-time": "2015-02-21T01:02:04Z",
+    "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2015-02-21T01:02:03Z", "ready-time": "2015-02-21T01:02:04Z"}]
+  },
+  {
+    "id":   "one",
+    "kind": "remove-snap",
+    "summary": "...",
+    "status": "Do",
+    "ready": false,
+    "spawn-time": "2016-03-21T01:02:03Z",
+    "ready-time": "2016-03-21T01:02:04Z",
+    "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-03-21T01:02:03Z", "ready-time": "2016-03-21T01:02:04Z"}]
+  },
+  {
+    "id":   "two",
+    "kind": "install-snap",
+    "summary": "...",
+    "status": "Do",
+    "ready": false,
+    "spawn-time": "2016-04-21T01:02:03Z",
+    "ready-time": "2016-04-21T01:02:04Z",
+    "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
+  },
+  {
+    "id":   "three",
+    "kind": "install-snap",
+    "summary": "...",
+    "status": "Do",
+    "ready": false,
+    "spawn-time": "2016-01-21T01:02:03Z",
+    "ready-time": "2016-01-21T01:02:04Z",
+    "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-01-21T01:02:03Z", "ready-time": "2016-01-21T01:02:04Z"}]
+  }
+]}`
+
+func (s *SnapSuite) TestTasksLast(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		if r.URL.Path == "/v2/changes" {
+			fmt.Fprintln(w, mockChangesJSON)
+			return
+		}
+		c.Assert(r.URL.Path, check.Equals, "/v2/changes/two")
+		fmt.Fprintln(w, mockChangeJSON)
+	})
+	expectedChange := `(?ms)Status +Spawn +Ready +Summary
+Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
+`
+	rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=install"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, expectedChange)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
+}
+
+func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"tasks", "--last=install", "42"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, `cannot use change ID and type together`)
+
+	_, err = snap.Parser().ParseArgs([]string{"tasks"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, `please provide change ID or type with --last=<type>`)
 }
 
 var mockChangeInProgressJSON = `{"type": "sync", "result": {

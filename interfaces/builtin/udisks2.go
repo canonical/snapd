@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,18 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const udisks2PermanentSlotAppArmor = `
-# Description: Allow operating as the udisks2. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the udisks2. This gives privileged access to
+# the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -88,12 +91,14 @@ umount /{,run/}media/**,
 # give raw read access to the system disks and therefore the entire system.
 /dev/sd* r,
 /dev/mmcblk* r,
+
+# Needed for probing raw devices
+capability sys_rawio,
 `
 
-var udisks2ConnectedSlotAppArmor = []byte(`
-# Allow connected clients to interact with the service. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+const udisks2ConnectedSlotAppArmor = `
+# Allow connected clients to interact with the service. This gives privileged
+# access to the system.
 
 dbus (send)
     bus=system
@@ -114,20 +119,18 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var udisks2ConnectedPlugAppArmor = []byte(`
-# Description: Allow using udisks service. Reserved because this gives
-# privileged access to the service.
-# Usage: reserved
+const udisks2ConnectedPlugAppArmor = `
+# Description: Allow using udisks service. This gives privileged access to the
+# service.
 
 #include <abstractions/dbus-strict>
 
-dbus (receive)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive, send)
@@ -142,7 +145,15 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
 
 const udisks2PermanentSlotSecComp = `
 bind
@@ -153,24 +164,11 @@ fchownat
 lchown
 lchown32
 mount
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 shmctl
 umount
 umount2
-`
-
-const udisks2ConnectedPlugSecComp = `
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `
@@ -350,48 +348,45 @@ func (iface *UDisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *UDisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2ConnectedPlugDBus)
+	return nil
 }
 
-func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecurityDBus:
-		return []byte(udisks2ConnectedPlugDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2ConnectedPlugSecComp), nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotDBus)
+	return nil
 }
 
-func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(udisks2PermanentSlotAppArmor), nil
-	case interfaces.SecurityDBus:
-		return []byte(udisks2PermanentSlotDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2PermanentSlotSecComp), nil
-	case interfaces.SecurityUDev:
-		return []byte(udisks2PermanentSlotUDev), nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *UDisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotUDev)
+	return nil
+}
+
+func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotSecComp)
+	return nil
 }
 
 func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {

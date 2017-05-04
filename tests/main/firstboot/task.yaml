@@ -1,5 +1,5 @@
 summary: Check that firstboot assertions are imported and snaps installed
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |

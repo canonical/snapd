@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
@@ -57,7 +58,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizeSlotNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
@@ -69,7 +70,8 @@ slots:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, `content slot must have a content attribute set`)
+	c.Assert(err, IsNil)
+	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
@@ -133,7 +135,7 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizePlugNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 plugs:
@@ -144,7 +146,8 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
 	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, `content plug must have a content attribute set`)
+	c.Assert(err, IsNil)
+	c.Assert(plug.Attrs["content"], Equals, plug.Name)
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleNoTarget(c *C) {
@@ -174,6 +177,20 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
 	err := s.iface.SanitizePlug(plug)
 	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
+}
+
+func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+apps:
+  foo:
+    command: foo
+    plugs: [content]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["content"]}
+	err := s.iface.SanitizePlug(plug)
+	c.Assert(err, ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
@@ -207,10 +224,12 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/snap/producer/5/export",
+		Dir:     "/snap/consumer/7/import",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 }
 
 // Check that sharing of read-only snap content is possible
@@ -219,6 +238,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
 plugs:
  content:
   target: $SNAP/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -233,20 +255,24 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/snap/producer/5/export",
+		Dir:     "/snap/consumer/7/import",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 /snap/producer/5/export/** mrkix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 
 // Check that sharing of writable data is possible
@@ -255,6 +281,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
 plugs:
  content:
   target: $SNAP_DATA/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -269,13 +298,17 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/var/snap/producer/5/export",
+		Dir:     "/var/snap/consumer/7/import",
+		Options: []string{"bind"},
+	}}
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
@@ -284,7 +317,7 @@ slots:
 # directory.
 /var/snap/producer/5/export/** mrwklix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 
 // Check that sharing of writable common data is possible
@@ -293,6 +326,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
 plugs:
  content:
   target: $SNAP_COMMON/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -307,13 +343,17 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/var/snap/producer/common/export",
+		Dir:     "/var/snap/consumer/common/import",
+		Options: []string{"bind"},
+	}}
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
@@ -322,5 +362,5 @@ slots:
 # directory.
 /var/snap/producer/common/export/** mrwklix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }

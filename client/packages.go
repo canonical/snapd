@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/snap"
@@ -52,17 +53,21 @@ type Snap struct {
 	TryMode         bool          `json:"trymode"`
 	Apps            []AppInfo     `json:"apps"`
 	Broken          string        `json:"broken"`
+	Contact         string        `json:"contact"`
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
 
+	// The flattended channel map with $track/$risk
 	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
+
+	// The ordered list of tracks that contains channels
+	Tracks []string
 }
 
 type AppInfo struct {
-	Name    string   `json:"name"`
-	Daemon  string   `json:"daemon"`
-	Aliases []string `json:"aliases"`
+	Name   string `json:"name"`
+	Daemon string `json:"daemon"`
 }
 
 type Screenshot struct {
@@ -122,6 +127,9 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 	if opts.All {
 		q.Add("select", "all")
 	}
+	if len(names) > 0 {
+		q.Add("snaps", strings.Join(names, ","))
+	}
 
 	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
 	if err != nil {
@@ -132,23 +140,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 		return nil, ErrNoSnapsInstalled
 	}
 
-	if len(names) == 0 {
-		return snaps, nil
-	}
-
-	wanted := make(map[string]bool, len(names))
-	for _, name := range names {
-		wanted[name] = true
-	}
-
-	var result []*Snap
-	for _, snap := range snaps {
-		if wanted[snap.Name] {
-			result = append(result, snap)
-		}
-	}
-
-	return result, nil
+	return snaps, nil
 }
 
 // Sections returns the list of existing snap sections in the store

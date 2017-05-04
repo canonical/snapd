@@ -1,0 +1,11 @@
+[Unit]
+Description=Snappy daemon
+Requires=snapd.socket
+
+[Service]
+ExecStart=@libexecdir@/snapd/snapd
+EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

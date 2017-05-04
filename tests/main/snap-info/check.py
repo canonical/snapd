@@ -18,6 +18,8 @@ def matches(name, s, r):
 def check(name, d, *a):
     ka = set()
     for k, op, *args in a:
+        if op == maybe:
+            d[k] = d.get(k,"")
         if k not in d:
             die("in %s expected to have a key %r" % (name, k))
         op(name+"."+k, d[k], *args)
@@ -29,13 +31,17 @@ def check(name, d, *a):
 def exists(name, d):
     pass
 
+def maybe(name, d):
+    pass
+
+
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
     return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
 
 res = list(yaml.load_all(sys.stdin))
 
-equals("number of entries", len(res), 6)
+equals("number of entries", len(res), 7)
 
 check("basic", res[0],
    ("name", equals, "basic"),
@@ -54,6 +60,7 @@ check("basic-desktop", res[1],
 check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
    ("publisher", equals, "canonical"),
+   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
    ("commands", exists),
@@ -61,24 +68,23 @@ check("test-snapd-tools", res[2],
    ("installed", matches, verRevNotesRx("-")),
    ("refreshed", exists),
    ("channels", check,
-    ("stable", matches, verRevNotesRx("-")),
-    ("candidate", matches, verRevNotesRx("-")),
-    ("beta", matches, verRevNotesRx("-")),
-    ("edge", matches, verRevNotesRx("-")),
+    ("latest/stable", matches, verRevNotesRx("-")),
+    ("latest/edge", matches, verRevNotesRx("-")),
    ),
 )
 
 check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
    ("publisher", equals, "canonical"),
+   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", equals, "Basic snap with devmode confinement"),
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
    ("refreshed", exists),
    ("channels", check,
-    ("beta", matches, verRevNotesRx("devmode")),
-    ("edge", matches, verRevNotesRx("devmode")),
+    ("latest/beta", matches, verRevNotesRx("devmode")),
+    ("latest/edge", matches, verRevNotesRx("devmode")),
    ),
 )
 
@@ -92,9 +98,22 @@ check("core", res[4],
       ("installed", exists),
       ("refreshed", exists),
       ("channels", exists),
+      # contacts is set on classic but not on Ubuntu Core where we
+      # sideload "core"
+      ("contact", maybe),
 )
 
 check("error", res[5],
    ("argument", equals, "/etc/passwd"),
    ("warning", equals, "not a valid snap"),
+)
+
+# not installed snaps have "contact" information
+check("test-snapd-python-webserver", res[6],
+   ("name", equals, "test-snapd-python-webserver"),
+   ("publisher", equals, "canonical"),
+   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("summary", exists),
+   ("description", exists),
+   ("channels", exists),
 )

@@ -1,5 +1,9 @@
 summary: Ensure that the snapd-control interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The snapd-control interface allows a snap to access the locale configuration.
 
@@ -22,8 +26,6 @@ restore: |
     rm -f snapd.error
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN=":snapd-control +test-snapd-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-control-consumer:snapd-control"
 
@@ -33,7 +35,7 @@ execute: |
     echo "================================================"
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-control-consumer:snapd-control ${core_name}:snapd-control
+    snap disconnect test-snapd-control-consumer:snapd-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to control snapd"
@@ -46,7 +48,7 @@ execute: |
     echo "================================================"
 
     echo "When the plug is connected"
-    snap connect test-snapd-control-consumer:snapd-control ${core_name}:snapd-control
+    snap connect test-snapd-control-consumer:snapd-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to control snapd"

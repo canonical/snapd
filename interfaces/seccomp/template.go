@@ -85,6 +85,8 @@ close
 # needed by ls -l
 connect
 
+chroot
+
 creat
 dup
 dup2
@@ -163,10 +165,7 @@ inotify_rm_watch
 
 # TIOCSTI allows for faking input (man tty_ioctl)
 # TODO: this should be scaled back even more
-#ioctl - !TIOCSTI
-# FIXME: replace this with the filter of TIOCSTI once snap-confine can read this syntax
-# See LP:#1662489 for context.
-ioctl
+ioctl - !TIOCSTI
 
 io_cancel
 io_destroy
@@ -209,6 +208,16 @@ mlock2
 mlockall
 mmap
 mmap2
+
+# Allow mknod for regular files, pipes and sockets (and not block or char
+# devices)
+mknod - |S_IFREG -
+mknodat - - |S_IFREG -
+mknod - |S_IFIFO -
+mknodat - - |S_IFIFO -
+mknod - |S_IFSOCK -
+mknodat - - |S_IFSOCK -
+
 modify_ldt
 mprotect
 
@@ -268,6 +277,13 @@ readahead
 readdir
 readlink
 readlinkat
+
+# allow reading from sockets
+recv
+recvfrom
+recvmsg
+recvmmsg
+
 remap_file_pages
 
 removexattr
@@ -324,6 +340,13 @@ semctl
 semget
 semop
 semtimedop
+
+# allow sending to sockets
+send
+sendto
+sendmsg
+sendmmsg
+
 sendfile
 sendfile64
 
@@ -386,8 +409,50 @@ sigwaitinfo
 
 # AppArmor mediates AF_UNIX/AF_LOCAL via 'unix' rules and all other AF_*
 # domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
-# we can allow 'socket' for any domain and let AppArmor handle the rest.
-socket
+# we can allow 'socket' for all domains except AF_NETLINK and let AppArmor
+# handle the rest.
+socket AF_UNIX
+socket AF_LOCAL
+socket AF_INET
+socket AF_INET6
+socket AF_IPX
+socket AF_X25
+socket AF_AX25
+socket AF_ATMPVC
+socket AF_APPLETALK
+socket AF_PACKET
+socket AF_ALG
+socket AF_CAN
+socket AF_BRIDGE
+socket AF_NETROM
+socket AF_ROSE
+socket AF_NETBEUI
+socket AF_SECURITY
+socket AF_KEY
+socket AF_ASH
+socket AF_ECONET
+socket AF_SNA
+socket AF_IRDA
+socket AF_PPPOX
+socket AF_WANPIPE
+socket AF_BLUETOOTH
+socket AF_RDS
+socket AF_LLC
+socket AF_TIPC
+socket AF_IUCV
+socket AF_RXRPC
+socket AF_ISDN
+socket AF_PHONET
+socket AF_IEEE802154
+socket AF_CAIF
+socket AF_NFC
+socket AF_VSOCK
+socket AF_MPLS
+socket AF_IB
+
+# For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
+# seccomp arg filtering of netlink families.
+# socket AF_NETLINK - -
 
 # needed by snapctl
 getsockopt

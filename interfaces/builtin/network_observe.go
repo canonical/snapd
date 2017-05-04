@@ -28,7 +28,6 @@ const networkObserveConnectedPlugAppArmor = `
 # Description: Can query network status information. This is restricted because
 # it gives privileged read-only access to networking information and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # network-monitor can't allow this otherwise we are basically
 # network-management, but don't explicitly deny since someone might try to use
@@ -65,6 +64,7 @@ const networkObserveConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 
@@ -85,6 +85,9 @@ network inet6 raw,
 
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # network devices
 /sys/devices/**/net/** r,
@@ -95,10 +98,21 @@ const networkObserveConnectedPlugSecComp = `
 # Description: Can query network status information. This is restricted because
 # it gives privileged read-only access to networking information and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # for ping and ping6
 capset
+
+# for using socket(AF_NETLINK, ...)
+bind
+
+# for ss
+socket AF_NETLINK - NETLINK_INET_DIAG
+
+# arp
+socket AF_NETLINK - NETLINK_ROUTE
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkObserveInterface returns a new "network-observe" interface.

@@ -99,13 +99,20 @@ func checkVersion(version string) bool {
 	return true
 }
 
-type ErrSnapNeedsMode struct {
-	Mode snap.ConfinementType
+type ErrSnapNeedsDevMode struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsMode) Error() string {
-	return fmt.Sprintf("snap %q requires %s or confinement override", e.Snap, e.Mode)
+func (e *ErrSnapNeedsDevMode) Error() string {
+	return fmt.Sprintf("snap %q requires devmode or confinement override", e.Snap)
+}
+
+type ErrSnapNeedsClassic struct {
+	Snap string
+}
+
+func (e *ErrSnapNeedsClassic) Error() string {
+	return fmt.Sprintf("snap %q requires classic confinement", e.Snap)
 }
 
 type ErrSnapNeedsClassicSystem struct {
@@ -128,8 +135,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		if flags.DevModeAllowed() {
 			return nil
 		}
-		return &ErrSnapNeedsMode{
-			Mode: c,
+		return &ErrSnapNeedsDevMode{
 			Snap: info.Name(),
 		}
 	case snap.ClassicConfinement:
@@ -145,8 +151,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 
-		return &ErrSnapNeedsMode{
-			Mode: c,
+		return &ErrSnapNeedsClassic{
 			Snap: info.Name(),
 		}
 	default:
@@ -272,14 +277,9 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 		return nil
 	}
 
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a %s snap on classic", kind)
-	}
-
 	currentSnap, err := currentInfo(st)
 	// in firstboot we have no gadget/kernel yet - that is ok
-	// devicestate considers that case
+	// first install rules are in devicestate!
 	if err == state.ErrNoState {
 		return nil
 	}

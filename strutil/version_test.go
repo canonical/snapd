@@ -56,6 +56,46 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		// do we like strange versions? Yes we like strange versions…
 		{"0", "0", 0, nil},
 		{"0", "00", 0, nil},
+		{"", "", 0, nil},
+		{"", "0", -1, nil},
+		{"0", "", 1, nil},
+		{"", "~", 1, nil},
+		{"~", "", -1, nil},
+		// from the apt suite
+		{"0-pre", "0-pre", 0, nil},
+		{"0-pre", "0-pree", -1, nil},
+		{"1.1.6r2-2", "1.1.6r-1", 1, nil},
+		{"2.6b2-1", "2.6b-2", 1, nil},
+		{"0.4a6-2", "0.4-1", 1, nil},
+		{"3.0~rc1-1", "3.0-1", -1, nil},
+		{"1.0", "1.0-0", 0, nil},
+		{"0.2", "1.0-0", -1, nil},
+		{"1.0", "1.0-0+b1", -1, nil},
+		{"1.0", "1.0-0~", 1, nil},
+		// from the old perl cupt
+		{"1.2.3", "1.2.3", 0, nil},                   // identical
+		{"4.4.3-2", "4.4.3-2", 0, nil},               // identical
+		{"1.2.3", "1.2.3-0", 0, nil},                 // zero revision
+		{"009", "9", 0, nil},                         // zeroes…
+		{"009ab5", "9ab5", 0, nil},                   // there as well
+		{"1.2.3", "1.2.3-1", -1, nil},                // added non-zero revision
+		{"1.2.3", "1.2.4", -1, nil},                  // just bigger
+		{"1.2.4", "1.2.3", 1, nil},                   // order doesn't matter
+		{"1.2.24", "1.2.3", 1, nil},                  // bigger, eh?
+		{"0.10.0", "0.8.7", 1, nil},                  // bigger, eh?
+		{"3.2", "2.3", 1, nil},                       // major number rocks
+		{"1.3.2a", "1.3.2", 1, nil},                  // letters rock
+		{"0.5.0~git", "0.5.0~git2", -1, nil},         // numbers rock
+		{"2a", "21", -1, nil},                        // but not in all places
+		{"1.2a+~bCd3", "1.2a++", -1, nil},            // tilde doesn't rock
+		{"1.2a+~bCd3", "1.2a+~", 1, nil},             // but first is longer!
+		{"5.10.0", "5.005", 1, nil},                  // preceding zeroes don't matters
+		{"3a9.8", "3.10.2", -1, nil},                 // letters are before all letter symbols
+		{"3a9.8", "3~10", 1, nil},                    // but after the tilde
+		{"1.4+OOo3.0.0~", "1.4+OOo3.0.0-4", -1, nil}, // another tilde check
+		{"2.4.7-1", "2.4.7-z", -1, nil},              // revision comparing
+		{"1.002-1+b2", "1.00", 1, nil},               // whatever...
+
 		// broken
 		{"0--0", "0", 0, fmt.Errorf(`invalid version "0--0"`)},
 	} {
@@ -63,7 +103,8 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		if t.err != nil {
 			c.Check(err, DeepEquals, t.err)
 		} else {
-			c.Check(res, Equals, t.res, Commentf("%s %s: %v but got %v", t.A, t.B, res, t.res))
+			c.Check(err, IsNil)
+			c.Check(res, Equals, t.res, Commentf("%#v %#v: %v but got %v", t.A, t.B, res, t.res))
 		}
 	}
 }

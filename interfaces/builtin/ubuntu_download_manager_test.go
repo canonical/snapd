@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type UbuntuDownloadManagerInterfaceSuite struct {
@@ -33,23 +36,27 @@ type UbuntuDownloadManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{
-	iface: &builtin.UbuntuDownloadManagerInterface{},
-	slot: &interfaces.Slot{
+var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{})
+
+func (s *UbuntuDownloadManagerInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [ubuntu-download-manager]
+`
+	s.iface = &builtin.UbuntuDownloadManagerInterface{}
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["ubuntu-download-manager"]}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "ubuntu-download-manager",
 			Interface: "ubuntu-download-manager",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "ubuntu-download-manager",
-			Interface: "ubuntu-download-manager",
-		},
-	},
-})
+	}
+}
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "ubuntu-download-manager")
@@ -80,11 +87,9 @@ func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizeIncorrectInterface(c *
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/com/canonical/applications/download/**")
 }

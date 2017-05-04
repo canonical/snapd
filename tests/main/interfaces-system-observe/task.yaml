@@ -1,5 +1,9 @@
 summary: Ensures that the system-observe interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -17,7 +21,6 @@ restore: |
     rm -f system-observe-consumer_1.0_all.snap
 
 execute: |
-    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN=":system-observe +system-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +system-observe-consumer:system-observe"
 
@@ -27,7 +30,7 @@ execute: |
     echo "==========================================="
 
     echo "When the plug is connected"
-    snap connect system-observe-consumer:system-observe ${core_name}:system-observe
+    snap connect system-observe-consumer:system-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to get system information"
@@ -37,7 +40,7 @@ execute: |
     echo "==========================================="
 
     echo "When the plug is disconnected"
-    snap disconnect system-observe-consumer:system-observe ${core_name}:system-observe
+    snap disconnect system-observe-consumer:system-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to get system information"

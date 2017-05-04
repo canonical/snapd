@@ -2,6 +2,7 @@
 
 set -e
 
+# shellcheck source=snap-confine/tests/common.sh
 . "${srcdir:-.}/snap-confine/tests/common.sh"
 
 cat >"$TMP/snap.name.app" <<EOF
@@ -16,10 +17,5 @@ if "$L" snap.name.app /bin/true 2>/dev/null; then
     # true returned successfully, our filtering is broken!
     FAIL
 else
-    # true returned a error code, check dmesg
-    if dmesg|tail -n1|grep -q "audit"; then
-        PASS
-    else
-        FAIL
-    fi
+    PASS
 fi
