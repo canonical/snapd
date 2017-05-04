@@ -11,15 +11,14 @@ details: |
     A snap declaring the shutdown plug is defined, its command just calls
     the Introspect method on org.freedesktop.login1.
 
-prepare: |
-    echo "Given a snap declaring a plug on the shutdown interface is installed"
-    snapbuild $TESTSLIB/snaps/shutdown-introspection-consumer .
-    snap install --dangerous shutdown-introspection-consumer_1.0_all.snap
-
 restore: |
     rm -f shutdown-introspection-consumer_1.0_all.snap
 
 execute: |
+    echo "Given a snap declaring a plug on the shutdown interface is installed"
+    . $TESTSLIB/snaps.sh
+    install_local shutdown-introspection-consumer
+
     CONNECTED_PATTERN=":shutdown +shutdown-introspection-consumer"
     DISCONNECTED_PATTERN="\- +shutdown-introspection-consumer:shutdown"
 
