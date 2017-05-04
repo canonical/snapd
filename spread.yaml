@@ -88,6 +88,9 @@ backends:
             - ubuntu-17.10-64:
                 username: ubuntu
                 password: ubuntu
+            - debian-9-64:
+                username: debian
+                password: debian
     autopkgtest:
         type: adhoc
         allocate: |
