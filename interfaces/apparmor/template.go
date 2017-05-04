@@ -406,8 +406,10 @@ var defaultTemplate = `
 // encryptedHomeTrySnippet contains apparmor snippet that allows for "snap try"
 // operations to work even if the home directory is encrypted.
 var encryptedHomeTrySnippet = `
-  # Workaround https://launchpad.net/bugs/359338 until upstream handles
-  # stacked filesystems generally.
+  # Workaround policy added by 'snap try' to support ecryptfs and
+  # /var/lib/snapd/snaps/<name>_xN.snap pointing inside user's directory
+  capability dac_override,
+  capability dac_read_search,
   # encrypted ~/.Private and old-style encrypted $HOME
   @{HOME}/.Private/ r,
   @{HOME}/.Private/** mrixwlk,
