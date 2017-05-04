@@ -486,3 +486,22 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	})
 
 }
+
+func (s *backendSuite) TestAnyEncryptedDirectory(c *C) {
+	// Mock the location of /proc/self/mountinfo for testing.
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	restorer := apparmor.MockProcSelfMountInfo(fname)
+	defer restorer()
+
+	// Without the file created we just swallow the error and say nothing is encrypted.
+	c.Assert(apparmor.AnyEncryptedDirectory(), Equals, false)
+
+	// With empty mountinfo we say nothing is encrypted.
+	c.Assert(ioutil.WriteFile(fname, nil, 0644), IsNil)
+	c.Assert(apparmor.AnyEncryptedDirectory(), Equals, false)
+
+	// Whenever we see ecryptfs filesystem we know something is encrypted.
+	err := ioutil.WriteFile(fname, []byte(`668 25 0:52 /test-encrypted /snap/test-encrypted/x1 rw,nosuid,nodev,relatime shared:177 - ecryptfs /home/foo/.Private rw,ecryptfs_fnek_sig=987ee2ca60efd36f,ecryptfs_sig=0a250b04159c25f9,ecryptfs_cipher=aes,ecryptfs_key_bytes=16,ecryptfs_unlink_sigs`), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(apparmor.AnyEncryptedDirectory(), Equals, true)
+}

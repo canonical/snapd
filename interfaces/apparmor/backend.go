@@ -49,6 +49,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -254,6 +255,27 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		Content: []byte(policy),
 		Mode:    0644,
 	}
+}
+
+// procSelfMountInfo is exposed as a variable for testing anyEncryptedDirectory.
+var procSelfMountInfo = mount.ProcSelfMountInfo
+
+// anyEncryptedDirectory returns true ecryptfs is mounted anywhere.
+// TODO: Make this look for the place where the snap is mounted from, once that
+// information becomes available.
+func anyEncryptedDirectory() bool {
+	entries, err := mount.LoadMountInfo(procSelfMountInfo)
+	if err != nil {
+		logger.Noticef("cannot check if any directories are encrypted: %s", err)
+		return false
+	}
+	for _, mie := range entries {
+		// TODO: detect Ubuntu 14.04-style encrypted home directories.
+		if mie.FsType == "ecryptfs" {
+			return true
+		}
+	}
+	return false
 }
 
 func reloadProfiles(profiles []string) error {
