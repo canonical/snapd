@@ -163,8 +163,9 @@ const fwupdPermanentSlotSecComp = `
 # access to the system.
 # Can communicate with DBus system service
 bind
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
-
 const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.

@@ -64,6 +64,7 @@ const networkObserveConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 
@@ -100,6 +101,18 @@ const networkObserveConnectedPlugSecComp = `
 
 # for ping and ping6
 capset
+
+# for using socket(AF_NETLINK, ...)
+bind
+
+# for ss
+socket AF_NETLINK - NETLINK_INET_DIAG
+
+# arp
+socket AF_NETLINK - NETLINK_ROUTE
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkObserveInterface returns a new "network-observe" interface.
