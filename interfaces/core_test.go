@@ -129,12 +129,28 @@ func (s *CoreSuite) TestPlugRef(c *C) {
 	c.Check(ref.Name, Equals, "plug")
 }
 
+// PlugRef.String works as expected
+func (s *CoreSuite) TestPlugRefString(c *C) {
+	ref := PlugRef{Snap: "snap", Name: "plug"}
+	c.Check(ref.String(), Equals, "snap:plug")
+	refPtr := &PlugRef{Snap: "snap", Name: "plug"}
+	c.Check(refPtr.String(), Equals, "snap:plug")
+}
+
 // Slot.Ref works as expected
 func (s *CoreSuite) TestSlotRef(c *C) {
 	slot := &Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}
 	ref := slot.Ref()
 	c.Check(ref.Snap, Equals, "producer")
 	c.Check(ref.Name, Equals, "slot")
+}
+
+// SlotRef.String works as expected
+func (s *CoreSuite) TestSlotRefString(c *C) {
+	ref := SlotRef{Snap: "snap", Name: "slot"}
+	c.Check(ref.String(), Equals, "snap:slot")
+	refPtr := &SlotRef{Snap: "snap", Name: "slot"}
+	c.Check(refPtr.String(), Equals, "snap:slot")
 }
 
 // ConnRef.ID works as expected
@@ -144,4 +160,20 @@ func (s *CoreSuite) TestConnRefID(c *C) {
 		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
 	}
 	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
+}
+
+// ParseConnRef works as expected
+func (s *CoreSuite) TestParseConnRef(c *C) {
+	ref, err := ParseConnRef("consumer:plug producer:slot")
+	c.Assert(err, IsNil)
+	c.Check(ref, DeepEquals, ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	})
+	_, err = ParseConnRef("garbage")
+	c.Assert(err, ErrorMatches, `malformed connection identifier: "garbage"`)
+	_, err = ParseConnRef("snap:plug:garbage snap:slot")
+	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+	_, err = ParseConnRef("snap:plug snap:slot:garbage")
+	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 }

@@ -25,7 +25,6 @@ import (
 
 const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -35,16 +34,13 @@ dbus (send)
     interface=org.freedesktop.systemd1.Manager
     member={Reboot,PowerOff,Halt}
     peer=(label=unconfined),
-`
 
-const shutdownConnectedPlugSecComp = `
-# Description: Can reboot, power-off and halt the system.
-# Following things are needed for dbus connectivity
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown}
+    peer=(label=unconfined),
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
@@ -52,7 +48,6 @@ func NewShutdownInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "shutdown",
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
-		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

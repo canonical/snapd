@@ -23,6 +23,8 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const dockerSupportConnectedPlugAppArmor = `
@@ -31,7 +33,6 @@ const dockerSupportConnectedPlugAppArmor = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -100,7 +101,7 @@ signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
 # Graph (storage) driver bits
-/{dev,run}/shm/aufs.xino rw,
+/{dev,run}/shm/aufs.xino mrw,
 /proc/fs/aufs/plink_maint w,
 /sys/fs/aufs/** r,
 
@@ -114,7 +115,6 @@ const dockerSupportConnectedPlugSecComp = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 # Because seccomp may only go more strict, we must allow all syscalls to Docker
 # that it expects to give to containers in addition to what it needs to run and
@@ -526,35 +526,23 @@ func (iface *DockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(dockerSupportConnectedPlugAppArmor)
-		if privileged {
-			snippet = append(snippet, dockerSupportPrivilegedAppArmor...)
-		}
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(dockerSupportConnectedPlugSecComp)
-		if privileged {
-			snippet = append(snippet, dockerSupportPrivilegedSecComp...)
-		}
-		return snippet, nil
+	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
+	if privileged {
+		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
 	}
-	return nil, nil
+	return nil
 }
 
-func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+	snippet := dockerSupportConnectedPlugSecComp
+	if privileged {
+		snippet += dockerSupportPrivilegedSecComp
+	}
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {

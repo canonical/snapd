@@ -29,7 +29,6 @@ const timeserverControlConnectedPlugAppArmor = `
 # Can enable system clock NTP synchronization via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -68,24 +67,12 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 `
-const timeserverControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`
 
 // NewTimeserverControlInterface returns a new "timeserver-control" interface.
 func NewTimeserverControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timeserver-control",
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

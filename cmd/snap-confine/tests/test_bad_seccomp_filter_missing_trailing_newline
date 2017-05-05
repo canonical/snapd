@@ -2,7 +2,8 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+# shellcheck source=snap-confine/tests/common.sh
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 printf "Test seccomp filter (bad - no trailing newline)"
 

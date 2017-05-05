@@ -34,12 +34,18 @@ import (
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
 // overrides the any pre-existing environment variables.
-func ExecEnv(info *snap.Info) []string {
+//
+// With the extra parameter additional environment variables can be
+// supplied which will be set in the execution environment.
+func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
 	env := envMap(os.Environ())
 	snapEnv := snapEnv(info)
 	for k, v := range snapEnv {
+		env[k] = v
+	}
+	for k, v := range extra {
 		env[k] = v
 	}
 	return envFromMap(env)
@@ -70,14 +76,15 @@ func snapEnv(info *snap.Info) map[string]string {
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
 	return map[string]string{
-		"SNAP":              info.MountDir(),
-		"SNAP_COMMON":       info.CommonDataDir(),
-		"SNAP_DATA":         info.DataDir(),
-		"SNAP_NAME":         info.Name(),
-		"SNAP_VERSION":      info.Version,
-		"SNAP_REVISION":     info.Revision.String(),
-		"SNAP_ARCH":         arch.UbuntuArchitecture(),
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP":          info.MountDir(),
+		"SNAP_COMMON":   info.CommonDataDir(),
+		"SNAP_DATA":     info.DataDir(),
+		"SNAP_NAME":     info.Name(),
+		"SNAP_VERSION":  info.Version,
+		"SNAP_REVISION": info.Revision.String(),
+		"SNAP_ARCH":     arch.UbuntuArchitecture(),
+		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
 }

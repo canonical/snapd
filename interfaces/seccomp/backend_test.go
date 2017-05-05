@@ -50,6 +50,7 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &seccomp.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Prepare a directory for seccomp profiles.
 	// NOTE: Normally this is a part of the OS snap.
@@ -167,7 +168,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
 		// and empty lines are avoided as those can be discarded in the future.
-		"deny init_module\n",
+		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"open\n",
 		"getuid\n",
 	} {
@@ -210,12 +211,13 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := seccomp.MockTemplate([]byte("default\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-			if scenario.snippet == "" {
-				return nil, nil
+		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+			if scenario.snippet != "" {
+				spec.AddSnippet(scenario.snippet)
 			}
-			return []byte(scenario.snippet), nil
+			return nil
 		}
+
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
@@ -226,4 +228,41 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.RemoveSnap(c, snapInfo)
 	}
+}
+
+const snapYaml = `
+name: foo
+version: 1
+developer: acme
+apps:
+    foo:
+        slots: [iface, iface2]
+`
+
+// Ensure that combined snippets are sorted
+func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
+	// NOTE: replace the real template with a shorter variant
+	restore := seccomp.MockTemplate([]byte("default\n"))
+	defer restore()
+
+	iface2 := &ifacetest.TestInterface{InterfaceName: "iface2"}
+	s.Repo.AddInterface(iface2)
+
+	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("zzz")
+		return nil
+	}
+	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("aaa")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, "default\naaa\nzzz\n")
+	stat, err := os.Stat(profile)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }

@@ -27,8 +27,8 @@
 #include <sys/apparmor.h>
 #endif				// ifdef HAVE_APPARMOR
 
-#include "cleanup-funcs.h"
-#include "utils.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/utils.h"
 
 // NOTE: Those constants map exactly what apparmor is returning and cannot be
 // changed without breaking apparmor functionality.
@@ -78,6 +78,8 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	if (aa_getcon(&label, &mode) < 0) {
 		die("cannot query current apparmor profile");
 	}
+	debug("apparmor label on snap-confine is: %s", label);
+	debug("apparmor mode is: %s", mode);
 	// The label has a special value "unconfined" that is applied to all
 	// processes without a dedicated profile. If that label is used then the
 	// current process is not confined. All other labels imply confinement.
@@ -107,6 +109,9 @@ void
 sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 {
 #ifdef HAVE_APPARMOR
+	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
+		return;
+	}
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	if (aa_change_onexec(profile) < 0) {
@@ -122,6 +127,9 @@ sc_maybe_aa_change_hat(struct sc_apparmor *apparmor,
 		       const char *subprofile, unsigned long magic_token)
 {
 #ifdef HAVE_APPARMOR
+	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
+		return;
+	}
 	if (apparmor->is_confined) {
 		debug("changing apparmor hat to %s", subprofile);
 		if (aa_change_hat(subprofile, magic_token) < 0) {

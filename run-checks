@@ -1,4 +1,10 @@
 #!/bin/sh
+if [ "$TRAVIS_BUILD_NUMBER" ]; then
+    echo travis_fold:start:env
+    printenv | sort
+    echo travis_fold:end:env
+fi
+
 export LANG=C.UTF-8
 export LANGUAGE=en
 set -eu
@@ -128,6 +134,7 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from $(pwd)
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
+        go test -i $pkg
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done

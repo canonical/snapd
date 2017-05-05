@@ -2,7 +2,8 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+# shellcheck source=snap-confine/tests/common.sh
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 get_common_syscalls >"$TMP"/tmpl
 cat >>"$TMP"/tmpl <<EOF
@@ -18,7 +19,6 @@ for i in '- - 10' '- 0 10' '- 0 >=0' '- 0 >0' '- 0 <11' '- 0 <=10' ; do
     if $L snap.name.app /usr/bin/nice -n 10 /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 done
@@ -35,7 +35,6 @@ printf "Test good seccomp arg filtering (cumulative setpriority)"
 if $L snap.name.app /usr/bin/nice -n 10 /bin/true ; then
     PASS
 else
-    dmesg|tail -n1
     FAIL
 fi
 
@@ -71,8 +70,53 @@ for i in '1' '- 2' '- - 3' '- - - 4' '- - - - 5' '- - - - - 6' '1 2 3 4 5 6' ; d
     if $L snap.name.app /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 done
 
+cat "$TMP"/tmpl >"$TMP"/snap.name.app
+echo "mknod - |S_IFIFO" >>"$TMP"/snap.name.app
+
+# use "$SHM"/pipe here since snap-confine uses a mount namespace for /tmp
+printf "Test good seccomp arg filtering (mkfifo %s/pipe)" "$SHM"
+if $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe ; then
+    if [ -p "$SHM"/pipe ]; then
+        PASS
+    else
+        FAIL
+    fi
+else
+    FAIL
+fi
+
+printf "Test good seccomp arg filtering (mkfifo -m 0400 %s/rpipe)" "$SHM"
+if $L snap.name.app /usr/bin/mkfifo -m 0400 "$SHM"/rpipe ; then
+    if [ -p "$SHM"/rpipe ]; then
+        # Use stat instead of 'test -w' since the unit tests run as root in
+        # spread and 'test -w' returns true regardless of permissions
+		perms=$(stat -c "%a" "$SHM"/rpipe)
+        if [ "$perms" = "400" ]; then
+            PASS
+        else
+            echo "$SHM/rpipe permissions are not '400'"
+            FAIL
+        fi
+    else
+        echo "$SHM/rpipe not found"
+        FAIL
+    fi
+else
+    echo "mkfifo failed"
+    cat "$TMP"/snap.name.app
+    FAIL
+fi
+
+cat "$TMP"/tmpl >"$TMP"/snap.name.app
+echo "mknod - |S_IFREG" >>"$TMP"/snap.name.app
+
+printf "Test good seccomp arg filtering (mkfifo %s/pipe blocked)" "$SHM"
+if $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe 2>/dev/null ; then
+    FAIL
+else
+    PASS
+fi

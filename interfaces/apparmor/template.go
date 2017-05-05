@@ -24,7 +24,7 @@ package apparmor
 // It can be overridden for testing using MockTemplate().
 //
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/templates/ubuntu-core/16.04/default
-var defaultTemplate = []byte(`
+var defaultTemplate = `
 # Description: Allows access to app-specific directories and basic runtime
 # Usage: common
 
@@ -94,6 +94,7 @@ var defaultTemplate = []byte(`
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
+  /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
@@ -119,7 +120,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/expr ixr,
   /{,usr/}bin/false ixr,
   /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
   /{,usr/}bin/gzip ixr,
@@ -130,6 +133,8 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
+  /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
@@ -139,9 +144,12 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,
   /{,usr/}bin/mkdir ixr,
+  /{,usr/}bin/mkfifo ixr,
+  /{,usr/}bin/mknod ixr,
   /{,usr/}bin/mktemp ixr,
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
+  /{,usr/}bin/nice ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
@@ -163,6 +171,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/stty ixr,
+  /{,usr/}bin/systemd-cat ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -214,6 +223,8 @@ var defaultTemplate = []byte(`
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
+  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
+                                  # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -256,6 +267,7 @@ var defaultTemplate = []byte(`
   @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
+  /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
@@ -275,6 +287,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
@@ -336,15 +349,20 @@ var defaultTemplate = []byte(`
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
-  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
+  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* mrwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
   unix peer=(label=snap.@{SNAP_NAME}.*),
+
+  # Allow apps from the same package to communicate with each other via DBus.
+  # Note: this does not grant access to the DBus sockets of well known buses
+  # (will still need to use an appropriate interface for that).
+  dbus (receive, send) peer=(label=snap.@{SNAP_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
@@ -377,9 +395,13 @@ var defaultTemplate = []byte(`
   /sys/class/ r,
   /sys/class/**/ r,
 
+  # Allow all snaps to chroot
+  capability sys_chroot,
+  /{,usr/}sbin/chroot ixr,
+
 ###SNIPPETS###
 }
-`)
+`
 
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
@@ -390,7 +412,7 @@ var defaultTemplate = []byte(`
 // label instead of 'unconfined'.
 //
 // It can be overridden for testing using MockClassicTemplate().
-var classicTemplate = []byte(`
+var classicTemplate = `
 #include <tunables/global>
 
 ###VAR###
@@ -416,13 +438,16 @@ var classicTemplate = []byte(`
 
 ###SNIPPETS###
 }
-`)
+`
 
 // classicJailmodeSnippet contains extra rules that allow snaps using classic
 // confinement, that were put in to jailmode, to execute by at least having
 // access to the core snap (e.g. for the dynamic linker and libc).
 
-var classicJailmodeSnippet = []byte(`
+var classicJailmodeSnippet = `
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
-`)
+  # Read only access to the core snap to load libc from.
+  # This is related to LP: #1666897
+  @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
+`

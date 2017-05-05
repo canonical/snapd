@@ -31,12 +31,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "classic.h"
-#include "cleanup-funcs.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
 #include "quirks.h"
-#include "snap.h"
-#include "utils.h"
 
 #define MAX_BUF 1000
 
@@ -76,7 +79,7 @@ static const char *sc_get_outer_core_mount_point()
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
-static void setup_private_mount(const char *security_tag)
+static void setup_private_mount(const char *snap_name)
 {
 	uid_t uid = getuid();
 	gid_t gid = getgid();
@@ -87,8 +90,8 @@ static void setup_private_mount(const char *security_tag)
 	//
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
-	must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-		      security_tag);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
+			 snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
@@ -98,7 +101,7 @@ static void setup_private_mount(const char *security_tag)
 	if (!d) {
 		die("cannot allocate memory for string copy");
 	}
-	must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
 	if (mkdir(tmpdir, 01777) != 0) {
@@ -114,13 +117,9 @@ static void setup_private_mount(const char *security_tag)
 		die("cannot change directory to '/'");
 
 	// MS_BIND is there from linux 2.4
-	if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
-		die("cannot bind mount private /tmp");
-	}
+	sc_do_mount(tmpdir, "/tmp", NULL, MS_BIND, NULL);
 	// MS_PRIVATE needs linux > 2.6.11
-	if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
-		die("cannot change sharing on /tmp to make it private");
-	}
+	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 	// do the chown after the bind mount to avoid potential shenanigans
 	if (chown("/tmp/", uid, gid) < 0) {
 		die("cannot change ownership of /tmp");
@@ -129,15 +128,6 @@ static void setup_private_mount(const char *security_tag)
 	if (chdir(pwd) != 0)
 		die("cannot change current working directory to the original directory");
 	free(pwd);
-
-	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
-	int i;
-	for (i = 0; tmpd[i] != NULL; i++) {
-		if (setenv(tmpd[i], "/tmp", 1) != 0) {
-			die("cannot set environment variable '%s'", tmpd[i]);
-		}
-	}
 }
 
 // TODO: fold this into bootstrap
@@ -166,14 +156,9 @@ static void setup_private_pts()
 	}
 	// Since multi-instance, use ptmxmode=0666. The other options are
 	// copied from /etc/default/devpts
-	if (mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
-		  "newinstance,ptmxmode=0666,mode=0620,gid=5")) {
-		die("cannot mount a new instance of /dev/pts");
-	}
-
-	if (mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0)) {
-		die("cannot mount /dev/pts/ptmx at /dev/ptmx'");
-	}
+	sc_do_mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
+		    "newinstance,ptmxmode=0666,mode=0620,gid=5");
+	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
 /*
@@ -189,31 +174,38 @@ static void setup_private_pts()
  * either the core snap on an all-snap system or the core snap + punched holes
  * on a classic system.
  **/
-static void sc_setup_mount_profiles(const char *security_tag)
+static void sc_setup_mount_profiles(const char *snap_name)
 {
-	debug("%s: %s", __FUNCTION__, security_tag);
+	debug("%s: %s", __FUNCTION__, snap_name);
 
-	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	const char *mount_profile_dir = "/var/lib/snapd/mount";
-
+	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	char profile_path[PATH_MAX];
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
-		      mount_profile_dir, security_tag);
 
-	debug("opening mount profile %s", profile_path);
-	f = setmntent(profile_path, "r");
-	// it is ok for the file to not exist
-	if (f == NULL && errno == ENOENT) {
-		debug("mount profile %s doesn't exist, ignoring", profile_path);
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/run/snapd/ns/snap.%s.fstab", snap_name);
+	debug("opening current mount profile %s", profile_path);
+	current = setmntent(profile_path, "w");
+	if (current == NULL) {
+		die("cannot open current mount profile: %s", profile_path);
+	}
+
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/var/lib/snapd/mount/snap.%s.fstab", snap_name);
+	debug("opening desired mount profile %s", profile_path);
+	desired = setmntent(profile_path, "r");
+	if (desired == NULL && errno == ENOENT) {
+		// It is ok for the desired profile to not exist. Note that in this
+		// case we also "update" the current profile as we already opened and
+		// truncated it above.
 		return;
 	}
-	// however any other error is a real error
-	if (f == NULL) {
-		die("cannot open %s", profile_path);
+	if (desired == NULL) {
+		die("cannot open desired mount profile: %s", profile_path);
 	}
 
 	struct mntent *m = NULL;
-	while ((m = getmntent(f)) != NULL) {
+	while ((m = getmntent(desired)) != NULL) {
 		debug("read mount entry\n"
 		      "\tmnt_fsname: %s\n"
 		      "\tmnt_dir: %s\n"
@@ -234,9 +226,9 @@ static void sc_setup_mount_profiles(const char *security_tag)
 		if (hasmntopt(m, "rw") != NULL) {
 			flags &= ~MS_RDONLY;
 		}
-		if (mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL) != 0) {
-			die("cannot mount %s at %s with options %s",
-			    m->mnt_fsname, m->mnt_dir, m->mnt_opts);
+		sc_do_mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL);
+		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
+			die("cannot append entry to the current mount profile");
 		}
 	}
 }
@@ -250,7 +242,7 @@ struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
-	bool on_classic;
+	bool on_classic_distro;
 };
 
 /**
@@ -301,30 +293,18 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	debug("scratch directory for constructing namespace: %s", scratch_dir);
 	// Make the root filesystem recursively shared. This way propagation events
 	// will be shared with main mount namespace.
-	debug("performing operation: mount --make-rshared /");
-	if (mount("none", "/", NULL, MS_REC | MS_SHARED, NULL) < 0) {
-		die("cannot perform operation: mount --make-rshared /");
-	}
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SHARED, NULL);
 	// Bind mount the temporary scratch directory for root filesystem over
 	// itself so that it is a mount point. This is done so that it can become
 	// unbindable as explained below.
-	debug("performing operation: mount --bind %s %s", scratch_dir,
-	      scratch_dir);
-	if (mount(scratch_dir, scratch_dir, NULL, MS_BIND, NULL) < 0) {
-		die("cannot perform operation: mount --bind %s %s", scratch_dir,
-		    scratch_dir);
-	}
+	sc_do_mount(scratch_dir, scratch_dir, NULL, MS_BIND, NULL);
 	// Make the scratch directory unbindable.
 	//
 	// This is necessary as otherwise a mount loop can occur and the kernel
 	// would crash. The term unbindable simply states that it cannot be bind
 	// mounted anywhere. When we construct recursive bind mounts below this
 	// guarantees that this directory will not be replicated anywhere.
-	debug("performing operation: mount --make-unbindable %s", scratch_dir);
-	if (mount("none", scratch_dir, NULL, MS_UNBINDABLE, NULL) < 0) {
-		die("cannot perform operation: mount --make-unbindable %s",
-		    scratch_dir);
-	}
+	sc_do_mount("none", scratch_dir, NULL, MS_UNBINDABLE, NULL);
 	// Recursively bind mount desired root filesystem directory over the
 	// scratch directory. This puts the initial content into the scratch space
 	// and serves as a foundation for all subsequent operations below.
@@ -333,22 +313,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// filesystem of a core system (aka all-snap) or the core snap on a classic
 	// system. In the former case we need recursive bind mounts to accurately
 	// replicate the state of the root filesystem into the scratch directory.
-	debug("performing operation: mount --rbind %s %s", config->rootfs_dir,
-	      scratch_dir);
-	if (mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND, NULL)
-	    < 0) {
-		die("cannot perform operation: mount --rbind %s %s",
-		    config->rootfs_dir, scratch_dir);
-	}
+	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
+		    NULL);
 	// Make the scratch directory recursively private. Nothing done there will
 	// be shared with any peer group, This effectively detaches us from the
 	// original namespace and coupled with pivot_root below serves as the
 	// foundation of the mount sandbox.
-	debug("performing operation: mount --make-rslave %s", scratch_dir);
-	if (mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL) < 0) {
-		die("cannot perform operation: mount --make-rslave %s",
-		    scratch_dir);
-	}
+	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	// Bind mount certain directories from the host filesystem to the scratch
 	// directory. By default mount events will propagate in both into and out
 	// of the peer group. This way the running application can alter any global
@@ -360,23 +331,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		    errno != EEXIST) {
 			die("cannot create %s", mnt->path);
 		}
-		must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, mnt->path);
-		debug("performing operation: mount --rbind %s %s", mnt->path,
-		      dst);
-		if (mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
-			die("cannot perform operation: mount --rbind %s %s",
-			    mnt->path, dst);
-		}
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->path);
+		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
 		if (!mnt->is_bidirectional) {
 			// Mount events will only propagate inwards to the namespace. This
 			// way the running application cannot alter any global state apart
 			// from that of its own snap.
-			debug("performing operation: mount --make-rslave %s",
-			      dst);
-			if (mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL) !=
-			    0) {
-				die("cannot perform operation: mount --make-rslave %s", dst);
-			}
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
 	}
 	// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -387,37 +349,22 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018
 	const char *etc_alternatives = "/etc/alternatives";
 	if (access(etc_alternatives, F_OK) == 0) {
-		must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
-			      etc_alternatives);
-		must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
-			      etc_alternatives);
-		debug("performing operation: mount --bind %s %s", src, dst);
-		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-			die("cannot perform operation: mount --bind %s %s", src,
-			    dst);
-		}
-		debug("performing operation: mount --make-slave %s", dst);
-		if (mount("none", dst, NULL, MS_SLAVE, NULL) != 0) {
-			die("cannot perform operation: mount --make-slave %s",
-			    dst);
-		}
+		sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
+				 etc_alternatives);
+		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
+				 etc_alternatives);
+		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the
 	// directory is always /snap. On the host it is a build-time configuration
 	// option stored in SNAP_MOUNT_DIR.
-	must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	debug("performing operation: mount --rbind %s %s", SNAP_MOUNT_DIR, dst);
-	if (mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE, NULL)
-	    < 0) {
-		die("cannot perform operation: mount --rbind -o slave %s %s",
-		    SNAP_MOUNT_DIR, dst);
-	}
-	debug("performing operation: mount --make-rslave %s", dst);
-	if (mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL) < 0) {
-		die("cannot perform operation: mount --make-rslave %s", dst);
-	}
+	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
+	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE,
+		    NULL);
+	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
@@ -427,24 +374,32 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    SC_HOSTFS_DIR);
 		}
 	}
+	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
+	// created the directory as the user who first ran a snap on a given
+	// system and the group identity of that user is visilbe on disk.
+	// This was LP:#1665004
+	struct stat sb;
+	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
+		die("cannot stat %s", SC_HOSTFS_DIR);
+	}
+	if (sb.st_uid != 0 || sb.st_gid != 0) {
+		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+			die("cannot change user/group owner of %s to root",
+			    SC_HOSTFS_DIR);
+		}
+	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
 	// has a number of undocumented requirements and one of them is that the
 	// "put_old" directory (the second argument) cannot be shared in any way.
-	must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, SC_HOSTFS_DIR);
-	debug("performing operation: mount --bind %s %s", dst, dst);
-	if (mount(dst, dst, NULL, MS_BIND, NULL) < 0) {
-		die("cannot perform operation: mount --bind %s %s", dst, dst);
-	}
-	debug("performing operation: mount --make-private %s", dst);
-	if (mount("none", dst, NULL, MS_PRIVATE, NULL) < 0) {
-		die("cannot perform operation: mount --make-private %s", dst);
-	}
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, SC_HOSTFS_DIR);
+	sc_do_mount(dst, dst, NULL, MS_BIND, NULL);
+	sc_do_mount("none", dst, NULL, MS_PRIVATE, NULL);
 	// On classic mount the nvidia driver. Ideally this would be done in an
 	// uniform way after pivot_root but this is good enough and requires less
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
-	if (config->on_classic) {
+	if (config->on_classic_distro) {
 		sc_mount_nvidia_driver(scratch_dir);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -478,11 +433,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// in the original root filesystem (which is now mounted on SC_HOSTFS_DIR).
 	// This way we can remove the temporary directory we created and "clean up"
 	// after ourselves nicely.
-	must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
-	debug("performing operation: umount %s", dst);
-	if (umount2(dst, 0) < 0) {
-		die("cannot perform operation: umount %s", dst);
-	}
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
+	sc_do_umount(dst, 0);
 	// Remove the scratch directory. Note that we are using the path that is
 	// based on the old root filesystem as after pivot_root we cannot guarantee
 	// what is present at the same location normally. (It is probably an empty
@@ -494,33 +446,20 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Make the old root filesystem recursively slave. This way operations
 	// performed in this mount namespace will not propagate to the peer group.
 	// This is another essential part of the confinement system.
-	debug("performing operation: mount --make-rslave %s", SC_HOSTFS_DIR);
-	if (mount("none", SC_HOSTFS_DIR, NULL, MS_REC | MS_SLAVE, NULL) < 0) {
-		die("cannot perform operation: mount --make-rslave %s",
-		    SC_HOSTFS_DIR);
-	}
+	sc_do_mount("none", SC_HOSTFS_DIR, NULL, MS_REC | MS_SLAVE, NULL);
 	// Detach the redundant hostfs version of sysfs since it shows up in the
 	// mount table and software inspecting the mount table may become confused
 	// (eg, docker and LP:# 162601).
-	must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 	// Detach the redundant hostfs version of /dev since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
-	must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 	// Detach the redundant hostfs version of /proc since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
-	must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 }
 
 /**
@@ -579,7 +518,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_populate_mount_ns(const char *security_tag)
+void sc_populate_mount_ns(const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -590,8 +529,8 @@ void sc_populate_mount_ns(const char *security_tag)
 		die("cannot get the current working directory");
 	}
 	// Remember if we are on classic, some things behave differently there.
-	bool on_classic = is_running_on_classic_distribution();
-	if (on_classic) {
+	bool on_classic_distro = is_running_on_classic_distribution();
+	if (on_classic_distro) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -618,7 +557,7 @@ void sc_populate_mount_ns(const char *security_tag)
 		struct sc_mount_config classic_config = {
 			.rootfs_dir = sc_get_outer_core_mount_point(),
 			.mounts = mounts,
-			.on_classic = true,
+			.on_classic_distro = true,
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -641,18 +580,18 @@ void sc_populate_mount_ns(const char *security_tag)
 
 	// set up private mounts
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(security_tag);
+	setup_private_mount(snap_name);
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	if (on_classic) {
+	if (on_classic_distro) {
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(security_tag);
+	sc_setup_mount_profiles(snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -663,5 +602,39 @@ void sc_populate_mount_ns(const char *security_tag)
 			die("cannot change directory to %s", SC_VOID_DIR);
 		}
 		debug("successfully moved to %s", SC_VOID_DIR);
+	}
+}
+
+static bool is_mounted_with_shared_option(const char *dir)
+    __attribute__ ((nonnull(1)));
+
+static bool is_mounted_with_shared_option(const char *dir)
+{
+	struct sc_mountinfo *sm
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	sm = sc_parse_mountinfo(NULL);
+	if (sm == NULL) {
+		die("cannot parse /proc/self/mountinfo");
+	}
+	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
+	while (entry != NULL) {
+		const char *mount_dir = entry->mount_dir;
+		if (sc_streq(mount_dir, dir)) {
+			const char *optional_fields = entry->optional_fields;
+			if (strstr(optional_fields, "shared:") != NULL) {
+				return true;
+			}
+		}
+		entry = sc_next_mountinfo_entry(entry);
+	}
+	return false;
+}
+
+void sc_ensure_shared_snap_mount()
+{
+	if (!is_mounted_with_shared_option("/")
+	    && !is_mounted_with_shared_option("/snap")) {
+		sc_do_mount("/snap", "/snap", "none", MS_BIND | MS_REC, 0);
+		sc_do_mount("none", "/snap", NULL, MS_SHARED | MS_REC, NULL);
 	}
 }

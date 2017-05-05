@@ -1,7 +1,12 @@
 summary: Ensure that the fuse-support interface works.
 
 # no support for fuse on 14.04
-systems: [-ubuntu-14.04-64, -ubuntu-14.04-32]
+systems:
+    # no support for fuse on 14.04
+    - -ubuntu-14.04-64
+    - -ubuntu-14.04-32
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
@@ -29,8 +34,6 @@ restore: |
     rm -rf $MOUNT_POINT fuse.error
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN=":fuse-support +test-snapd-fuse-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-fuse-consumer:fuse-support"
 
@@ -47,7 +50,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-fuse-consumer:fuse-support ${core_name}:fuse-support
+    snap connect test-snapd-fuse-consumer:fuse-support
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create a fuse filesystem"

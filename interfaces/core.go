@@ -22,6 +22,7 @@ package interfaces
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -43,6 +44,11 @@ type PlugRef struct {
 	Name string `json:"plug"`
 }
 
+// String returns the "snap:plug" representation of a plug reference.
+func (ref PlugRef) String() string {
+	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
+}
+
 // Slot represents a capacity offered by a snap.
 type Slot struct {
 	*snap.SlotInfo
@@ -58,6 +64,11 @@ func (slot *Slot) Ref() SlotRef {
 type SlotRef struct {
 	Snap string `json:"snap"`
 	Name string `json:"slot"`
+}
+
+// String returns the "snap:slot" representation of a slot reference.
+func (ref SlotRef) String() string {
+	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
 // Interfaces holds information about a list of plugs and slots, and their connections.
@@ -77,6 +88,25 @@ func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
+// ParseConnRef parses an ID string
+func ParseConnRef(id string) (ConnRef, error) {
+	var conn ConnRef
+	parts := strings.SplitN(id, " ", 2)
+	if len(parts) != 2 {
+		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+	}
+	plugParts := strings.Split(parts[0], ":")
+	slotParts := strings.Split(parts[1], ":")
+	if len(plugParts) != 2 || len(slotParts) != 2 {
+		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+	}
+	conn.PlugRef.Snap = plugParts[0]
+	conn.PlugRef.Name = plugParts[1]
+	conn.SlotRef.Snap = slotParts[0]
+	conn.SlotRef.Name = slotParts[1]
+	return conn, nil
+}
+
 // Interface describes a group of interchangeable capabilities with common features.
 // Interfaces act as a contract between system builders, application developers
 // and end users.
@@ -89,66 +119,6 @@ type Interface interface {
 
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
-
-	// PermanentPlugSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the plug is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a plug of a given interface even before the plug is connected to a
-	// slot.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedPlugSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a plug of a given interface connected to a slot in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot. If the
-	// slot is not necessary then consider using PermanentPlugSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// PermanentSlotSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the slot is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a slot of a given interface even before the first connection to that
-	// slot is made.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedSlotSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a slot of a given interface connected to a plug in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot, if the
-	// plug is not necessary then consider using PermanentSlotSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an

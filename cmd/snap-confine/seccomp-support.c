@@ -17,28 +17,43 @@
 #include "config.h"
 #include "seccomp-support.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <search.h>
+#include <asm/ioctls.h>
 #include <ctype.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <sys/utsname.h>
-
-// needed for search mappings
-#include <linux/can.h>
-#include <sys/prctl.h>
-#include <sys/resource.h>
+#include <errno.h>
+#include <linux/can.h>		// needed for search mappings
+#include <linux/netlink.h>
 #include <sched.h>
+#include <search.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/quota.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
+#include <termios.h>
+#include <unistd.h>
+
+// The XFS interface requires a 64 bit file system interface
+// but we don't want to leak this anywhere else if not globally
+// defined.
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#include <xfs/xqm.h>
+#undef _FILE_OFFSET_BITS
+#else
+#include <xfs/xqm.h>
+#endif
 
 #include <seccomp.h>
 
-#include "utils.h"
-#include "secure-getenv.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
 
@@ -96,16 +111,16 @@ static struct sc_map_list sc_map_entries;
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map and linked list
  */
-static scmp_datum_t sc_map_search(char *s)
+static scmp_datum_t sc_map_search(const char *s)
 {
-	ENTRY e;
+	ENTRY e = { 0, 0 };
 	ENTRY *ep = NULL;
 	scmp_datum_t val = 0;
 	errno = 0;
 
-	e.key = s;
+	e.key = (char *)s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
-		die("hsearch_r failed");
+		die("hsearch_r failed for %s", s);
 
 	if (ep != NULL) {
 		scmp_datum_t *val_p = NULL;
@@ -163,21 +178,97 @@ static void sc_map_init()
 
 	// build up the map linked list
 
-	// man 2 socket - domain
+	// man 2 socket - domain and man 5 apparmor.d. AF_ and PF_ are
+	// synonymous in the kernel and can be used interchangeably in
+	// policy (ie, if use AF_UNIX, don't need a corresponding PF_UNIX
+	// rule). See include/linux/socket.h
 	sc_map_add(AF_UNIX);
+	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
+	sc_map_add(PF_LOCAL);
 	sc_map_add(AF_INET);
+	sc_map_add(PF_INET);
 	sc_map_add(AF_INET6);
+	sc_map_add(PF_INET6);
 	sc_map_add(AF_IPX);
+	sc_map_add(PF_IPX);
 	sc_map_add(AF_NETLINK);
+	sc_map_add(PF_NETLINK);
 	sc_map_add(AF_X25);
+	sc_map_add(PF_X25);
 	sc_map_add(AF_AX25);
+	sc_map_add(PF_AX25);
 	sc_map_add(AF_ATMPVC);
+	sc_map_add(PF_ATMPVC);
 	sc_map_add(AF_APPLETALK);
+	sc_map_add(PF_APPLETALK);
 	sc_map_add(AF_PACKET);
+	sc_map_add(PF_PACKET);
 	sc_map_add(AF_ALG);
+	sc_map_add(PF_ALG);
+	sc_map_add(AF_BRIDGE);
+	sc_map_add(PF_BRIDGE);
+	sc_map_add(AF_NETROM);
+	sc_map_add(PF_NETROM);
+	sc_map_add(AF_ROSE);
+	sc_map_add(PF_ROSE);
+	sc_map_add(AF_NETBEUI);
+	sc_map_add(PF_NETBEUI);
+	sc_map_add(AF_SECURITY);
+	sc_map_add(PF_SECURITY);
+	sc_map_add(AF_KEY);
+	sc_map_add(PF_KEY);
+	sc_map_add(AF_ASH);
+	sc_map_add(PF_ASH);
+	sc_map_add(AF_ECONET);
+	sc_map_add(PF_ECONET);
+	sc_map_add(AF_SNA);
+	sc_map_add(PF_SNA);
+	sc_map_add(AF_IRDA);
+	sc_map_add(PF_IRDA);
+	sc_map_add(AF_PPPOX);
+	sc_map_add(PF_PPPOX);
+	sc_map_add(AF_WANPIPE);
+	sc_map_add(PF_WANPIPE);
+	sc_map_add(AF_BLUETOOTH);
+	sc_map_add(PF_BLUETOOTH);
+	sc_map_add(AF_RDS);
+	sc_map_add(PF_RDS);
+	sc_map_add(AF_LLC);
+	sc_map_add(PF_LLC);
+	sc_map_add(AF_TIPC);
+	sc_map_add(PF_TIPC);
+	sc_map_add(AF_IUCV);
+	sc_map_add(PF_IUCV);
+	sc_map_add(AF_RXRPC);
+	sc_map_add(PF_RXRPC);
+	sc_map_add(AF_ISDN);
+	sc_map_add(PF_ISDN);
+	sc_map_add(AF_PHONET);
+	sc_map_add(PF_PHONET);
+	sc_map_add(AF_IEEE802154);
+	sc_map_add(PF_IEEE802154);
+	sc_map_add(AF_CAIF);
+	sc_map_add(PF_CAIF);
+	sc_map_add(AF_NFC);
+	sc_map_add(PF_NFC);
+	sc_map_add(AF_VSOCK);
+	sc_map_add(PF_VSOCK);
+#ifndef AF_IB
+#define AF_IB 27
+#define PF_IB AF_IB
+#endif				// AF_IB
+	sc_map_add(AF_IB);
+	sc_map_add(PF_IB);
+#ifndef AF_MPLS
+#define AF_MPLS 28
+#define PF_MPLS AF_MPLS
+#endif				// AF_MPLS
+	sc_map_add(AF_MPLS);
+	sc_map_add(PF_MPLS);
 	// linux/can.h
 	sc_map_add(AF_CAN);
+	sc_map_add(PF_CAN);
 
 	// man 2 socket - type
 	sc_map_add(SOCK_STREAM);
@@ -283,6 +374,55 @@ static void sc_map_init()
 	sc_map_add(CLONE_NEWUSER);
 	sc_map_add(CLONE_NEWUTS);
 
+	// man 4 tty_ioctl
+	sc_map_add(TIOCSTI);
+
+	// man 2 quotactl (with what Linux supports)
+	sc_map_add(Q_SYNC);
+	sc_map_add(Q_QUOTAON);
+	sc_map_add(Q_QUOTAOFF);
+	sc_map_add(Q_GETFMT);
+	sc_map_add(Q_GETINFO);
+	sc_map_add(Q_SETINFO);
+	sc_map_add(Q_GETQUOTA);
+	sc_map_add(Q_SETQUOTA);
+	sc_map_add(Q_XQUOTAON);
+	sc_map_add(Q_XQUOTAOFF);
+	sc_map_add(Q_XGETQUOTA);
+	sc_map_add(Q_XSETQLIM);
+	sc_map_add(Q_XGETQSTAT);
+	sc_map_add(Q_XQUOTARM);
+
+	// man 2 mknod
+	sc_map_add(S_IFREG);
+	sc_map_add(S_IFCHR);
+	sc_map_add(S_IFBLK);
+	sc_map_add(S_IFIFO);
+	sc_map_add(S_IFSOCK);
+
+	// man 7 netlink (uapi/linux/netlink.h)
+	sc_map_add(NETLINK_ROUTE);
+	sc_map_add(NETLINK_USERSOCK);
+	sc_map_add(NETLINK_FIREWALL);
+	sc_map_add(NETLINK_SOCK_DIAG);
+	sc_map_add(NETLINK_NFLOG);
+	sc_map_add(NETLINK_XFRM);
+	sc_map_add(NETLINK_SELINUX);
+	sc_map_add(NETLINK_ISCSI);
+	sc_map_add(NETLINK_AUDIT);
+	sc_map_add(NETLINK_FIB_LOOKUP);
+	sc_map_add(NETLINK_CONNECTOR);
+	sc_map_add(NETLINK_NETFILTER);
+	sc_map_add(NETLINK_IP6_FW);
+	sc_map_add(NETLINK_DNRTMSG);
+	sc_map_add(NETLINK_KOBJECT_UEVENT);
+	sc_map_add(NETLINK_GENERIC);
+	sc_map_add(NETLINK_SCSITRANSPORT);
+	sc_map_add(NETLINK_ECRYPTFS);
+	sc_map_add(NETLINK_RDMA);
+	sc_map_add(NETLINK_CRYPTO);
+	sc_map_add(NETLINK_INET_DIAG);	// synonymous with NETLINK_SOCK_DIAG
+
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
 	if (hcreate_r(sc_map_entries.count, &sc_map_htab) == 0)
@@ -320,7 +460,7 @@ static void sc_map_destroy()
 }
 
 /* Caller must check if errno != 0 */
-static scmp_datum_t read_number(char *s)
+static scmp_datum_t read_number(const char *s)
 {
 	scmp_datum_t val = 0;
 
@@ -416,6 +556,10 @@ static int parse_line(char *line, struct seccomp_args *sargs)
 			// syscall <N
 			op = SCMP_CMP_LT;
 			value = read_number(&buf_token[1]);
+		} else if (strncmp(buf_token, "|", 1) == 0) {
+			// syscall |N
+			op = SCMP_CMP_MASKED_EQ;
+			value = read_number(&buf_token[1]);
 		} else {
 			// syscall NNN
 			op = SCMP_CMP_EQ;
@@ -424,7 +568,12 @@ static int parse_line(char *line, struct seccomp_args *sargs)
 		if (errno != 0)
 			return PARSE_ERROR;
 
-		sargs->arg_cmp[sargs->length] = SCMP_CMP(pos, op, value);
+		if (op == SCMP_CMP_MASKED_EQ)
+			sargs->arg_cmp[sargs->length] =
+			    SCMP_CMP(pos, op, value, value);
+		else
+			sargs->arg_cmp[sargs->length] =
+			    SCMP_CMP(pos, op, value);
 		sargs->length++;
 
 		//printf("\nDEBUG: SCMP_CMP(%d, %d, %llu)\n", pos, op, value);
@@ -642,8 +791,8 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
 	char profile_path[512];	// arbitrary path name limit
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
-		      filter_profile_dir, filter_profile);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
+			 filter_profile_dir, filter_profile);
 
 	f = fopen(profile_path, "r");
 	if (f == NULL) {
@@ -756,4 +905,9 @@ void sc_load_seccomp_context(scmp_filter_ctx ctx)
 		if (real_uid != 0 && geteuid() == 0)
 			die("dropping privs after seccomp_load did not work");
 	}
+}
+
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
+{
+	seccomp_release(*ptr);
 }

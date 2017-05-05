@@ -38,7 +38,7 @@ and operating system.
 type cmdVersion struct{}
 
 func init() {
-	addCommand("version", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
+	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
 }
 
 func (cmd cmdVersion) Execute(args []string) error {
@@ -68,6 +68,9 @@ func printVersions() error {
 	fmt.Fprintf(w, "series\t%s\n", sv.Series)
 	if sv.OnClassic {
 		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+	}
+	if sv.KernelVersion != "" {
+		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
 	}
 	w.Flush()
 

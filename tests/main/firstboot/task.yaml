@@ -1,8 +1,13 @@
 summary: Check that firstboot assertions are imported and snaps installed
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     snapbuild $TESTSLIB/snaps/basic .
 
     systemctl stop snapd.service snapd.socket
@@ -26,10 +31,21 @@ prepare: |
     echo Copy the needed snaps to $SEED_DIR/snaps
     cp ./basic_1.0_all.snap $SEED_DIR/snaps/basic.snap
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     rm -r $SEED_DIR
+    rm -f *.snap
     mv /etc/os-release.save /etc/os-release
     systemctl start snapd.socket snapd.service
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory and "
     echo "install the seed snaps."

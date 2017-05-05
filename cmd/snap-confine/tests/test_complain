@@ -2,7 +2,8 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+# shellcheck source=snap-confine/tests/common.sh
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 cat >"$TMP/snap.name.app" <<EOF
 # some comment

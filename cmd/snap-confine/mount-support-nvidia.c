@@ -28,9 +28,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "classic.h"
-#include "cleanup-funcs.h"
-#include "utils.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 #ifdef NVIDIA_ARCH
 
@@ -134,28 +135,28 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			}
 			hostfs_symlink_target[num_read] = 0;
 			if (hostfs_symlink_target[0] == '/') {
-				must_snprintf(symlink_target,
-					      sizeof symlink_target,
-					      "/var/lib/snapd/hostfs%s",
-					      hostfs_symlink_target);
+				sc_must_snprintf(symlink_target,
+						 sizeof symlink_target,
+						 "/var/lib/snapd/hostfs%s",
+						 hostfs_symlink_target);
 			} else {
 				// Keep relative symlinks as-is, so that they point to -> libfoo.so.0.123
-				must_snprintf(symlink_target,
-					      sizeof symlink_target, "%s",
-					      hostfs_symlink_target);
+				sc_must_snprintf(symlink_target,
+						 sizeof symlink_target, "%s",
+						 hostfs_symlink_target);
 			}
 			break;
 		case S_IFREG:
-			must_snprintf(symlink_target,
-				      sizeof symlink_target,
-				      "/var/lib/snapd/hostfs%s", pathname);
+			sc_must_snprintf(symlink_target,
+					 sizeof symlink_target,
+					 "/var/lib/snapd/hostfs%s", pathname);
 			break;
 		default:
 			debug("ignoring unsupported entry: %s", pathname);
 			continue;
 		}
-		must_snprintf(symlink_name, sizeof symlink_name,
-			      "%s/%s", libgl_dir, filename);
+		sc_must_snprintf(symlink_name, sizeof symlink_name,
+				 "%s/%s", libgl_dir, filename);
 		debug("creating symbolic link %s -> %s", symlink_name,
 		      symlink_target);
 		if (symlink(symlink_target, symlink_name) != 0) {
@@ -169,8 +170,8 @@ static void sc_mount_nvidia_driver_arch(const char *rootfs_dir)
 {
 	// Bind mount a tmpfs on $rootfs_dir/var/lib/snapd/lib/gl
 	char buf[512];
-	must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
-		      "/var/lib/snapd/lib/gl");
+	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
+			 "/var/lib/snapd/lib/gl");
 	const char *libgl_dir = buf;
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
@@ -226,19 +227,33 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 {
 	struct sc_nvidia_driver driver;
+
+	// Probe sysfs to get the version of the driver that is currently inserted.
 	sc_probe_nvidia_driver(&driver);
-	if (driver.major_version != 0) {
-		// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-		char src[PATH_MAX], dst[PATH_MAX];
-		must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
-			      driver.major_version);
-		must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
-			      SC_LIBGL_DIR);
-		debug("bind mounting nvidia driver %s -> %s", src, dst);
-		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-			die("cannot bind mount nvidia driver %s -> %s", src,
-			    dst);
-		}
+
+	// If there's driver in the kernel then don't mount userspace.
+	if (driver.major_version == 0) {
+		return;
+	}
+	// Construct the paths for the driver userspace libraries
+	// and for the gl directory.
+	char src[PATH_MAX], dst[PATH_MAX];
+	sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
+			 driver.major_version);
+	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SC_LIBGL_DIR);
+
+	// If there is no userspace driver available then don't try to mount it.
+	// This can happen for any number of reasons but one interesting one is
+	// that that snapd runs in a lxd container on a host that uses nvidia. In
+	// that case the container may not have the userspace library installed but
+	// the kernel will still have the module around.
+	if (access(src, F_OK) != 0) {
+		return;
+	}
+	// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
+	debug("bind mounting nvidia driver %s -> %s", src, dst);
+	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
+		die("cannot bind mount nvidia driver %s -> %s", src, dst);
 	}
 }
 #endif				// ifdef NVIDIA_UBUNTU

@@ -460,34 +460,6 @@ version: 1
 	c.Check(err, IsNil)
 }
 
-func (s *checkSnapSuite) TestCheckSnapGadgetCannotBeInstalledOnClassic(c *C) {
-	reset := release.MockOnClassic(true)
-	defer reset()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	const yaml = `name: gadget
-type: gadget
-version: 1
-`
-
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
-
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
-	}
-	restore := snapstate.MockOpenSnapFile(openSnapFile)
-	defer restore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
-	st.Lock()
-	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
-}
-
 func (s *checkSnapSuite) TestCheckSnapErrorOnDevModeDisallowed(c *C) {
 	const yaml = `name: hello
 version: 1.10
@@ -530,7 +502,31 @@ confinement: classic
 
 	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
-	c.Assert(err, ErrorMatches, ".* requires consent to use classic confinement")
+	c.Assert(err, ErrorMatches, ".* requires classic confinement")
+}
+
+func (s *checkSnapSuite) TestCheckSnapErrorClassicOnCoreDisallowed(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: classic
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{Classic: true})
+
+	c.Assert(err, ErrorMatches, ".* requires classic confinement which is only available on classic systems")
 }
 
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {

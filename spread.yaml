@@ -25,12 +25,18 @@ environment:
     TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
-    # slight abuse
-    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
+    KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
+    GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
+    SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
+    HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
+    HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
+    NO_PROXY: "127.0.0.1"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
+    SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
 backends:
     linode:
@@ -39,6 +45,7 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -48,11 +55,10 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-            # FIXME restore of ubuntu-core does not properly reset
-            # boot variables and key snaps to their pristine state.
-            - ubuntu-core-16-64-fixme:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
+                workers: 2
+            - debian-unstable-64:
+                kernel: GRUB 2
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -79,6 +85,12 @@ backends:
             - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
+            - debian-9-64:
+                username: debian
+                password: debian
     autopkgtest:
         type: adhoc
         allocate: |
@@ -92,6 +104,14 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            # Trusty
+            - ubuntu-14.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-14.04-i386:
+                username: ubuntu
+                password: ubuntu
+            # Xenial
             - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -104,6 +124,7 @@ backends:
             - ubuntu-16.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Yakkety
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -116,6 +137,7 @@ backends:
             - ubuntu-16.10-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Zesty
             - ubuntu-17.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -128,6 +150,19 @@ backends:
             - ubuntu-17.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            # Artful
+            - ubuntu-17.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.10-armhf:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
@@ -137,6 +172,11 @@ backends:
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             - ubuntu-core-16-64:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-32:
                 environment:
                     TRUST_TEST_KEYS: "false"
                 username: test
@@ -172,8 +212,14 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
+    echo '# journal messages for snapd'
     journalctl -u snapd
-    dmesg | grep DENIED || true
+    echo '# apparmor denials '
+    dmesg --ctime | grep DENIED || true
+    echo '# seccomp denials (kills) '
+    dmesg --ctime | grep type=1326 || true
+    echo '# snap interfaces'
+    snap interfaces || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -197,6 +243,13 @@ repack: |
     fi
 
 prepare: |
+    # check if running inside a container, the testsuite will not
+    # work in such an environment
+    if systemd-detect-virt -c; then
+        echo "Tests cannot run inside a container"
+        exit 1
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
@@ -222,13 +275,17 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        systemctl enable --now snapd.refresh.timer
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl enable --now snapd.refresh.timer
+            snap set core refresh.disabled=false
+        fi
     fi
+
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -237,6 +294,7 @@ suites:
                 prepare_classic
             fi
         prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 prepare_each_classic
@@ -244,14 +302,11 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -259,28 +314,77 @@ suites:
             else
                 prepare_classic
             fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        systems: [-ubuntu-core-16-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            apt-get purge -y snapd
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
             $TESTSLIB/reset.sh
+
+    tests/unit/:
+        summary: Suite to run unit tests (non-go and different go runtimes)
+        systems: [-ubuntu-core-16-*]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            prepare_classic
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            prepare_each_classic
+        restore: |
+            $TESTSLIB/reset.sh --store
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+
+    tests/nightly/:
+        summary: Suite for nightly, expensive, tests
+        manual: true
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd
+            fi
+
+    tests/nested/:
+        summary: Tests for nested images
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+        halt-timeout: 2h
+        kill-timeout: 2h
+        manual: true
+        prepare: |
+            # apt update is hanging on security.ubuntu.com with IPv6.
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+            apt update && apt install -y snapd qemu genisoimage sshpass
+        restore: |
+            apt remove -y qemu genisoimage sshpass
 
 # vim:ts=4:sw=4:et

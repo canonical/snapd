@@ -139,8 +139,10 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := plug.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(plug.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -155,13 +157,16 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap.Name()][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name(), plug.Name)
+	if _, ok := r.plugs[snapName][plug.Name]; ok {
+		return fmt.Errorf("snap %q has plugs conflicting on name %q", snapName, plug.Name)
 	}
-	if r.plugs[plug.Snap.Name()] == nil {
-		r.plugs[plug.Snap.Name()] = make(map[string]*Plug)
+	if _, ok := r.slots[snapName][plug.Name]; ok {
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
 	}
-	r.plugs[plug.Snap.Name()][plug.Name] = plug
+	if r.plugs[snapName] == nil {
+		r.plugs[snapName] = make(map[string]*Plug)
+	}
+	r.plugs[snapName][plug.Name] = plug
 	return nil
 }
 
@@ -233,8 +238,10 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := slot.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(slot.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -249,13 +256,16 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap.Name()][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
+	if _, ok := r.slots[snapName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has slots conflicting on name %q", snapName, slot.Name)
 	}
-	if r.slots[slot.Snap.Name()] == nil {
-		r.slots[slot.Snap.Name()] = make(map[string]*Slot)
+	if _, ok := r.plugs[snapName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
 	}
-	r.slots[slot.Snap.Name()][slot.Name] = slot
+	if r.slots[snapName] == nil {
+		r.slots[snapName] = make(map[string]*Slot)
+	}
+	r.slots[snapName][slot.Name] = slot
 	return nil
 }
 
@@ -611,6 +621,19 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	}
 }
 
+// Backends returns all the security backends.
+func (r *Repository) Backends() []SecurityBackend {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	result := make([]SecurityBackend, 0, len(r.backends))
+	for _, backend := range r.backends {
+		result = append(result, backend)
+	}
+	sort.Sort(byBackendName(result))
+	return result
+}
+
 // Interfaces returns object holding a lists of all the plugs and slots and their connections.
 func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
@@ -641,77 +664,6 @@ func (r *Repository) Interfaces() *Interfaces {
 	sort.Sort(byPlugSnapAndName(ifaces.Plugs))
 	sort.Sort(bySlotSnapAndName(ifaces.Slots))
 	return ifaces
-}
-
-// SecuritySnippetsForSnap collects all of the snippets of a given security
-// system that affect a given snap. The return value is indexed by app/hook
-// security tag within that snap.
-func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	return r.securitySnippetsForSnap(snapName, securitySystem)
-}
-
-func addSnippet(snapName, uniqueName string, apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snippets map[string][][]byte, snippet []byte) {
-	if len(snippet) == 0 {
-		return
-	}
-	for appName := range apps {
-		securityTag := snap.AppSecurityTag(snapName, appName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-	for hookName := range hooks {
-		securityTag := snap.HookSecurityTag(snapName, hookName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-	if len(apps) == 0 && len(hooks) == 0 {
-		securityTag := snap.NoneSecurityTag(snapName, uniqueName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-}
-
-func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
-	var snippets = make(map[string][][]byte)
-	// Find all of the slots that affect this snap because of plug connection.
-	for _, slot := range r.slots[snapName] {
-		iface := r.ifaces[slot.Interface]
-		// Add the static snippet for the slot
-		snippet, err := iface.PermanentSlotSnippet(slot, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
-
-		// Add connection-specific snippet specific to each plug
-		for plug := range r.slotPlugs[slot] {
-			snippet, err := iface.ConnectedSlotSnippet(plug, slot, securitySystem)
-			if err != nil {
-				return nil, err
-			}
-			addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
-		}
-	}
-	// Find all of the plugs that affect this snap because of slot connection
-	for _, plug := range r.plugs[snapName] {
-		iface := r.ifaces[plug.Interface]
-		// Add the static snippet for the plug
-		snippet, err := iface.PermanentPlugSnippet(plug, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
-
-		// Add connection-specific snippet specific to each slot
-		for slot := range r.plugSlots[plug] {
-			snippet, err := iface.ConnectedPlugSnippet(plug, slot, securitySystem)
-			if err != nil {
-				return nil, err
-			}
-			addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
-		}
-	}
-	return snippets, nil
 }
 
 // SnapSpecification returns the specification of a given snap in a given security system.
@@ -800,6 +752,11 @@ func (e *BadInterfacesError) Error() string {
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	err := snap.Validate(snapInfo)
+	if err != nil {
+		return err
+	}
+
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -820,6 +777,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			bad.issues[plugName] = "unknown interface"
 			continue
 		}
+		// Reject plug with invalid name
+		if err := ValidateName(plugName); err != nil {
+			bad.issues[plugName] = err.Error()
+			continue
+		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := iface.SanitizePlug(plug); err != nil {
 			bad.issues[plugName] = err.Error()
@@ -835,6 +797,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
 			bad.issues[slotName] = "unknown interface"
+			continue
+		}
+		// Reject slot with invalid name
+		if err := ValidateName(slotName); err != nil {
+			bad.issues[slotName] = err.Error()
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
@@ -922,9 +889,9 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// AutoConnectCandidates finds and returns viable auto-connection candidates
+// AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
+func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -939,14 +906,47 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 			if slot.Interface != plug.Interface {
 				continue
 			}
+			iface := slot.Interface
 
 			// declaration based checks disallow
 			if !policyCheck(plug, slot) {
 				continue
 			}
 
-			if r.ifaces[plug.Interface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plug, slot) {
 				candidates = append(candidates, slot)
+			}
+		}
+	}
+	return candidates
+}
+
+// AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
+// for a given slot.
+func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*Plug, *Slot) bool) []*Plug {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return nil
+	}
+
+	var candidates []*Plug
+	for _, plugsForSnap := range r.plugs {
+		for _, plug := range plugsForSnap {
+			if slot.Interface != plug.Interface {
+				continue
+			}
+			iface := slot.Interface
+
+			// declaration based checks disallow
+			if !policyCheck(plug, slot) {
+				continue
+			}
+
+			if r.ifaces[iface].AutoConnect(plug, slot) {
+				candidates = append(candidates, plug)
 			}
 		}
 	}

@@ -30,25 +30,15 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer() func(string, string) (net.Conn, error) {
-	// We have two sockets available: the SnapdSocket (which provides
-	// administrative access), and the SnapSocket (which doesn't). Use the most
-	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
-	// apparmor unless the snap has the snapd-control interface).
-	socketPath := dirs.SnapdSocket
-	file, err := os.OpenFile(socketPath, os.O_RDWR, 0666)
-	if err == nil {
-		file.Close()
-	} else if e, ok := err.(*os.PathError); ok && (e.Err == syscall.ENOENT || e.Err == syscall.EACCES) {
-		socketPath = dirs.SnapSocket
+func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
+	if socketPath == "" {
+		socketPath = dirs.SnapdSocket
 	}
-
 	return func(_, _ string) (net.Conn, error) {
 		return net.Dial("unix", socketPath)
 	}
@@ -63,35 +53,51 @@ type Config struct {
 	// BaseURL contains the base URL where snappy daemon is expected to be.
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
+
+	// DisableAuth controls whether the client should send an
+	// Authorization header from reading the auth.json data.
+	DisableAuth bool
+
+	// Socket is the path to the unix socket to use
+	Socket string
 }
 
 // A Client knows how to talk to the snappy daemon.
 type Client struct {
 	baseURL url.URL
 	doer    doer
+
+	disableAuth bool
 }
 
 // New returns a new instance of Client
 func New(config *Config) *Client {
+	if config == nil {
+		config = &Config{}
+	}
+
 	// By default talk over an UNIX socket.
-	if config == nil || config.BaseURL == "" {
+	if config.BaseURL == "" {
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer()},
+				Transport: &http.Transport{Dial: unixDialer(config.Socket)},
 			},
+			disableAuth: config.DisableAuth,
 		}
 	}
+
 	baseURL, err := url.Parse(config.BaseURL)
 	if err != nil {
 		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 	}
 	return &Client{
-		baseURL: *baseURL,
-		doer:    &http.Client{},
+		baseURL:     *baseURL,
+		doer:        &http.Client{},
+		disableAuth: config.DisableAuth,
 	}
 }
 
@@ -148,10 +154,12 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		req.Header.Set(key, value)
 	}
 
-	// set Authorization header if there are user's credentials
-	err = client.setAuthorization(req)
-	if err != nil {
-		return nil, AuthorizationError{err}
+	if !client.disableAuth {
+		// set Authorization header if there are user's credentials
+		err = client.setAuthorization(req)
+		if err != nil {
+			return nil, AuthorizationError{err}
+		}
 	}
 
 	rsp, err := client.doer.Do(req)
@@ -272,6 +280,8 @@ type ServerVersion struct {
 	OSID        string
 	OSVersionID string
 	OnClassic   bool
+
+	KernelVersion string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -286,6 +296,8 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSID:        sysInfo.OSRelease.ID,
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
+
+		KernelVersion: sysInfo.KernelVersion,
 	}, nil
 }
 
@@ -303,8 +315,9 @@ type response struct {
 
 // Error is the real value of response.Result when an error occurs.
 type Error struct {
-	Kind    string `json:"kind"`
-	Message string `json:"message"`
+	Kind    string      `json:"kind"`
+	Value   interface{} `json:"value"`
+	Message string      `json:"message"`
 
 	StatusCode int
 }
@@ -321,9 +334,14 @@ const (
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
 	ErrorKindPaymentDeclined   = "payment-declined"
 
-	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
-	ErrorKindSnapNotInstalled     = "snap-not-installed"
-	ErrorKindNoUpdateAvailable    = "snap-no-update-available"
+	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
+	ErrorKindSnapNotInstalled       = "snap-not-installed"
+	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
+	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
+	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
+	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+
+	ErrorKindNotSnap = "snap-not-a-snap"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -350,6 +368,8 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
+
+	KernelVersion string `json:"kernel-version,omitempty"`
 }
 
 func (rsp *response) err() error {
@@ -492,4 +512,24 @@ func (client *Client) Users() ([]*User, error) {
 		return nil, fmt.Errorf("while getting users: %v", err)
 	}
 	return result, nil
+}
+
+type debugAction struct {
+	Action string      `json:"action"`
+	Params interface{} `json:"params,omitempty"`
+}
+
+// Debug is only useful when writing test code, it will trigger
+// an internal action with the given parameters.
+func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+	body, err := json.Marshal(debugAction{
+		Action: action,
+		Params: params,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
+	return err
 }

@@ -71,7 +71,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 		"SNAP_NAME":         "foo",
 		"SNAP_REEXEC":       "",
 		"SNAP_REVISION":     "17",
@@ -125,7 +125,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
 			"SNAP_DATA":         "/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 			"SNAP_NAME":         "snapname",
 			"SNAP_REEXEC":       "",
 			"SNAP_REVISION":     "42",
@@ -135,4 +135,20 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", os.Geteuid()),
 		})
 	}
+}
+
+func (s *HTestSuite) TestExtraEnvForExecEnv(c *C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	env := ExecEnv(info, map[string]string{"FOO": "BAR"})
+	found := false
+	for _, item := range env {
+		if item == "FOO=BAR" {
+			found = true
+			break
+		}
+	}
+	c.Assert(found, Equals, true)
 }

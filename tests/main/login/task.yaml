@@ -1,7 +1,7 @@
 summary: Checks for snap login
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 restore: |
     snap logout || true
@@ -24,11 +24,10 @@ execute: |
         expect -d -f successful_login.exp
 
         output=$(snap managed)
-        if [ "$output" != "system is managed" ]; then
+        if [ "$output" != "true" ]; then
             echo "Unexpected output from 'snap managed': $output"
             exit 1
         fi
 
         snap logout
     fi
-

@@ -84,6 +84,7 @@ Description=Mount unit for foo
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=/snap/foo/13
 Type=squashfs
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target

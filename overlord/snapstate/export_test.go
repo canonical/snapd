@@ -61,6 +61,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	m.runner.AddHandler("validate-snap", fakeHandler, nil)
 	m.runner.AddHandler("remove-snap-context", fakeHandler, fakeHandler)
+	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -90,14 +91,30 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}
+
 var (
-	CheckSnap            = checkSnap
-	CanRemove            = canRemove
-	CanDisable           = canDisable
-	CachedStore          = cachedStore
-	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+	CheckSnap              = checkSnap
+	CanRemove              = canRemove
+	CanDisable             = canDisable
+	CachedStore            = cachedStore
+	DefaultRefreshSchedule = defaultRefreshSchedule
+	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// aliases v2
+var (
+	ApplyAliasesChange    = applyAliasesChange
+	AutoAliasesDelta      = autoAliasesDelta
+	RefreshAliases        = refreshAliases
+	CheckAliasesConflicts = checkAliasesConflicts
+	DisableAliases        = disableAliases
+)

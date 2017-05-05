@@ -1,5 +1,9 @@
 summary: Ensure that the home interface works.
 
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
+
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 
@@ -34,8 +38,6 @@ restore: |
     rm -f $SNAP_FILE $READABLE_FILE $WRITABLE_FILE $CREATABLE_FILE $HIDDEN_READABLE_FILE
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     :home +home-consumer"
@@ -48,7 +50,7 @@ execute: |
         snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
         echo "And the plug can be connected"
-        snap connect home-consumer:home ${core_name}:home
+        snap connect home-consumer:home
         snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
     else
         echo "Then the snap is listed as connected"
@@ -57,17 +59,17 @@ execute: |
         echo "============================================"
 
         echo "When the plug is disconnected"
-        snap disconnect home-consumer:home ${core_name}:home
+        snap disconnect home-consumer:home
         snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
         echo "Then the plug can be connected again"
-        snap connect home-consumer:home ${core_name}:home
+        snap connect home-consumer:home
         snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
     fi
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect home-consumer:home ${core_name}:home
+    snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read home files"
@@ -76,7 +78,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect home-consumer:home ${core_name}:home
+    snap disconnect home-consumer:home
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't read home files"
@@ -87,7 +89,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect home-consumer:home ${core_name}:home
+    snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to append to home files"
@@ -97,7 +99,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect home-consumer:home ${core_name}:home
+    snap disconnect home-consumer:home
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't append to home files"
@@ -108,7 +110,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect home-consumer:home ${core_name}:home
+    snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create home files"
@@ -118,7 +120,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect home-consumer:home ${core_name}:home
+    snap disconnect home-consumer:home
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't create home files"
@@ -129,7 +131,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect home-consumer:home ${core_name}:home
+    snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is not able to read hidden home files"
@@ -140,7 +142,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect home-consumer:home ${core_name}:home
+    snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is not able to write hidden home files"

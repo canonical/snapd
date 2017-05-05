@@ -2,7 +2,8 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+# shellcheck source=snap-confine/tests/common.sh
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 get_common_syscalls >"$TMP"/tmpl
 cat >>"$TMP"/tmpl <<EOF

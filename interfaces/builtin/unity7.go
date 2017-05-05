@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,19 @@
 package builtin
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugAppArmor = `
-# Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this environment does not prevent
-# eavesdropping or apps interfering with one another.
-# Usage: reserved
+# Description: Can access Unity7. Note, Unity 7 runs on X and requires access
+# to various DBus services and this environment does not prevent eavesdropping
+# or apps interfering with one another.
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -61,6 +65,12 @@ const unity7ConnectedPlugAppArmor = `
 /usr/share/unity/icons/**                  r,
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
+
+# The snapcraft desktop part may look for schema files in various locations, so
+# allow reading system installed schemas.
+/usr/share/glib*/schemas/{,*}              r,
+/usr/share/gnome/glib*/schemas/{,*}        r,
+/usr/share/ubuntu/glib*/schemas/{,*}       r,
 
 # Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
 # only in environments supporting dbus-send (eg, X11). In the future once
@@ -291,7 +301,7 @@ dbus (receive)
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
 
-# notifications
+# app-indicators
 dbus (send)
     bus=session
     path=/StatusNotifierWatcher
@@ -328,8 +338,15 @@ dbus (send)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
-    member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
+    member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    peer=(label=unconfined),
 
 dbus (send)
     bus=session
@@ -345,6 +362,7 @@ dbus (receive)
     member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
 
+# notifications
 dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
@@ -388,6 +406,42 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
+# unity messaging menu
+# first, allow finding the desktop file
+/usr/share/applications/ r,
+# this leaks the names of snaps with desktop files
+/var/lib/snapd/desktop/applications/ r,
+/var/lib/snapd/desktop/applications/mimeinfo.cache r,
+/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
+
+# then allow talking to Unity DBus service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/com/canonical/indicator/messages/service
+    member=GetAll
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/indicator/messages/service
+    interface=com.canonical.indicator.messages.service
+    member={Register,Unregister}Application
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/com/canonical/indicator/messages/###UNITY_SNAP_NAME###_*_desktop
+    member=GetAll
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=com.canonical.indicator.messages.application
+    path=/com/canonical/indicator/messages/###UNITY_SNAP_NAME###_*_desktop
+    peer=(label=unconfined),
+
 # This rule is meant to be covered by abstractions/dbus-session-strict but
 # the unity launcher code has a typo that uses /org/freedesktop/dbus as the
 # path instead of /org/freedesktop/DBus, so we need to all it here.
@@ -427,41 +481,80 @@ dbus (receive)
     member="{GetAll,GetLayout}"
     peer=(label=unconfined),
 
+# Allow requesting interest in receiving media key events. This tells Gnome
+# settings that our application should be notified when key events we are
+# interested in are pressed.
+dbus (send)
+  bus=session
+  interface=org.gnome.SettingsDaemon.MediaKeys
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  peer=(label=unconfined),
+dbus (send)
+  bus=session
+  interface=org.freedesktop.DBus.Properties
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  member="Get{,All}"
+  peer=(label=unconfined),
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
-deny /{,var/}{dev,run}/shm/lttng-ust-* r,
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
-const unity7ConnectedPlugSecComp = `
-# Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this environment does not prevent
-# eavesdropping or apps interfering with one another.
+const unity7ConnectedPlugSeccomp = `
+# Description: Can access Unity7. Note, Unity 7 runs on X and requires access
+# to various DBus services and this environment does not prevent eavesdropping
+# or apps interfering with one another.
 
 # X
-getpeername
-recvfrom
-recvmsg
 shutdown
-getsockopt
-
-# dbus
-connect
-getsockname
-recvmsg
-send
-sendto
-sendmsg
-socket
 `
 
-// NewUnity7Interface returns a new "unity7" interface.
-func NewUnity7Interface() interfaces.Interface {
-	return &commonInterface{
-		name: "unity7",
-		connectedPlugAppArmor: unity7ConnectedPlugAppArmor,
-		connectedPlugSecComp:  unity7ConnectedPlugSecComp,
-		reservedForOS:         true,
+type Unity7Interface struct{}
+
+func (iface *Unity7Interface) Name() string {
+	return "unity7"
+}
+
+func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	// Unity7 will take the desktop filename and convert all '-' (and '.',
+	// but we don't care about that here because the rule above already
+	// does that) to '_'. Since we know that the desktop filename starts
+	// with the snap name, perform this conversion on the snap name.
+	new := strings.Replace(plug.Snap.Name(), "-", "_", -1)
+	old := "###UNITY_SNAP_NAME###"
+	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity7ConnectedPlugSeccomp)
+	return nil
+}
+
+func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
+
+	return nil
+}
+
+func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
+	}
+
+	// Creation of the slot of this type is allowed only by the os snap
+	if !(slot.Snap.Type == snap.TypeOS) {
+		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
+	}
+
+	return nil
+}
+
+func (iface *Unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

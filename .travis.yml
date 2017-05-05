@@ -9,14 +9,14 @@ env:
     # SPREAD_LINODE_KEY
     - secure: "bzALrfNSLwM0bjceal1PU5rFErvqVhi00Sygx8jruo6htpZay3hrC2sHCKCQKPn1kvCfHidrHX1vnomg5N+B9o25GZEYSjKSGxuvdNDfCZYqPNjMbz5y7xXYfKWgyo+xtrKRM85Nqy121SfRz3KLDvrOLwwreb+pZv8DG1WraFTd7D6rK7nLnnYNUyw665XBMFVnM8ue3Zu9496Ih/TfQXhnNpsZY8xFWte4+cH7JvVCVTs8snjoGVZi3972PzinNkfBgJa24cUzxFMfiN/AwSBXJQKdVv+FsbB4uRgXAqTNwuus7PptiPNxpWWojuhm1Qgbk0XhGIdJxyUYkmNA4UrZ3C29nIRWbuAiHJ6ZWd1ur3dqphqOcgFInltSHkpfEdlL3YK4dCa2SmJESzotUGnyowCUUCXkWdDaZmFTwyK0Y6He9oyXDK5f+/U7SFlPvok0caJCvB9HbTQR1kYdh048I/R+Ht5QrFOZPk21DYWDOYhn7SzthBDZLsaL6n5gX7Y547SsL4B35YVbpaeHzccG6Mox8rI4bqlGFvP1U5i8uXD4uQjJChlVxpmozUEMok9T5RVediJs540p5uc8DQl48Nke02tXzC/XpGAvpnXT7eiiRNW67zOj2QcIV+ni3lBj3HvZeB9cgjzLNrZSl/t9vseqnNwQWpl3V6nd/bU="
 
-  matrix:
-    - RUN=static
-    - RUN=unit
-    - RUN=spread
+git:
+    quiet: true
 
 install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq squashfs-tools xdelta3
   - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
 
-script: ./run-checks --$RUN
+script:
+    - ./run-checks --static || travis_terminate 1
+    - ./run-checks --spread

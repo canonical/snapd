@@ -61,6 +61,10 @@ network sna,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
 
+# read netfilter module parameters
+/sys/module/nf_*/                r,
+/sys/module/nf_*/parameters/{,*} r,
+
 # networking tools
 /{,usr/}{,s}bin/arp ixr,
 /{,usr/}{,s}bin/arpd ixr,
@@ -97,8 +101,8 @@ network sna,
 network netlink dgram,
 
 # ip, et al
-/etc/iproute2/ r,
-/etc/iproute2/* r,
+/etc/iproute2/{,*} r,
+/etc/iproute2/rt_{protos,realms,scopes,tables} w,
 
 # ping - child profile would be nice but seccomp causes problems with that
 /{,usr/}{,s}bin/ping ixr,
@@ -111,8 +115,21 @@ capability setuid,
 @{PROC}/@{pid}/loginuid r,
 @{PROC}/@{pid}/mounts r,
 
+# resolvconf
+/sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
+
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # TUN/TAP
 /dev/net/tun rw,
@@ -174,10 +191,6 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
-sendmsg
-sendto
-recvfrom
-recvmsg
 
 mount
 umount
@@ -185,6 +198,16 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# For various network related netlink sockets
+socket AF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
+socket AF_NETLINK - NETLINK_ISCSI
+socket AF_NETLINK - NETLINK_RDMA
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.

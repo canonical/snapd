@@ -1,6 +1,6 @@
 summary: Check that alias symlinks work correctly
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     echo Ensure we have a os snap with snap run
@@ -9,9 +9,11 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
 
-restore:
+restore: |
     rm -f /snap/bin/test_echo
     rm -f /snap/bin/test_cat
+    rm -f orig.txt
+    rm -f new.txt
 
 environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo

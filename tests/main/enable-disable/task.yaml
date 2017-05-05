@@ -14,14 +14,27 @@ execute: |
         exit 1
     fi
 
+    echo "Ensure the test-snapd-tools security profiles are no longer there"
+    if ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
+        echo "test-snapd-tools securiry profiles are not disabled"
+        exit 1
+    fi
+
     echo "Enable test-snapd-tools again and ensure it is no longer listed as disabled"
     snap enable test-snapd-tools|grep -v disabled
+
+    echo "Ensure the test-snapd-tools security profiles are present"
+    if !ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
+        echo "test-snapd-tools securiry profiles are not present"
+        exit 1
+    fi
+
     echo "Ensure test-snapd-tools runs normally after it was enabled"
     test-snapd-tools.echo Hello |grep Hello
 
     echo "Ensure the important snaps can not be disabled"
     . $TESTSLIB/names.sh
-    for sn in $core_name $kernel_name $gadget_name; do
+    for sn in core $kernel_name $gadget_name; do
         if snap disable $sn; then
             echo "It should not be possible to disable $sn"
             exit 1

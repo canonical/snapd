@@ -10,26 +10,36 @@ vendor/*/
 po/snappy.pot
 
 # snap-confine bits
-cmd/snap-confine/snap-confine
-cmd/snap-confine/snap-discard-ns
-cmd/snap-confine/snap-confine-unit-tests
-cmd/snap-confine/snap-confine.apparmor
-cmd/snap-confine/decode-mount-opts
+*.a
+*.o
 *~
 .*.swp
-*.o
-*.a
+.*.swp
+.dirstamp
+cmd/decode-mount-opts/decode-mount-opts
+cmd/libsnap-confine-private/unit-tests
+cmd/snap-confine/snap-confine
+cmd/snap-confine/snap-confine.apparmor
+cmd/snap-confine/unit-tests
+cmd/snap-discard-ns/snap-discard-ns
+cmd/snap-update-ns/snap-update-ns
+cmd/snap-update-ns/unit-tests
+cmd/system-shutdown/system-shutdown
+cmd/system-shutdown/unit-tests
 
 # manual pages
-cmd/snap-confine/manpages/*.[1-9]
+cmd/*/*.[1-9]
+
+# auto-generated systemd units
+data/systemd/*.service
 
 # test-driver
 *.log
 *.trs
 
-# Automake
-Makefile
-Makefile.in
+# Automake for the cmd/ parts
+cmd/Makefile
+cmd/Makefile.in
 snap-confine-*.tar.gz
 .deps
 
