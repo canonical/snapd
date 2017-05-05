@@ -1,0 +1,12 @@
+summary: Verify forced-devmode is correctly reported
+
+execute: |
+    expected=true
+    case "$SPREAD_SYSTEM" in
+    ubuntu-*)
+        expected=false
+        ;;
+    *)
+        ;;
+    esac
+    test "$(snap forced-devmode)" = "$expected"
