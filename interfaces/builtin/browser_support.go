@@ -124,6 +124,12 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/product r,
 /sys/devices/**/serial r,
 
+# Chromium content api tries to read these. It is an information disclosure
+# since these contain the names of snaps. Chromium operates fine without the
+# access so just block it.
+deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
+deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
+
 # networking
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,

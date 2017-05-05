@@ -76,6 +76,14 @@ dbus (receive, send)
     interface=com.canonical.Thumbnailer
     path=/com/canonical/Thumbnailer
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/canonical/Thumbnailer
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type ThumbnailerServiceInterface struct{}

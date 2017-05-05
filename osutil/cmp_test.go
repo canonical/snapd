@@ -96,6 +96,6 @@ func (ts *CmpTestSuite) TestCmpStreams(c *C) {
 		{"hello", "world", false},
 		{"hello", "hell", false},
 	} {
-		c.Assert(streamsEqual(strings.NewReader(x.a), strings.NewReader(x.b)), Equals, x.r)
+		c.Assert(StreamsEqual(strings.NewReader(x.a), strings.NewReader(x.b)), Equals, x.r)
 	}
 }
