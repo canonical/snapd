@@ -20,7 +20,7 @@ debug: |
 
 execute: |
     # we need additional setup in core systems
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
         snap connect docker:account-control :account-control
         snap disable docker && snap enable  docker
     fi
