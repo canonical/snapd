@@ -51,10 +51,32 @@ var (
 	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
+// a stringish is something that can be a []string or a string
+// like the values of the "extra" documents in error responses
+type stringish []string
+
+func (sish *stringish) UnmarshalJSON(bs []byte) error {
+	var ss []string
+	e1 := json.Unmarshal(bs, &ss)
+	if e1 == nil {
+		*sish = stringish(ss)
+		return nil
+	}
+
+	var s string
+	e2 := json.Unmarshal(bs, &s)
+	if e2 == nil {
+		*sish = stringish([]string{s})
+		return nil
+	}
+
+	return e1
+}
+
 type ssoMsg struct {
-	Code    string              `json:"code"`
-	Message string              `json:"message"`
-	Extra   map[string][]string `json:"extra"`
+	Code    string               `json:"code"`
+	Message string               `json:"message"`
+	Extra   map[string]stringish `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
@@ -220,6 +242,8 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 			return "", Err2faFailed
 		case "INVALID_DATA":
 			return "", ErrInvalidAuthData(msg.Extra)
+		case "PASSWORD_POLICY_ERROR":
+			return "", ErrPasswordPolicy(msg.Extra)
 		}
 
 		if msg.Message != "" {

@@ -77,9 +77,17 @@ func fill(para string) string {
 	// 3 is the %v\n, which will be present in any locale
 	indent := len(errorPrefix) - 3
 	var buf bytes.Buffer
-	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width)
+	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width-indent)
 
 	return strings.TrimSpace(buf.String())
+}
+
+type filledError struct {
+	error
+}
+
+func (e filledError) Error() string {
+	return fill(e.error.Error())
 }
 
 func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {
@@ -122,6 +130,9 @@ If you understand and want to proceed repeat the command including --classic.
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
+	case client.ErrorKindPasswordPolicy:
+		usesSnapName = false
+		msg = err.Message
 	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
 		isError = false
 		usesSnapName = false
