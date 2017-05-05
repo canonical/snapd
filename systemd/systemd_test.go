@@ -300,7 +300,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target
@@ -323,7 +323,7 @@ Description=Mount unit for foodir
 What=%s
 Where=/apps/foo/1.0
 Type=none
-Options=nodev,bind
+Options=nodev,ro,bind
 
 [Install]
 WantedBy=multi-user.target
@@ -419,7 +419,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target

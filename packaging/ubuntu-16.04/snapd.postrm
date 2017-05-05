@@ -11,6 +11,11 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
+    # undo any bind mount to /snap that resulted from LP:#1668659
+    if grep -q "/snap /snap" /proc/self/mountinfo; then
+        umount -l /snap || true
+    fi
+
     mounts=$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
     services=$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
