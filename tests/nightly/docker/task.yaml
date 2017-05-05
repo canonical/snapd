@@ -19,6 +19,12 @@ debug: |
     dmesg
 
 execute: |
+    # we need additional setup in core systems
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        snap connect docker:account-control :account-control
+        snap disable docker && snap enable  docker
+    fi
+
     # wait for the socket to be listening
     while ! printf "GET /" | nc -U -q 1 /var/run/docker.sock; do sleep 1; done
 
