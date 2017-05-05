@@ -11,11 +11,14 @@ etc/profile.d
 etc/X11
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
+data/completion/complete.sh /usr/lib/snapd/
+data/completion/etelpmoc.sh /usr/lib/snapd/
 # udev, must be installed before 80-udisks
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
+# snap/snapd version information
 data/info /usr/lib/snapd/
 
-# snap-confine
+# snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine
 lib/udev/rules.d/80-snappy-assign.rules
 lib/udev/snappy-app-dev
