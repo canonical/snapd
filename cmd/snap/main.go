@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -314,14 +313,14 @@ func run() error {
 				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
 			}
 		}
-		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
-			u, _ := user.Current()
-			if u != nil && u.Username == "root" {
-				return fmt.Errorf(i18n.G(`%s (see "snap login --help")`), e.Message)
+		if e, ok := err.(*client.Error); ok {
+			msg, err := clientErrorToCmdMessage("", e)
+			if err != nil {
+				return err
 			}
 
-			// TRANSLATORS: %s will be a message along the lines of "login required"
-			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
+			fmt.Fprintf(Stderr, msg)
+			return nil
 		}
 	}
 
