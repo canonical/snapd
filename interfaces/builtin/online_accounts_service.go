@@ -69,6 +69,14 @@ dbus (receive, send)
     interface=com.ubuntu.OnlineAccounts.Manager
     path=/com/ubuntu/OnlineAccounts{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/ubuntu/OnlineAccounts
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const onlineAccountsServicePermanentSlotSecComp = `
