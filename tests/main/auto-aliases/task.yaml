@@ -9,7 +9,13 @@ execute: |
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"
 
+    echo "Check listing"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
+
     echo "Removing the snap should remove the aliases"
     snap remove test-snapd-auto-aliases
     test ! -e /snap/bin/test_snapd_wellknown1
     test ! -e /snap/bin/test_snapd_wellknown2
+    ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1"
+    ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2"

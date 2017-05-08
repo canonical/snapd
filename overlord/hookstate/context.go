@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -37,6 +38,7 @@ type Context struct {
 	setup   *HookSetup
 	id      string
 	handler Handler
+	timeout time.Duration
 
 	cache  map[interface{}]interface{}
 	onDone []func() error
@@ -76,6 +78,11 @@ func (c *Context) SnapRevision() snap.Revision {
 // HookName returns the name of the hook in this context.
 func (c *Context) HookName() string {
 	return c.setup.Hook
+}
+
+// Timeout returns the maximum time this hook can run
+func (c *Context) Timeout() time.Duration {
+	return c.setup.Timeout
 }
 
 // ID returns the ID of the context.

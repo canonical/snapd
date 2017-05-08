@@ -67,6 +67,14 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=Get{,All}
     peer=(label=unconfined),
+
+# Allow clients to introspect hostname1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 const systemObserveConnectedPlugSecComp = `

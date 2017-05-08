@@ -83,6 +83,14 @@ dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
 	peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    path=/org/gnome/Evolution
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const unity8PimCommonPermanentSlotSecComp = `

@@ -120,8 +120,8 @@ var ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established"
 
 // CurrentBootNameAndRevision returns the currently set name and
 // revision for boot for the given type of snap, which can be core or
-// kernel. Returns ErrBootNameAndRevisionAgain if the value are not
-// temporarily established.
+// kernel. Returns ErrBootNameAndRevisionAgain if the values are
+// temporarily not established.
 func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revision, err error) {
 	var kind string
 	var bootVar string
@@ -152,7 +152,7 @@ func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revis
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	if m["snap_mode"] != "" {
+	if m["snap_mode"] == "trying" {
 		return "", snap.Revision{}, ErrBootNameAndRevisionAgain
 	}
 

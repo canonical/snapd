@@ -9,15 +9,16 @@ kill-timeout: 5m
 execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge snapd
-    apt_install_local ${GOPATH}/snapd_*.deb
+    dpkg --purge --force-depends snapd
+    apt-get install -f -y
+    install_build_snapd
     snap install --${CORE_CHANNEL} ubuntu-core
 
     mkdir -p /root/.snap/
     echo '{}' > /root/.snap/auth.json
     mkdir -p /home/test/.snap/
     echo '{}' > /home/test/.snap/auth.json
-    
+
     echo "Ensure transition is triggered"
     snap debug ensure-state-soon
 
@@ -30,3 +31,6 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
+
+    echo "Ensure interfaces are connected"
+    snap interfaces | MATCH ":core-support.*core:core-support-plug"

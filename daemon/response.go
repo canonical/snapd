@@ -131,7 +131,8 @@ const (
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
-	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
+	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
+	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 )
 

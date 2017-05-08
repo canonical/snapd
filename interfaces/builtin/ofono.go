@@ -124,6 +124,15 @@ dbus (receive, send)
     path=/{,**}
     interface=org.ofono.*
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service on non-classic (due to the path,
+# allowing on classic would reveal too much for unconfined)
+dbus (send)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const ofonoConnectedPlugAppArmorClassic = `
@@ -133,6 +142,15 @@ dbus (receive, send)
     path=/{,**}
     interface=org.ofono.*
     peer=(label=unconfined),
+
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 `
 
 const ofonoPermanentSlotSecComp = `
@@ -145,6 +163,9 @@ accept4
 bind
 listen
 shutdown
+socket AF_NETLINK - NETLINK_ROUTE
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const ofonoPermanentSlotDBus = `
@@ -167,7 +188,7 @@ const ofonoPermanentSlotDBus = `
 </policy>
 `
 
-const ofonoPermanentSlotUdev = `
+const ofonoPermanentSlotUDev = `
 ## Concatenation of all ofono udev rules (plugins/*.rules in ofono sources)
 ## Note that ofono uses this for very few modems and that in most cases it finds
 ## modems by checking directly in code udev events, so changes here will be rare
@@ -264,8 +285,8 @@ func (iface *OfonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *i
 	return nil
 }
 
-func (iface *OfonoInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(ofonoPermanentSlotUdev)
+func (iface *OfonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotUDev)
 	return nil
 }
 

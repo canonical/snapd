@@ -22,9 +22,12 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -191,4 +194,136 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+}
+
+var fortestingInterfaceList = client.Interfaces{
+	Slots: []client.Slot{
+		{
+			Snap:      "core",
+			Name:      "x11",
+			Interface: "x11",
+		},
+		{
+			Snap:      "core",
+			Name:      "core-support",
+			Interface: "core-support",
+			Connections: []client.PlugRef{
+				{
+					Snap: "core",
+					Name: "core-support-plug",
+				},
+			},
+		},
+		{
+			Snap:      "wake-up-alarm",
+			Name:      "toggle",
+			Interface: "bool-file",
+			Label:     "Alarm toggle",
+		},
+		{
+			Snap:      "canonical-pi2",
+			Name:      "pin-13",
+			Interface: "bool-file",
+			Label:     "Pin 13",
+			Connections: []client.PlugRef{
+				{
+					Snap: "keyboard-lights",
+					Name: "capslock-led",
+				},
+			},
+		},
+	},
+	Plugs: []client.Plug{
+		{
+			Snap:      "core",
+			Name:      "core-support-plug",
+			Interface: "core-support",
+			Connections: []client.SlotRef{
+				{
+					Snap: "core",
+					Name: "core-support",
+				},
+			},
+		},
+		{
+			Snap:      "core",
+			Name:      "network-bind-plug",
+			Interface: "network-bind",
+		},
+		{
+			Snap:      "paste-daemon",
+			Name:      "network-listening",
+			Interface: "network-listening",
+			Label:     "Ability to be a network service",
+		},
+		{
+			Snap:      "potato",
+			Name:      "frying",
+			Interface: "frying",
+			Label:     "Ability to fry a network service",
+		},
+		{
+			Snap:      "keyboard-lights",
+			Name:      "capslock-led",
+			Interface: "bool-file",
+			Label:     "Capslock indicator LED",
+			Connections: []client.SlotRef{
+				{
+					Snap: "canonical-pi2",
+					Name: "pin-13",
+				},
+			},
+		},
+	},
+}
+
+func (s *SnapSuite) TestConnectCompletion(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Assert(r.Method, Equals, "GET")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": fortestingInterfaceList,
+			})
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+	os.Setenv("GO_FLAGS_COMPLETION", "verbose")
+	defer os.Unsetenv("GO_FLAGS_COMPLETION")
+
+	expected := []flags.Completion{}
+	parser := Parser()
+	parser.CompletionHandler = func(obtained []flags.Completion) {
+		c.Check(obtained, DeepEquals, expected)
+	}
+
+	expected = []flags.Completion{{Item: "core:"}, {Item: "paste-daemon:"}, {Item: "potato:"}}
+	_, err := parser.ParseArgs([]string{"connect", ""})
+	c.Assert(err, IsNil)
+
+	// connect's first argument can't start with : (only for the 2nd arg, the slot)
+	expected = nil
+	_, err = parser.ParseArgs([]string{"connect", ":"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "paste-daemon:network-listening", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"connect", "pa"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "core:"}, {Item: "wake-up-alarm:"}}
+	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ""})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", "w"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: ":x11", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ":"})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
 }

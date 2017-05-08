@@ -92,10 +92,11 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
-func (iface *I2cInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil

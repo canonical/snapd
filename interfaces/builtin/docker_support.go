@@ -101,7 +101,7 @@ signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
 # Graph (storage) driver bits
-/{dev,run}/shm/aufs.xino rw,
+/{dev,run}/shm/aufs.xino mrw,
 /proc/fs/aufs/plink_maint w,
 /sys/fs/aufs/** r,
 

@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"errors"
-	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -96,25 +95,24 @@ func MockErrtrackerReport(mock func(string, string, string, map[string]string) (
 	return func() { errtrackerReport = prev }
 }
 
-func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
-	prevMinRefreshInterval := minRefreshInterval
-	prevDefaultRefreshRandomness := defaultRefreshRandomness
-	minRefreshInterval = newMinRefreshInterval
-	defaultRefreshRandomness = newRefreshRandomness
-	return func() {
-		minRefreshInterval = prevMinRefreshInterval
-		defaultRefreshRandomness = prevDefaultRefreshRandomness
-	}
-}
-
 var (
-	CheckSnap            = checkSnap
-	CanRemove            = canRemove
-	CanDisable           = canDisable
-	CachedStore          = cachedStore
-	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+	CheckSnap              = checkSnap
+	CanRemove              = canRemove
+	CanDisable             = canDisable
+	CachedStore            = cachedStore
+	DefaultRefreshSchedule = defaultRefreshSchedule
+	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// aliases v2
+var (
+	ApplyAliasesChange    = applyAliasesChange
+	AutoAliasesDelta      = autoAliasesDelta
+	RefreshAliases        = refreshAliases
+	CheckAliasesConflicts = checkAliasesConflicts
+	DisableAliases        = disableAliases
+)

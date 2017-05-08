@@ -1,0 +1,31 @@
+summary: Check that a unity snap can start and its window is shown
+
+environment:
+    DISPLAY: ":99.0"
+
+systems: [ubuntu-16.04-64]
+
+prepare: |
+    # the file /etc/init/tty1.conf is present in the default images, upstart
+    # (which is installed as a dependency of the required packages) ships it
+    # and doesn't install cleanly if that file is in place
+    mv /etc/init/tty1.conf /etc/init/tty1.conf.back
+
+    apt install -y --no-install-recommends x11-utils xvfb unity
+
+disabled_restore: |
+    systemctl stop unity-app
+    apt autoremove -y --purge x11-utils xvfb unity
+
+    mv /etc/init/tty1.conf.back /etc/init/tty1.conf
+
+execute: |
+    echo "Given a unity snap is installed"
+    snap install ubuntu-clock-app
+
+    echo "When the app is started"
+    systemd-run --unit unity-app --setenv=DISPLAY=$DISPLAY --uid $(id -u test) $(which xvfb-run) --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" $(which ubuntu-clock-app.clock)
+
+    echo "Then the app window is created"
+    expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
+    while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done

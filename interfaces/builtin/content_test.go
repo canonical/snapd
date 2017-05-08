@@ -179,6 +179,20 @@ plugs:
 	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
 }
 
+func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+apps:
+  foo:
+    command: foo
+    plugs: [content]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["content"]}
+	err := s.iface.SanitizePlug(plug)
+	c.Assert(err, ErrorMatches, "content plug must contain target path")
+}
+
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
 	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, "/snap/name/42/foo")
