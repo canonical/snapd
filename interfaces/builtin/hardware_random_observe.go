@@ -29,10 +29,9 @@ import (
 )
 
 const hardwareRandomObserveConnectedPlugAppArmor = `
-# Description: allow direct access to the hardware random number generator device. Usually,
-# the default access to /dev/random is sufficient, but this allows applications such as rng-tools
-# to use /dev/hwrng directly or change the hwrng via sysfs. For details, see
-# https://www.kernel.org/doc/Documentation/hw_random.txt
+# Description: allow direct read-only access to the hardware random number
+# generator device. In addition allow observing the available and
+# currently-selected hardware random number generator devices.
 
 /dev/hwrng r,
 /sys/devices/virtual/misc/ r,
