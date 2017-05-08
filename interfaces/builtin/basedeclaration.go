@@ -151,6 +151,9 @@ plugs:
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
   lxd-support:
     allow-installation: false
     deny-auto-connection: true
@@ -334,6 +337,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  kubernetes-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   libvirt:
     allow-installation:
       slot-snap-type:
@@ -376,6 +384,13 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
   mir:
     allow-installation:
       slot-snap-type:
@@ -401,6 +416,16 @@ slots:
     deny-connection:
       slot-attributes:
         name: .+
+    deny-auto-connection: true
+  netlink-audit:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  netlink-connector:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
   network:
     allow-installation:

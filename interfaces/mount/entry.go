@@ -20,10 +20,7 @@
 package mount
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"syscall"
@@ -142,54 +139,6 @@ func ParseEntry(s string) (Entry, error) {
 	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
-}
-
-// LoadFSTab reads and parses an fstab-like file.
-//
-// The supported format is described by fstab(5).
-func LoadFSTab(reader io.Reader) ([]Entry, error) {
-	var entries []Entry
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		s := scanner.Text()
-		if i := strings.IndexByte(s, '#'); i != -1 {
-			s = s[0:i]
-		}
-		s = strings.TrimSpace(s)
-		if s == "" {
-			continue
-		}
-		entry, err := ParseEntry(s)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, entry)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
-// SaveFSTab writes a list of entries to a fstab-like file.
-//
-// The supported format is described by fstab(5).
-//
-// Note that there is no support for comments, both the LoadFSTab function and
-// SaveFSTab just ignore them.
-//
-// Note that there is no attempt to use atomic file write/rename tricks. The
-// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
-// be done so, while holidng a flock-based-lock, by the snap-update-ns program.
-func SaveFSTab(writer io.Writer, entries []Entry) error {
-	var buf bytes.Buffer
-	for i := range entries {
-		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
-			return err
-		}
-	}
-	_, err := buf.WriteTo(writer)
-	return err
 }
 
 // OptsToFlags converts mount options strings to a mount flag.
