@@ -34,6 +34,7 @@ var (
 
 	SnapMountDir              string
 	BaseSnapMountDir          string
+	CoreSnapMountDir          string
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -185,6 +186,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	CoreLibExecDir = "/usr/lib/snapd"
+	CoreSnapMountDir = "/snap"
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
