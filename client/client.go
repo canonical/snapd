@@ -382,11 +382,12 @@ type RefreshInfo struct {
 
 // SysInfo holds system information
 type SysInfo struct {
-	Series    string    `json:"series,omitempty"`
-	Version   string    `json:"version,omitempty"`
-	OSRelease OSRelease `json:"os-release"`
-	OnClassic bool      `json:"on-classic"`
-	Managed   bool      `json:"managed"`
+	Series        string    `json:"series,omitempty"`
+	Version       string    `json:"version,omitempty"`
+	OSRelease     OSRelease `json:"os-release"`
+	OnClassic     bool      `json:"on-classic"`
+	Managed       bool      `json:"managed"`
+	ForcedDevMode bool      `json:"forced-devmode"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 

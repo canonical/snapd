@@ -23,14 +23,13 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/release"
 
 	"github.com/jessevdk/go-flags"
 )
 
 var shortForcedDevmodeHelp = i18n.G("Prints whether system is in forced devmode")
 var longForcedDevmodeHelp = i18n.G(`
-The managed command will print true or false informing whether
+The forced-devmode command will print true or false informing whether
 snapd is running in forced devmode.
 `)
 
@@ -46,7 +45,15 @@ func (cmd cmdForcedDevmode) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	fmt.Println("Before check")
-	fmt.Fprintf(Stdout, "%v\n", release.ReleaseInfo.ForceDevMode())
+	sysinfo, err := Client().SysInfo()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "%v\n", sysinfo.ForcedDevMode)
+
+	if !sysinfo.ForcedDevMode {
+		return fmt.Errorf("Forced devmode is not enabled")
+	}
 	return nil
 }

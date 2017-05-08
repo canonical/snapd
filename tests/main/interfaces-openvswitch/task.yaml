@@ -64,7 +64,7 @@ execute: |
     test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
     ovs-vsctl list-br | MATCH -v br0
 
-    if [ "$(snap forced-devmode)" = "true" ]; then
+    if snap forced-devmode ; then
         exit 0
     fi
 

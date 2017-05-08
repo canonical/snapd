@@ -255,6 +255,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
+		"forced-devmode": release.ReleaseInfo.ForceDevMode(),
 		"kernel-version": release.KernelVersion(),
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
