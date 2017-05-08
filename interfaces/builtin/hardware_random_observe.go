@@ -73,7 +73,7 @@ func (iface *HardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmo
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	const udevRule = `KERNEL=="hwrng", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)

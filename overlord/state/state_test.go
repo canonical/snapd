@@ -97,6 +97,39 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 	c.Check(err, Equals, state.ErrNoState)
 }
 
+func (ss *stateSuite) TestSetToNilDeletes(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("a", map[string]int{"a": 1})
+	var v map[string]int
+	err := st.Get("a", &v)
+	c.Assert(err, IsNil)
+	c.Check(v, HasLen, 1)
+
+	st.Set("a", nil)
+
+	var v1 map[string]int
+	err = st.Get("a", &v1)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(v1, HasLen, 0)
+}
+
+func (ss *stateSuite) TestNullMeansNoState(c *C) {
+	buf := bytes.NewBufferString(`{"data": {"a": null}}`)
+	st, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var v1 map[string]int
+	err = st.Get("a", &v1)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(v1, HasLen, 0)
+}
+
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	st := state.New(nil)
 	st.Lock()

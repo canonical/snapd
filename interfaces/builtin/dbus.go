@@ -80,6 +80,13 @@ dbus (send)
     path=###DBUS_PATH###
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=unconfined),
+
+# Allow us to introspect org.freedesktop.DBus (needed by pydbus)
+dbus (send)
+    bus=###DBUS_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
 const dbusPermanentSlotAppArmorClassic = `

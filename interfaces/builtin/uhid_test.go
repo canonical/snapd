@@ -87,7 +87,7 @@ func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-slot-1"), testutil.Contains, "/dev/uhid rw,\n")
 }
 
-func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+func (s *UhidInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	expectedSnippet1 := `KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"`
 	spec := &udev.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)

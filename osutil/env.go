@@ -32,25 +32,37 @@ import (
 // An optional second argument can be provided, which determines how to
 // treat missing or unparsable values; default is to treat them as false.
 func GetenvBool(key string, dflt ...bool) bool {
-	val := os.Getenv(key)
-	if val == "" {
-		if len(dflt) > 0 {
-			return dflt[0]
+	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			return b
 		}
-
-		return false
 	}
 
-	b, err := strconv.ParseBool(val)
-	if err != nil {
-		if len(dflt) > 0 {
-			return dflt[0]
-		}
-
-		return false
+	if len(dflt) > 0 {
+		return dflt[0]
 	}
 
-	return b
+	return false
+}
+
+// GetenvInt64 interprets the value of the given environment variable
+// as an int64 and returns the corresponding value. The base can be
+// implied via the prefix (0x for 16, 0 for 8; otherwise 10).
+//
+// An optional second argument can be provided, which determines how to
+// treat missing or unparsable values; default is to treat them as 0.
+func GetenvInt64(key string, dflt ...int64) int64 {
+	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+		if b, err := strconv.ParseInt(val, 0, 64); err == nil {
+			return b
+		}
+	}
+
+	if len(dflt) > 0 {
+		return dflt[0]
+	}
+
+	return 0
 }
 
 // SubstituteEnv takes a list of environment strings like:

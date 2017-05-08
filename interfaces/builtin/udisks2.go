@@ -127,11 +127,10 @@ const udisks2ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-dbus (receive)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive, send)
@@ -145,6 +144,14 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
@@ -160,6 +167,8 @@ mount
 shmctl
 umount
 umount2
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `
@@ -362,7 +371,7 @@ func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *UDisks2Interface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *UDisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotUDev)
 	return nil
 }

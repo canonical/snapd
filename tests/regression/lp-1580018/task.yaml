@@ -4,8 +4,11 @@ details: |
     be coming from the core snap (or the ubuntu-core snap). This allows snaps
     to rely on deterministic behavior, isolated from any changes imposed by
     Debian's alternatives system.
-# This test only applies to classic systems
-systems: [-ubuntu-core-16-*]
+systems:
+    # This test only applies to classic systems
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 prepare: |
     echo "Having installed the test snap"
     . $TESTSLIB/snaps.sh

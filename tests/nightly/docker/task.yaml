@@ -1,6 +1,5 @@
 summary: Check that the docker snap works
-manual: true
-systems: [ubuntu-16.04-*, ubuntu-core-16-*64, ubuntu-14.04-64]
+systems: [ubuntu-16.04-*, ubuntu-core-16-*, ubuntu-14.04-64]
 
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
@@ -20,6 +19,9 @@ debug: |
     dmesg
 
 execute: |
+    # wait for the socket to be listening
+    while ! printf "GET /" | nc -U -q 1 /var/run/docker.sock; do sleep 1; done
+
     echo "Check that docker info and run basically work"
     docker info
 
