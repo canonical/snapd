@@ -51,22 +51,23 @@ var (
 	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
-// a stringish is something that can be a []string or a string
-// like the values of the "extra" documents in error responses
-type stringish []string
+// a stringList is something that can be deserialized from a JSON
+// []string or a string, like the values of the "extra" documents in
+// error responses
+type stringList []string
 
-func (sish *stringish) UnmarshalJSON(bs []byte) error {
+func (sish *stringList) UnmarshalJSON(bs []byte) error {
 	var ss []string
 	e1 := json.Unmarshal(bs, &ss)
 	if e1 == nil {
-		*sish = stringish(ss)
+		*sish = stringList(ss)
 		return nil
 	}
 
 	var s string
 	e2 := json.Unmarshal(bs, &s)
 	if e2 == nil {
-		*sish = stringish([]string{s})
+		*sish = stringList([]string{s})
 		return nil
 	}
 
@@ -74,9 +75,9 @@ func (sish *stringish) UnmarshalJSON(bs []byte) error {
 }
 
 type ssoMsg struct {
-	Code    string               `json:"code"`
-	Message string               `json:"message"`
-	Extra   map[string]stringish `json:"extra"`
+	Code    string                `json:"code"`
+	Message string                `json:"message"`
+	Extra   map[string]stringList `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)

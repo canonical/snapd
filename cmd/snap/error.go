@@ -130,9 +130,6 @@ If you understand and want to proceed repeat the command including --classic.
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
-	case client.ErrorKindPasswordPolicy:
-		usesSnapName = false
-		msg = err.Message
 	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
 		isError = false
 		usesSnapName = false
