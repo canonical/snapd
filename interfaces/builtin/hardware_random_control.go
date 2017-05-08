@@ -39,6 +39,7 @@ const hardwareRandomControlConnectedPlugAppArmor = `
 /run/udev/data/c10:183 r,
 /sys/devices/virtual/misc/ r,
 /sys/devices/virtual/misc/hw_random/rng_{available,current} r,
+
 # Allow changing the hwrng
 /sys/devices/virtual/misc/hw_random/rng_current w,
 `
