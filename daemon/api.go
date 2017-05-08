@@ -345,7 +345,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Status: http.StatusUnauthorized,
 		}, nil)
 	default:
-		if err, ok := err.(store.ErrInvalidAuthData); ok {
+		switch err := err.(type) {
+		case store.ErrInvalidAuthData:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -354,6 +355,16 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Value:   err,
 				},
 				Status: http.StatusBadRequest,
+			}, nil)
+		case store.ErrPasswordPolicy:
+			return SyncResponse(&resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: err.Error(),
+					Kind:    errorKindPasswordPolicy,
+					Value:   err,
+				},
+				Status: http.StatusUnauthorized,
 			}, nil)
 		}
 		return Unauthorized(err.Error())
