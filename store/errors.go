@@ -70,7 +70,7 @@ func (e *ErrDownload) Error() string {
 	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
 }
 
-type ErrPasswordPolicy map[string]stringish
+type ErrPasswordPolicy map[string]stringList
 
 func (e ErrPasswordPolicy) Error() string {
 	var msg string
@@ -90,7 +90,7 @@ func (e ErrPasswordPolicy) Error() string {
 }
 
 // ErrInvalidAuthData signals that the authentication data didn't pass validation.
-type ErrInvalidAuthData map[string]stringish
+type ErrInvalidAuthData map[string]stringList
 
 func (e ErrInvalidAuthData) Error() string {
 	var es []string

@@ -380,11 +380,11 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 }
 
 func (s *authTestSuite) TestStringish(c *C) {
-	var x stringish
+	var x stringList
 
 	c.Check(json.Unmarshal([]byte(`"hello"`), &x), IsNil)
-	c.Check(x, DeepEquals, stringish([]string{"hello"}))
+	c.Check(x, DeepEquals, stringList([]string{"hello"}))
 
 	c.Check(json.Unmarshal([]byte(`["hello", "world"]`), &x), IsNil)
-	c.Check(x, DeepEquals, stringish([]string{"hello", "world"}))
+	c.Check(x, DeepEquals, stringList([]string{"hello", "world"}))
 }
