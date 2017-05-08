@@ -30,6 +30,7 @@
     /dev/random r,
     /dev/urandom r,
     /dev/pts/[0-9]* rw,
+    /dev/tty rw,
 
     # cgroups
     capability sys_admin,
@@ -92,6 +93,10 @@
 
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
+
+    # LP: #1668659
+    mount options=(rw rbind) /snap/ -> /snap/,
+    mount options=(rw rshared) -> /snap/,
 
     # boostrapping the mount namespace
     mount options=(rw rshared) -> /,
@@ -274,6 +279,10 @@
     /var/lib/lxd/ w,
     /var/lib/snapd/hostfs/var/lib/lxd r,
 
+    # support for locking
+    /run/snapd/lock/ rw,
+    /run/snapd/lock/*.lock rwk,
+
     # support for the mount namespace sharing
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
@@ -287,6 +296,7 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
+    /run/snapd/ns/*.fstab rw,
     ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,

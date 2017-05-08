@@ -285,7 +285,7 @@ func main() {
 
 	// no magic /o\
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, i18n.G("error: %v\n"), err)
+		fmt.Fprintf(Stderr, errorPrefix, err)
 		os.Exit(1)
 	}
 }

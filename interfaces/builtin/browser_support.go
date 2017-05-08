@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,9 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const browserSupportConnectedPlugAppArmor = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
@@ -44,11 +43,14 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
-owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
+owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
+owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
+
+# Chromium content api in gnome-shell reads this
+/etc/opt/chrome/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -122,6 +124,12 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/product r,
 /sys/devices/**/serial r,
 
+# Chromium content api tries to read these. It is an information disclosure
+# since these contain the names of snaps. Chromium operates fine without the
+# access so just block it.
+deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
+deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
+
 # networking
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,
@@ -190,11 +198,14 @@ owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
 
 # Webkit uses a particular SHM names # LP: 1578217
-owner /{dev,run}/shm/WK2SharedMemory.* rw,
+owner /{dev,run}/shm/WK2SharedMemory.* mrw,
+
+# Chromium content api on (at least) later versions of Ubuntu just use this
+owner /{dev,run}/shm/shmfd-* mrw,
 `
 
 const browserSupportConnectedPlugSecComp = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.

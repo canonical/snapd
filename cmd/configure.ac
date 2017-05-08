@@ -23,7 +23,8 @@ AC_SYS_LARGEFILE
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
 AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)],
-[[#define _FILE_OFFSET_BITS 64
+[[#define _GNU_SOURCE
+#define _FILE_OFFSET_BITS 64
 #include <xfs/xqm.h>
 ]])
 
@@ -174,7 +175,8 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
         [Use capabilities rather than setuid bit])])
 
 AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
-AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man tool, install python-docutils or similar"])])
+AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_WARN(["cannot find the rst2man tool, install python-docutils or similar"])])
+AM_CONDITIONAL([HAVE_RST2MAN], [test "x${HAVE_RST2MAN}" != "x"])
 
 AC_PATH_PROG([HAVE_SHELLCHECK],[shellcheck])
 AM_CONDITIONAL([HAVE_SHELLCHECK], [test "x${HAVE_SHELLCHECK}" != "x"])
