@@ -48,8 +48,9 @@ func (cmd cmdWhoAmI) Execute(args []string) error {
 		return err
 	}
 	if email == "" {
+		// just printing nothing looks weird (as if something had gone wrong)
 		email = "-"
 	}
-	fmt.Fprintln(Stdout, email)
+	fmt.Fprintln(Stdout, i18n.G("email:"), email)
 	return nil
 }
