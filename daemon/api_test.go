@@ -573,8 +573,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
-		"on-classic": true,
-		"managed":    false,
+		"on-classic":     true,
+		"managed":        false,
+		"forced-devmode": false,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
