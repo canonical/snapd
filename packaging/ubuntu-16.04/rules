@@ -198,9 +198,9 @@ override_dh_install:
 	# and do the same for our upstart units
 	$(MAKE) -C data/upstart install DESTDIR=$(CURDIR)/debian/snapd/
 
-	install -d $(CURDIR)/debian/tmp/usr/lib/systemd/user/default.target.wants
+	install -d $(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants
 	ln -sf /usr/lib/systemd/user/snapd-user.service \
-		$(CURDIR)/debian/tmp/usr/lib/systemd/user/default.target.wants/snapd-user.service
+		$(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants/snapd-user.service
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
