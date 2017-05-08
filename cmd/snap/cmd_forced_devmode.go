@@ -36,7 +36,7 @@ snapd is running in forced devmode.
 type cmdForcedDevmode struct{}
 
 func init() {
-	cmd := addCommand("forced-devmode", shortForcedDevmodeHelp, longForcedDevmodeHelp, func() flags.Commander { return &cmdIsManaged{} }, nil, nil)
+	cmd := addCommand("forced-devmode", shortForcedDevmodeHelp, longForcedDevmodeHelp, func() flags.Commander { return &cmdForcedDevmode{} }, nil, nil)
 	cmd.hidden = true
 }
 
