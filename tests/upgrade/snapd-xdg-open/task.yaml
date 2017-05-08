@@ -8,6 +8,7 @@ restore: |
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
+    apt purge -y snapd-xdg-open
 execute: |
     . "$TESTSLIB/apt.sh"
 
