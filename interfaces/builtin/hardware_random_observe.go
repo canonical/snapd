@@ -82,5 +82,6 @@ func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specif
 }
 
 func (iface *HardwareRandomObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// Allow what is allowed in the declarations
 	return true
 }
