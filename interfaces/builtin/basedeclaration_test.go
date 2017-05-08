@@ -145,7 +145,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"opengl":                  true,
 		"optical-drive":           true,
 		"pulseaudio":              true,
-		"random":                  true,
 		"screen-inhibit-control":  true,
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
