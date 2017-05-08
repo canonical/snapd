@@ -1,0 +1,6 @@
+start on started dbus
+
+respawn
+respawn limit 10 5
+
+exec @libexecdir@/snapd/snapd --user

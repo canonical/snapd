@@ -31,3 +31,4 @@ usr/share/man/man5/snap-discard-ns.5
 usr/bin/ubuntu-core-launcher
 
 usr/lib/systemd/user
+usr/share/upstart/sessions

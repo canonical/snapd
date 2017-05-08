@@ -113,6 +113,8 @@ override_dh_auto_build:
 
 	# Generate the real systemd units out of the available templates
 	$(MAKE) -C data/systemd all
+	# and do the same for our upstart units
+	$(MAKE) -C data/upstart all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -193,6 +195,8 @@ override_dh_install:
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
 	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	# and do the same for our upstart units
+	$(MAKE) -C data/upstart install DESTDIR=$(CURDIR)/debian/snapd/
 
 	install -d $(CURDIR)/debian/tmp/usr/lib/systemd/user/default.target.wants
 	ln -sf /usr/lib/systemd/user/snapd-user.service \
