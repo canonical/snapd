@@ -36,11 +36,11 @@ const hardwareRandomControlConnectedPlugAppArmor = `
 # https://www.kernel.org/doc/Documentation/hw_random.txt
 
 /dev/hwrng rw,
+/run/udev/data/c10:183 r,
 /sys/devices/virtual/misc/ r,
 /sys/devices/virtual/misc/hw_random/rng_{available,current} r,
 # Allow changing the hwrng
 /sys/devices/virtual/misc/hw_random/rng_current w,
-/run/udev/data/c10:183 r,
 `
 
 // The type for physical-memory-control interface

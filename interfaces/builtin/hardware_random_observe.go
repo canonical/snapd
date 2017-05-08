@@ -34,9 +34,9 @@ const hardwareRandomObserveConnectedPlugAppArmor = `
 # currently-selected hardware random number generator devices.
 
 /dev/hwrng r,
+/run/udev/data/c10:183 r,
 /sys/devices/virtual/misc/ r,
 /sys/devices/virtual/misc/hw_random/rng_{available,current} r,
-/run/udev/data/c10:183 r,
 `
 
 // The type for physical-memory-control interface
