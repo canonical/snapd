@@ -268,6 +268,7 @@ func (s *AllSuite) TestEachInterfaceImplementsSomeBackendMethods(c *C) {
 	}
 }
 
+// pre-specification snippet functions
 type snippetDefiner1 interface {
 	ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
 }
@@ -281,6 +282,11 @@ type snippetDefiner4 interface {
 	PermanentSlotSnippet(slot *interfaces.Slot, sec interfaces.SecuritySystem) error
 }
 
+// old auto-connect function
+type legacyAutoConnect interface {
+	LegacyAutoConnect() bool
+}
+
 // allBadDefiners contains all old/unused specification definers for all known backends.
 var allBadDefiners = []reflect.Type{
 	// pre-specification snippet methods
@@ -288,18 +294,15 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner2)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner3)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.
 func (s *AllSuite) TestNoInterfaceImplementsOldBackendMethods(c *C) {
 	for _, iface := range builtin.Interfaces() {
-		bogus := false
 		for _, definer := range allBadDefiners {
-			if reflect.TypeOf(iface).Implements(definer) {
-				bogus = true
-			}
+			c.Assert(reflect.TypeOf(iface).Implements(definer), Equals, false,
+				Commentf("interface %q implement old/unused methods %s", iface.Name(), definer))
 		}
-		c.Assert(bogus, Equals, false,
-			Commentf("interface %q implement old/unused specification methods", iface.Name()))
 	}
 }
