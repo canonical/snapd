@@ -38,6 +38,7 @@ var evalSymlinks = filepath.EvalSymlinks
 
 type commonInterface struct {
 	name                   string
+	description            string
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
 	reservedForOS          bool
@@ -52,6 +53,13 @@ type commonInterface struct {
 // Name returns the interface name.
 func (iface *commonInterface) Name() string {
 	return iface.name
+}
+
+// MetaData returns variou meta-data about this interface.
+func (iface *commonInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Description: iface.description,
+	}
 }
 
 // SanitizeSlot checks and possibly modifies a slot.
