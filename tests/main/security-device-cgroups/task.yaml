@@ -1,9 +1,5 @@
 summary: Ensure that the security rules related to device cgroups work.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg
@@ -18,6 +14,11 @@ environment:
     OTHER_DEVICE_NAME/uinput: kmsg
     OTHER_UDEVADM_PATH/uinput: /sys/devices/virtual/mem/kmsg
     OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
+
+prepare: |
+    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
+        modprobe uinput
+    fi
 
 restore: |
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
