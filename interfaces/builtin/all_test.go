@@ -261,6 +261,7 @@ func (s *AllSuite) TestEachInterfaceImplementsSomeBackendMethods(c *C) {
 		for _, definer := range allGoodDefiners {
 			if reflect.TypeOf(iface).Implements(definer) {
 				bogus = false
+				break
 			}
 		}
 		c.Assert(bogus, Equals, false,
