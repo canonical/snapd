@@ -1,5 +1,11 @@
 summary: Verify forced-devmode is correctly reported
 
+details: |
+    This test case ensures that the force-devmode command gives the
+    expected return value for the system we're running on. As a lot
+    test cases rely on the `snap forced-devmode` command to test or
+    not to test certain behaviour this is critical to ensure.
+
 execute: |
     expected=true
     case "$SPREAD_SYSTEM" in

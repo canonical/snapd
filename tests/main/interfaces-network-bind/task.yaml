@@ -63,6 +63,7 @@ execute: |
     nc -w 2 -q 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
 
     if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
         exit 0
     fi
 
