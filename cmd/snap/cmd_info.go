@@ -204,9 +204,9 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 				trackHasOpenChannel = true
 			} else {
 				if trackHasOpenChannel {
-					version = "^"
+					version = "↑"
 				} else {
-					version = "--" // two so it's valid yaml
+					version = "–" // that's an en dash (so yaml is happy)
 				}
 			}
 			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
