@@ -293,13 +293,6 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 	restore := hookstate.MockDefaultHookTimeout(150 * time.Millisecond)
 	defer restore()
 
-	var hooksup hookstate.HookSetup
-
-	s.state.Lock()
-	s.task.Get("hook-setup", &hooksup)
-	s.task.Set("hook-setup", &hooksup)
-	s.state.Unlock()
-
 	// Force the snap command to hang
 	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 
