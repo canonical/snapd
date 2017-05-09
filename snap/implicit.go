@@ -69,6 +69,7 @@ var implicitSlots = []string{
 	"removable-media",
 	"shutdown",
 	"snapd-control",
+	"ssh-control",
 	"system-observe",
 	"system-trace",
 	"time-control",

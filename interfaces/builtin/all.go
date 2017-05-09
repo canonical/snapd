@@ -104,6 +104,7 @@ var allInterfaces = []interfaces.Interface{
 	NewScreenInhibitControlInterface(),
 	NewShutdownInterface(),
 	NewSnapdControlInterface(),
+	NewSshControlInterface(),
 	NewSystemObserveInterface(),
 	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),

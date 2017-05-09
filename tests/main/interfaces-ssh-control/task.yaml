@@ -1,0 +1,36 @@
+summary: Check that SSH configuration accessible through an interface
+
+details: |
+    This test makes sure that a snap using the ssh-control interface can
+    access the system ssh configuration.
+
+systems: [ubuntu-core-16-64]
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Given a snap declaring a plug on ssh-control is installed"
+    . $TESTSLIB/snaps.sh
+    install_local ssh-control-consumer
+
+    echo "And the ssh-control plug is connected"
+    . "$TESTSLIB/names.sh"
+    snap connect ssh-control-consumer:ssh-control ${core_name}:ssh-control
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    /snap/bin/ssh-control-consumer.write foo
+    test `/snap/bin/ssh-control-consumer.read` = foo
