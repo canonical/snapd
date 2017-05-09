@@ -295,6 +295,7 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner2)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner3)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
+	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
 }
 
