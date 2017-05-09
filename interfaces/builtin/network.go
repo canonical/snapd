@@ -37,7 +37,7 @@ const networkConnectedPlugSecComp = `
 bind
 shutdown
 
-# FIXME: ARM needs this with some common functions in golang's 'net' library.
+# FIXME: some kernels require this with common functions in go's 'net' library.
 # While this should remain in network-bind, network-control and
 # network-observe, for series 16 also have it here to not break existing snaps.
 # Future snapd series may remove this in the future. LP: #1689536
