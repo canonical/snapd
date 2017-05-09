@@ -3,4 +3,4 @@ version: 1.0
 apps:
     cmd:
         command: bin/cmd
-        plugs: [<interface-name>]
+        plugs: [@INTERFACE@]
