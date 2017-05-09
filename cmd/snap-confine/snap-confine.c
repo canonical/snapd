@@ -38,6 +38,7 @@
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
 #include "user-support.h"
+#include "xauth.h"
 
 int main(int argc, char **argv)
 {
@@ -111,6 +112,8 @@ int main(int argc, char **argv)
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
 	seccomp_ctx = sc_prepare_seccomp_context(security_tag);
 #endif				// ifdef HAVE_SECCOMP
+
+	sc_xauth_load_from_env();
 
 	if (geteuid() == 0) {
 		// ensure that "/" or "/snap" is mounted with the
@@ -235,6 +238,7 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
 	}
+	sc_xauth_populate();
 	// and exec the new binary
 	execv(binary, (char *const *)&argv[NR_ARGS]);
 	perror("execv failed");
