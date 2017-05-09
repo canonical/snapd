@@ -297,16 +297,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 
 	s.manager.Ensure()
-	completed := make(chan struct{})
-	go func() {
-		s.manager.Wait()
-		close(completed)
-	}()
-
-	s.state.Lock()
-	s.state.Unlock()
-	s.manager.Ensure()
-	<-completed
+	s.manager.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
