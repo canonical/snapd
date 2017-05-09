@@ -37,9 +37,7 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
 
-BUILT_USING_PACKAGES= libcap-dev libapparmor-dev libseccomp-dev
-BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
-
+BUILT_USING_PACKAGES=
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 # DPKG_EXPORT_BUILDFLAGS = 1
 # include /usr/share/dpkg/buildflags.mk
@@ -56,13 +54,16 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
     VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
     VENDOR_ARGS=--disable-apparmor --disable-seccomp
+    BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
 endif
 endif
+BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
