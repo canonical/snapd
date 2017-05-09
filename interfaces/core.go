@@ -71,10 +71,12 @@ func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Interfaces holds information about a list of plugs and slots, and their connections.
+// Interfaces holds information about a list of plugs and slots, their connections and known interfaces.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
+
+	MetaData map[string]MetaData `json:"meta-data"`
 }
 
 // ConnRef holds information about plug and slot reference that form a particular connection.
@@ -125,6 +127,22 @@ type Interface interface {
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// MetaData describes various meta-data of a given interface.
+type MetaData struct {
+	Description string `json:"description,omitempty"`
+}
+
+// ifaceMetaData returns the meta-data of the given interface.
+func ifaceMetaData(iface Interface) (md MetaData) {
+	type metaDataProvider interface {
+		MetaData() MetaData
+	}
+	if iface, ok := iface.(metaDataProvider); ok {
+		md = iface.MetaData()
+	}
+	return md
 }
 
 // Specification describes interactions between backends and interfaces.
