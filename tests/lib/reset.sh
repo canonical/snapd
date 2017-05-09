@@ -3,6 +3,10 @@
 set -e -x
 
 reset_classic() {
+    # Reload all service units as in some situations the unit might
+    # have changed on the disk.
+    systemctl daemon-reload
+
     systemctl stop snapd.service snapd.socket
 
     # purge all state
