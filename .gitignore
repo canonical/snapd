@@ -32,6 +32,7 @@ cmd/*/*.[1-9]
 
 # auto-generated systemd units
 data/systemd/*.service
+data/upstart/*.conf
 
 # test-driver
 *.log

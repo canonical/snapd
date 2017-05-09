@@ -27,3 +27,6 @@ all: ${UPSTART_SERVICES}
 
 install: ${UPSTART_SERVICES}
 	install -D -m 0644 -t ${DESTDIR}/${UPSTARTSESSIONSDIR} $^
+
+clean:
+	rm -f ${UPSTART_SERVICES}
