@@ -134,8 +134,6 @@ func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
 	return false
 }
 
-var prepareDeviceHookTimeout = time.Minute * 30
-
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -193,9 +191,8 @@ func (m *DeviceManager) ensureOperational() error {
 	if gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap:    gadgetInfo.Name(),
-			Hook:    "prepare-device",
-			Timeout: prepareDeviceHookTimeout,
+			Snap: gadgetInfo.Name(),
+			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
