@@ -1,9 +1,5 @@
 summary: Ensure that the home interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 
@@ -77,16 +73,20 @@ execute: |
 
     echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if ! snap forced-devmode ; then
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then snap can't read home files"
-    if home-consumer.reader $READABLE_FILE; then
-        echo "Home files shouldn't be readable" && exit 1
+        echo "Then snap can't read home files"
+        if home-consumer.reader $READABLE_FILE; then
+            echo "Home files shouldn't be readable" && exit 1
+        fi
+
+        echo "============================================"
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-
-    echo "============================================"
 
     echo "When the plug is connected"
     snap connect home-consumer:home
@@ -98,16 +98,20 @@ execute: |
 
     echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if ! snap forced-devmode ; then
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then snap can't append to home files"
-    if home-consumer.writer "$WRITABLE_FILE"; then
-        echo "Home files shouldn't be writable" && exit 1
+        echo "Then snap can't append to home files"
+        if home-consumer.writer "$WRITABLE_FILE"; then
+            echo "Home files shouldn't be writable" && exit 1
+        fi
+
+        echo "============================================"
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-
-    echo "============================================"
 
     echo "When the plug is connected"
     snap connect home-consumer:home
@@ -119,33 +123,37 @@ execute: |
 
     echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if ! snap forced-devmode ; then
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then snap can't create home files"
-    if home-consumer.writer "$CREATABLE_FILE"; then
-        echo "It should be impossible to create home files" && exit 1
-    fi
+        echo "Then snap can't create home files"
+        if home-consumer.writer "$CREATABLE_FILE"; then
+            echo "It should be impossible to create home files" && exit 1
+        fi
 
-    echo "============================================"
+        echo "============================================"
 
-    echo "When the plug is connected"
-    snap connect home-consumer:home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+        echo "When the plug is connected"
+        snap connect home-consumer:home
+        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    echo "Then the snap is not able to read hidden home files"
-    if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
-        echo "Hidden home files shouldn't be readable" && exit 1
-    fi
+        echo "Then the snap is not able to read hidden home files"
+        if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
+            echo "Hidden home files shouldn't be readable" && exit 1
+        fi
 
-    echo "============================================"
+        echo "============================================"
 
-    echo "When the plug is connected"
-    snap connect home-consumer:home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+        echo "When the plug is connected"
+        snap connect home-consumer:home
+        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    echo "Then the snap is not able to write hidden home files"
-    if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
-        echo "It should be impossible to create hidden home files" && exit 1
+        echo "Then the snap is not able to write hidden home files"
+        if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
+            echo "It should be impossible to create hidden home files" && exit 1
+        fi
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi

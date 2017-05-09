@@ -2,8 +2,6 @@ summary: Ensure that the cups interface works.
 
 systems:
     - -ubuntu-core-16-*
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -57,6 +55,11 @@ execute: |
     echo "Hello World" > $TEST_FILE
     test-snapd-cups-control-consumer.lpr $TEST_FILE
     while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
+
+    if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
+        exit 0
+    fi
 
     echo "===================================="
 

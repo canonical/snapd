@@ -1,9 +1,5 @@
 summary: Ensure that the kernel-module-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
@@ -82,6 +78,11 @@ execute: |
     echo "And the snap is able to remove a module"
     test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
     lsmod | MATCH -v binfmt_misc
+
+    if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
+        exit 0
+    fi
 
     echo "==================================="
 
