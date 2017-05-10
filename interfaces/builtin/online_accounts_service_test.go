@@ -97,18 +97,18 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *
 func (s *OnlineAccountsServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs don't have a security snippet for seccomp
 	seccompSpec := seccomp.Specification{}
-	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
 	c.Check(snippet, testutil.Contains, "peer=(label=\"snap.service.oa\")")
@@ -116,13 +116,13 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	snippet := apparmorSpec.SnippetForTag("snap.service.oa")
 	c.Check(snippet, testutil.Contains, "peer=(label=\"snap.other.app\")")
 
 	// no apparmor snippet for connected slot on classic
 	apparmorSpec = apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.classicSlot, nil), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 }
 
