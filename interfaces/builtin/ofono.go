@@ -124,6 +124,15 @@ dbus (receive, send)
     path=/{,**}
     interface=org.ofono.*
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service on non-classic (due to the path,
+# allowing on classic would reveal too much for unconfined)
+dbus (send)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const ofonoConnectedPlugAppArmorClassic = `
@@ -133,6 +142,15 @@ dbus (receive, send)
     path=/{,**}
     interface=org.ofono.*
     peer=(label=unconfined),
+
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 `
 
 const ofonoPermanentSlotSecComp = `
@@ -145,6 +163,9 @@ accept4
 bind
 listen
 shutdown
+socket AF_NETLINK - NETLINK_ROUTE
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const ofonoPermanentSlotDBus = `
@@ -242,7 +263,7 @@ func (iface *OfonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -269,7 +290,7 @@ func (iface *OfonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *i
 	return nil
 }
 
-func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
@@ -289,11 +310,11 @@ func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *OfonoInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&OfonoInterface{})
 }

@@ -57,6 +57,10 @@ const accountControlConnectedPlugSecComp = `
 # TODO: dynamically determine the shadow gid to support alternate cores
 fchown - 0 42
 fchown32 - 0 42
+
+# from libaudit1
+bind
+socket AF_NETLINK - NETLINK_AUDIT
 `
 
 // Interface which allows to handle the user accounts.
@@ -67,4 +71,8 @@ func NewAccountControlInterface() interfaces.Interface {
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
+}
+
+func init() {
+	registerIface(NewAccountControlInterface())
 }

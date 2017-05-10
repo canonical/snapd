@@ -47,3 +47,7 @@ func NewRawUsbInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewRawUsbInterface())
+}
