@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"regexp"
 )
 
@@ -46,6 +45,12 @@ func (em *Repair) RepairID() string {
 	return em.HeaderString("repair-id")
 }
 
+// Arch returns the architecture that this assertions applies to.
+// If the architecture is "all" it means it applies to all architecutres.
+func (em *Repair) Arch() string {
+	return em.HeaderString("arch")
+}
+
 // Series returns the series that this assertion is valid for.
 func (em *Repair) Series() []string {
 	return em.series
@@ -59,9 +64,8 @@ func (em *Repair) Models() []string {
 
 // Implement further consistency checks.
 func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
-	if !db.IsTrustedAccount(em.AuthorityID()) {
-		return fmt.Errorf("repair assertion for %q is not signed by a directly trusted authority: %s", em.RepairID(), em.AuthorityID())
-	}
+	// Do the cross-checks when this assertion is actually used,
+	// i.e. in the future repair code
 
 	return nil
 }
@@ -69,11 +73,18 @@ func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Repair)(nil)
 
-var validRepairID = regexp.MustCompile("^[a-z]+-[0-9]+")
+// the repair-id can either be:
+// - repair-$ID
+// - $brand-$ID
+// - $brand-$model-$ID
+var validRepairID = regexp.MustCompile("^.*-[0-9]+$")
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
-	// FIXME: ensure format of repair-id "STRING-INT" is followed?
-	//
+	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
+	}
+
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
 		return nil, err

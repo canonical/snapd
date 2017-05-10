@@ -62,8 +62,9 @@ HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 `
 
 var repairExample = fmt.Sprintf("type: repair\n"+
-	"authority-id: canonical\n"+
+	"authority-id: acme\n"+
 	"brand-id: acme\n"+
+	"arch: all\n"+
 	"repair-id: repair-42\n"+
 	"series:\n"+
 	"  - 16\n"+
@@ -85,7 +86,9 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
+	c.Check(repair.BrandID(), Equals, "acme")
 	c.Check(repair.RepairID(), Equals, "repair-42")
+	c.Check(repair.Arch(), Equals, "all")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(string(repair.Body()), Equals, script)
@@ -101,7 +104,7 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
-		{"repair-id: repair-42\n", "repair-id: UPPER-42\n", `"repair-id" header contains invalid characters: "UPPER-42"`},
+		{"repair-id: repair-42\n", "repair-id: no-suffix-number\n", `"repair-id" header contains invalid characters: "no-suffix-number"`},
 	}
 
 	for _, test := range invalidTests {
