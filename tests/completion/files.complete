@@ -1,0 +1,3 @@
+# -*- sh -*-
+
+complete -A file -o filenames complexion

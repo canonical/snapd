@@ -203,6 +203,11 @@ var defaultTemplate = `
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
 
+  # For in-snap tab completion
+  /etc/bash_completion.d/{,*} r,
+  /usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
+  /usr/share/bash-completion/bash_completion r, # user-provided completions (run in-snap) may use functions from here
+
   # For printing the cache (we don't allow updating the cache)
   /{,usr/}sbin/ldconfig{,.real} ixr,
 
