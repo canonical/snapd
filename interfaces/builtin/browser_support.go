@@ -262,7 +262,7 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
@@ -273,7 +273,7 @@ func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
@@ -285,4 +285,12 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
+}
+
+func (iface *BrowserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BrowserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
 }
