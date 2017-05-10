@@ -77,14 +77,14 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestSanitizeIncorrectInterface(c
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app"})
 	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `interface=com.canonical.StorageFramework.Registry`)
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
 	c.Assert(spec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, `interface=com.canonical.StorageFramework`)
 }
