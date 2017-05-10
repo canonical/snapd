@@ -579,6 +579,11 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
+		"refresh": map[string]interface{}{
+			"schedule": "",
+			"last":     "n/a",
+			"next":     "n/a",
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
