@@ -103,15 +103,15 @@ func (iface *NetworkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *NetworkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(networkStatusPermanentSlotAppArmor)
-	return nil
-}
-
 func (iface *NetworkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	const old = "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
+func (iface *NetworkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkStatusPermanentSlotAppArmor)
 	return nil
 }
 
