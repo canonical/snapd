@@ -572,3 +572,7 @@ func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.S
 func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&DockerSupportInterface{})
+}

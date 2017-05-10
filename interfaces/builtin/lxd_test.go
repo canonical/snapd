@@ -97,3 +97,7 @@ func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
 	// allow what declarations allowed
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
+
+func (s *LxdInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

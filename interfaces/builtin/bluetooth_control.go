@@ -58,3 +58,7 @@ func NewBluetoothControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewBluetoothControlInterface())
+}

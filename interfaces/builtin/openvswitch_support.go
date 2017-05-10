@@ -33,3 +33,7 @@ func NewOpenvSwitchSupportInterface() interfaces.Interface {
 		reservedForOS:            true,
 	}
 }
+
+func init() {
+	registerIface(NewOpenvSwitchSupportInterface())
+}

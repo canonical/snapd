@@ -237,3 +237,7 @@ func (iface *UbuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *inte
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&UbuntuDownloadManagerInterface{})
+}
