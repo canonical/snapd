@@ -101,6 +101,18 @@ func New(config *Config) *Client {
 	}
 }
 
+func (client *Client) WhoAmI() (string, error) {
+	user, err := readAuthData()
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return user.Email, nil
+}
+
 func (client *Client) setAuthorization(req *http.Request) error {
 	user, err := readAuthData()
 	if os.IsNotExist(err) {
@@ -315,8 +327,9 @@ type response struct {
 
 // Error is the real value of response.Result when an error occurs.
 type Error struct {
-	Kind    string `json:"kind"`
-	Message string `json:"message"`
+	Kind    string      `json:"kind"`
+	Value   interface{} `json:"value"`
+	Message string      `json:"message"`
 
 	StatusCode int
 }
@@ -332,10 +345,14 @@ const (
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
 	ErrorKindPaymentDeclined   = "payment-declined"
+	ErrorKindPasswordPolicy    = "password-policy"
 
-	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
-	ErrorKindSnapNotInstalled     = "snap-not-installed"
-	ErrorKindNoUpdateAvailable    = "snap-no-update-available"
+	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
+	ErrorKindSnapNotInstalled       = "snap-not-installed"
+	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
+	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
+	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
+	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 )
@@ -357,6 +374,12 @@ type OSRelease struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+type RefreshInfo struct {
+	Schedule string `json:"schedule"`
+	Last     string `json:"last"`
+	Next     string `json:"next"`
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
@@ -366,6 +389,8 @@ type SysInfo struct {
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
+
+	Refresh RefreshInfo `json:"refresh,omitempty"`
 }
 
 func (rsp *response) err() error {

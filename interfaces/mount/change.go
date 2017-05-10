@@ -24,6 +24,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -58,9 +59,22 @@ func (c Change) Needed(mounted []*InfoEntry) bool {
 	return true
 }
 
-func (c Change) Perform() error {
-	// TODO merge https://github.com/snapcore/snapd/pull/3138
-	return nil
+// Perform executes the desired mount or unmount change using system calls.
+// Filesystems that depend on helper programs or multiple independent calls to
+// the kernel (--make-shared, for example) are unsupported.
+func (c *Change) Perform() error {
+	switch c.Action {
+	case Mount:
+		flags, err := OptsToFlags(c.Entry.Options)
+		if err != nil {
+			return err
+		}
+		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+	case Unmount:
+		const UMOUNT_NOFOLLOW = 8
+		return syscall.Unmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+	}
+	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.

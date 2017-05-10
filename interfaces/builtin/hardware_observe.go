@@ -78,6 +78,9 @@ const hardwareObserveConnectedPlugSecComp = `
 
 # used by 'lspci -A intel-conf1/intel-conf2'
 iopl
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewHardwareObserveInterface returns a new "hardware-observe" interface.
