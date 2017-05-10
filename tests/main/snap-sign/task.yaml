@@ -1,6 +1,6 @@
 summary: Run snap sign to sign a model assertion
 
-# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
