@@ -32,59 +32,47 @@ import (
 )
 
 type OnlineAccountsServiceInterfaceSuite struct {
-	iface       interfaces.Interface
-	classicSlot *interfaces.Slot
-	coreSlot    *interfaces.Slot
-	plug        *interfaces.Plug
+	iface interfaces.Interface
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OnlineAccountsServiceInterfaceSuite{})
+var _ = Suite(&OnlineAccountsServiceInterfaceSuite{
+	iface: &builtin.OnlineAccountsServiceInterface{},
+})
 
 func (s *OnlineAccountsServiceInterfaceSuite) SetUpTest(c *C) {
-	const mockClassicSlotSnapInfoYaml = `name: core
-type: os
-slots:
- online-accounts-service:
-  interface: online-accounts-service
-`
-
-	const mockCoreSlotSnapInfoYaml = `name: service
+	const providerYaml = `name: provider
 version: 1.0
 slots:
  online-accounts-service:
   interface: online-accounts-service
 apps:
- oa:
+ app:
   command: foo
   slots: [online-accounts-service]
 `
+	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["online-accounts-service"]}
 
-	var mockPlugSnapInfoYaml = `name: other
+	var consumerYaml = `name: consumer
 version: 1.0
 apps:
  app:
   command: foo
   plugs: [online-accounts-service]
 `
-	s.iface = &builtin.OnlineAccountsServiceInterface{}
-
-	snapInfo := snaptest.MockInfo(c, mockCoreSlotSnapInfoYaml, nil)
-	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["online-accounts-service"]}
-
-	snapInfo = snaptest.MockInfo(c, mockClassicSlotSnapInfoYaml, nil)
-	s.classicSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["online-accounts-service"]}
-
-	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["online-accounts-service"]}
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["online-accounts-service"]}
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "online-accounts-service")
 }
 
-func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
+	c.Assert(s.iface.SanitizePlug(s.plug), IsNil)
+	c.Assert(s.iface.SanitizeSlot(s.slot), IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
@@ -94,57 +82,29 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *
 		PanicMatches, `plug is not of interface "online-accounts-service"`)
 }
 
-func (s *OnlineAccountsServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
-
-	// connected plugs don't have a security snippet for seccomp
-	seccompSpec := seccomp.Specification{}
-	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
+func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 1)
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app")`)
 }
 
-func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	snippet := apparmorSpec.SnippetForTag("snap.other.app")
-	// verify apparmor connected
-	c.Check(snippet, testutil.Contains, "peer=(label=\"snap.service.oa\")")
+func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
 }
 
-func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
-	snippet := apparmorSpec.SnippetForTag("snap.service.oa")
-	c.Check(snippet, testutil.Contains, "peer=(label=\"snap.other.app\")")
-
-	// no apparmor snippet for connected slot on classic
-	apparmorSpec = apparmor.Specification{}
-	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
-	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
+func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.OnlineAccounts.Manager"`)
 }
 
-func (s *OnlineAccountsServiceInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.Specification{}
-	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
-	snippet := apparmorSpec.SnippetForTag("snap.service.oa")
-	c.Check(string(snippet), testutil.Contains, "name=\"com.ubuntu.OnlineAccounts.Manager\"")
-
-	// no apparmor snippet for permanent slot on classic
-	apparmorSpec = apparmor.Specification{}
-	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.classicSlot), IsNil)
-	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
-}
-
-func (s *OnlineAccountsServiceInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	seccompSpec := seccomp.Specification{}
-	c.Assert(seccompSpec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
-	snippet := seccompSpec.SnippetForTag("snap.service.oa")
-	c.Check(snippet, testutil.Contains, "listen\n")
-
-	seccompSpec = seccomp.Specification{}
-	c.Assert(seccompSpec.AddPermanentSlot(s.iface, s.classicSlot), IsNil)
-	c.Assert(seccompSpec.Snippets(), HasLen, 0)
+func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "listen\n")
 }
