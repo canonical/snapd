@@ -38,3 +38,7 @@ func NewNetworkSetupControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewNetworkSetupControlInterface())
+}

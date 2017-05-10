@@ -59,23 +59,23 @@ func (spec *Specification) Modules() map[string]bool {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records kmod-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		KModConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		KModConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedPlug(spec, plug, slot)
+		return iface.KModConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		KModConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		KModConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedSlot(spec, plug, slot)
+		return iface.KModConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }

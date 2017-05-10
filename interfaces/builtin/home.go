@@ -56,3 +56,7 @@ func NewHomeInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewHomeInterface())
+}

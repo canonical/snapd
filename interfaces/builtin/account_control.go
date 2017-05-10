@@ -72,3 +72,7 @@ func NewAccountControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewAccountControlInterface())
+}

@@ -124,3 +124,7 @@ func NewNetworkObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewNetworkObserveInterface())
+}

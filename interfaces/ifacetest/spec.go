@@ -36,23 +36,23 @@ func (spec *Specification) AddSnippet(snippet string) {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records test side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		TestConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		TestConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.TestConnectedPlug(spec, plug, slot)
+		return iface.TestConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
 // AddConnectedSlot records test side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		TestConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		TestConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.TestConnectedSlot(spec, plug, slot)
+		return iface.TestConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }

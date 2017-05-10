@@ -132,3 +132,7 @@ func NewFirewallControlInterface() interfaces.Interface {
 		reservedForOS:            true,
 	}
 }
+
+func init() {
+	registerIface(NewFirewallControlInterface())
+}
