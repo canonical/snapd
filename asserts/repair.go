@@ -46,6 +46,12 @@ func (em *Repair) RepairID() string {
 	return em.HeaderString("repair-id")
 }
 
+// Arch returns the architecture that this assertions applies to.
+// If the architecture is "all" it means it applies to all architecutres.
+func (em *Repair) Arch() string {
+	return em.HeaderString("arch")
+}
+
 // Series returns the series that this assertion is valid for.
 func (em *Repair) Series() []string {
 	return em.series
@@ -69,7 +75,11 @@ func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Repair)(nil)
 
-var validRepairID = regexp.MustCompile("^[a-z]+-[0-9]+")
+// the repair-id can either be:
+// - repair-$ID
+// - $brand-$ID
+// - $brand-$model-$ID
+var validRepairID = regexp.MustCompile("^([a-z]+-[0-9]+|[a-z]+-[a-z]+-[0-9]+)$")
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
 	series, err := checkStringList(assert.headers, "series")
