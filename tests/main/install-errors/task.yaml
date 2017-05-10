@@ -60,4 +60,4 @@ execute: |
         echo "Installing ubuntu-core should fail"
         exit 1
     fi
-    cat stderr.out | MATCH "cannot install \"ubuntu-core\", please use \"core\" instead"
+    cat stderr.out | MATCH 'cannot install "ubuntu-core", please use "core" instead'

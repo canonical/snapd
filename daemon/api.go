@@ -911,7 +911,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 }
 
 func verifySnapInstructions(inst *snapInstruction) error {
-	if inst.Action == "install" {
+	switch inst.Action {
+	case "install":
 		for _, snapName := range inst.Snaps {
 			// FIXME: alternatively we could simply mutate *inst
 			//        and s/ubuntu-core/core/ ?
