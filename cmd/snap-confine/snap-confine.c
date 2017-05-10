@@ -25,6 +25,7 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
@@ -37,52 +38,44 @@
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
 #include "user-support.h"
+#include "snap-confine-args.h"
 
 int main(int argc, char **argv)
 {
-	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+	// Use our super-defensive parser to figure out what we've been asked to do.
+	struct sc_error *err = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+	sc_die_on_error(err);
+
+	// We've been asked to print the version string so let's just do that.
+	if (sc_args_is_version_query(args)) {
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;
 	}
-	char *basename = strrchr(argv[0], '/');
-	if (basename) {
-		debug("setting argv[0] to %s", basename + 1);
-		argv[0] = basename + 1;
-	}
-	if (argc > 1 && !strcmp(argv[0], "ubuntu-core-launcher")) {
-		debug("shifting arguments by one");
-		argv[1] = argv[0];
-		argv++;
-		argc--;
-	}
-	// XXX: replace with pull request 2416 in snapd
-	bool classic_confinement = false;
-	if (argc > 2 && strcmp(argv[1], "--classic") == 0) {
-		classic_confinement = true;
-		// Shift remaining arguments left
-		int i;
-		for (i = 1; i + 1 < argc; ++i) {
-			argv[i] = argv[i + 1];
-		}
-		argv[i] = NULL;
-		argc -= 1;
-	}
-	const int NR_ARGS = 2;
-	if (argc < NR_ARGS + 1)
-		die("Usage: %s <security-tag> <binary>", argv[0]);
-
-	const char *security_tag = argv[1];
-	debug("security tag is %s", security_tag);
-	const char *binary = argv[2];
-	debug("binary to run is %s", binary);
-	uid_t real_uid = getuid();
-	gid_t real_gid = getgid();
-
-	if (!verify_security_tag(security_tag))
+	// Collect and validate the security tag and a few other things passed on
+	// command line.
+	const char *security_tag = sc_args_security_tag(args);
+	if (!verify_security_tag(security_tag)) {
 		die("security tag %s not allowed", security_tag);
+	}
+	const char *executable = sc_args_executable(args);
+	bool classic_confinement = sc_args_is_classic_confinement(args);
 
 	const char *snap_name = getenv("SNAP_NAME");
+	if (snap_name == NULL) {
+		die("SNAP_NAME is not set");
+	}
 	sc_snap_name_validate(snap_name, NULL);
+
+	debug("security tag: %s", security_tag);
+	debug("executable:   %s", executable);
+	debug("confinement:  %s",
+	      classic_confinement ? "classic" : "non-classic");
+
+	// Who are we?
+	uid_t real_uid = getuid();
+	gid_t real_gid = getgid();
 
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
@@ -112,6 +105,12 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
+		// ensure that "/" or "/snap" is mounted with the
+		// "shared" option, see LP:#1668659
+		int global_lock_fd = sc_lock_global();
+		sc_ensure_shared_snap_mount();
+		sc_unlock_global(global_lock_fd);
+
 		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
@@ -137,30 +136,28 @@ int main(int argc, char **argv)
 			 * snap-specific namespace, has a predictable PID and is long
 			 * lived.
 			 */
-#if 0
-			// FIXME: this was reverted as requested by jdstrand because the
-			// corresponding fix in the kernel was reverted as well. It should
-			// be re-enabled with an upcoming kernel package that contains all
-			// of the apparmor fixes.
-			//
-			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
 			sc_reassociate_with_pid1_mount_ns();
-#endif
-			const char *group_name = snap_name;
-			if (group_name == NULL) {
-				die("SNAP_NAME is not set");
-			}
+			// Do global initialization:
+			int global_lock_fd = sc_lock_global();
+			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
+			// TODO: implement this.
+			debug("share snap directory here...");
+			sc_unlock_global(global_lock_fd);
+
+			// Do per-snap initialization.
+			int snap_lock_fd = sc_lock(snap_name);
+			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(group_name, 0);
-			sc_lock_ns_mutex(group);
+			group = sc_open_ns_group(snap_name, 0);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
-			sc_unlock_ns_mutex(group);
 			sc_close_ns_group(group);
+			sc_unlock(snap_name, snap_lock_fd);
+
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
 			// sense but we cannot assume it makes sense for the core snap
@@ -175,6 +172,17 @@ int main(int argc, char **argv)
 			       "/usr/bin:"
 			       "/sbin:"
 			       "/bin:" "/usr/games:" "/usr/local/games", 1);
+			// Ensure we set the various TMPDIRs to /tmp.
+			// One of the parts of setting up the mount namespace is to create a private /tmp
+			// directory (this is done in sc_populate_mount_ns() above). The host environment
+			// may point to a directory not accessible by snaps so we need to reset it here.
+			const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
+			int i;
+			for (i = 0; tmpd[i] != NULL; i++) {
+				if (setenv(tmpd[i], "/tmp", 1) != 0) {
+					die("cannot set environment variable '%s'", tmpd[i]);
+				}
+			}
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);
@@ -218,8 +226,13 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
 	}
-	// and exec the new binary
-	execv(binary, (char *const *)&argv[NR_ARGS]);
+	// and exec the new executable
+	argv[0] = (char *)executable;
+	debug("execv(%s, %s...)", executable, argv[0]);
+	for (int i = 1; i < argc; ++i) {
+		debug(" argv[%i] = %s", i, argv[i]);
+	}
+	execv(executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
 }

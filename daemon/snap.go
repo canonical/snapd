@@ -24,8 +24,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -157,9 +159,9 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
-	Name    string   `json:"name"`
-	Daemon  string   `json:"daemon"`
-	Aliases []string `json:"aliases,omitempty"`
+	Name        string `json:"name"`
+	Daemon      string `json:"daemon"`
+	DesktopFile string `json:"desktop-file,omitempty"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -176,14 +178,27 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		status = "active"
 	}
 
+	appNames := make([]string, 0, len(localSnap.Apps))
+	for appName := range localSnap.Apps {
+		appNames = append(appNames, appName)
+	}
+	sort.Strings(appNames)
 	apps := make([]appJSON, 0, len(localSnap.Apps))
-	for _, app := range localSnap.Apps {
+	for _, appName := range appNames {
+		app := localSnap.Apps[appName]
+		var installedDesktopFile string
+		if osutil.FileExists(app.DesktopFile()) {
+			installedDesktopFile = app.DesktopFile()
+		}
+
 		apps = append(apps, appJSON{
-			Name:    app.Name,
-			Daemon:  app.Daemon,
-			Aliases: app.Aliases,
+			Name:        app.Name,
+			Daemon:      app.Daemon,
+			DesktopFile: installedDesktopFile,
 		})
 	}
+
+	// TODO: expose aliases information and state?
 
 	return map[string]interface{}{
 		"description":      localSnap.Description(),
@@ -259,6 +274,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 
 	if len(remoteSnap.Channels) > 0 {
 		result["channels"] = remoteSnap.Channels
+	}
+
+	if len(remoteSnap.Tracks) > 0 {
+		result["tracks"] = remoteSnap.Tracks
 	}
 
 	return result

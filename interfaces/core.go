@@ -45,7 +45,7 @@ type PlugRef struct {
 }
 
 // String returns the "snap:plug" representation of a plug reference.
-func (ref *PlugRef) String() string {
+func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
@@ -67,7 +67,7 @@ type SlotRef struct {
 }
 
 // String returns the "snap:slot" representation of a slot reference.
-func (ref *SlotRef) String() string {
+func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 

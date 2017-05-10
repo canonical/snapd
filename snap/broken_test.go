@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type brokenSuite struct{}
@@ -69,4 +70,46 @@ func (s *brokenSuite) TestGuessAppsForBrokenServices(c *C) {
 	c.Check(apps, HasLen, 2)
 	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple"})
 	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple"})
+}
+
+func (s *brokenSuite) TestRenamePlug(c *C) {
+	snapInfo := snaptest.MockInvalidInfo(c, `name: core
+plugs:
+  old:
+    interface: iface
+slots:
+  old:
+    interface: iface
+apps:
+  app:
+hooks:
+  configure:
+`, nil)
+	c.Assert(snapInfo.Plugs["old"], Not(IsNil))
+	c.Assert(snapInfo.Plugs["old"].Name, Equals, "old")
+	c.Assert(snapInfo.Slots["old"], Not(IsNil))
+	c.Assert(snapInfo.Slots["old"].Name, Equals, "old")
+	c.Assert(snapInfo.Apps["app"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
+	c.Assert(snapInfo.Apps["app"].Slots["old"], DeepEquals, snapInfo.Slots["old"])
+	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
+
+	// Rename the plug now.
+	snapInfo.RenamePlug("old", "new")
+
+	// Check that there's no trace of the old plug name.
+	c.Assert(snapInfo.Plugs["old"], IsNil)
+	c.Assert(snapInfo.Plugs["new"], Not(IsNil))
+	c.Assert(snapInfo.Plugs["new"].Name, Equals, "new")
+	c.Assert(snapInfo.Apps["app"].Plugs["old"], IsNil)
+	c.Assert(snapInfo.Apps["app"].Plugs["new"], DeepEquals, snapInfo.Plugs["new"])
+	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], IsNil)
+	c.Assert(snapInfo.Hooks["configure"].Plugs["new"], DeepEquals, snapInfo.Plugs["new"])
+
+	// Check that slots with the old name are unaffected.
+	c.Assert(snapInfo.Slots["old"], Not(IsNil))
+	c.Assert(snapInfo.Slots["old"].Name, Equals, "old")
+	c.Assert(snapInfo.Apps["app"].Slots["old"], DeepEquals, snapInfo.Slots["old"])
+
+	// Check that the rename made the snap valid now
+	c.Assert(snap.Validate(snapInfo), IsNil)
 }

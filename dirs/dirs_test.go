@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -46,4 +47,30 @@ func (s *DirsTestSuite) TestStripRootDir(c *C) {
 	c.Check(dirs.StripRootDir("/alt/foo/bar"), Equals, "/foo/bar")
 	// strip only works on paths that begin with the global root directory
 	c.Check(func() { dirs.StripRootDir("/other/foo/bar") }, Panics, `supplied path is not related to global root "/other/foo/bar"`)
+}
+
+func (s *DirsTestSuite) TestClassicConfinementSupport(c *C) {
+	dirs.SetRootDir("/")
+	c.Assert(dirs.SupportsClassicConfinement(), Equals, true)
+	dirs.SetRootDir("/alt")
+	c.Assert(dirs.SupportsClassicConfinement(), Equals, false)
+}
+
+func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {
+	for _, current := range []struct {
+		Name     string
+		Expected bool
+	}{
+		{"fedora", false},
+		{"rhel", false},
+		{"centos", false},
+		{"ubuntu", true},
+		{"debian", true},
+		{"suse", true},
+		{"yocto", true}} {
+		reset := release.MockReleaseInfo(&release.OS{ID: current.Name})
+		defer reset()
+		dirs.SetRootDir("/")
+		c.Assert(dirs.SupportsClassicConfinement(), Equals, current.Expected)
+	}
 }
