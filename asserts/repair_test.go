@@ -62,7 +62,7 @@ HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 `
 
 var repairExample = fmt.Sprintf("type: repair\n"+
-	"authority-id: canonical\n"+
+	"authority-id: acme\n"+
 	"brand-id: acme\n"+
 	"arch: all\n"+
 	"repair-id: repair-42\n"+
