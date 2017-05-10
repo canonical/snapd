@@ -86,7 +86,7 @@ func (s *ShutdownInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `org.freedesktop.systemd1`)
