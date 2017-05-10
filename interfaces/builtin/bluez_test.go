@@ -164,3 +164,7 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.bluez.app1"})
 	c.Check(seccompSpec.SnippetForTag("snap.bluez.app1"), testutil.Contains, "listen\n")
 }
+
+func (s *BluezInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

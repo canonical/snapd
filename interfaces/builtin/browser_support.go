@@ -294,3 +294,7 @@ func (iface *BrowserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs 
 func (iface *BrowserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&BrowserSupportInterface{})
+}

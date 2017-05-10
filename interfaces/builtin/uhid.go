@@ -82,3 +82,7 @@ func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
 	// Allow what is allowed in the declaration
 	return true
 }
+
+func init() {
+	registerIface(&UhidInterface{})
+}

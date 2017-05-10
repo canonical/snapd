@@ -95,3 +95,7 @@ func (s *LocaleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(aasnippets["snap.other.app"], HasLen, 1)
 	c.Assert(string(aasnippets["snap.other.app"][0]), testutil.Contains, "/etc/default/locale")
 }
+
+func (s *LocaleControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
