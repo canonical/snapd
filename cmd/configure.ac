@@ -175,7 +175,8 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
         [Use capabilities rather than setuid bit])])
 
 AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
-AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man tool, install python-docutils or similar"])])
+AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_WARN(["cannot find the rst2man tool, install python-docutils or similar"])])
+AM_CONDITIONAL([HAVE_RST2MAN], [test "x${HAVE_RST2MAN}" != "x"])
 
 AC_PATH_PROG([HAVE_SHELLCHECK],[shellcheck])
 AM_CONDITIONAL([HAVE_SHELLCHECK], [test "x${HAVE_SHELLCHECK}" != "x"])

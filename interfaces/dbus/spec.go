@@ -79,27 +79,27 @@ func (spec *Specification) SecurityTags() []string {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records dbus-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		DBusConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		DBusConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.DBusConnectedPlug(spec, plug, slot)
+		return iface.DBusConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
 // AddConnectedSlot records dbus-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		DBusConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		DBusConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.DBusConnectedSlot(spec, plug, slot)
+		return iface.DBusConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }

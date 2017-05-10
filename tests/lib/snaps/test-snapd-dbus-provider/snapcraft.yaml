@@ -1,0 +1,23 @@
+name: test-snapd-dbus-provider
+version: 1.0
+summary: Basic dbus provider snap
+description: A basic snap declaring a dbus slot
+
+apps:
+    provider:
+        command: wrapper
+        slots: [dbus-test]
+
+slots:
+    dbus-test:
+        interface: dbus
+        bus: session
+        name: com.dbustest.HelloWorld
+
+parts:
+    provider:
+        plugin: python
+        stage-packages: [python3-gi, python3-dbus, gir1.2-glib-2.0]
+    copy:
+        plugin: dump
+        source: .

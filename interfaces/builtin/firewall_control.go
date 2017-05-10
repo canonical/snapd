@@ -103,8 +103,13 @@ const firewallControlConnectedPlugSecComp = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
 
-# for connecting to xtables abstract socket
+# for connecting to xtables abstract and netlink sockets
 bind
+socket AF_NETLINK - NETLINK_FIREWALL
+socket AF_NETLINK - NETLINK_NFLOG
+socket AF_NETLINK - NETLINK_NETFILTER
+socket AF_NETLINK - NETLINK_IP6_FW
+socket AF_NETLINK - NETLINK_ROUTE
 
 # for ping and ping6
 capset

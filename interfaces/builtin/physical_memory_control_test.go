@@ -105,14 +105,14 @@ capability sys_rawio,
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-physical-memory"})
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-physical-memory")
 	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	snippet := udevSpec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedSnippet2)
