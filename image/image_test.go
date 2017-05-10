@@ -321,7 +321,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	opts := &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(opts, s.tsto)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.DownloadUnpackGadget(s.tsto, s.model, opts, local)
@@ -387,7 +387,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(opts, s.tsto)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -480,7 +480,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
 	emptyToolingStore := image.MockToolingStore(&emptyStore{})
-	local, err := image.LocalSnaps(opts, emptyToolingStore)
+	local, err := image.LocalSnaps(emptyToolingStore, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -606,7 +606,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(opts, s.tsto)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -663,7 +663,7 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(opts, s.tsto)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -743,7 +743,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(opts, s.tsto)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
