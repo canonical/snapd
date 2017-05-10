@@ -21,7 +21,7 @@ execute: |
 
     if [[ "$SPREAD_SYSTEM" =~ core ]]; then
         echo "Check that the classic snap is not installable even with --classic"
-        ( snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap 2>&1 && exit 1 || true ) | MATCH "cannot install snap file: classic confinement is only supported on classic systems"
+        ( snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap 2>&1 && exit 1 || true ) | MATCH $'cannot install snap file: classic confinement is only supported on classic\n *systems'
         echo "Not from the store either"
         ( snap install --classic $CLASSIC_SNAP 2>&1 && exit 1 || true ) | MATCH "requires classic confinement"
 

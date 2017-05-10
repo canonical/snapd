@@ -20,7 +20,10 @@
 package mount
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -41,6 +44,40 @@ type InfoEntry struct {
 	FsType         string
 	MountSource    string
 	SuperOptions   map[string]string
+}
+
+// ProcSelfMountInfo is a path to the mountinfo table of the current process.
+const ProcSelfMountInfo = "/proc/self/mountinfo"
+
+// LoadMountInfo loads list of mounted entries from a given file.
+//
+// The file is typically ProcSelfMountInfo but any other process mount table
+// can be read the same way.
+func LoadMountInfo(fname string) ([]*InfoEntry, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return ReadMountInfo(f)
+}
+
+// ReadMountInfo reads and parses a mountinfo file.
+func ReadMountInfo(reader io.Reader) ([]*InfoEntry, error) {
+	scanner := bufio.NewScanner(reader)
+	var entries []*InfoEntry
+	for scanner.Scan() {
+		s := scanner.Text()
+		entry, err := ParseInfoEntry(s)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
 
 // ParseInfoEntry parses a single line of /proc/$PID/mountinfo file.

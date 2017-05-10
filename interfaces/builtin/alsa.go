@@ -40,3 +40,7 @@ func NewAlsaInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewAlsaInterface())
+}
