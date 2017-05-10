@@ -65,6 +65,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, &builtin.MediaHubInterface{})
 	c.Check(all, DeepContains, &builtin.MirInterface{})
 	c.Check(all, DeepContains, &builtin.MprisInterface{})
+	c.Check(all, DeepContains, &builtin.OnlineAccountsServiceInterface{})
 	c.Check(all, DeepContains, &builtin.PhysicalMemoryControlInterface{})
 	c.Check(all, DeepContains, &builtin.PhysicalMemoryObserveInterface{})
 	c.Check(all, DeepContains, &builtin.PulseAudioInterface{})
