@@ -75,3 +75,7 @@ func NewScreenInhibitControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewScreenInhibitControlInterface())
+}

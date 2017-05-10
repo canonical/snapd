@@ -36,3 +36,7 @@ func NewOpticalDriveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewOpticalDriveInterface())
+}

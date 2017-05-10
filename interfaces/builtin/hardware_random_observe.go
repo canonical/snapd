@@ -67,12 +67,12 @@ func (iface *HardwareRandomObserveInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(hardwareRandomObserveConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="hwrng", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -84,4 +84,8 @@ func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specif
 func (iface *HardwareRandomObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func init() {
+	registerIface(&HardwareRandomObserveInterface{})
 }

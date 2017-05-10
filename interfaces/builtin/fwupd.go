@@ -194,7 +194,7 @@ func (iface *FwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *i
 	return nil
 }
 
-func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
@@ -208,7 +208,7 @@ func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 }
 
-func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
@@ -216,7 +216,7 @@ func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(fwupdConnectedPlugSecComp)
 	return nil
 }
@@ -239,4 +239,8 @@ func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&FwupdInterface{})
 }
