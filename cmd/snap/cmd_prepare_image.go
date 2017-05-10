@@ -35,7 +35,7 @@ type cmdPrepareImage struct {
 	} `positional-args:"yes" required:"yes"`
 
 	ExtraSnaps []string `long:"extra-snaps"`
-	Channel    string   `long:"channel"`
+	Channel    string   `long:"channel" default:"stable"`
 }
 
 func init() {
