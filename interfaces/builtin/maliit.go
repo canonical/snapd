@@ -163,3 +163,7 @@ func (iface *MaliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&MaliitInterface{})
+}

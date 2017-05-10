@@ -98,3 +98,7 @@ func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "mount\n")
 }
+
+func (s *ClassicSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
