@@ -124,12 +124,11 @@ func (s *AllSuite) TestInterfaces(c *C) {
 // interface can define a subset that it is interested in providing. Those are,
 // essentially, the only valid methods that a snapd interface can have, apart
 // from what is defined in the Interface golang interface.
-
 type apparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type apparmorDefiner2 interface {
-	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type apparmorDefiner3 interface {
 	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
@@ -139,23 +138,23 @@ type apparmorDefiner4 interface {
 }
 
 type dbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type dbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type dbusDefiner3 interface {
-	DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
 }
 type dbusDefiner4 interface {
 	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
 }
 
 type kmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type kmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type kmodDefiner3 interface {
 	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
@@ -165,10 +164,10 @@ type kmodDefiner4 interface {
 }
 
 type mountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type mountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type mountDefiner3 interface {
 	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
@@ -178,10 +177,10 @@ type mountDefiner4 interface {
 }
 
 type seccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type seccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type seccompDefiner3 interface {
 	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
@@ -191,10 +190,10 @@ type seccompDefiner4 interface {
 }
 
 type systemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type systemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type systemdDefiner3 interface {
 	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error
@@ -204,10 +203,10 @@ type systemdDefiner4 interface {
 }
 
 type udevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type udevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type udevDefiner3 interface {
 	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error

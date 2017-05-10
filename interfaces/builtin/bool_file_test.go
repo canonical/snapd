@@ -141,7 +141,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	})
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.gpioSlot, nil)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
@@ -154,14 +154,14 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.gpioSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,")
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.ledSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,")
@@ -171,7 +171,7 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlo
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
 		apparmorSpec := &apparmor.Specification{}
-		apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.missingPathSlot)
+		apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.missingPathSlot, nil)
 	}, PanicMatches, "slot is not sanitized")
 }
 
@@ -179,17 +179,17 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
 		seccompSpec := &seccomp.Specification{}
-		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, slot)
+		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 		c.Assert(err, IsNil)
 		c.Assert(seccompSpec.Snippets(), HasLen, 0)
 		// No extra dbus permissions for plug
 		dbusSpec := &dbus.Specification{}
-		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, slot)
+		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 		c.Assert(err, IsNil)
 		c.Assert(dbusSpec.Snippets(), HasLen, 0)
 		// No extra udev permissions for plug
 		udevSpec := &udev.Specification{}
-		c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+		c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
 		c.Assert(udevSpec.Snippets(), HasLen, 0)
 	}
 }
