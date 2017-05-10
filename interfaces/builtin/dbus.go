@@ -325,7 +325,7 @@ func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 		return err
 	}
 
-	// only system services need bus policy
+	// System services get system bus policy
 	if bus == "system" {
 		old := "###DBUS_NAME###"
 		new := name
@@ -432,6 +432,9 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// FIXME: also check that the dbus name is not already taken
 	//        by an existing snap
 	if isDbusService(slot.Attrs) && len(slot.Apps) > 1 {
+		// Because activation service files necessarily must
+		// map one DBus well-known name to one command,
+		// enforce that constraint in the interface here.
 		return fmt.Errorf("cannot add dbus service slot to multiple apps")
 	}
 

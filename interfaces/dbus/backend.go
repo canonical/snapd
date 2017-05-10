@@ -91,7 +91,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := b.setupBusConf(snapInfo, spec); err != nil {
 		return err
 	}
-	if err := b.setupBusServ(snapInfo, spec); err != nil {
+	if err := b.setupBusActivatedSessionServ(snapInfo, spec); err != nil {
 		return err
 	}
 
@@ -118,7 +118,7 @@ func (b *Backend) setupBusConf(snapInfo *snap.Info, spec interfaces.Specificatio
 	return nil
 }
 
-func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specification) error {
+func (b *Backend) setupBusActivatedSessionServ(snapInfo *snap.Info, spec interfaces.Specification) error {
 	snapName := snapInfo.Name()
 
 	content := map[string]*osutil.FileState{}
@@ -149,7 +149,7 @@ func (b *Backend) Remove(snapName string) error {
 	if err := b.removeBusConf(snapName); err != nil {
 		return err
 	}
-	if err := b.removeBusServ(snapName); err != nil {
+	if err := b.removeBusActivatedSessionServ(snapName); err != nil {
 		return err
 	}
 
@@ -166,7 +166,7 @@ func (b *Backend) removeBusConf(snapName string) error {
 	return nil
 }
 
-func (b *Backend) removeBusServ(snapName string) error {
+func (b *Backend) removeBusActivatedSessionServ(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
@@ -175,8 +175,9 @@ func (b *Backend) removeBusServ(snapName string) error {
 	return nil
 }
 
-// deriveContent combines security snippets collected from all the interfaces
-// affecting a given snap into a content map applicable to EnsureDirState.
+// deriveContentBusConf combines security snippets for busconfig
+// policy collected from all the interfaces affecting a given snap into a
+// content map applicable to EnsureDirState.
 func (b *Backend) deriveContentBusConf(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
