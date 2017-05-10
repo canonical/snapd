@@ -66,3 +66,7 @@ func NewShutdownInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewShutdownInterface())
+}

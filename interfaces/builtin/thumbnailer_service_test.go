@@ -117,3 +117,7 @@ func (s *ThumbnailerServiceInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C
 	c.Check(snippet, testutil.Contains, `@{HOME}/snap/client/**`)
 	c.Check(snippet, testutil.Contains, `/var/snap/client/**`)
 }
+
+func (s *ThumbnailerServiceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

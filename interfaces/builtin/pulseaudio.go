@@ -151,3 +151,7 @@ func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *PulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&PulseAudioInterface{})
+}

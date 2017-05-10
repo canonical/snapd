@@ -314,3 +314,7 @@ func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&OfonoInterface{})
+}

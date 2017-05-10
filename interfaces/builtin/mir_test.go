@@ -133,3 +133,7 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 	// no permanent seccomp snippet for the slot
 	c.Assert(len(snippets), Equals, 0)
 }
+
+func (s *MirInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

@@ -120,3 +120,7 @@ func NewAvahiObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewAvahiObserveInterface())
+}

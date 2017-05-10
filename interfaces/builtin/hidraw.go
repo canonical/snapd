@@ -183,3 +183,7 @@ func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 func (iface *HidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&HidrawInterface{})
+}

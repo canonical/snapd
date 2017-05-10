@@ -225,3 +225,7 @@ func (iface *MprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[strin
 func (iface *MprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&MprisInterface{})
+}

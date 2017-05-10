@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ContentSuite struct {
@@ -363,4 +364,8 @@ slots:
 /var/snap/producer/common/export/** mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+}
+
+func (s *ContentSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
