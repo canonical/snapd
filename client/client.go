@@ -101,6 +101,18 @@ func New(config *Config) *Client {
 	}
 }
 
+func (client *Client) WhoAmI() (string, error) {
+	user, err := readAuthData()
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return user.Email, nil
+}
+
 func (client *Client) setAuthorization(req *http.Request) error {
 	user, err := readAuthData()
 	if os.IsNotExist(err) {
@@ -333,6 +345,7 @@ const (
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
 	ErrorKindPaymentDeclined   = "payment-declined"
+	ErrorKindPasswordPolicy    = "password-policy"
 
 	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
 	ErrorKindSnapNotInstalled       = "snap-not-installed"

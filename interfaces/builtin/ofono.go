@@ -310,10 +310,6 @@ func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *OfonoInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
