@@ -42,6 +42,7 @@ var _ = Suite(&AllSuite{})
 
 func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
+	c.Check(all, Contains, &builtin.StorageFrameworkServiceInterface{})
 	c.Check(all, DeepContains, &builtin.BluezInterface{})
 	c.Check(all, DeepContains, &builtin.BoolFileInterface{})
 	c.Check(all, DeepContains, &builtin.BrowserSupportInterface{})
