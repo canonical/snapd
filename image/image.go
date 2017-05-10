@@ -86,7 +86,7 @@ func (li *localInfos) Info(name string) *snap.Info {
 	return nil
 }
 
-func localSnaps(opts *Options, tsto *ToolingStore) (*localInfos, error) {
+func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
@@ -104,7 +104,8 @@ func localSnaps(opts *Options, tsto *ToolingStore) (*localInfos, error) {
 			nameToPath[info.Name()] = snapName
 			local[snapName] = info
 
-			if si, err := snapasserts.DeriveSideInfo(snapName, &rdb{tsto}); err == nil {
+			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
+			if err == nil {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
 				info.Channel = opts.Channel
@@ -133,7 +134,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	local, err := localSnaps(opts, tsto)
+	local, err := localSnaps(tsto, opts)
 	if err != nil {
 		return err
 	}
@@ -257,20 +258,6 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	return func() {
 		trusted = prevTrusted
 	}
-}
-
-// rdb provides the interface for snapasserts.DerviceSideInfo from the
-// store
-type rdb struct {
-	tsto *ToolingStore
-}
-
-func (r *rdb) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
-	pk := make([]string, len(at.PrimaryKey))
-	for i, k := range at.PrimaryKey {
-		pk[i] = headers[k]
-	}
-	return r.tsto.sto.Assertion(at, pk, r.tsto.user)
 }
 
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
