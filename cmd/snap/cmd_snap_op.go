@@ -572,6 +572,7 @@ type cmdRefresh struct {
 
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
+	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -629,6 +630,19 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	return showDone([]string{name}, "refresh")
 }
 
+func (x *cmdRefresh) showRefreshTimes() error {
+	cli := Client()
+	sysinfo, err := cli.SysInfo()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
+	fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	return nil
+}
+
 func (x *cmdRefresh) listRefresh() error {
 	cli := Client()
 	snaps, _, err := cli.Find(&client.FindOptions{
@@ -661,6 +675,14 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 	if err := x.validateMode(); err != nil {
 		return err
+	}
+
+	if x.Time {
+		if x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+		}
+
+		return x.showRefreshTimes()
 	}
 
 	if x.List {
@@ -923,7 +945,8 @@ func init() {
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":          i18n.G("Refresh to the given revision"),
-			"list":              i18n.G("Show available snaps for refresh"),
+			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
+			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)

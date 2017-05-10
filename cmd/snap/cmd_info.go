@@ -192,17 +192,29 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
 			ch, ok := remote.Channels[chName]
-			if !ok {
-				continue
+			if tr == "latest" {
+				chName = risk
 			}
-			trackHasOpenChannel = true
-			fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", chName, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
+			var version, revision, size, notes string
+			if ok {
+				version = ch.Version
+				revision = fmt.Sprintf("(%s)", ch.Revision)
+				size = strutil.SizeToStr(ch.Size)
+				notes = NotesFromChannelSnapInfo(ch).String()
+				trackHasOpenChannel = true
+			} else {
+				if trackHasOpenChannel {
+					version = "↑"
+				} else {
+					version = "–" // that's an en dash (so yaml is happy)
+				}
+			}
+			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
 		}
 		// add separator between tracks
-		if trackHasOpenChannel && i < len(remote.Tracks)-1 {
+		if i < len(remote.Tracks)-1 {
 			fmt.Fprintf(w, "  \t\t\t\t\n")
 		}
-		// FIXME: clarify if we need to show custom branches
 	}
 }
 
