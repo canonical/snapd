@@ -51,23 +51,23 @@ func (spec *Specification) Snippets() (result []string) {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records udev-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		UdevConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		UDevConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.UdevConnectedPlug(spec, plug, slot)
+		return iface.UDevConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		UdevConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		UDevConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.UdevConnectedSlot(spec, plug, slot)
+		return iface.UDevConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
@@ -75,10 +75,10 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 // AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		UdevPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		UDevPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.UdevPermanentPlug(spec, plug)
+		return iface.UDevPermanentPlug(spec, plug)
 	}
 	return nil
 }
@@ -86,10 +86,10 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 // AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		UdevPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		UDevPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.UdevPermanentSlot(spec, slot)
+		return iface.UDevPermanentSlot(spec, slot)
 	}
 	return nil
 }

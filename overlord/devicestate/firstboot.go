@@ -86,6 +86,9 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	tsAll := []*state.TaskSet{}
 	for i, sn := range seed.Snaps {
 		var flags snapstate.Flags
+		if sn.Classic {
+			flags.Classic = true
+		}
 		if sn.DevMode {
 			flags.DevMode = true
 		}

@@ -33,6 +33,11 @@ const x11ConnectedPlugAppArmor = `
 
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+
+# Allow access to the user specific copy of the xauth file specified
+# in the XAUTHORITY environment variable, that "snap run" creates on
+# startup.
+owner /run/user/[0-9]*/.Xauthority r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
@@ -51,4 +56,8 @@ func NewX11Interface() interfaces.Interface {
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
+}
+
+func init() {
+	registerIface(NewX11Interface())
 }

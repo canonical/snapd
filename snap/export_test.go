@@ -30,3 +30,7 @@ func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
 	supportedHooks = hookTypes
 	return func() { supportedHooks = old }
 }
+
+func (info *Info) RenamePlug(oldName, newName string) {
+	info.renamePlug(oldName, newName)
+}

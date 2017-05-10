@@ -36,6 +36,9 @@ const kernelModuleControlConnectedPlugAppArmor = `
   # /proc/sys/kernel/dmesg_restrict is '1' (syslog(2)). These operations are
   # required to verify kernel modules that are loaded.
   capability syslog,
+
+  # Allow plug side to read information about loaded kernel modules
+  /sys/module/{,**} r,
 `
 
 const kernelModuleControlConnectedPlugSecComp = `
@@ -54,4 +57,8 @@ func NewKernelModuleControlInterface() interfaces.Interface {
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
+}
+
+func init() {
+	registerIface(NewKernelModuleControlInterface())
 }

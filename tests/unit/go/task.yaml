@@ -1,0 +1,12 @@
+summary: Run project unit tests
+
+systems: [ubuntu-16.04-64]
+
+restore: |
+    rm -rf /tmp/unit-tests
+
+execute: |
+    mkdir -p /tmp/unit-tests/src/github.com/snapcore
+    cp -ar $PROJECT_PATH /tmp/unit-tests/src/github.com/snapcore
+    chown -R test:12345 /tmp/unit-tests
+    su -l -c "cd /tmp/unit-tests/src/github.com/snapcore/snapd && GOPATH=/tmp/unit-tests ./run-checks --unit" test

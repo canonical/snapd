@@ -151,6 +151,9 @@ plugs:
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
   lxd-support:
     allow-installation: false
     deny-auto-connection: true
@@ -312,6 +315,16 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
+  hardware-random-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  hardware-random-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   i2c:
     allow-installation:
       slot-snap-type:
@@ -329,7 +342,17 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  kubernetes-support:
     allow-installation:
       slot-snap-type:
         - core
@@ -376,6 +399,13 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
   mir:
     allow-installation:
       slot-snap-type:
@@ -401,6 +431,16 @@ slots:
     deny-connection:
       slot-attributes:
         name: .+
+    deny-auto-connection: true
+  netlink-audit:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  netlink-connector:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
   network:
     allow-installation:
@@ -520,6 +560,12 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  storage-framework-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
     deny-auto-connection: true
   system-observe:
     allow-installation:

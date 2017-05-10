@@ -23,6 +23,7 @@ Build-Depends: autoconf,
                libglib2.0-dev,
                libseccomp-dev,
                libudev-dev,
+               openssh-client,
                pkg-config,
                python3,
                python3-docutils,
@@ -58,6 +59,7 @@ Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
          gnupg1 | gnupg,
+         openssh-client,
          squashfs-tools,
          systemd,
          ${misc:Depends},
@@ -65,7 +67,7 @@ Depends: adduser,
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
-Built-Using: ${misc:Built-Using}
+Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Install, configure, refresh and remove snap packages. Snaps are
  'universal' packages that work across many different Linux systems,

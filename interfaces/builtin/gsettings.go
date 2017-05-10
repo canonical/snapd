@@ -47,3 +47,7 @@ func NewGsettingsInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewGsettingsInterface())
+}

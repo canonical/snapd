@@ -3,6 +3,16 @@
 set -eux
 
 . $TESTSLIB/apt.sh
+. $TESTSLIB/snaps.sh
+
+disable_kernel_rate_limiting() {
+    # kernel rate limiting hinders debugging security policy so turn it off
+    echo "Turning off kernel rate-limiting"
+    # TODO: we should be able to run the tests with rate limiting disabled so
+    # debug output is robust, but we currently can't :(
+    echo "SKIPPED: see https://forum.snapcraft.io/t/snapd-spread-tests-should-be-able-to-run-with-kernel-rate-limiting-disabled/424"
+    #sysctl -w kernel.printk_ratelimit=0
+}
 
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
@@ -24,24 +34,22 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
-    # also inject new version of snap-confine and snap-scard-ns
-    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
-    # also add snap/snapd because we re-exec by default and want to test
-    # this version
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    # clean the old snapd libexec binaries, just in case
+    rm squashfs-root/usr/lib/snapd/*
+    # and copy in the current ones
+    cp -a /usr/lib/snapd/* squashfs-root/usr/lib/snapd/
+    # also the binaries themselves
+    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # and snap-confine's apparmor
+    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    else
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    fi
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        # trusty does not support  -Xcompression-level 1
-        mksquashfs squashfs-root "$snap" -comp gzip
-    else
-        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
-    fi
+    mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap
@@ -73,7 +81,7 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
@@ -92,7 +100,7 @@ prepare_classic() {
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
@@ -116,6 +124,7 @@ EOF
 
         # ensure no auto-refresh happens during the tests
         if [ -e /snap/core/current/meta/hooks/configure ]; then
+            snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
             snap set core refresh.disabled=true
         fi
 
@@ -144,6 +153,16 @@ EOF
         done
         systemctl start snapd.socket
     fi
+
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        # Improve entropy for the whole system quite a lot to get fast
+        # key generation during our test cycles
+        apt-get install rng-tools
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+    fi
+
+    disable_kernel_rate_limiting
 }
 
 setup_reflash_magic() {
@@ -227,15 +246,25 @@ EOF
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
 
-        # download pc-kernel snap for the specified channel
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        EXTRA_FUNDAMENTAL=
+        IMAGE_CHANNEL=edge
+        if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
+            IMAGE_CHANNEL=$KERNEL_CHANNEL
+        else
+            # download pc-kernel snap for the specified channel and set ubuntu-image channel
+            # to gadget, so that we don't need to download it
+            snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+            IMAGE_CHANNEL="$GADGET_CHANNEL"
+        fi
 
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
-                               --channel edge \
+                               --channel $IMAGE_CHANNEL \
+                               $EXTRA_FUNDAMENTAL \
                                --extra-snaps $IMAGE_HOME/core_*.snap \
-                               --extra-snaps $PWD/pc-kernel_*.snap \
                                --output $IMAGE_HOME/$IMAGE
-        rm ./pc-kernel*
+        rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
@@ -340,6 +369,7 @@ prepare_all_snap() {
 
     # ensure no auto-refresh happens during the tests
     if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
         snap set core refresh.disabled=true
     fi
 
@@ -362,4 +392,6 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
+
+    disable_kernel_rate_limiting
 }

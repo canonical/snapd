@@ -80,6 +80,13 @@ dbus (send)
     path=###DBUS_PATH###
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=unconfined),
+
+# Allow us to introspect org.freedesktop.DBus (needed by pydbus)
+dbus (send)
+    bus=###DBUS_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
 const dbusPermanentSlotAppArmorClassic = `
@@ -265,7 +272,7 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return err
@@ -346,7 +353,7 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -397,4 +404,16 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *DbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&DbusInterface{})
 }

@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -85,7 +86,7 @@ func (li *localInfos) Info(name string) *snap.Info {
 	return nil
 }
 
-func localSnaps(opts *Options) (*localInfos, error) {
+func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
@@ -102,6 +103,16 @@ func localSnaps(opts *Options) (*localInfos, error) {
 			info.Revision = snap.R(-1)
 			nameToPath[info.Name()] = snapName
 			local[snapName] = info
+
+			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
+			if err != nil && err != asserts.ErrNotFound {
+				return nil, err
+			}
+			if err == nil {
+				info.SnapID = si.SnapID
+				info.Revision = si.Revision
+				info.Channel = opts.Channel
+			}
 		}
 	}
 	return &localInfos{
@@ -121,7 +132,12 @@ func Prepare(opts *Options) error {
 		return fmt.Errorf("cannot prepare image of a classic model")
 	}
 
-	local, err := localSnaps(opts)
+	tsto, err := NewToolingStoreFromModel(model)
+	if err != nil {
+		return err
+	}
+
+	local, err := localSnaps(tsto, opts)
 	if err != nil {
 		return err
 	}
@@ -129,10 +145,6 @@ func Prepare(opts *Options) error {
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
-	}
-	tsto, err := NewToolingStoreFromModel(model)
-	if err != nil {
-		return err
 	}
 
 	if err := downloadUnpackGadget(tsto, model, opts, local); err != nil {
@@ -338,8 +350,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		typ := info.Type
 
 		// if it comes from the store fetch the snap assertions too
-		// TODO: support somehow including available assertions
-		// also for local snaps
 		if info.SnapID != "" {
 			snapDecl, err := FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {

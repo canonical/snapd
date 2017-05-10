@@ -124,6 +124,7 @@ const (
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
+	errorKindPasswordPolicy    = errorKind("password-policy")
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
@@ -131,7 +132,8 @@ const (
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
-	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
+	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
+	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 )
 

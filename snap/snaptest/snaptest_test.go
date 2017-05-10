@@ -88,3 +88,20 @@ func (s *snapTestSuite) TestMockInfo(c *C) {
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
 }
+
+func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
+	snapInfo := snaptest.MockInvalidInfo(c, sampleYaml+"\nslots:\n network:\n", &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML is used
+	c.Check(snapInfo.Name(), Equals, "sample")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is *not* placed on disk
+	_, err := os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
+	c.Assert(os.IsNotExist(err), Equals, true)
+	// More
+	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+	c.Check(snapInfo.Slots["network"].Interface, Equals, "network")
+	// They info object is not valid
+	c.Check(snap.Validate(snapInfo), ErrorMatches, `cannot have plug and slot with the same name: "network"`)
+}

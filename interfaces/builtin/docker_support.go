@@ -101,7 +101,7 @@ signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
 # Graph (storage) driver bits
-/{dev,run}/shm/aufs.xino rw,
+/{dev,run}/shm/aufs.xino mrw,
 /proc/fs/aufs/plink_maint w,
 /sys/fs/aufs/** r,
 
@@ -526,7 +526,7 @@ func (iface *DockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
@@ -535,7 +535,7 @@ func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
@@ -567,4 +567,12 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&DockerSupportInterface{})
 }

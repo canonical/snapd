@@ -109,6 +109,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	return content
 }
 
+// NewSpecification returns a new mount specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }

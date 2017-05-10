@@ -38,19 +38,19 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		UdevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		UdevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		UDevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		UdevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
+		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		UdevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
+		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -83,8 +83,8 @@ func (s *specSuite) TestAddSnippte(c *C) {
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})

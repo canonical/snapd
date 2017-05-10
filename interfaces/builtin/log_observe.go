@@ -32,6 +32,7 @@ const logObserveConnectedPlugAppArmor = `
 /run/log/journal/ r,
 /run/log/journal/** r,
 /var/lib/systemd/catalog/database r,
+/{,usr/}bin/journalctl ixr,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
 /{,usr/}sbin/sysctl ixr,
@@ -52,4 +53,8 @@ func NewLogObserveInterface() interfaces.Interface {
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	}
+}
+
+func init() {
+	registerIface(NewLogObserveInterface())
 }

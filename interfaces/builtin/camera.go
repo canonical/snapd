@@ -42,3 +42,7 @@ func NewCameraInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewCameraInterface())
+}

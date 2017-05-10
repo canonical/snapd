@@ -75,12 +75,12 @@ func (iface *ConsolesInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *ConsolesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ConsolesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(consolesConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *ConsolesInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ConsolesInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(consolesUdevRule, tag))
@@ -92,4 +92,8 @@ func (iface *ConsolesInterface) UdevConnectedPlug(spec *udev.Specification, plug
 func (iface *ConsolesInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func init() {
+	registerIface(&ConsolesInterface{})
 }

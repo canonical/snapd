@@ -85,7 +85,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -107,11 +107,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
-	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -135,7 +135,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -152,7 +152,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -174,7 +174,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -197,11 +197,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -226,7 +226,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -249,11 +249,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -276,7 +276,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -295,7 +295,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -314,7 +314,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -344,7 +344,7 @@ func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -367,7 +367,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
