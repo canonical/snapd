@@ -58,7 +58,7 @@ func (s *emptyStore) Download(ctx context.Context, name, targetFn string, downlo
 }
 
 func (s *emptyStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	return nil, fmt.Errorf("cannot find assertion")
+	return nil, &store.AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
 }
 
 func Test(t *testing.T) { TestingT(t) }
