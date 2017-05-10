@@ -179,3 +179,7 @@ func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	}
 	return false
 }
+
+func init() {
+	registerIface(&HidrawInterface{})
+}

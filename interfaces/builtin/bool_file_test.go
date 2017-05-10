@@ -210,3 +210,7 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	c.Assert(udevSpec.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
 }
+
+func (s *BoolFileInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

@@ -130,3 +130,7 @@ func (iface *IioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&IioInterface{})
+}

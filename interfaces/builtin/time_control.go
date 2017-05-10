@@ -138,3 +138,7 @@ func (iface *TimeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slo
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&TimeControlInterface{})
+}

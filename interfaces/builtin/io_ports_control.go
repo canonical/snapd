@@ -106,3 +106,7 @@ func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&IioPortsControlInterface{})
+}

@@ -558,3 +558,7 @@ func (iface *Unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&Unity7Interface{})
+}

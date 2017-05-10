@@ -136,3 +136,7 @@ func (iface *ThumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) er
 func (iface *ThumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&ThumbnailerServiceInterface{})
+}

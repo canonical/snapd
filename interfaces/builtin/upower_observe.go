@@ -265,3 +265,7 @@ func (iface *UpowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.S
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&UpowerObserveInterface{})
+}

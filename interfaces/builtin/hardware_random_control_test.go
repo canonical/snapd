@@ -102,3 +102,7 @@ func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	expected := []string{`KERNEL=="hwrng", TAG+="snap_snap_app"`}
 	c.Assert(spec.Snippets(), DeepEquals, expected)
 }
+
+func (s *HardwareRandomControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

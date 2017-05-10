@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type JoystickInterfaceSuite struct {
@@ -105,4 +106,8 @@ func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-joystick"})
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-joystick")
 	c.Assert(aasnippet, Equals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, aasnippet))
+}
+
+func (s *JoystickInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

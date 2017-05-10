@@ -57,3 +57,7 @@ func NewX11Interface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewX11Interface())
+}

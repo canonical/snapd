@@ -89,3 +89,7 @@ func (iface *PhysicalMemoryObserveInterface) AutoConnect(*interfaces.Plug, *inte
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&PhysicalMemoryObserveInterface{})
+}

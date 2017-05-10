@@ -65,3 +65,7 @@ func NewMountObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewMountObserveInterface())
+}

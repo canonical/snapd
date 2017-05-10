@@ -286,3 +286,7 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&BrowserSupportInterface{})
+}

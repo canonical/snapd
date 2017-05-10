@@ -401,3 +401,7 @@ func (iface *UDisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) b
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&UDisks2Interface{})
+}

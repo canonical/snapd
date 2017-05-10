@@ -293,3 +293,7 @@ func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&LocationObserveInterface{})
+}
