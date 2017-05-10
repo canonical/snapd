@@ -64,6 +64,7 @@ HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 var repairExample = fmt.Sprintf("type: repair\n"+
 	"authority-id: canonical\n"+
 	"brand-id: acme\n"+
+	"arch: all\n"+
 	"repair-id: repair-42\n"+
 	"series:\n"+
 	"  - 16\n"+
@@ -86,6 +87,7 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
 	c.Check(repair.RepairID(), Equals, "repair-42")
+	c.Check(repair.Arch(), Equals, "all")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(string(repair.Body()), Equals, script)
