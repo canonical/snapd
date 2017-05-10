@@ -145,7 +145,7 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, ext
 	}
 }
 
-func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
 	if len(writePaths) > 0 {
@@ -186,7 +186,7 @@ func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfac
 
 // Interactions with the mount backend.
 
-func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for _, r := range iface.path(slot, "read") {
 		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
 		if err != nil {
@@ -200,4 +200,16 @@ func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plu
 		}
 	}
 	return nil
+}
+
+func (iface *ContentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *ContentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&ContentInterface{})
 }

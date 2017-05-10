@@ -59,3 +59,7 @@ func NewProcessControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewProcessControlInterface())
+}

@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
-	. "github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -40,96 +39,16 @@ type AllSuite struct{}
 
 var _ = Suite(&AllSuite{})
 
-func (s *AllSuite) TestInterfaces(c *C) {
-	all := builtin.Interfaces()
-	c.Check(all, DeepContains, &builtin.BluezInterface{})
-	c.Check(all, DeepContains, &builtin.BoolFileInterface{})
-	c.Check(all, DeepContains, &builtin.BrowserSupportInterface{})
-	c.Check(all, DeepContains, &builtin.DbusInterface{})
-	c.Check(all, DeepContains, &builtin.DockerInterface{})
-	c.Check(all, DeepContains, &builtin.DockerSupportInterface{})
-	c.Check(all, DeepContains, &builtin.FramebufferInterface{})
-	c.Check(all, DeepContains, &builtin.FwupdInterface{})
-	c.Check(all, DeepContains, &builtin.GpioInterface{})
-	c.Check(all, DeepContains, &builtin.HardwareRandomControlInterface{})
-	c.Check(all, DeepContains, &builtin.HardwareRandomObserveInterface{})
-	c.Check(all, DeepContains, &builtin.HidrawInterface{})
-	c.Check(all, DeepContains, &builtin.I2cInterface{})
-	c.Check(all, DeepContains, &builtin.IioInterface{})
-	c.Check(all, DeepContains, &builtin.IioPortsControlInterface{})
-	c.Check(all, DeepContains, &builtin.JoystickInterface{})
-	c.Check(all, DeepContains, &builtin.LocationControlInterface{})
-	c.Check(all, DeepContains, &builtin.LocationObserveInterface{})
-	c.Check(all, DeepContains, &builtin.LxdSupportInterface{})
-	c.Check(all, DeepContains, &builtin.MaliitInterface{})
-	c.Check(all, DeepContains, &builtin.MediaHubInterface{})
-	c.Check(all, DeepContains, &builtin.MirInterface{})
-	c.Check(all, DeepContains, &builtin.MprisInterface{})
-	c.Check(all, DeepContains, &builtin.NetworkStatusInterface{})
-	c.Check(all, DeepContains, &builtin.PhysicalMemoryControlInterface{})
-	c.Check(all, DeepContains, &builtin.PhysicalMemoryObserveInterface{})
-	c.Check(all, DeepContains, &builtin.PulseAudioInterface{})
-	c.Check(all, DeepContains, &builtin.SerialPortInterface{})
-	c.Check(all, DeepContains, &builtin.ThumbnailerServiceInterface{})
-	c.Check(all, DeepContains, &builtin.TimeControlInterface{})
-	c.Check(all, DeepContains, &builtin.UDisks2Interface{})
-	c.Check(all, DeepContains, &builtin.UbuntuDownloadManagerInterface{})
-	c.Check(all, DeepContains, &builtin.UhidInterface{})
-	c.Check(all, DeepContains, &builtin.Unity7Interface{})
-	c.Check(all, DeepContains, &builtin.Unity8Interface{})
-	c.Check(all, DeepContains, &builtin.UpowerObserveInterface{})
-	c.Check(all, DeepContains, builtin.NewAccountControlInterface())
-	c.Check(all, DeepContains, builtin.NewAlsaInterface())
-	c.Check(all, DeepContains, builtin.NewAutopilotIntrospectionInterface())
-	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
-	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
-	c.Check(all, DeepContains, builtin.NewCameraInterface())
-	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
-	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
-	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
-	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
-	c.Check(all, DeepContains, builtin.NewHomeInterface())
-	c.Check(all, DeepContains, builtin.NewKernelModuleControlInterface())
-	c.Check(all, DeepContains, builtin.NewKubernetesSupportInterface())
-	c.Check(all, DeepContains, builtin.NewLocaleControlInterface())
-	c.Check(all, DeepContains, builtin.NewLogObserveInterface())
-	c.Check(all, DeepContains, builtin.NewMountObserveInterface())
-	c.Check(all, DeepContains, builtin.NewNetlinkAuditInterface())
-	c.Check(all, DeepContains, builtin.NewNetlinkConnectorInterface())
-	c.Check(all, DeepContains, builtin.NewNetworkBindInterface())
-	c.Check(all, DeepContains, builtin.NewNetworkControlInterface())
-	c.Check(all, DeepContains, builtin.NewNetworkInterface())
-	c.Check(all, DeepContains, builtin.NewNetworkObserveInterface())
-	c.Check(all, DeepContains, builtin.NewOpenglInterface())
-	c.Check(all, DeepContains, builtin.NewOpenvSwitchInterface())
-	c.Check(all, DeepContains, builtin.NewOpenvSwitchSupportInterface())
-	c.Check(all, DeepContains, builtin.NewOpticalDriveInterface())
-	c.Check(all, DeepContains, builtin.NewProcessControlInterface())
-	c.Check(all, DeepContains, builtin.NewRawUsbInterface())
-	c.Check(all, DeepContains, builtin.NewRemovableMediaInterface())
-	c.Check(all, DeepContains, builtin.NewScreenInhibitControlInterface())
-	c.Check(all, DeepContains, builtin.NewSnapdControlInterface())
-	c.Check(all, DeepContains, builtin.NewSystemObserveInterface())
-	c.Check(all, DeepContains, builtin.NewSystemTraceInterface())
-	c.Check(all, DeepContains, builtin.NewTimeserverControlInterface())
-	c.Check(all, DeepContains, builtin.NewTimezoneControlInterface())
-	c.Check(all, DeepContains, builtin.NewTpmInterface())
-	c.Check(all, DeepContains, builtin.NewUnity8CalendarInterface())
-	c.Check(all, DeepContains, builtin.NewUnity8ContactsInterface())
-	c.Check(all, DeepContains, builtin.NewX11Interface())
-}
-
 // This section contains a list of *valid* defines that represent methods that
 // backends recognize and call. They are in individual interfaces as each snapd
 // interface can define a subset that it is interested in providing. Those are,
 // essentially, the only valid methods that a snapd interface can have, apart
 // from what is defined in the Interface golang interface.
-
 type apparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type apparmorDefiner2 interface {
-	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type apparmorDefiner3 interface {
 	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
@@ -139,23 +58,23 @@ type apparmorDefiner4 interface {
 }
 
 type dbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type dbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type dbusDefiner3 interface {
-	DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
 }
 type dbusDefiner4 interface {
 	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
 }
 
 type kmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type kmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type kmodDefiner3 interface {
 	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
@@ -165,10 +84,10 @@ type kmodDefiner4 interface {
 }
 
 type mountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type mountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type mountDefiner3 interface {
 	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
@@ -178,10 +97,10 @@ type mountDefiner4 interface {
 }
 
 type seccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type seccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type seccompDefiner3 interface {
 	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
@@ -191,10 +110,10 @@ type seccompDefiner4 interface {
 }
 
 type systemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type systemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type systemdDefiner3 interface {
 	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error
@@ -204,10 +123,10 @@ type systemdDefiner4 interface {
 }
 
 type udevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type udevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type udevDefiner3 interface {
 	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error
@@ -289,6 +208,56 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
+// specification definers before the introduction of connection attributes
+type oldApparmorDefiner1 interface {
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldApparmorDefiner2 interface {
+	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldDbusDefiner1 interface {
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldDbusDefiner2 interface {
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldKmodDefiner1 interface {
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldKmodDefiner2 interface {
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldMountDefiner1 interface {
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldMountDefiner2 interface {
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldSeccompDefiner1 interface {
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldSeccompDefiner2 interface {
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldSystemdDefiner1 interface {
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldSystemdDefiner2 interface {
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldUdevDefiner1 interface {
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldUdevDefiner2 interface {
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
 // allBadDefiners contains all old/unused specification definers for all known backends.
 var allBadDefiners = []reflect.Type{
 	// pre-specification snippet methods
@@ -298,6 +267,21 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
+	// pre-attribute definers
+	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner2)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.

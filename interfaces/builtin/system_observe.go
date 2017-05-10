@@ -99,3 +99,7 @@ func NewSystemObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewSystemObserveInterface())
+}

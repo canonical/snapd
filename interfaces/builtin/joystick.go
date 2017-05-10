@@ -76,13 +76,13 @@ func (iface *JoystickInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // AppArmorConnectedPlug adds the necessary appamor snippet to the spec that
 // allows access to joystick devices.
-func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(joystickConnectedPlugAppArmor)
 	return nil
 }
 
 // TODO: This interface needs to use udev tagging, see LP: #1675738.
-// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 // 	const udevRule = `KERNEL=="js[0-9]*", TAG+="%s"`
 // 	for appName := range plug.Apps {
 // 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -94,4 +94,8 @@ func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 // AutoConnect returns true in order to allow what's in the declarations.
 func (iface *JoystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
+}
+
+func init() {
+	registerIface(&JoystickInterface{})
 }

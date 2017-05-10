@@ -40,3 +40,7 @@ func NewNetlinkConnectorInterface() interfaces.Interface {
 		reservedForOS:        true,
 	}
 }
+
+func init() {
+	registerIface(NewNetlinkConnectorInterface())
+}

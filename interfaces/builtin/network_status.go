@@ -96,14 +96,14 @@ func (iface *NetworkStatusInterface) Name() string {
 	return "network-status"
 }
 
-func (iface *NetworkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *NetworkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const old = "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *NetworkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *NetworkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const old = "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedSlotAppArmor, old, new, -1))
@@ -137,4 +137,8 @@ func (iface *NetworkStatusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *NetworkStatusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&NetworkStatusInterface{})
 }
