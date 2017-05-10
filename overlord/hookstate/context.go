@@ -66,25 +66,6 @@ func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, 
 	}, nil
 }
 
-// NewSnapContext returns a new snap Context.
-func NewSnapContext(state *state.State, setup *HookSetup, handler Handler) (*Context, error) {
-	// Generate a secure, random ID for this context
-	idBytes := make([]byte, 32)
-	_, err := rand.Read(idBytes)
-	if err != nil {
-		return nil, fmt.Errorf("cannot generate context ID: %s", err)
-	}
-
-	return &Context{
-		task:    nil,
-		state:   state,
-		setup:   setup,
-		id:      base64.URLEncoding.EncodeToString(idBytes),
-		handler: handler,
-		cache:   make(map[interface{}]interface{}),
-	}, nil
-}
-
 // NewSnapContextWithID returns a new snap Context with a predefined contextID (must be base64-encoded).
 func NewSnapContextWithID(state *state.State, setup *HookSetup, handler Handler, contextID string) *Context {
 	return &Context{
@@ -259,7 +240,7 @@ func (c *Context) Done() error {
 	return firstErr
 }
 
-// IsSnapContext returns true if the context is a snap context.
-func (c *Context) IsSnapContext() bool {
+// IsEphemeral returns true if the context is an ephemeral context (only snap contexts are at the moment).
+func (c *Context) IsEphemeral() bool {
 	return c.task == nil
 }

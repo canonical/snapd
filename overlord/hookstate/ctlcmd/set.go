@@ -111,6 +111,10 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		tr.Set(s.context().SnapName(), key, value)
 	}
 
+	if context.IsEphemeral() {
+		context.Done()
+	}
+
 	return nil
 }
 

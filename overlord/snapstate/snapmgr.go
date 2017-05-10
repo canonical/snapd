@@ -78,7 +78,8 @@ type SnapManager struct {
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
-	runner *state.TaskRunner
+	runner       *state.TaskRunner
+	snapContexts *SnapContexts
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -296,9 +297,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:   st,
-		backend: backend.Backend{},
-		runner:  runner,
+		state:        st,
+		backend:      backend.Backend{},
+		runner:       runner,
+		snapContexts: newSnapContexts(s),
 	}
 
 	// this handler does nothing

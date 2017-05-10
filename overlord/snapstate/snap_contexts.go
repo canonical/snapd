@@ -17,7 +17,7 @@
  *
  */
 
-package hookstate
+package snapstate
 
 import (
 	"os"
@@ -104,7 +104,7 @@ func (m *SnapContexts) DeleteSnapContext(snapName string) {
 
 // CreateSnapContext creates a new context mapping for given snap name
 func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
-	context, err := NewSnapContext(m.state, &HookSetup{Snap: snapName}, nil)
+	context, err := NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil)
 	if err != nil {
 		return nil, err
 	}

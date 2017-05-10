@@ -460,12 +460,42 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	_, err = m.snapContexts.CreateSnapContext(snapsup.Name())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *SnapManager) doRemoveSnapContext(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	m.snapContexts.DeleteSnapContext(snapsup.Name())
+	return nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
 	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.snapContexts.CreateSnapContext(snapsup.Name())
 	if err != nil {
 		return err
 	}
@@ -745,6 +775,8 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as inactive
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
+
+	m.snapContexts.DeleteSnapContext(snapsup.Name())
 	return nil
 }
 
