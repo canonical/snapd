@@ -92,6 +92,7 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
@@ -107,10 +108,6 @@ func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
 	}
 	return nil
-}
-
-func (iface *I2cInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
