@@ -110,10 +110,6 @@ func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *I2cInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
