@@ -208,6 +208,56 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
+// specification definers before the introduction of connection attributes
+type oldApparmorDefiner1 interface {
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldApparmorDefiner2 interface {
+	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldDbusDefiner1 interface {
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldDbusDefiner2 interface {
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldKmodDefiner1 interface {
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldKmodDefiner2 interface {
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldMountDefiner1 interface {
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldMountDefiner2 interface {
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldSeccompDefiner1 interface {
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldSeccompDefiner2 interface {
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldSystemdDefiner1 interface {
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldSystemdDefiner2 interface {
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
+type oldUdevDefiner1 interface {
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldUdevDefiner2 interface {
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+
 // allBadDefiners contains all old/unused specification definers for all known backends.
 var allBadDefiners = []reflect.Type{
 	// pre-specification snippet methods
@@ -217,7 +267,21 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
-	// TODO: add pre-attribute definers
+	// pre-attribute definers
+	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner2)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.
