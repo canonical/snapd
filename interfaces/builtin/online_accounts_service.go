@@ -69,6 +69,14 @@ dbus (receive, send)
     interface=com.ubuntu.OnlineAccounts.Manager
     path=/com/ubuntu/OnlineAccounts{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/ubuntu/OnlineAccounts
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const onlineAccountsServicePermanentSlotSecComp = `
@@ -112,14 +120,14 @@ func (iface *OnlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.
 
 func (iface *OnlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
 func (iface *OnlineAccountsServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
