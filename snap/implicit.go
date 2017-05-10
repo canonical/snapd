@@ -41,6 +41,8 @@ var implicitSlots = []string{
 	"firewall-control",
 	"framebuffer",
 	"hardware-observe",
+	"hardware-random-control",
+	"hardware-random-observe",
 	"home",
 	"io-ports-control",
 	"joystick",
