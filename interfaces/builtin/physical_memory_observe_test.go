@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type PhysicalMemoryObserveInterfaceSuite struct {
@@ -113,4 +114,8 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedSnippet2)
+}
+
+func (s *PhysicalMemoryObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

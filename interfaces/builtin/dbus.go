@@ -405,3 +405,7 @@ func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&DbusInterface{})
+}

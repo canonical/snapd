@@ -103,3 +103,7 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "shutdown\n")
 }
+
+func (s *Unity7InterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

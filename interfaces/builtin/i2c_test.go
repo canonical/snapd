@@ -204,3 +204,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
+
+func (s *I2cInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

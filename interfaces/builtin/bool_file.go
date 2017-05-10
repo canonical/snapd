@@ -132,3 +132,7 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 func (iface *BoolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&BoolFileInterface{})
+}

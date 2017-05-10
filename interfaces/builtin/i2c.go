@@ -114,3 +114,7 @@ func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&I2cInterface{})
+}

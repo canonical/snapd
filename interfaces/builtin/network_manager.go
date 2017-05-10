@@ -427,3 +427,7 @@ func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&NetworkManagerInterface{})
+}

@@ -186,3 +186,7 @@ func (iface *MediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) 
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&MediaHubInterface{})
+}

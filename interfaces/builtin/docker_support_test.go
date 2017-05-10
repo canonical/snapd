@@ -189,3 +189,7 @@ plugs:
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }
+
+func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

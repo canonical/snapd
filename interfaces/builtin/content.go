@@ -201,3 +201,7 @@ func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plu
 	}
 	return nil
 }
+
+func init() {
+	registerIface(&ContentInterface{})
+}

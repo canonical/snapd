@@ -102,3 +102,7 @@ func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "recvmsg\n")
 }
+
+func (s *AutopilotInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

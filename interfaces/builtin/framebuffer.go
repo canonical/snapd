@@ -94,3 +94,7 @@ func (iface *FramebufferInterface) AutoConnect(*interfaces.Plug, *interfaces.Slo
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func init() {
+	registerIface(&FramebufferInterface{})
+}

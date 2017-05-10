@@ -110,3 +110,7 @@ func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 0)
 }
+
+func (s *GsettingsInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

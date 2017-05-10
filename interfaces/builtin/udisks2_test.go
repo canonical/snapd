@@ -254,3 +254,7 @@ func (s *UDisks2InterfaceSuite) TestDBusPermanentSlot(c *C) {
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `<policy user="root">`)
 }
+
+func (s *UDisks2InterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

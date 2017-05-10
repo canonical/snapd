@@ -189,3 +189,7 @@ func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.SnippetForTag("snap.media-hub.app"), testutil.Contains, "bind\n")
 }
+
+func (s *MediaHubInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

@@ -338,3 +338,7 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rw,`
 	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet9)
 }
+
+func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
