@@ -86,6 +86,7 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
+	c.Check(repair.BrandID(), Equals, "acme")
 	c.Check(repair.RepairID(), Equals, "repair-42")
 	c.Check(repair.Arch(), Equals, "all")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
