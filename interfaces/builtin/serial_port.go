@@ -50,7 +50,7 @@ func (iface *SerialPortInterface) String() string {
 //  - ttyXRUSBx  (Exar Corp. USB UART devices)
 //  - ttySX (UART serial ports)
 //  - ttyOX (UART serial ports on ARM)
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|XRUSB|S|O)[0-9]+$")
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|AMA|XRUSB|S|O)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
@@ -136,7 +136,7 @@ func (iface *SerialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	return nil
 }
 
-func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
@@ -155,7 +155,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -184,4 +184,12 @@ func (iface *SerialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 		return true
 	}
 	return false
+}
+
+func (iface *SerialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&SerialPortInterface{})
 }

@@ -83,12 +83,12 @@ func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error
 	return nil
 }
 
-func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *IioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *IioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="port", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -97,7 +97,7 @@ func (iface *IioPortsControlInterface) UDevConnectedPlug(spec *udev.Specificatio
 	return nil
 }
 
-func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
 	return nil
 }
@@ -105,4 +105,8 @@ func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specif
 func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func init() {
+	registerIface(&IioPortsControlInterface{})
 }

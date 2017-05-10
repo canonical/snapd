@@ -57,7 +57,7 @@ func (p *Profile) Save(fname string) error {
 	if _, err := p.WriteTo(&buf); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(fname, buf.Bytes(), 0600, osutil.AtomicWriteFlags(0))
+	return osutil.AtomicWriteFile(fname, buf.Bytes(), 0644, osutil.AtomicWriteFlags(0))
 }
 
 // ReadProfile reads and parses a mount profile.

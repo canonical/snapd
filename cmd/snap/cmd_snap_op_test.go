@@ -446,6 +446,12 @@ func (s *SnapOpSuite) TestRevertClassic(c *check.C) {
 	s.runRevertTest(c, &client.SnapOptions{Classic: true})
 }
 
+func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"revert"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -466,6 +472,32 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
 foo +4.2update1 +17 +bar +-.*
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestRefreshTime(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25 17:35:00 +0200 CEST", "next": "2017-04-26 00:58:00 +0200 CEST"}}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `schedule: 00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59
+last: 2017-04-25 17:35:00 +0200 CEST
+next: 2017-04-26 00:58:00 +0200 CEST
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit

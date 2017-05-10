@@ -106,7 +106,9 @@ dbus (receive, send)
 `
 
 const upowerObservePermanentSlotSeccomp = `
+# libudev
 bind
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -191,6 +193,14 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/UPower
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type UpowerObserveInterface struct{}
@@ -199,7 +209,7 @@ func (iface *UpowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	if release.OnClassic {
@@ -226,7 +236,7 @@ func (iface *UpowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification,
 	return nil
 }
 
-func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
@@ -254,4 +264,8 @@ func (iface *UpowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *UpowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&UpowerObserveInterface{})
 }

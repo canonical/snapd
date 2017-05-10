@@ -73,6 +73,9 @@ var mockClassicGadgetYaml = []byte(`
 defaults:
   core:
     something: true
+  other:
+    foo:
+      bar: baz
 `)
 
 var mockGadgetSnapContents = "SNAP"
@@ -125,7 +128,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"core": {"something": true},
+			"core":  {"something": true},
+			"other": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
 }

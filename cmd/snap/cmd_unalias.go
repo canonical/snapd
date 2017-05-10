@@ -27,22 +27,20 @@ import (
 
 type cmdUnalias struct {
 	Positionals struct {
-		Snap    installedSnapName `required:"yes"`
-		Aliases []string          `required:"yes"`
+		AliasOrSnap string `required:"yes"`
 	} `positional-args:"true"`
 }
 
-var shortUnaliasHelp = i18n.G("Disables the given aliases")
+var shortUnaliasHelp = i18n.G("Unalias a manual alias or an entire snap")
 var longUnaliasHelp = i18n.G(`
-The unalias command disables explicitly the given application aliases defined by the snap.
+The unalias command tears down a manual alias when given one or disables all aliases of a snap, removing also all manual ones, when given a snap name.
 `)
 
 func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
 		return &cmdUnalias{}
 	}, nil, []argDesc{
-		{name: "<snap>"},
-		{name: i18n.G("<alias>")},
+		{name: i18n.G("<alias-or-snap>")},
 	})
 }
 
@@ -51,15 +49,19 @@ func (x *cmdUnalias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName := string(x.Positionals.Snap)
-	aliases := x.Positionals.Aliases
-
 	cli := Client()
-	id, err := cli.Unalias(snapName, aliases)
+	id, err := cli.Unalias(x.Positionals.AliasOrSnap)
 	if err != nil {
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	chg, err := wait(cli, id)
+	if err != nil {
+		return err
+	}
+	if err := showAliasChanges(chg); err != nil {
+		return err
+	}
+
+	return nil
 }
