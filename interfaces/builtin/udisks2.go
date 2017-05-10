@@ -145,6 +145,14 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const udisks2PermanentSlotSecComp = `
@@ -159,6 +167,8 @@ mount
 shmctl
 umount
 umount2
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `

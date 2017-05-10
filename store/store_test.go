@@ -620,7 +620,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
-	c.Assert(err, ErrorMatches, "fsync:.*")
+	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
