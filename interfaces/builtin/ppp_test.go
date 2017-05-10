@@ -101,3 +101,7 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		"ppp_generic": true,
 	})
 }
+
+func (s *PppInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

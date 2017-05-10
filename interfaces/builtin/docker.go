@@ -77,3 +77,7 @@ func (iface *DockerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&DockerInterface{})
+}

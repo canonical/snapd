@@ -67,3 +67,7 @@ func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&LxdSupportInterface{})
+}

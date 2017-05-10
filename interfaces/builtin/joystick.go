@@ -95,3 +95,7 @@ func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 func (iface *JoystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&JoystickInterface{})
+}

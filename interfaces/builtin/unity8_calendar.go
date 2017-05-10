@@ -147,3 +147,7 @@ func NewUnity8CalendarInterface() interfaces.Interface {
 		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,
 	}
 }
+
+func init() {
+	registerIface(NewUnity8CalendarInterface())
+}

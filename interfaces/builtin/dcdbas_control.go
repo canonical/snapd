@@ -53,3 +53,7 @@ func NewDcdbasControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewDcdbasControlInterface())
+}
