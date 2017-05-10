@@ -229,9 +229,20 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
 }
 
+func formatRefreshTime(t time.Time) string {
+	if t.IsZero() {
+		return "n/a"
+	}
+	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+}
+
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
+	snapMgr := c.d.overlord.SnapManager()
 	st.Lock()
+	nextRefresh := snapMgr.NextRefresh()
+	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshScheduleStr := snapMgr.RefreshSchedule()
 	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
@@ -248,6 +259,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			"schedule": refreshScheduleStr,
+			"last":     formatRefreshTime(lastRefresh),
+			"next":     formatRefreshTime(nextRefresh),
 		},
 	}
 
@@ -329,7 +345,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Status: http.StatusUnauthorized,
 		}, nil)
 	default:
-		if err, ok := err.(store.ErrInvalidAuthData); ok {
+		switch err := err.(type) {
+		case store.ErrInvalidAuthData:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -338,6 +355,16 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Value:   err,
 				},
 				Status: http.StatusBadRequest,
+			}, nil)
+		case store.ErrPasswordPolicy:
+			return SyncResponse(&resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: err.Error(),
+					Kind:    errorKindPasswordPolicy,
+					Value:   err,
+				},
+				Status: http.StatusUnauthorized,
 			}, nil)
 		}
 		return Unauthorized(err.Error())
