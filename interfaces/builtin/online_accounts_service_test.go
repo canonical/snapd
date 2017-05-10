@@ -84,14 +84,14 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app")`)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
 }
 

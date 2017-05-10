@@ -20,102 +20,35 @@
 package builtin
 
 import (
+	"sort"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BluezInterface{},
-	&BoolFileInterface{},
-	&BrowserSupportInterface{},
-	&ContentInterface{},
-	&DbusInterface{},
-	&DockerInterface{},
-	&DockerSupportInterface{},
-	&FramebufferInterface{},
-	&FwupdInterface{},
-	&GpioInterface{},
-	&HardwareRandomControlInterface{},
-	&HardwareRandomObserveInterface{},
-	&HidrawInterface{},
-	&I2cInterface{},
-	&IioInterface{},
-	&IioPortsControlInterface{},
-	&JoystickInterface{},
-	&LocationControlInterface{},
-	&LocationObserveInterface{},
-	&LxdInterface{},
-	&LxdSupportInterface{},
-	&MaliitInterface{},
-	&MediaHubInterface{},
-	&MirInterface{},
-	&ModemManagerInterface{},
-	&MprisInterface{},
-	&NetworkManagerInterface{},
-	&OfonoInterface{},
-	&OnlineAccountsServiceInterface{},
-	&PhysicalMemoryControlInterface{},
-	&PhysicalMemoryObserveInterface{},
-	&PppInterface{},
-	&PulseAudioInterface{},
-	&SerialPortInterface{},
-	&ThumbnailerServiceInterface{},
-	&TimeControlInterface{},
-	&Unity7Interface{},
-	&UDisks2Interface{},
-	&UbuntuDownloadManagerInterface{},
-	&UhidInterface{},
-	&Unity8Interface{},
-	&UpowerObserveInterface{},
-	NewAccountControlInterface(),
-	NewAlsaInterface(),
-	NewAutopilotIntrospectionInterface(),
-	NewAvahiObserveInterface(),
-	NewBluetoothControlInterface(),
-	NewCameraInterface(),
-	NewClassicSupportInterface(),
-	NewCoreSupportInterface(),
-	NewCupsControlInterface(),
-	NewDcdbasControlInterface(),
-	NewFirewallControlInterface(),
-	NewFuseSupportInterface(),
-	NewGsettingsInterface(),
-	NewHardwareObserveInterface(),
-	NewHomeInterface(),
-	NewKernelModuleControlInterface(),
-	NewKubernetesSupportInterface(),
-	NewLibvirtInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetlinkAuditInterface(),
-	NewNetlinkConnectorInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkInterface(),
-	NewNetworkObserveInterface(),
-	NewNetworkSetupControlInterface(),
-	NewNetworkSetupObserveInterface(),
-	NewOpenglInterface(),
-	NewOpenvSwitchInterface(),
-	NewOpenvSwitchSupportInterface(),
-	NewOpticalDriveInterface(),
-	NewProcessControlInterface(),
-	NewRawUsbInterface(),
-	NewRemovableMediaInterface(),
-	NewScreenInhibitControlInterface(),
-	NewShutdownInterface(),
-	NewSnapdControlInterface(),
-	NewSystemObserveInterface(),
-	NewSystemTraceInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewTpmInterface(),
-	NewUnity8CalendarInterface(),
-	NewUnity8ContactsInterface(),
-	NewX11Interface(),
-}
+var (
+	allInterfaces []interfaces.Interface
+	sorted        bool
+)
 
 // Interfaces returns all of the built-in interfaces.
 func Interfaces() []interfaces.Interface {
+	if !sorted {
+		sort.Sort(byIfaceName(allInterfaces))
+		sorted = true
+	}
 	return allInterfaces
+}
+
+// registerIface appends the given interface into the list of all known interfaces.
+func registerIface(iface interfaces.Interface) {
+	allInterfaces = append(allInterfaces, iface)
+	sorted = false
+}
+
+type byIfaceName []interfaces.Interface
+
+func (c byIfaceName) Len() int      { return len(c) }
+func (c byIfaceName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byIfaceName) Less(i, j int) bool {
+	return c[i].Name() < c[j].Name()
 }

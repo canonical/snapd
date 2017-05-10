@@ -88,14 +88,14 @@ func (s *ThumbnailerServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) 
 func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected slots have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `interface=com.canonical.Thumbnailer`)
 
 	// slots have no permanent snippet on classic
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.classicSlot)
+	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.classicSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
@@ -109,11 +109,15 @@ func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 func (s *ThumbnailerServiceInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.thumbnailer-service.app")
 	c.Check(snippet, testutil.Contains, `@{INSTALL_DIR}/client/**`)
 	c.Check(snippet, testutil.Contains, `@{HOME}/snap/client/**`)
 	c.Check(snippet, testutil.Contains, `/var/snap/client/**`)
+}
+
+func (s *ThumbnailerServiceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
