@@ -104,7 +104,7 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
-		{"repair-id: repair-42\n", "repair-id: UPPER-42\n", `"repair-id" header contains invalid characters: "UPPER-42"`},
+		{"repair-id: repair-42\n", "repair-id: no-suffix-number\n", `"repair-id" header contains invalid characters: "no-suffix-number"`},
 	}
 
 	for _, test := range invalidTests {
