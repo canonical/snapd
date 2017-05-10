@@ -38,11 +38,11 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		DBusConnectedSlotCallback: func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		DBusConnectedSlotCallback: func(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
@@ -90,8 +90,8 @@ func (s *specSuite) SetUpTest(c *C) {
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
