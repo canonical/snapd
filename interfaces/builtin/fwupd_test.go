@@ -165,3 +165,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, "bind\n")
 }
+
+func (s *FwupdInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

@@ -58,3 +58,7 @@ func NewKernelModuleControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewKernelModuleControlInterface())
+}

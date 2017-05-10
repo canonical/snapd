@@ -230,3 +230,7 @@ func (iface *BluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&BluezInterface{})
+}

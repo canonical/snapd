@@ -1218,3 +1218,7 @@ func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Sl
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&ModemManagerInterface{})
+}

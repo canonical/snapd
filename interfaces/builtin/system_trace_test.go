@@ -93,3 +93,7 @@ func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/kernel/debug/tracing/ r,")
 }
+
+func (s *SystemTraceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

@@ -53,3 +53,7 @@ func NewNetworkInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewNetworkInterface())
+}

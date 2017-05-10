@@ -102,3 +102,7 @@ func (s *KubernetesSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "# Allow reading the state of modules kubernetes needs\n")
 }
+
+func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

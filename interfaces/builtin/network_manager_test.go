@@ -189,3 +189,7 @@ func (s *NetworkManagerInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager.nm"})
 	c.Check(seccompSpec.SnippetForTag("snap.network-manager.nm"), testutil.Contains, "listen\n")
 }
+
+func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

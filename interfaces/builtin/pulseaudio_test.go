@@ -110,3 +110,7 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 	c.Assert(seccompSpec.SnippetForTag("snap.pulseaudio.app1"), testutil.Contains, "listen\n")
 	c.Assert(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shmctl\n")
 }
+
+func (s *PulseAudioInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
