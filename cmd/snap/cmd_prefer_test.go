@@ -69,7 +69,7 @@ func (s *SnapSuite) TestPrefer(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Added:\n"+
-		"  - alias1 => some-snap.cmd1\n",
+		"  - some-snap.cmd1 as alias1\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }

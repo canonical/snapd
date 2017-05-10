@@ -106,7 +106,9 @@ dbus (receive, send)
 `
 
 const upowerObservePermanentSlotSeccomp = `
+# libudev
 bind
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -190,6 +192,14 @@ dbus (receive)
     path=/org/freedesktop/UPower{,/devices/**}
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/UPower
+    member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 

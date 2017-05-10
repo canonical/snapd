@@ -69,7 +69,7 @@ func (s *SnapSuite) TestUnalias(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Removed:\n"+
-		"  - alias1 => foo\n",
+		"  - foo as alias1\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }

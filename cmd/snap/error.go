@@ -77,9 +77,17 @@ func fill(para string) string {
 	// 3 is the %v\n, which will be present in any locale
 	indent := len(errorPrefix) - 3
 	var buf bytes.Buffer
-	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width)
+	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width-indent)
 
 	return strings.TrimSpace(buf.String())
+}
+
+type filledError struct {
+	error
+}
+
+func (e filledError) Error() string {
+	return fill(e.error.Error())
 }
 
 func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {

@@ -41,6 +41,21 @@ dbus (send)
     interface=org.freedesktop.login1.Manager
     member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown}
     peer=(label=unconfined),
+
+# Allow clients to introspect
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.

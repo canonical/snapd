@@ -5,6 +5,15 @@ set -eux
 . $TESTSLIB/apt.sh
 . $TESTSLIB/snaps.sh
 
+disable_kernel_rate_limiting() {
+    # kernel rate limiting hinders debugging security policy so turn it off
+    echo "Turning off kernel rate-limiting"
+    # TODO: we should be able to run the tests with rate limiting disabled so
+    # debug output is robust, but we currently can't :(
+    echo "SKIPPED: see https://forum.snapcraft.io/t/snapd-spread-tests-should-be-able-to-run-with-kernel-rate-limiting-disabled/424"
+    #sysctl -w kernel.printk_ratelimit=0
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -25,21 +34,19 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
-    # also inject new version of snap-confine and snap-scard-ns
-    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    # clean the old snapd libexec binaries, just in case
+    rm squashfs-root/usr/lib/snapd/*
+    # and copy in the current ones
+    cp -a /usr/lib/snapd/* squashfs-root/usr/lib/snapd/
+    # also the binaries themselves
+    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # and snap-confine's apparmor
     if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
         cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     else
         cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     fi
-    # also add snap/snapd because we re-exec by default and want to test
-    # this version
-    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -146,6 +153,16 @@ EOF
         done
         systemctl start snapd.socket
     fi
+
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        # Improve entropy for the whole system quite a lot to get fast
+        # key generation during our test cycles
+        apt-get install rng-tools
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+    fi
+
+    disable_kernel_rate_limiting
 }
 
 setup_reflash_magic() {
@@ -375,4 +392,6 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
+
+    disable_kernel_rate_limiting
 }

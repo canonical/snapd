@@ -37,7 +37,7 @@ type xauthTestSuite struct{}
 var _ = Suite(&xauthTestSuite{})
 
 func (s *xauthTestSuite) TestXauthFileNotAvailable(c *C) {
-	err := x11.ValidateXauthority("/does/not/exist")
+	err := x11.ValidateXauthorityFile("/does/not/exist")
 	c.Assert(err, NotNil)
 }
 
@@ -46,7 +46,7 @@ func (s *xauthTestSuite) TestXauthFileExistsButIsEmpty(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(xauthPath)
 
-	err = x11.ValidateXauthority(xauthPath)
+	err = x11.ValidateXauthorityFile(xauthPath)
 	c.Assert(err, ErrorMatches, "Xauthority file is invalid")
 }
 
@@ -60,15 +60,15 @@ func (s *xauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, len(data))
 
-	err = x11.ValidateXauthority(f.Name())
-	c.Assert(err, ErrorMatches, "Could not read enough bytes")
+	err = x11.ValidateXauthorityFile(f.Name())
+	c.Assert(err, ErrorMatches, "unexpected EOF")
 }
 
 func (s *xauthTestSuite) TestValidXauthFile(c *C) {
 	for _, n := range []int{1, 2, 4} {
 		path, err := x11.MockXauthority(n)
 		c.Assert(err, IsNil)
-		err = x11.ValidateXauthority(path)
+		err = x11.ValidateXauthorityFile(path)
 		c.Assert(err, IsNil)
 	}
 }

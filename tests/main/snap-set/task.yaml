@@ -36,6 +36,13 @@ execute: |
         exit 1
     fi
 
+    echo "Test that an invalid key results in an error"
+    if obtained=$(snap set snapctl-hooks invalid_key=value 2>&1); then
+        echo "Expected usage of an invalid key to result in an error"
+        exit 1
+    fi
+    [[ "$obtained" == *"invalid option name"* ]]
+
     echo "Install should fail altogether as it has a broken hook"
     if obtained=$(snap install --dangerous failing-config-hooks_1.0_all.snap 2>&1); then
         echo "Expected install of snap with broken configure hook to fail"
