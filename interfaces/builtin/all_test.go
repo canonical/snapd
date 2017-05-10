@@ -42,7 +42,6 @@ var _ = Suite(&AllSuite{})
 
 func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
-	c.Check(all, Contains, &builtin.StorageFrameworkServiceInterface{})
 	c.Check(all, DeepContains, &builtin.BluezInterface{})
 	c.Check(all, DeepContains, &builtin.BoolFileInterface{})
 	c.Check(all, DeepContains, &builtin.BrowserSupportInterface{})
@@ -70,6 +69,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, &builtin.PhysicalMemoryObserveInterface{})
 	c.Check(all, DeepContains, &builtin.PulseAudioInterface{})
 	c.Check(all, DeepContains, &builtin.SerialPortInterface{})
+	c.Check(all, DeepContains, &builtin.StorageFrameworkServiceInterface{})
 	c.Check(all, DeepContains, &builtin.ThumbnailerServiceInterface{})
 	c.Check(all, DeepContains, &builtin.TimeControlInterface{})
 	c.Check(all, DeepContains, &builtin.UDisks2Interface{})
