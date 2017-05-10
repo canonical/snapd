@@ -39,6 +39,14 @@ dbus (send)
     member=Get*
     peer=(name=org.freedesktop.Avahi,label=unconfined),
 
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.

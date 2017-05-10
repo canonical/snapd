@@ -38,8 +38,6 @@ capability net_bind_service,
 capability net_raw,
 
 network netlink,
-network netlink raw,
-network netlink dgram,
 network bridge,
 network inet,
 network inet6,
@@ -225,6 +223,8 @@ bind
 listen
 sethostname
 shutdown
+# netlink
+socket AF_NETLINK - -
 `
 
 const networkManagerPermanentSlotDBus = `
