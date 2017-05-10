@@ -108,3 +108,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "listen\n")
 }
+
+func (s *OnlineAccountsServiceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
