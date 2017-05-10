@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"regexp"
 )
 
@@ -65,9 +64,8 @@ func (em *Repair) Models() []string {
 
 // Implement further consistency checks.
 func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
-	if !db.IsTrustedAccount(em.AuthorityID()) {
-		return fmt.Errorf("repair assertion for %q is not signed by a directly trusted authority: %s", em.RepairID(), em.AuthorityID())
-	}
+	// Do the cross-checks when this assertion is actually used,
+	// i.e. in the future repair code
 
 	return nil
 }
@@ -82,6 +80,11 @@ var _ consistencyChecker = (*Repair)(nil)
 var validRepairID = regexp.MustCompile("^([a-z]+-[0-9]+|[a-z]+-[a-z]+-[0-9]+)$")
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
+	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
+	}
+
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
 		return nil, err
