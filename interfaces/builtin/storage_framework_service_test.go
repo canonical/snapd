@@ -32,37 +32,36 @@ import (
 )
 
 type StorageFrameworkServiceInterfaceSuite struct {
-	iface       interfaces.Interface
-	coreSlot    *interfaces.Slot
-	classicSlot *interfaces.Slot
-	plug        *interfaces.Plug
+	iface interfaces.Interface
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
-var _ = Suite(&StorageFrameworkServiceInterfaceSuite{})
+var _ = Suite(&StorageFrameworkServiceInterfaceSuite{
+	iface: &builtin.StorageFrameworkServiceInterface{},
+})
 
 func (s *StorageFrameworkServiceInterfaceSuite) SetUpTest(c *C) {
-	// a storage-framework-service slot on a storage-framework-service snap
-	const mockCoreSlotSnapInfo = `name: storage-framework-service
+	const providerYaml = `name: storage-framework-service
 version: 1.0
 apps:
  app:
   command: foo
   slots: [storage-framework-service]
 `
-	const mockPlugSnapInfo = `name: client
+	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["storage-framework-service"]}
+
+	const consumerYaml = `name: client
 version: 1.0
 apps:
  app:
   command: foo
   plugs: [storage-framework-service]
 `
-	s.iface = &builtin.StorageFrameworkServiceInterface{}
-	// storage-framework-service snap with storage-framework-service slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, mockCoreSlotSnapInfo, nil)
-	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["storage-framework-service"]}
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["storage-framework-service"]}
 
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["storage-framework-service"]}
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
@@ -76,32 +75,30 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestSanitizeIncorrectInterface(c
 		PanicMatches, `plug is not of interface "storage-framework-service"`)
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected slots have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, `interface=com.canonical.StorageFramework`)
+func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app"})
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `interface=com.canonical.StorageFramework.Registry`)
+}
 
-	// slots have a permanent non-nil security snippet for apparmor
-	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
+func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
+	c.Assert(spec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, `interface=com.canonical.StorageFramework`)
+}
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.client.app"), testutil.Contains, `interface=com.canonical.StorageFramework.Registry`)
+func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorPermanentSlot(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
+	c.Assert(spec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
+}
 
-	// plugs can bind to the DBus name
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, "bind\n")
+func (s *StorageFrameworkServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.storage-framework-service.app"})
+	c.Assert(spec.SnippetForTag("snap.storage-framework-service.app"), testutil.Contains, "bind\n")
 }
