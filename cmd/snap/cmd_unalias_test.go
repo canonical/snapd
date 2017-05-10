@@ -30,16 +30,16 @@ import (
 
 func (s *SnapSuite) TestUnaliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] unalias [<snap>] [<alias>...]
+  snap.test [OPTIONS] unalias [<alias-or-snap>]
 
-The unalias command disables explicitly the given application aliases defined
-by the snap.
+The unalias command tears down a manual alias when given one or disables all
+aliases of a snap, removing also all manual ones, when given a snap name.
 
 Application Options:
-      --version      Print the version and exit
+      --version              Print the version and exit
 
 Help Options:
-  -h, --help         Show this help message
+  -h, --help                 Show this help message
 `
 	rest, err := Parser().ParseArgs([]string{"unalias", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -52,19 +52,24 @@ func (s *SnapSuite) TestUnalias(c *C) {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
 			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action":  "unalias",
-				"snap":    "alias-snap",
-				"aliases": []interface{}{"alias1", "alias2"},
+				"action": "unalias",
+				"snap":   "alias1",
+				"alias":  "alias1",
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-removed": [{"alias": "alias1", "snap": "foo", "app": "foo"}]}}}`)
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"unalias", "alias-snap", "alias1", "alias2"})
+	rest, err := Parser().ParseArgs([]string{"unalias", "alias1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, ""+
+		"Removed:\n"+
+		"  - foo as alias1\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
 }

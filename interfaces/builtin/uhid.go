@@ -64,12 +64,12 @@ func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="uhid", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -81,4 +81,8 @@ func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *in
 func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declaration
 	return true
+}
+
+func init() {
+	registerIface(&UhidInterface{})
 }

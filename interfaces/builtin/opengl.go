@@ -66,3 +66,7 @@ func NewOpenglInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewOpenglInterface())
+}

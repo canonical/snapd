@@ -76,3 +76,7 @@ func NewTimeserverControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewTimeserverControlInterface())
+}

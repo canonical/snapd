@@ -168,16 +168,7 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 			continue
 		}
 
-		// TODO: helper for this?
-		cmdStr := app.Name
-		if cmdStr != snapName {
-			cmdStr = fmt.Sprintf("%s.%s", snapName, cmdStr)
-		}
-
-		if len(app.Aliases) != 0 {
-			cmdStr = fmt.Sprintf("%s (%s)", cmdStr, strings.Join(app.Aliases, ","))
-		}
-
+		cmdStr := snap.JoinSnapApp(snapName, app.Name)
 		commands = append(commands, cmdStr)
 	}
 	if len(commands) == 0 {
@@ -187,6 +178,43 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	fmt.Fprintf(w, "commands:\n")
 	for _, cmd := range commands {
 		fmt.Fprintf(w, "  - %s\n", cmd)
+	}
+}
+
+// displayChannels displays channels and tracks in the right order
+func displayChannels(w io.Writer, remote *client.Snap) {
+	// \t\t\t so we get "installed" lined up with "channels"
+	fmt.Fprintf(w, "channels:\t\t\t\n")
+
+	// order by tracks
+	for i, tr := range remote.Tracks {
+		trackHasOpenChannel := false
+		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+			chName := fmt.Sprintf("%s/%s", tr, risk)
+			ch, ok := remote.Channels[chName]
+			if tr == "latest" {
+				chName = risk
+			}
+			var version, revision, size, notes string
+			if ok {
+				version = ch.Version
+				revision = fmt.Sprintf("(%s)", ch.Revision)
+				size = strutil.SizeToStr(ch.Size)
+				notes = NotesFromChannelSnapInfo(ch).String()
+				trackHasOpenChannel = true
+			} else {
+				if trackHasOpenChannel {
+					version = "↑"
+				} else {
+					version = "–" // that's an en dash (so yaml is happy)
+				}
+			}
+			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
+		}
+		// add separator between tracks
+		if i < len(remote.Tracks)-1 {
+			fmt.Fprintf(w, "  \t\t\t\t\n")
+		}
 	}
 }
 
@@ -260,17 +288,10 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
-		if remote != nil && remote.Channels != nil {
-			// \t\t\t so we get "installed" lined up with "channels"
-			fmt.Fprintf(w, "channels:\t\t\t\n")
-			for _, ch := range []string{"stable", "candidate", "beta", "edge"} {
-				m := remote.Channels[ch]
-				if m == nil {
-					continue
-				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
-			}
+		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+			displayChannels(w, remote)
 		}
+
 	}
 	w.Flush()
 

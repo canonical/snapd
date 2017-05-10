@@ -109,6 +109,9 @@ void
 sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 {
 #ifdef HAVE_APPARMOR
+	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
+		return;
+	}
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	if (aa_change_onexec(profile) < 0) {
@@ -124,6 +127,9 @@ sc_maybe_aa_change_hat(struct sc_apparmor *apparmor,
 		       const char *subprofile, unsigned long magic_token)
 {
 #ifdef HAVE_APPARMOR
+	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
+		return;
+	}
 	if (apparmor->is_confined) {
 		debug("changing apparmor hat to %s", subprofile);
 		if (aa_change_hat(subprofile, magic_token) < 0) {

@@ -41,6 +41,7 @@ type SerialPortInterfaceSuite struct {
 	testSlot4        *interfaces.Slot
 	testSlot5        *interfaces.Slot
 	testSlot6        *interfaces.Slot
+	testSlot7        *interfaces.Slot
 	missingPathSlot  *interfaces.Slot
 	badPathSlot1     *interfaces.Slot
 	badPathSlot2     *interfaces.Slot
@@ -92,6 +93,9 @@ slots:
         path: /dev/ttyACM0
     test-port-6:
         interface: serial-port
+        path: /dev/ttyAMA0
+    test-port-7:
+        interface: serial-port
         path: /dev/ttyXRUSB0
     missing-path: serial-port
     bad-path-1:
@@ -132,6 +136,7 @@ slots:
 	s.testSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-4"]}
 	s.testSlot5 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-5"]}
 	s.testSlot6 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-6"]}
+	s.testSlot7 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-7"]}
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["missing-path"]}
 	s.badPathSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-1"]}
 	s.badPathSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-2"]}
@@ -206,7 +211,7 @@ func (s *SerialPortInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6} {
+	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6, s.testSlot7} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, IsNil)
 	}
@@ -274,20 +279,20 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	spec := &udev.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
+	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testSlot1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 
 	expectedSnippet1 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
 	spec = &udev.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev2, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
@@ -299,7 +304,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.Plug, slot *interfaces.Slot, expectedSnippet string) {
 		apparmorSpec := &apparmor.Specification{}
-		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 		c.Assert(err, IsNil)
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})
@@ -321,14 +326,19 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet5 := `/dev/ttyACM0 rw,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, expectedSnippet5)
 
-	expectedSnippet6 := `/dev/ttyXRUSB0 rw,`
-	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, expectedSnippet5)
-
+	expectedSnippet6 := `/dev/ttyAMA0 rw,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, expectedSnippet6)
 
-	expectedSnippet7 := `/dev/tty[A-Z]*[0-9] rw,`
-	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet7)
+	expectedSnippet7 := `/dev/ttyXRUSB0 rw,`
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot7, expectedSnippet7)
 
 	expectedSnippet8 := `/dev/tty[A-Z]*[0-9] rw,`
-	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet8)
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet8)
+
+	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rw,`
+	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet9)
+}
+
+func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
