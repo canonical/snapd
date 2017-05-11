@@ -290,6 +290,40 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 	c.Assert(nonce, Equals, "the-nonce")
 }
 
+func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n < 4 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			io.WriteString(w, mockStoreReturnNonce)
+		}
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := requestStoreDeviceNonce()
+	c.Assert(err, IsNil)
+	c.Assert(nonce, Equals, "the-nonce")
+	c.Assert(n, Equals, 4)
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	_, err := requestStoreDeviceNonce()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot get nonce from store: store server returned status 500`)
+	c.Assert(n, Equals, 5)
+}
+
 func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
 	MyAppsDeviceNonceAPI = "http://nonexistingserver121321.com/identity/api/v1/nonces"
 	_, err := requestStoreDeviceNonce()
