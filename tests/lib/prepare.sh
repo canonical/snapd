@@ -174,7 +174,7 @@ setup_reflash_magic() {
         snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
-        snap install --devmode --edge ubuntu-image
+        snap install --classic --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
