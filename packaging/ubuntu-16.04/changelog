@@ -1,3 +1,74 @@
+snapd (2.26) xenial; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - timeutil: avoid panicking when the window is very small
+    - image: fix go vet issue
+    - overlord/ifacestate: don't spam logs with harmless auto-connect
+      messages
+    - interfaces/builtin: add network-status interface
+    - interfaces/builtin: add online-accounts-service interface
+    - interfaces/builtin: distribute code of touching allInterfaces
+    - interfaces: API additions for interface hooks
+    - interfaces/builtin: add storage-framework-service interface
+    - tests: disable create-key test on ppc64el for artful (expect not
+      working)
+    - snap: make `snap prepare-image --extra-snaps` derive side info
+    - tests: unify tests/{main/completion,completion}/lib.exp0
+    - cmd/snap: tweak info channels output
+    - interfaces: ensure that legacy interface methods are unused
+    - packaging: cleanup how built-using is generated
+    - tests: extend kernel-module-control interface test
+    - interfaces/network: workaround Go's need for NETLINK_ROUTE with
+      'net'.
+    - cmd/snap-confine: use defensive argument parser
+    - tests: add test for empty snap name on revert
+    - overlord/hookstate: remove unused Context.timeout
+    - tests: additional setup in docker test for core systems
+    - configstate: return error if patch is invalid
+    - interfaces: add random interface
+    - store, daemon, client, cmd/snap: handle PASSWORD_POLICY_ERROR
+    - cmd/snap, client: add "whoami" command
+    - cmd/snap: iterate interface tab completion
+    - snap: move locale-control to only be present on classic
+    - interfaces/browser-support: deny read on squashfs backing files
+      and LVM vg names (#3268)* interfaces/browser-support: deny r of
+      squashfs backing_file when sandbox: trueimplementation of udisks
+      should not either (especially not with 'allow-sandbox:* add one
+      denial more for virtual/block/dm-[0-9]*/dm/name with sandbox: true
+    - tests: wait for the docker socket to be listening
+    - snap: add `snap refresh --time` option
+    - tests: re-enable and moderninze /media sharing test
+    - cmd: make rst2man optional
+    - tests: remove quoting from [[ ]] when globs
+    - interfaces: allow plugging DBus clients to introspect the slot
+      service
+    - packaging/ubuntu*/changelog: drop extra dash
+    - snap-confine: init the ENTRY variable, coverity is unhappy
+      otherwise
+    - cmd/snap-confine/spread-tests: discard useless --version test
+    - spread: add spread target qemu:debian-9-64
+    - interfaces: mediate netlink sockets via seccomp
+    - tests,cmd/snap-confine: port older snapd-discard-ns tests
+    - cmd/snap-confine/tests: fix shellcheck on recently added files
+    - tests/upgrade: force install core snap from beta for debian
+    - overlord/snapstate/backend,interfaces/mount: move ns management
+      code.
+    - tests: extend network-control spread test to cope with network
+      namespaces
+    - tests: fail early in the spread suite if trying to run it inside a
+      container
+    - tests: set ownership of $PROJECT_PATH for the external backend
+    - tests: specify the auto-refreshable snap being tested
+    - many: fix tests with go1.8 / artful
+    - fix for tests: debian does not have /snap/bin in secure_path so
+      sudo
+    - snap: support for snap tasks --last=...
+    - cmd/snap-confine: remove obsolete debug message
+    - address review feedback, add a lot of comments :-), call
+      shellcheck on the completion scripts, fix a bug in compopt
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 May 2017 10:05:44 +0200
+
 snapd (2.25) xenial; urgency=medium
 
   * New upstream release, LP: #1686713
