@@ -109,7 +109,7 @@ func randDur(a, b time.Time) time.Duration {
 		dur -= 5 * time.Minute
 	}
 
-	if dur < 0 {
+	if dur <= 0 {
 		// avoid panic'ing (even if things are probably messed up)
 		return 0
 	}

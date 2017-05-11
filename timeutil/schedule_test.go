@@ -233,6 +233,13 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			now:      "2017-02-06 08:58",
 			next:     "2m-5m",
 		},
+		{
+			// daily schedule, zero window
+			schedule: "9:00-9:00",
+			last:     "2017-02-05 09:02",
+			now:      "2017-02-06 08:58",
+			next:     "2m-2m",
+		},
 	} {
 		last, err := time.ParseInLocation(shortForm, t.last, time.Local)
 		c.Assert(err, IsNil)
