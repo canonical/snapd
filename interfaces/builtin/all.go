@@ -20,29 +20,35 @@
 package builtin
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
 )
 
 var (
-	allInterfaces []interfaces.Interface
-	sorted        bool
+	allInterfaces map[string]interfaces.Interface
 )
 
 // Interfaces returns all of the built-in interfaces.
 func Interfaces() []interfaces.Interface {
-	if !sorted {
-		sort.Sort(byIfaceName(allInterfaces))
-		sorted = true
+	ifaces := make([]interfaces.Interface, 0, len(allInterfaces))
+	for _, iface := range allInterfaces {
+		ifaces = append(ifaces, iface)
 	}
-	return allInterfaces
+	sort.Sort(byIfaceName(ifaces))
+	return ifaces
 }
 
 // registerIface appends the given interface into the list of all known interfaces.
 func registerIface(iface interfaces.Interface) {
-	allInterfaces = append(allInterfaces, iface)
-	sorted = false
+	if allInterfaces[iface.Name()] != nil {
+		panic(fmt.Errorf("cannot register duplicate interface %q", iface.Name()))
+	}
+	if allInterfaces == nil {
+		allInterfaces = make(map[string]interfaces.Interface)
+	}
+	allInterfaces[iface.Name()] = iface
 }
 
 type byIfaceName []interfaces.Interface
