@@ -5,6 +5,8 @@ prepare: |
     install_local aliases
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "Sanity check"
     aliases.cmd1|MATCH "ok command 1"
     aliases.cmd2|MATCH "ok command 2"
@@ -14,8 +16,8 @@ execute: |
     snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
-    test -h /snap/bin/alias1
-    test -h /snap/bin/alias2
+    test -h $SNAPMOUNTDIR/bin/alias1
+    test -h $SNAPMOUNTDIR/bin/alias2
     alias1|MATCH "ok command 1"
     alias2|MATCH "ok command 2"
 
@@ -28,7 +30,7 @@ execute: |
 
     echo "One still works, one is not there"
     alias1|MATCH "ok command 1"
-    test ! -e /snap/bin/alias2
+    test ! -e $SNAPMOUNTDIR/bin/alias2
     alias2 2>&1|MATCH "alias2: command not found"
 
     echo "Check listing again"
@@ -39,7 +41,7 @@ execute: |
     snap unalias aliases|MATCH ".*- aliases.cmd1 as alias1*"
 
     echo "Alias is gone"
-    test ! -e /snap/bin/alias1
+    test ! -e $SNAPMOUNTDIR/bin/alias1
     alias1 2>&1|MATCH "alias1: command not found"
     ! snap aliases|MATCH "aliases.cmd1 +alias1"
 
@@ -49,5 +51,5 @@ execute: |
 
     echo "Removing the snap should remove the aliases"
     snap remove aliases
-    test ! -e /snap/bin/alias1
-    test ! -e /snap/bin/alias2
+    test ! -e $SNAPMOUNTDIR/bin/alias1
+    test ! -e $SNAPMOUNTDIR/bin/alias2
