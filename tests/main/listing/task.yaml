@@ -23,12 +23,12 @@ execute: |
     install_local test-snapd-tools
     echo "And run snap list --all"
     output=$(snap list --all |grep test-snapd-tools)
-    if [ "$(printf "$output" | grep -c test-snapd-tools)" != "2" ]; then
+    if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
         echo $output
         exit 1
     fi
-    if [ "$(printf "$output" | grep -c disabled)" != "1" ]; then
+    if [ "$(grep -c disabled <<< "$output")" != "1" ]; then
         echo "Expected one disabled line in in the output, got:"
         echo $output
         exit 1
