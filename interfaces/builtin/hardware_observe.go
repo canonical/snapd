@@ -92,3 +92,7 @@ func NewHardwareObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewHardwareObserveInterface())
+}

@@ -25,84 +25,87 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type StorageFrameworkServiceInterfaceSuite struct {
+type NetworkStatusSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&StorageFrameworkServiceInterfaceSuite{
-	iface: &builtin.StorageFrameworkServiceInterface{},
+var _ = Suite(&NetworkStatusSuite{
+	iface: &builtin.NetworkStatusInterface{},
 })
 
-func (s *StorageFrameworkServiceInterfaceSuite) SetUpTest(c *C) {
+func (s *NetworkStatusSuite) SetUpSuite(c *C) {
 	const providerYaml = `name: provider
 version: 1.0
 apps:
- app:
-  command: foo
-  slots: [storage-framework-service]
+  app:
+    command: foo
+    slots: [network-status]
 `
 	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["storage-framework-service"]}
+	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["network-status"]}
 
 	const consumerYaml = `name: consumer
 version: 1.0
 apps:
- app:
-  command: foo
-  plugs: [storage-framework-service]
+  app:
+    command: foo
+    plugs: [network-status]
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["storage-framework-service"]}
-
+	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["network-status"]}
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "storage-framework-service")
+func (s *NetworkStatusSuite) TestName(c *C) {
+	c.Check(s.iface.Name(), Equals, "network-status")
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *NetworkStatusSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "storage-framework-service"`)
+		PanicMatches, `slot is not of interface "network-status"`)
 	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "storage-framework-service"`)
+		PanicMatches, `plug is not of interface "network-status"`)
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=com.canonical.StorageFramework.Registry`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
+func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
-	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `interface=com.canonical.StorageFramework`)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "interface=org.freedesktop.DBus.*")
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorPermanentSlot(c *C) {
+func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
-	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "dbus (bind)")
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.connectivity1.NetworkingStatus"`)
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	spec := &seccomp.Specification{}
+func (s *NetworkStatusSuite) TestDBusPermanentSlot(c *C) {
+	spec := &dbus.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
-	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "bind\n")
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<policy user="root">`)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>`)
 }
 
-func (s *StorageFrameworkServiceInterfaceSuite) TestInterfaces(c *C) {
+func (s *NetworkStatusSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

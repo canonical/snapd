@@ -107,16 +107,7 @@ func (iface *StorageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
 }
 
-func (iface *StorageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	snippet := storageFrameworkServiceConnectedPlugAppArmor
-	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
-	snippet = strings.Replace(snippet, old, new, -1)
-	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *StorageFrameworkServiceInterface) ApparmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *StorageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := storageFrameworkServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -130,7 +121,7 @@ func (iface *StorageFrameworkServiceInterface) AppArmorPermanentSlot(spec *appar
 	return nil
 }
 
-func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
@@ -160,4 +151,8 @@ func (iface *StorageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slo
 
 func (iface *StorageFrameworkServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
+}
+
+func init() {
+	registerIface(&StorageFrameworkServiceInterface{})
 }

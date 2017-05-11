@@ -140,3 +140,7 @@ func (iface *BoolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[st
 func (iface *BoolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&BoolFileInterface{})
+}
