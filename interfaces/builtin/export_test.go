@@ -19,8 +19,24 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
+
 func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
 	return iface.getName(attribs)
 }
 
 var ResolveSpecialVariable = resolveSpecialVariable
+
+func MockInterfaces(ifaces map[string]interfaces.Interface) (restore func()) {
+	old := allInterfaces
+	allInterfaces = ifaces
+	return func() { allInterfaces = old }
+}
+
+func Interface(name string) interfaces.Interface {
+	return allInterfaces[name]
+}
+
+var RegisterIface = registerIface
