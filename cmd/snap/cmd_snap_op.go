@@ -331,7 +331,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
-	if mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
+	if !strings.Contains(mx.Channel, "/") && mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
 		// shortcut to jump to a different track, e.g.
 		// snap install foo --channel=3.4 # implies 3.4/stable
 		mx.Channel += "/stable"
