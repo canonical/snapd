@@ -84,7 +84,7 @@ func (iface *I2cInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -96,7 +96,7 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -110,11 +110,15 @@ func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *I2cInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func (iface *I2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&I2cInterface{})
 }

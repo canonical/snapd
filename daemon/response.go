@@ -124,6 +124,7 @@ const (
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
+	errorKindPasswordPolicy    = errorKind("password-policy")
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")

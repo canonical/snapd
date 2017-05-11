@@ -38,8 +38,6 @@ capability net_bind_service,
 capability net_raw,
 
 network netlink,
-network netlink raw,
-network netlink dgram,
 network bridge,
 network inet,
 network inet6,
@@ -225,6 +223,8 @@ bind
 listen
 sethostname
 shutdown
+# netlink
+socket AF_NETLINK - -
 `
 
 const networkManagerPermanentSlotDBus = `
@@ -377,7 +377,7 @@ func (iface *NetworkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -392,7 +392,7 @@ func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *NetworkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
@@ -426,4 +426,8 @@ func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error 
 func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&NetworkManagerInterface{})
 }

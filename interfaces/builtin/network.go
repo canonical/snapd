@@ -36,6 +36,12 @@ const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 bind
 shutdown
+
+# FIXME: some kernels require this with common functions in go's 'net' library.
+# While this should remain in network-bind, network-control and
+# network-observe, for series 16 also have it here to not break existing snaps.
+# Future snapd series may remove this in the future. LP: #1689536
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
 // NewNetworkInterface returns a new "network" interface.
@@ -46,4 +52,8 @@ func NewNetworkInterface() interfaces.Interface {
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
+}
+
+func init() {
+	registerIface(NewNetworkInterface())
 }

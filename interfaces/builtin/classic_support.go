@@ -111,3 +111,7 @@ func NewClassicSupportInterface() interfaces.Interface {
 		connectedPlugSecComp:  classicSupportPlugSecComp,
 	}
 }
+
+func init() {
+	registerIface(NewClassicSupportInterface())
+}

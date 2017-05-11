@@ -38,3 +38,7 @@ func NewNetworkSetupObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewNetworkSetupObserveInterface())
+}

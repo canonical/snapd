@@ -76,3 +76,7 @@ func NewTimezoneControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewTimezoneControlInterface())
+}

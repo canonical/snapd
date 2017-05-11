@@ -150,7 +150,7 @@ func (iface *MediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedPlugAppArmor, old, new, -1))
@@ -162,7 +162,7 @@ func (iface *MediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
@@ -185,4 +185,8 @@ func (iface *MediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *MediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&MediaHubInterface{})
 }

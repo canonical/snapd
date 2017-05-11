@@ -52,6 +52,12 @@ execute: |
         fi
     fi
 
+    echo "Revert without snap name shows error"
+    if snap revert; then
+        echo "Reverting without snap name should fail"
+        exit 1
+    fi
+
     echo "When a refresh is made"
     snap refresh --edge test-snapd-tools
 
