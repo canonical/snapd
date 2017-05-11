@@ -45,10 +45,11 @@ apps:
   plugs: [classic-support]
 `
 
-var _ = Suite(&ClassicSupportInterfaceSuite{})
+var _ = Suite(&ClassicSupportInterfaceSuite{
+	iface: builtin.MustInterface("classic-support"),
+})
 
 func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewClassicSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

@@ -19,8 +19,25 @@
 
 package builtin
 
-func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
-	return iface.getName(attribs)
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+)
+
+func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
+	return iface.(*mprisInterface).getName(attribs)
 }
 
 var ResolveSpecialVariable = resolveSpecialVariable
+
+// MustInterface returns the interface with the given name or panicks.
+func MustInterface(name string) interfaces.Interface {
+	for _, iface := range allInterfaces {
+		if iface.Name() == name {
+			return iface
+		}
+	}
+	panic(fmt.Errorf("cannot find interface with name %q", name))
+
+}

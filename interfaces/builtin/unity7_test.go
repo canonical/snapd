@@ -37,7 +37,9 @@ type Unity7InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&Unity7InterfaceSuite{})
+var _ = Suite(&Unity7InterfaceSuite{
+	iface: builtin.MustInterface("unity7"),
+})
 
 const unity7mockPlugSnapInfoYaml = `name: other-snap
 version: 1.0
@@ -48,7 +50,6 @@ apps:
 `
 
 func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.Unity7Interface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
