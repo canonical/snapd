@@ -23,7 +23,11 @@ prepare: |
     snap install --dangerous network-observe-consumer_1.0_all.snap
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    EXTRA_NC_ARGS="-q 1"
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
+        EXTRA_NC_ARGS=""
+    fi
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT $EXTRA_NC_ARGS; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
