@@ -120,3 +120,7 @@ func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *MirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func init() {
+	registerIface(&MirInterface{})
+}

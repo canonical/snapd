@@ -78,3 +78,7 @@ func NewNetworkBindInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewNetworkBindInterface())
+}

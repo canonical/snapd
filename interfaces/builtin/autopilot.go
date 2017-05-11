@@ -66,3 +66,7 @@ func NewAutopilotIntrospectionInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewAutopilotIntrospectionInterface())
+}

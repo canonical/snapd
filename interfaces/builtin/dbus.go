@@ -413,3 +413,7 @@ func (iface *DbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string
 func (iface *DbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&DbusInterface{})
+}

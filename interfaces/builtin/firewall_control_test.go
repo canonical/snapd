@@ -112,3 +112,7 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		"iptable_filter":  true,
 	})
 }
+
+func (s *FirewallControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}

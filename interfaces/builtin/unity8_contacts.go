@@ -184,3 +184,7 @@ func NewUnity8ContactsInterface() interfaces.Interface {
 		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,
 	}
 }
+
+func init() {
+	registerIface(NewUnity8ContactsInterface())
+}

@@ -118,3 +118,7 @@ func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 func (iface *I2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
+
+func init() {
+	registerIface(&I2cInterface{})
+}
