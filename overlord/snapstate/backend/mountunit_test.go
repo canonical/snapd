@@ -76,7 +76,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.BaseSnapMountDir, "foo", "13")))
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.RawSnapMountDir, "foo", "13")))
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, un))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
@@ -90,7 +90,7 @@ Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target
-`, dirs.BaseSnapMountDir))
+`, dirs.RawSnapMountDir))
 
 }
 
@@ -108,7 +108,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.BaseSnapMountDir, "foo", "13")))
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.RawSnapMountDir, "foo", "13")))
 	p := filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, true)
 
