@@ -1,3 +1,13 @@
+snapd (2.26.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - store: fix panic error in auth
+    - tests: the new ubuntu-image snap needs classic confinement, adjust
+      tests
+    - cmd/snap-confine: don't fail on pre 3.8 kernel
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 May 2017 21:44:27 +0200
+
 snapd (2.26) xenial; urgency=medium
 
   * New upstream release, LP: #1690083
@@ -31,10 +41,7 @@ snapd (2.26) xenial; urgency=medium
     - cmd/snap: iterate interface tab completion
     - snap: move locale-control to only be present on classic
     - interfaces/browser-support: deny read on squashfs backing files
-      and LVM vg names (#3268)* interfaces/browser-support: deny r of
-      squashfs backing_file when sandbox: trueimplementation of udisks
-      should not either (especially not with 'allow-sandbox:* add one
-      denial more for virtual/block/dm-[0-9]*/dm/name with sandbox: true
+      and LVM vg names
     - tests: wait for the docker socket to be listening
     - snap: add `snap refresh --time` option
     - tests: re-enable and moderninze /media sharing test
