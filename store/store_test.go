@@ -2943,6 +2943,25 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 	c.Assert(n, Equals, 1)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/updates/"`)
 }
+
+func (t *remoteRepoTestSuite) TestListRefreshFailOnDNS(c *C) {
+	bulkURI, err := url.Parse("http://nonexistingserver909123.com/updates/")
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
+	c.Assert(err, ErrorMatches, `Post http://nonexistingserver909123.com/updates/: dial tcp: lookup nonexistingserver909123.com on .*: no such host`)
+}
+
 func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
