@@ -76,6 +76,14 @@ dbus (receive, send)
     interface=com.canonical.Thumbnailer
     path=/com/canonical/Thumbnailer
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/canonical/Thumbnailer
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type ThumbnailerServiceInterface struct{}
@@ -84,7 +92,7 @@ func (iface *ThumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *ThumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ThumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -98,7 +106,7 @@ func (iface *ThumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.S
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ThumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
 	new := plug.Snap.Name()
@@ -127,4 +135,8 @@ func (iface *ThumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) er
 
 func (iface *ThumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
+}
+
+func init() {
+	registerIface(&ThumbnailerServiceInterface{})
 }

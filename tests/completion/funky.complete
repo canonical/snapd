@@ -1,0 +1,3 @@
+# -*- sh -*-
+
+complete -W "this 'that one' 'which one'" complexion

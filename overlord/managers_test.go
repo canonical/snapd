@@ -1041,153 +1041,114 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyAlias(c *C) {
-	c.Skip("new semantics are wip")
-	/*
-			st := ms.o.State()
-			st.Lock()
-			defer st.Unlock()
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
 
-			fooYaml := `name: foo
-		version: 1.0
-		apps:
-		  foo:
-		    command: bin/foo
-		    aliases: [foo_]
-		  bar:
-		    command: bin/bar
-		    aliases: [bar,bar1]
-		`
-			ms.installLocalTestSnap(c, fooYaml)
+	fooYaml := `name: foo
+version: 1.0
+apps:
+    foo:
+        command: bin/foo
+`
+	ms.installLocalTestSnap(c, fooYaml)
 
-			ts, err := snapstate.Alias(st, "foo", []string{"foo_", "bar", "bar1"})
-			c.Assert(err, IsNil)
-			chg := st.NewChange("alias", "...")
-			chg.AddAll(ts)
+	ts, err := snapstate.Alias(st, "foo", "foo", "foo_")
+	c.Assert(err, IsNil)
+	chg := st.NewChange("alias", "...")
+	chg.AddAll(ts)
 
-			st.Unlock()
-			err = ms.o.Settle()
-			st.Lock()
-			c.Assert(err, IsNil)
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
 
-			c.Assert(chg.Err(), IsNil)
-			c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("alias change failed with: %v", chg.Err()))
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("alias change failed with: %v", chg.Err()))
 
-			foo_Alias := filepath.Join(dirs.SnapBinariesDir, "foo_")
-			dest, err := os.Readlink(foo_Alias)
-			c.Assert(err, IsNil)
+	foo_Alias := filepath.Join(dirs.SnapBinariesDir, "foo_")
+	dest, err := os.Readlink(foo_Alias)
+	c.Assert(err, IsNil)
 
-			c.Check(dest, Equals, "foo")
+	c.Check(dest, Equals, "foo")
 
-			barAlias := filepath.Join(dirs.SnapBinariesDir, "bar")
-			dest, err = os.Readlink(barAlias)
-			c.Assert(err, IsNil)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"foo_": {Manual: "foo"},
+	})
 
-			c.Check(dest, Equals, "foo.bar")
+	ms.removeSnap(c, "foo")
 
-			bar1Alias := filepath.Join(dirs.SnapBinariesDir, "bar1")
-			dest, err = os.Readlink(bar1Alias)
-			c.Assert(err, IsNil)
-
-			c.Check(dest, Equals, "foo.bar")
-
-			var allAliases map[string]map[string]string
-			err = st.Get("aliases", &allAliases)
-			c.Assert(err, IsNil)
-			c.Check(allAliases, DeepEquals, map[string]map[string]string{
-				"foo": {
-					"foo_": "enabled",
-					"bar":  "enabled",
-					"bar1": "enabled",
-				},
-			})
-
-			ms.removeSnap(c, "foo")
-
-			c.Check(osutil.IsSymlink(foo_Alias), Equals, false)
-			c.Check(osutil.IsSymlink(barAlias), Equals, false)
-			c.Check(osutil.IsSymlink(bar1Alias), Equals, false)
-
-			allAliases = nil
-			err = st.Get("aliases", &allAliases)
-			c.Assert(err, IsNil)
-			c.Check(allAliases, HasLen, 0)
-	*/
+	c.Check(osutil.IsSymlink(foo_Alias), Equals, false)
 }
 
 func (ms *mgrsSuite) TestHappyUnalias(c *C) {
-	c.Skip("new semantics are wip")
-	/*
-			st := ms.o.State()
-			st.Lock()
-			defer st.Unlock()
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
 
-			fooYaml := `name: foo
-		version: 1.0
-		apps:
-		  foo:
-		    command: bin/foo
-		    aliases: [foo_]
-		`
-			ms.installLocalTestSnap(c, fooYaml)
+	fooYaml := `name: foo
+version: 1.0
+apps:
+    foo:
+        command: bin/foo
+`
+	ms.installLocalTestSnap(c, fooYaml)
 
-			ts, err := snapstate.Alias(st, "foo", []string{"foo_"})
-			c.Assert(err, IsNil)
-			chg := st.NewChange("alias", "...")
-			chg.AddAll(ts)
+	ts, err := snapstate.Alias(st, "foo", "foo", "foo_")
+	c.Assert(err, IsNil)
+	chg := st.NewChange("alias", "...")
+	chg.AddAll(ts)
 
-			st.Unlock()
-			err = ms.o.Settle()
-			st.Lock()
-			c.Assert(err, IsNil)
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
 
-			c.Assert(chg.Err(), IsNil)
-			c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("alias change failed with: %v", chg.Err()))
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("alias change failed with: %v", chg.Err()))
 
-			foo_Alias := filepath.Join(dirs.SnapBinariesDir, "foo_")
-			dest, err := os.Readlink(foo_Alias)
-			c.Assert(err, IsNil)
+	foo_Alias := filepath.Join(dirs.SnapBinariesDir, "foo_")
+	dest, err := os.Readlink(foo_Alias)
+	c.Assert(err, IsNil)
 
-			c.Check(dest, Equals, "foo")
+	c.Check(dest, Equals, "foo")
 
-			var allAliases map[string]map[string]string
-			err = st.Get("aliases", &allAliases)
-			c.Assert(err, IsNil)
-			c.Check(allAliases, DeepEquals, map[string]map[string]string{
-				"foo": {
-					"foo_": "enabled",
-				},
-			})
+	ts, snapName, err := snapstate.RemoveManualAlias(st, "foo_")
+	c.Assert(err, IsNil)
+	c.Check(snapName, Equals, "foo")
+	chg = st.NewChange("unalias", "...")
+	chg.AddAll(ts)
 
-			ts, err = snapstate.Unalias(st, "foo", []string{"foo_"})
-			c.Assert(err, IsNil)
-			chg = st.NewChange("unalias", "...")
-			chg.AddAll(ts)
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
 
-			st.Unlock()
-			err = ms.o.Settle()
-			st.Lock()
-			c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("unalias change failed with: %v", chg.Err()))
 
-			c.Assert(chg.Err(), IsNil)
-			c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("unalias change failed with: %v", chg.Err()))
+	c.Check(osutil.IsSymlink(foo_Alias), Equals, false)
 
-			c.Check(osutil.IsSymlink(foo_Alias), Equals, false)
-
-			allAliases = nil
-			err = st.Get("aliases", &allAliases)
-			c.Assert(err, IsNil)
-			c.Check(allAliases, DeepEquals, map[string]map[string]string{
-				"foo": {
-					"foo_": "disabled",
-				},
-			})
-	*/
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, HasLen, 0)
 }
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1", "app2"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
 	})
 
 	snapYamlContent := `name: foo
@@ -1195,10 +1156,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	ver := "1.0"
@@ -1248,8 +1207,10 @@ apps:
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+		},
 	})
 
 	fooYaml := `name: foo
@@ -1257,10 +1218,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	fooPath, _ := ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.0", -1), "10")
@@ -1304,9 +1263,11 @@ apps:
 	c.Check(dest, Equals, "foo.app1")
 
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app2"},
-		"revision":     "1",
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+		"revision": "1",
 	})
 
 	// new foo version/revision
@@ -1351,8 +1312,10 @@ apps:
 
 func (ms *mgrsSuite) TestHappyOrthogonalRefreshAutoAliases(c *C) {
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app1"},
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+		},
 	}, map[string]interface{}{
 		"snap-name": "bar",
 	})
@@ -1362,10 +1325,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app2:
   command: bin/app2
-  aliases: [app2]
 `
 
 	barYaml := `name: bar
@@ -1373,10 +1334,8 @@ version: @VERSION@
 apps:
  app1:
   command: bin/app1
-  aliases: [app1]
  app3:
   command: bin/app3
-  aliases: [app3]
 `
 
 	fooPath, _ := ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.0", -1), "10")
@@ -1436,18 +1395,23 @@ apps:
 		"app1": {Auto: "app1"},
 	})
 
-	// foo gets a new version/revision and a change of auto-aliases
+	// foo gets a new version/revision and a change of automatic aliases
 	// bar gets only the latter
 	// app1 is transferred from foo to bar
 	// UpdateMany after a snap-declaration refresh handles all of this
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "foo",
-		"auto-aliases": []interface{}{"app2"},
-		"revision":     "1",
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+		"revision": "1",
 	}, map[string]interface{}{
-		"snap-name":    "bar",
-		"auto-aliases": []interface{}{"app1", "app3"},
-		"revision":     "1",
+		"snap-name": "bar",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app3", "target": "app3"},
+		},
+		"revision": "1",
 	})
 
 	// new foo version/revision

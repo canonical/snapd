@@ -6,7 +6,7 @@ expect "Password of "
 send "wrong-password\n"
 
 expect {
-    "not correct" {
+    -re "not\[ \n\r\]*correct" {
         exit 0
     } default {
         exit 1

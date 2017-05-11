@@ -15,8 +15,13 @@
  *
  */
 
-#include "../libsnap-confine-private/utils.h"
+#include <errno.h>
+#include <limits.h>
+#include <unistd.h>
+
 #include "../libsnap-confine-private/locking.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 #include "../snap-confine/ns-support.h"
 
 int main(int argc, char **argv)
@@ -33,6 +38,18 @@ int main(int argc, char **argv)
 		sc_discard_preserved_ns_group(group);
 		sc_close_ns_group(group);
 	}
+	// Unlink the current mount profile, if any.
+	char profile_path[PATH_MAX];
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/run/snapd/ns/snap.%s.fstab", snap_name);
+	if (unlink(profile_path) < 0) {
+		// Silently ignore ENOENT as the profile doens't have to be there.
+		if (errno != ENOENT) {
+			die("cannot remove current mount profile: %s",
+			    profile_path);
+		}
+	}
+
 	sc_unlock(snap_name, snap_lock_fd);
 	return 0;
 }

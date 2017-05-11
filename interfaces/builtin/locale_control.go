@@ -39,3 +39,7 @@ func NewLocaleControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewLocaleControlInterface())
+}

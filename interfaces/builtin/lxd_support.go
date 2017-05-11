@@ -45,12 +45,12 @@ func (iface *LxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *LxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *LxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
 	return nil
 }
@@ -66,4 +66,8 @@ func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&LxdSupportInterface{})
 }

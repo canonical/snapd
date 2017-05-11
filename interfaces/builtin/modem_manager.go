@@ -35,6 +35,7 @@ const modemManagerPermanentSlotAppArmor = `
 # privileged access to the system.
 
 # To check present devices
+network netlink raw,
 /run/udev/data/* r,
 /sys/bus/usb/devices/ r,
 # FIXME snapd should be querying udev and adding the /sys and /run/udev accesses
@@ -146,6 +147,8 @@ accept4
 bind
 listen
 shutdown
+# libgudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const modemManagerPermanentSlotDBus = `
@@ -1159,7 +1162,7 @@ func (iface *ModemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
@@ -1170,7 +1173,7 @@ func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *ModemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ModemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(modemManagerConnectedPlugDBus)
 	return nil
 }
@@ -1190,7 +1193,7 @@ func (iface *ModemManagerInterface) UDevPermanentSlot(spec *udev.Specification, 
 	return nil
 }
 
-func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
@@ -1214,4 +1217,8 @@ func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&ModemManagerInterface{})
 }

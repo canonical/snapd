@@ -40,6 +40,7 @@ const dockerConnectedPlugSecComp = `
 # access to the system via Docker's socket API.
 
 bind
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 type DockerInterface struct{}
@@ -48,12 +49,12 @@ func (iface *DockerInterface) Name() string {
 	return "docker"
 }
 
-func (iface *DockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(dockerConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(dockerConnectedPlugSecComp)
 	return nil
 }
@@ -75,4 +76,8 @@ func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *DockerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&DockerInterface{})
 }
