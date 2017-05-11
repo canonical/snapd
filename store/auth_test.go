@@ -290,6 +290,13 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 	c.Assert(nonce, Equals, "the-nonce")
 }
 
+func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
+	MyAppsDeviceNonceAPI = "http://nonexistingserver121321.com/identity/api/v1/nonces"
+	_, err := requestStoreDeviceNonce()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot get nonce from store.*`)
+}
+
 func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnNoNonce)
