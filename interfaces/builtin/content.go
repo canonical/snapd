@@ -142,7 +142,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.MountDir(), path)
+	return filepath.Join(snap.MountDirWithBasePath(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision), path)
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
