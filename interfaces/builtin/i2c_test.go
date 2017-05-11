@@ -55,7 +55,7 @@ type I2cInterfaceSuite struct {
 }
 
 var _ = Suite(&I2cInterfaceSuite{
-	iface: &builtin.I2cInterface{},
+	iface: builtin.MustInterface("i2c"),
 })
 
 func (s *I2cInterfaceSuite) SetUpTest(c *C) {
