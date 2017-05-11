@@ -55,6 +55,7 @@ execute: |
 
     echo "Then the snap is able to create a fuse filesystem"
     test-snapd-fuse-consumer.create $MOUNT_POINT
+    # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
     PID=$(ps aux | awk '/[t]est-snapd.*create/{print $2}')
     MATCH "Hello World!" /proc/${PID}/root/$MOUNT_POINT/hello
     kill -9 ${PID}
