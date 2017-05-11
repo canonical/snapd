@@ -27,6 +27,8 @@ execute: |
         exit
     fi
 
+    . $TESTSLIB/dirs.sh
+
     # Read/write access should be possible
-    test -n "`/snap/bin/time-control-consumer.read`"
-    /snap/bin/time-control-consumer.write
+    test -n "`$SNAPMOUNTDIR/bin/time-control-consumer.read`"
+    $SNAPMOUNTDIR/bin/time-control-consumer.write
