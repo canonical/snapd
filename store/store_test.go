@@ -2946,6 +2946,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 
 func (t *remoteRepoTestSuite) TestListRefreshFailOnDNS(c *C) {
 	bulkURI, err := url.Parse("http://nonexistingserver909123.com/updates/")
+	c.Assert(err, IsNil)
 	cfg := Config{
 		BulkURI: bulkURI,
 	}
