@@ -36,3 +36,7 @@ func NewCupsControlInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewCupsControlInterface())
+}

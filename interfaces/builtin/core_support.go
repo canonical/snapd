@@ -88,3 +88,7 @@ func NewCoreSupportInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewCoreSupportInterface())
+}

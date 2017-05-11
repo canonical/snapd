@@ -18,9 +18,11 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
     snap install --edge test-snapd-kernel-module-control-consumer
+    . $TESTSLIB/snaps.sh
+    install_generic_consumer kernel-module-control
 
 restore: |
-    rm -f list.error remove.error
+    rm -f *.error
     if lsmod | MATCH binfmt_misc && ! -f module_present; then
         rmmod binfmt_misc
     elif [ -f module_present ]; then
@@ -35,7 +37,7 @@ debug: |
     lsmod
 
 execute: |
-    CONNECTED_PATTERN=":kernel-module-control +test-snapd-kernel-module-control-consumer"
+    CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-control-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-control-consumer:kernel-module-control"
 
     echo "The plug is disconnected by default"
@@ -45,7 +47,9 @@ execute: |
 
     echo "When the plug is connected"
     snap connect test-snapd-kernel-module-control-consumer:kernel-module-control
+    snap connect generic-consumer:kernel-module-control
     snap interfaces | MATCH "$CONNECTED_PATTERN"
+
 
     echo "Then the snap is able to list the existing modules"
     [ $(su -l -c "test-snapd-kernel-module-control-consumer.lsmod" test | wc -l) -gt 2 ]
@@ -65,6 +69,16 @@ execute: |
     lsmod | MATCH -v binfmt_misc
     test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
 
+    echo "And the snap is able to read /sys/module"
+    generic-consumer.cmd ls /sys/module | MATCH binfmt_misc
+
+    echo "And the snap is not able to write to /sys/module"
+    if su -l -c "generic-consumer.cmd touch /sys/module/test 2>${PWD}/touch.error" test; then
+        echo "Expected permission error writing to /sys/module"
+        exit 1
+    fi
+    cat touch.error | MATCH "Permission denied"
+
     echo "And the snap is able to remove a module"
     test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
     lsmod | MATCH -v binfmt_misc
@@ -73,6 +87,7 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-kernel-module-control-consumer:kernel-module-control
+    snap disconnect generic-consumer:kernel-module-control
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to list modules"
@@ -98,3 +113,17 @@ execute: |
         exit 1
     fi
     cat remove.error | MATCH "Permission denied"
+
+    echo "And the snap is not able to read /sys/module"
+    if su -l -c "generic-consumer.cmd ls /sys/module 2>${PWD}/read.error" test; then
+        echo "Expected permission error reading /sys/module with disconnected plug"
+        exit 1
+    fi
+    cat read.error | MATCH "Permission denied"
+
+    echo "And the snap is not able to write to /sys/module"
+    if su -l -c "generic-consumer.cmd touch /sys/module/test 2>${PWD}/touch.error" test; then
+        echo "Expected permission error writing to /sys/module"
+        exit 1
+    fi
+    cat touch.error | MATCH "Permission denied"

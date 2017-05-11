@@ -100,6 +100,8 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 		} else {
 			// Report unhandled option switches
 			err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
+					    "Usage: snap-confine <security-tag> <executable>\n"
+					    "\n"
 					    "unrecognized command line option: %s",
 					    argv[optind]);
 			goto out;
@@ -139,13 +141,16 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	// Ensure that we have the security tag
 	if (args->security_tag == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
+				    "Usage: snap-confine <security-tag> <executable>\n"
+				    "\n"
 				    "application or hook security tag was not provided");
 		goto out;
 	}
 	// Ensure that we have the executable name
 	if (args->executable == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
-				    "executable name was not provided");
+				    "Usage: snap-confine <security-tag> <executable>\n"
+				    "\n" "executable name was not provided");
 		goto out;
 	}
 

@@ -54,3 +54,7 @@ func NewLogObserveInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewLogObserveInterface())
+}

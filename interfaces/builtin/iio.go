@@ -92,7 +92,7 @@ func (iface *IioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -112,7 +112,7 @@ func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -129,4 +129,12 @@ func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *IioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func (iface *IioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&IioInterface{})
 }
