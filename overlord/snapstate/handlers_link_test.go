@@ -159,7 +159,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.BaseSnapMountDir, "foo/35")
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.RawSnapMountDir, "foo/35")
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -181,11 +181,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: filepath.Join(dirs.BaseSnapMountDir, "foo/35"),
+			name: filepath.Join(dirs.RawSnapMountDir, "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: filepath.Join(dirs.BaseSnapMountDir, "foo/35"),
+			name: filepath.Join(dirs.RawSnapMountDir, "foo/35"),
 		},
 	})
 }
