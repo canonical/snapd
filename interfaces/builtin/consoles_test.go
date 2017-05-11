@@ -42,25 +42,22 @@ var _ = Suite(&ConsolesInterfaceSuite{
 })
 
 func (s *ConsolesInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+	provider := snaptest.MockInfo(c, `
+name: core
 type: os
 slots:
-  test-consoles:
-    interface: consoles
+  consoles:
 `, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-consoles"]}
+	s.slot = &interfaces.Slot{SlotInfo: provider.Slots["consoles"]}
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
+	consumer := snaptest.MockInfo(c, `
+name: consumer
 apps:
-  app-accessing-consoles:
+  app:
     command: foo
     plugs: [consoles]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["consoles"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumer.Plugs["consoles"]}
 }
 
 func (s *ConsolesInterfaceSuite) TestName(c *C) {
@@ -75,7 +72,7 @@ func (s *ConsolesInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "consoles",
 		Interface: "consoles",
 	}})
-	c.Assert(err, ErrorMatches, "consoles slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "consoles slots are reserved for the operating system snap")
 }
 
 func (s *ConsolesInterfaceSuite) TestSanitizePlug(c *C) {
@@ -90,8 +87,11 @@ func (s *ConsolesInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "consoles"`)
 }
 
-func (s *ConsolesInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
+func (s *ConsolesInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	expected := `
 # Description: Allow access to the current system console.
 
 /dev/tty0 rw,
@@ -99,24 +99,18 @@ func (s *ConsolesInterfaceSuite) TestUsedSecuritySystems(c *C) {
 /dev/console rw,
 /sys/devices/virtual/tty/console rw,
 `
-	expectedSnippet2 := `
-SUBSYSTEM="tty", KERNEL=="tty0", TAG+="snap_client-snap_app-accessing-consoles"
-SUBSYSTEM="tty", KERNEL=="console", TAG+="snap_client-snap_app-accessing-consoles"
-`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, expected)
+}
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-consoles"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-consoles")
-	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
-
-	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet2)
+func (s *ConsolesInterfaceSuite) TestUDevConnectedPlug(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	expected := []string{`
+SUBSYSTEM="tty", KERNEL=="tty0", TAG+="snap_consumer_app"
+SUBSYSTEM="tty", KERNEL=="console", TAG+="snap_consumer_app"
+`}
+	c.Assert(spec.Snippets(), DeepEquals, expected)
 }
 
 func (s *ConsolesInterfaceSuite) TestInterfaces(c *C) {
