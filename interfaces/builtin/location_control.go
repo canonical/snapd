@@ -239,3 +239,7 @@ func (iface *LocationControlInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// allow what declarations allowed
 	return true
 }
+
+func init() {
+	registerIface(&LocationControlInterface{})
+}

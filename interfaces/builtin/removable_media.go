@@ -39,3 +39,7 @@ func NewRemovableMediaInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewRemovableMediaInterface())
+}

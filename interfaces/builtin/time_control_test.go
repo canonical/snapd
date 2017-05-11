@@ -105,3 +105,7 @@ func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedUDevSnippet)
 }
+
+func (s *TimeControlTestInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
