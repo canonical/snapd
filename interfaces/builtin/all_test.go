@@ -289,7 +289,7 @@ func (s *AllSuite) TestNoInterfaceImplementsOldBackendMethods(c *C) {
 	for _, iface := range builtin.Interfaces() {
 		for _, definer := range allBadDefiners {
 			c.Assert(reflect.TypeOf(iface).Implements(definer), Equals, false,
-				Commentf("interface %q implement old/unused methods %s", iface.Name(), definer))
+				Commentf("interface %q implements old/unused methods %s", iface.Name(), definer))
 		}
 	}
 }
