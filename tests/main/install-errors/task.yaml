@@ -36,7 +36,7 @@ execute: |
         echo "Unauthenticated install should fail"
         exit 1
     fi
-    grep "try with sudo" install.output
+    MATCH "try with sudo" install.output
 
     echo "============================================"
 
