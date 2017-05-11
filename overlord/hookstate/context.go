@@ -38,7 +38,6 @@ type Context struct {
 	setup   *HookSetup
 	id      string
 	handler Handler
-	timeout time.Duration
 
 	cache  map[interface{}]interface{}
 	onDone []func() error

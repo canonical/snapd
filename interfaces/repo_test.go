@@ -1305,7 +1305,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("static plug snippet")
 		return nil
 	},
-	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
 		spec.AddSnippet("connection-specific plug snippet")
 		return nil
 	},
@@ -1313,7 +1313,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("static slot snippet")
 		return nil
 	},
-	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
 		spec.AddSnippet("connection-specific slot snippet")
 		return nil
 	},
@@ -1362,10 +1362,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
