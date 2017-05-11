@@ -2960,7 +2960,8 @@ func (t *remoteRepoTestSuite) TestListRefreshFailOnDNS(c *C) {
 		Revision: snap.R(24),
 		Epoch:    "0",
 	}}, nil)
-	c.Assert(err, ErrorMatches, `Post http://nonexistingserver909123.com/updates/: dial tcp: lookup nonexistingserver909123.com on .*: no such host`)
+	// the error differs depending on whether a proxy is in use (e.g. on travis), so don't inspect error message
+	c.Assert(err, NotNil)
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
