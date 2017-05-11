@@ -13,7 +13,7 @@ execute: |
             echo "Did not get expected error creating user in managed device"
             exit 1
         fi
-        grep "cannot create user: device already managed" create.error
+        MATCH "cannot create user: device already managed" create.error
         exit 0
     fi
     echo "Adding valid user"
@@ -24,7 +24,7 @@ execute: |
         exit 1
     fi
     echo "Ensure there are ssh keys imported"
-    grep ssh-rsa /home/mvo/.ssh/authorized_keys
+    MATCH ssh-rsa /home/mvo/.ssh/authorized_keys
 
     echo "Ensure the user is a sudo user"
     sudo -u mvo sudo true
@@ -36,7 +36,4 @@ execute: |
         echo "snap create-user should fail for unknown users but it did not"
         exit 1
     fi
-    if !echo $output|grep expected; then
-        echo "Unexpected output $output"
-        exit 1
-    fi
+    MATCH "$expected" <<<"$output"
