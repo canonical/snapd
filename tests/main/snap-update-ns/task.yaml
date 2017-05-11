@@ -1,4 +1,5 @@
 summary: smoke test for snap-update-ns
+systems: [-fedora-*]
 details: |
     Snapd is growing a new executable, snap-update-ns, to modify an existing
     mount namespace.  This is further documented on the forum here

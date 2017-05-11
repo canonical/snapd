@@ -1,5 +1,7 @@
 summary: Check that revert works.
 
+systems: [-fedora-*]
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}

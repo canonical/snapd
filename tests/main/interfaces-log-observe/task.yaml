@@ -8,6 +8,9 @@ details: |
     The plug must not be autoconnected on install and, as usual, must be able to be
     reconnected.
 
+systems:
+    - -fedora-*
+
 environment:
     SNAP_NAME: log-observe-consumer
     SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"

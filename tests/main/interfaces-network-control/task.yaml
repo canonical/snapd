@@ -11,6 +11,8 @@ details: |
     and ask for its status, the test sets up a network service, gets information about it (read
     capability) and creates an arp entry (write capability).
 
+systems: [-fedora-*]
+
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"

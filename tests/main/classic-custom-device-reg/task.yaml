@@ -1,6 +1,6 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-16-*, -fedora-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |

@@ -6,6 +6,7 @@ systems:
     # unity7 implicit classic slot needed (used to access dbus-send) not
     # available on core
     - -ubuntu-core-*
+    - -fedora-*
 
 details: |
     A snap declaring the shutdown plug is defined, its command just calls

@@ -1,4 +1,5 @@
 summary: check basic operation of snap-discard-ns
+systems: [-fedora-*]
 details: |
     The internal command snap-discard-ns discards (unmounts) the
     /run/snapd/ns/$SNAP_NAME.mnt file and removes the current mount profile

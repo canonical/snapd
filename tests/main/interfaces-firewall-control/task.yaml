@@ -13,6 +13,8 @@ details: |
     access a generic service listening on localhost through the IP set up in the firewall
     rule.
 
+systems: [-fedora-*]
+
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"

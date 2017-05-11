@@ -2,6 +2,7 @@ summary: Ensure that the cups interface works.
 
 systems:
     - -ubuntu-core-16-*
+    - -fedora-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
