@@ -70,7 +70,9 @@ func (h *configureHandler) Before() error {
 	var patch map[string]interface{}
 	if err := h.context.Get("patch", &patch); err == nil {
 		for key, value := range patch {
-			tr.Set(h.context.SnapName(), key, value)
+			if err := tr.Set(h.context.SnapName(), key, value); err != nil {
+				return err
+			}
 		}
 	}
 

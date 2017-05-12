@@ -67,3 +67,6 @@ execute: |
 
     echo "Verify the 'snap tasks' is the same as 'snap change'"
     snap tasks $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+
+    echo "Verify the 'snap tasks --last' shows last refresh change"
+    snap tasks --last=refresh | MATCH "Undone.*Download snap \"${BAD_SNAP}\""

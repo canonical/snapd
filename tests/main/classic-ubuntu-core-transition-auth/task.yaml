@@ -9,12 +9,9 @@ kill-timeout: 5m
 execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge snapd
-    if [ "$SRU_VALIDATION" = "1" ]; then
-        upgrade_snapd_from_proposed
-    else
-        apt_install_local ${GOPATH}/snapd_*.deb
-    fi
+    dpkg --purge --force-depends snapd
+    apt-get install -f -y
+    install_build_snapd
     snap install --${CORE_CHANNEL} ubuntu-core
 
     mkdir -p /root/.snap/

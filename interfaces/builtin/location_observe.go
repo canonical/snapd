@@ -213,6 +213,14 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const locationObservePermanentSlotDBus = `
@@ -242,7 +250,7 @@ func (iface *LocationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(locationObserveConnectedPlugDBus)
 	return nil
 }
@@ -252,7 +260,7 @@ func (iface *LocationObserveInterface) DBusPermanentSlot(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
@@ -265,7 +273,7 @@ func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
@@ -284,4 +292,8 @@ func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error
 func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&LocationObserveInterface{})
 }

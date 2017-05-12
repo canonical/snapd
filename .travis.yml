@@ -18,5 +18,5 @@ install:
   - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
 
 script:
-    - ./run-checks --static
+    - ./run-checks --static || travis_terminate 1
     - ./run-checks --spread

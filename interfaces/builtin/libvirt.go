@@ -40,3 +40,7 @@ func NewLibvirtInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewLibvirtInterface())
+}
