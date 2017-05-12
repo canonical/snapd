@@ -6,7 +6,7 @@ environment:
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
+    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
