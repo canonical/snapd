@@ -7,7 +7,7 @@ restore: |
     fanctl down -e
 execute: |
     echo "Test that fanctl exists"
-    command fanctl
+    command -v fanctl
 
     echo "Test fanctl created fan bridge"
     ifconfig |MATCH ^fan-241

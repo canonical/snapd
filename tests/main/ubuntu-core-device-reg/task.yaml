@@ -25,4 +25,4 @@ execute: |
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc
-    MATCH '"session-macaroon":"[^"]' /var/lib/snapd/state.json
+    MATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json

@@ -33,7 +33,10 @@ execute: |
     ! udevadm info $UDEVADM_PATH | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And the device is not shown in the snap device list"
-    MATCH -v "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
+    if [ -e /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list ]; then
+        MATCH -v "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    fi
 
     echo "================================================="
 
@@ -57,9 +60,9 @@ execute: |
     test-snapd-tools.env
 
     echo "Then the device is shown in the snap device list"
-    MATCH "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     echo "And other devices are not shown in the snap device list"
-    MATCH -v "$OTHER_DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH -v "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     # TODO: check device unassociated after removing the udev file and rebooting

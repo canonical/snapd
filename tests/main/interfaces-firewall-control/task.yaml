@@ -80,8 +80,8 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"
-    if firewall-control-consumer.create 2>${PWD}/firewall-create.error; then
+    if firewall-control-consumer.create 2>firewall-create.error; then
         echo "Expected permission error creating firewall rules with disconnected plug"
         exit 1
     fi
-    MATCH "Permission denied" firewall-create.error
+    MATCH "Permission denied" < firewall-create.error
