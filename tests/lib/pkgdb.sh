@@ -24,6 +24,9 @@ fedora_name_package() {
         python3-yaml)
             echo "python3-yamlordereddictloader"
             ;;
+        openvswitch-switch)
+            echo "openvswitch"
+            ;;
         *)
             echo $1
             ;;
