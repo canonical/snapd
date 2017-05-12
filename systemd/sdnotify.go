@@ -23,21 +23,17 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func RunWatchdog() (*time.Ticker, error) {
-	wu := os.Getenv("WATCHDOG_USEC")
-	if wu == "" {
-		return nil, fmt.Errorf("cannot get WATCHDOG_USEC environment")
-	}
-	usec, err := strconv.Atoi(wu)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %s", err)
+	usec := osutil.GetenvInt64("WATCHDOG_USEC")
+	if usec == 0 {
+		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %q", os.Getenv("WATCHDOG_USEC"))
 	}
 	dur := time.Duration(usec/2) * time.Microsecond
 	logger.Debugf("Setting up sd_notify() watchdog timer every %s", dur)
