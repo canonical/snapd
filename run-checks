@@ -140,10 +140,12 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from $(pwd)
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
         go test -i $pkg
-        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        $goctest -v -coverprofile=.coverage/profile.out -covermode=atomic $pkg
         append_coverage .coverage/profile.out
     done
 
+    # copy in place for codecov.io
+    cp .coverae/profile.out coverage.txt
 fi
 
 if [ "$SPREAD" = 1 ]; then
