@@ -96,7 +96,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.Hook, Equals, "configure")
 		c.Assert(hooksup.Optional, Equals, test.optional)
 		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
-		c.Assert(hooksup.Timeout, Equals, 10*time.Minute)
+		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
 		context, err := hookstate.NewContext(task, &hooksup, nil)
 		c.Check(err, IsNil)
