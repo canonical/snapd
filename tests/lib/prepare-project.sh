@@ -121,14 +121,21 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-distro_purge_package snapd
-# utilities
-# XXX: build-essential seems to be required. Otherwise package build
-# fails with unmet dependency on "build-essential:native"
-distro_install_package build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd
+. "$TESTSLIB/distro.sh"
 
-# in 16.04: apt build-dep -y ./
-quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+distro_purge_package snapd || true
+distro_install_package $DISTRO_BUILD_DEPS
+
+# We take a special case for Debian/Ubuntu where we install additional build deps
+# base on the packaging. In Fedora/Suse this is handled via mock/osc
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        # in 16.04: apt build-dep -y ./
+        quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+        ;;
+    *)
+        ;;
+esac
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
