@@ -148,10 +148,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(linkSnap)
 	prev = linkSnap
 
-	setupContext := st.NewTask("setup-snap-context", fmt.Sprintf(i18n.G("Setup snap %q%s context"), snapsup.Name(), revisionStr))
-	addTask(setupContext)
-	prev = setupContext
-
 	// security: phase 2, no-op unless core
 	if flags&maybeCore != 0 {
 		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
@@ -1144,14 +1140,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			},
 		})
 		addNext(state.NewTaskSet(discardConns))
-
-		removeSnapContext := st.NewTask("remove-snap-context", fmt.Sprintf(i18n.G("Remove the context of snap %q"), snapsup.Name()))
-		removeSnapContext.Set("snap-setup", &SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: name,
-			},
-		})
-		addNext(state.NewTaskSet(removeSnapContext))
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}

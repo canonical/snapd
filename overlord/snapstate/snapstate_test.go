@@ -166,7 +166,6 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"setup-snap-context",
 	)
 	if opts&maybeCore != 0 {
 		expected = append(expected, "setup-profiles")
@@ -203,7 +202,6 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"clear-snap",
 		"discard-snap",
 		"discard-conns",
-		"remove-snap-context",
 	})
 }
 
@@ -324,7 +322,6 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"setup-snap-context",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -623,7 +620,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"setup-snap-context",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -1227,11 +1223,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: "/snap/some-snap/42",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(42),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -1399,11 +1390,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
-		},
-		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
 		},
 		{
 			op: "update-aliases",
@@ -1748,11 +1734,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 
@@ -1768,11 +1749,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
-		{
-			op:    "setup-snap-context:Undoing",
-			name:  "some-snap",
-			revno: snap.R(11),
 		},
 		{
 			op:   "unlink-snap",
@@ -2834,10 +2810,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
-		{
-			op:   "remove-snap-context:Doing",
-			name: "some-snap",
-		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2850,7 +2822,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "remove-snap-context" {
+		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2966,10 +2938,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
-		{
-			op:   "remove-snap-context:Doing",
-			name: "some-snap",
-		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2984,7 +2952,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "remove-snap-context" {
+		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -3136,10 +3104,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
-		{
-			op:   "remove-snap-context:Doing",
-			name: "some-snap",
-		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -3156,7 +3120,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		if t.Kind() != "discard-conns" && t.Kind() != "remove-snap-context" {
+		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 
@@ -3692,11 +3656,6 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(2),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -3830,11 +3789,6 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(7),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -3927,11 +3881,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/1",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(1),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -3946,11 +3895,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
-		{
-			op:    "setup-snap-context:Undoing",
-			name:  "some-snap",
-			revno: snap.R(1),
 		},
 		{
 			op:   "unlink-snap",
@@ -4371,7 +4315,6 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-setup-snap-context: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
 start-snap-services: Hold
@@ -4385,7 +4328,6 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-setup-snap-context: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
 start-snap-services: Hold
@@ -5013,7 +4955,6 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"setup-snap-context",
 		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -5617,11 +5558,6 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "some-snap",
-			revno: snap.R(7),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -5715,7 +5651,6 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"clear-snap",
 			"discard-snap",
 			"discard-conns",
-			"remove-snap-context",
 		})
 	}
 }
@@ -6030,11 +5965,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "/snap/core/11",
 		},
 		{
-			op:    "setup-snap-context:Doing",
-			name:  "core",
-			revno: snap.R(11),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -6086,10 +6016,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "discard-conns:Doing",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "remove-snap-context:Doing",
 			name: "ubuntu-core",
 		},
 		{
@@ -6181,10 +6107,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-conns:Doing",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "remove-snap-context:Doing",
 			name: "ubuntu-core",
 		},
 	}

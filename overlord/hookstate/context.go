@@ -20,8 +20,6 @@
 package hookstate
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -30,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Context represents the context under which a given hook is running.
@@ -48,34 +47,20 @@ type Context struct {
 }
 
 // NewContext returns a new Context.
-func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
-	// Generate a secure, random ID for this context
-	idBytes := make([]byte, 32)
-	_, err := rand.Read(idBytes)
-	if err != nil {
-		return nil, fmt.Errorf("cannot generate context ID: %s", err)
+// The task is optional, if nil then context becomes ephemeral. If contextID is empty, then a random ID will be generated.
+func NewContext(task *state.Task, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
+	if contextID == "" {
+		contextID = strutil.MakeRandomString(40)
 	}
 
 	return &Context{
 		task:    task,
 		state:   task.State(),
 		setup:   setup,
-		id:      base64.URLEncoding.EncodeToString(idBytes),
-		handler: handler,
-		cache:   make(map[interface{}]interface{}),
-	}, nil
-}
-
-// NewSnapContextWithID returns a new snap Context with a predefined contextID (must be base64-encoded).
-func NewSnapContextWithID(state *state.State, setup *HookSetup, handler Handler, contextID string) *Context {
-	return &Context{
-		task:    nil,
-		state:   state,
-		setup:   setup,
 		id:      contextID,
 		handler: handler,
 		cache:   make(map[interface{}]interface{}),
-	}
+	}, nil
 }
 
 // SnapName returns the name of the snap containing the hook.
@@ -112,22 +97,14 @@ func (c *Context) Handler() Handler {
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
-	if c.task != nil {
-		c.task.State().Lock()
-	} else {
-		c.state.Lock()
-	}
+	c.State().Lock()
 	atomic.AddInt32(&c.mutexChecker, 1)
 }
 
 // Unlock releases the lock for this context.
 func (c *Context) Unlock() {
 	atomic.AddInt32(&c.mutexChecker, -1)
-	if c.task != nil {
-		c.task.State().Unlock()
-	} else {
-		c.state.Unlock()
-	}
+	c.state.Unlock()
 	c.mutex.Unlock()
 }
 

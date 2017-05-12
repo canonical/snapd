@@ -22,10 +22,12 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -78,8 +80,7 @@ type SnapManager struct {
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
-	runner       *state.TaskRunner
-	snapContexts *SnapContexts
+	runner *state.TaskRunner
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -297,10 +298,14 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:        st,
-		backend:      backend.Backend{},
-		runner:       runner,
-		snapContexts: newSnapContexts(s),
+		state:   st,
+		backend: backend.Backend{},
+		runner:  runner,
+	}
+
+	// create snap context directory
+	if err := os.MkdirAll(dirs.SnapContextDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapContextDir, err)
 	}
 
 	// this handler does nothing

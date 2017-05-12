@@ -54,7 +54,7 @@ var (
 	SnapDeviceDir string
 
 	SnapAssertsDBDir      string
-	SnapContextsDir       string
+	SnapContextDir        string
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
 
@@ -150,7 +150,7 @@ func SetRootDir(rootdir string) {
 	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
-	SnapContextsDir = filepath.Join(rootdir, snappyDir, "contexts")
+	SnapContextDir = filepath.Join(rootdir, snappyDir, "context")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")

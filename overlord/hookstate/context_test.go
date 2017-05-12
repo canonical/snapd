@@ -42,7 +42,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 	s.task = state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 	var err error
-	s.context, err = NewContext(s.task, s.setup, nil)
+	s.context, err = NewContext(s.task, s.setup, nil, "")
 	c.Check(err, IsNil)
 }
 
