@@ -2,6 +2,7 @@
 
 set -eux
 
+. $TESTSLIB/dirs.sh
 . $TESTSLIB/apt.sh
 . $TESTSLIB/snaps.sh
 
@@ -28,16 +29,16 @@ update_core_snap_for_classic_reexec() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f /snap/core/current || readlink -f /snap/ubuntu-core/current)"
+    core="$(readlink -f $SNAPMOUNTDIR/core/current || readlink -f $SNAPMOUNTDIR/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
     # clean the old snapd libexec binaries, just in case
-    rm squashfs-root/usr/lib/snapd/*
+    rm squashfs-root/$CORELIBEXECDIR/snapd/*
     # and copy in the current ones
-    cp -a /usr/lib/snapd/* squashfs-root/usr/lib/snapd/
+    cp -a $LIBEXECDIR/snapd/* squashfs-root/$CORELIBEXECDIR/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
     # and snap-confine's apparmor
@@ -55,12 +56,19 @@ update_core_snap_for_classic_reexec() {
     # Now mount the new core snap
     mount "$snap" "$core"
 
-    # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
-        if ! cmp ${p} ${core}${p}; then
-            echo "$p in tree and $p in core snap are unexpectedly not the same"
+    check_file() {
+        if ! cmp $1 $2 ; then
+            echo "$1 in tree and $2 in core snap are unexpectedly not the same"
             exit 1
         fi
+    }
+
+    # Make sure we're running with the correct copied bits
+    for p in $LIBEXECDIR/snapd/snap-exec $LIBEXECDIR/snapd/snap-confine $LIBEXECDIR/snapd/snap-discard-ns $LIBEXECDIR/snapd/snapd; do
+        check_file ${p} ${core}${CORELIBEXECDIR}/snapd/$(basename ${p})
+    done
+    for p in /usr/bin/snapctl /usr/bin/snap; do
+        check_file ${p} ${core}${p}
     done
 }
 
@@ -88,10 +96,10 @@ prepare_classic() {
         apt-cache policy snapd
         exit 1
     fi
-    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
+    if $LIBEXECDIR/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        /usr/lib/snapd/snap-confine --version
         apt-cache policy snap-confine
+        $LIBEXECDIR/snapd/snap-confine --version
         exit 1
     fi
 
@@ -141,12 +149,13 @@ EOF
         update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
-        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        escaped_snap_mount_dir="$(systemd-escape --path $SNAPMOUNTDIR)"
+        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $SNAPMOUNTDIR /etc/systemd/system/$escaped_snap_mount_dir-*core*.mount
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start $unit
