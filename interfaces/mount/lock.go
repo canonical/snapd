@@ -28,12 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-// There are no syscall constant for those.
-const (
-	lockEx = 2
-	lockUn = 8
-)
-
 // lockFileName returns the name of the lock file for the given snap.
 func lockFileName(snapName string) string {
 	return filepath.Join(dirs.SnapRunLockDir, fmt.Sprintf("%s.lock", snapName))
@@ -72,10 +66,10 @@ func (l *NSLock) Close() error {
 
 // Lock acquires an exclusive lock on the mount namespace.
 func (l *NSLock) Lock() error {
-	return syscall.Flock(int(l.file.Fd()), lockEx)
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
 }
 
 // Unlock releases an acquired lock.
 func (l *NSLock) Unlock() error {
-	return syscall.Flock(int(l.file.Fd()), lockUn)
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 }
