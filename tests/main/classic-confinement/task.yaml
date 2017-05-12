@@ -3,7 +3,9 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
-systems: [-fedora-*]
+systems:
+    # Classic confinement is not yet supported on Fedora
+    - -fedora-*
 
 prepare: |
     . $TESTSLIB/snaps.sh
