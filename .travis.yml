@@ -20,3 +20,7 @@ install:
 script:
     - ./run-checks --static || travis_terminate 1
     - ./run-checks --spread
+
+# send to codecov.io
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
