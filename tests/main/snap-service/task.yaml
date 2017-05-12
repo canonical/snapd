@@ -13,6 +13,6 @@ execute: |
     systemctl reload snap.test-snapd-service.test-snapd-service
 
     echo "We see the reload command from the snap was run"
-    while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; then
+    while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; do
         sleep 1
     done
