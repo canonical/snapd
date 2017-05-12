@@ -107,3 +107,17 @@ distro_update_package_db() {
             ;;
     esac
 }
+
+distro_auto_remove_packages() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            ;&
+        debian-*)
+            quiet apt-get -y autoremove
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
