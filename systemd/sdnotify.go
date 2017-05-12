@@ -24,34 +24,12 @@ import (
 	"net"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
-func RunWatchdog() (*time.Ticker, error) {
-	usec := osutil.GetenvInt64("WATCHDOG_USEC")
-	if usec == 0 {
-		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %q", os.Getenv("WATCHDOG_USEC"))
-	}
-	dur := time.Duration(usec/2) * time.Microsecond
-	logger.Debugf("Setting up sd_notify() watchdog timer every %s", dur)
-	wt := time.NewTicker(dur)
-
-	go func() {
-		for {
-			select {
-			case <-wt.C:
-				sdNotify("WATCHDOG=1")
-			}
-		}
-	}()
-
-	return wt, nil
-}
-
-func sdNotify(state string) error {
+// SdNotify sends the given state string notification to systemd.
+//
+// inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
+func SdNotify(state string) error {
 	if state == "" {
 		return fmt.Errorf("cannot use empty state")
 	}
