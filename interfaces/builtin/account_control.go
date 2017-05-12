@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const accountControlConnectedPlugAppArmor = `
 # Allow creating, modifying and deleting non-system users and account password.
 /{,usr/}sbin/chpasswd ixr,
@@ -63,16 +59,11 @@ bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
-// Interface which allows to handle the user accounts.
-func NewAccountControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "account-control",
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewAccountControlInterface())
+	})
 }

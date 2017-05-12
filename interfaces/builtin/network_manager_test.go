@@ -58,10 +58,11 @@ apps:
   slots: [network-manager]
 `
 
-var _ = Suite(&NetworkManagerInterfaceSuite{})
+var _ = Suite(&NetworkManagerInterfaceSuite{
+	iface: builtin.MustInterface("network-manager"),
+})
 
 func (s *NetworkManagerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.NetworkManagerInterface{}
 	plugSnap := snaptest.MockInfo(c, netmgrMockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-manager"]}
 

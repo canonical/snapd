@@ -45,10 +45,11 @@ apps:
   plugs: [fuse-support]
 `
 
-var _ = Suite(&FuseSupportInterfaceSuite{})
+var _ = Suite(&FuseSupportInterfaceSuite{
+	iface: builtin.MustInterface("fuse-support"),
+})
 
 func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewFuseSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
