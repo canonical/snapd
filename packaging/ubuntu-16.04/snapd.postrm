@@ -11,13 +11,13 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    # undo any bind mount to /snap that resulted from LP:#1668659
-    if grep -q "/snap /snap" /proc/self/mountinfo; then
+    # undo any bind mount to /var/lib/snapd//snap that resulted from LP:#1668659
+    if grep -q "/var/lib/snapd/snap /var/lib/snapd//snap" /proc/self/mountinfo; then
         umount -l /snap || true
     fi
 
-    mounts=$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
-    services=$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
+    mounts=$(systemctl list-unit-files --full | grep '^var-lib-snapd-snap[-.].*\.mount' | cut -f1 -d ' ')
+    services=$(systemctl list-unit-files --full | grep '^var-lib-snapd-snap[-.].*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snapp mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
@@ -30,8 +30,8 @@ if [ "$1" = "purge" ]; then
 
         # if it is a mount unit, we can find the snap name in the mount
         # unit (we just ignore unit files)
-        snap=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
-        rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
+        snap=$(grep 'Where=/var/lib/snapd/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
+        rev=$(grep 'Where=/var/lib/snapd/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # aliases
@@ -40,18 +40,18 @@ if [ "$1" = "purge" ]; then
                 find /snap/bin -maxdepth 1 -lname "$snap.*" -delete
             fi
             # generated binaries
-            rm -f "/snap/bin/$snap"
-            rm -f "/snap/bin/$snap".*
+            rm -f "/var/lib/snapd/snap/bin/$snap"
+            rm -f "/var/lib/snapd/snap/bin/$snap".*
             # snap mount dir
-            umount -l "/snap/$snap/$rev" 2> /dev/null || true
-            rm -rf "/snap/$snap/$rev"
-            rm -f "/snap/$snap/current"
+            umount -l "/var/lib/snapd/snap/$snap/$rev" 2> /dev/null || true
+            rm -rf "/var/lib/snapd/snap/$snap/$rev"
+            rm -f "/var/lib/snapd/snap/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
             rm -rf "/var/snap/$snap/common"
             rm -f "/var/snap/$snap/current"
             # opportunistic remove (may fail if there are still revisions left
-            for d in "/snap/$snap" "/var/snap/$snap"; do
+            for d in "/var/lib/snapd/snap/$snap" "/var/snap/$snap"; do
                 if [ -d "$d" ]; then
                     rmdir --ignore-fail-on-non-empty $d
                 fi
@@ -64,7 +64,7 @@ if [ "$1" = "purge" ]; then
     done
 
     echo "Final directory cleanup"
-    for d in "/snap/bin" "/snap" "/var/snap"; do
+    for d in "/var/lib/snapd/snap/bin" "/var/lib/snapd/snap" "/var/snap"; do
         if [ -d "$d" ]; then
             rmdir --ignore-fail-on-non-empty $d
         fi
