@@ -14,12 +14,31 @@ debian_name_package() {
     esac
 }
 
+fedora_name_package() {
+    case "$1" in
+        xdelta3)
+            ;&
+        curl)
+            echo $1
+            ;;
+        python3-yaml)
+            echo "python3-yamlordereddictloader"
+            ;;
+        *)
+            echo $1
+            ;;
+    esac
+}
+
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
             ;&
         debian-*)
             debian_name_package $1
+            ;;
+        fedora-*)
+            fedora_name_package $1
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -40,6 +59,9 @@ distro_install_local_package() {
             else
                 apt install -y "$@"
             fi
+            ;;
+        fedora-*)
+            quiet dnf install -y "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -62,6 +84,9 @@ distro_install_package() {
                 ;&
             debian-*)
                 apt-get install -y $package_name
+                ;;
+            fedora-*)
+                dnf install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -86,6 +111,10 @@ distro_purge_package() {
             debian-*)
                 quiet apt-get remove -y --purge -y $package_name
                 ;;
+            fedora-*)
+                quiet dnf remove -y $package_name
+                ;;
+
             *)
                 echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
                 exit 1
@@ -101,6 +130,9 @@ distro_update_package_db() {
         debian-*)
             quiet apt-get update
             ;;
+        fedora-*)
+            quiet dnf update -y
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
@@ -114,6 +146,8 @@ distro_auto_remove_packages() {
             ;&
         debian-*)
             quiet apt-get -y autoremove
+            ;;
+        fedora-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"

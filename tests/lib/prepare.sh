@@ -41,13 +41,14 @@ update_core_snap_for_classic_reexec() {
     cp -a $LIBEXECDIR/snapd/* squashfs-root/$CORELIBEXECDIR/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
-    # and snap-confine's apparmor
-    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    else
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+        # and snap-confine's apparmor
+        if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+            cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+        else
+            cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+        fi
     fi
-
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -89,17 +90,41 @@ EOF
 }
 
 prepare_classic() {
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        case "$SPREAD_REBOOT" in
+            0)
+                cat << EOF > /etc/selinux/config
+SELINUX=disabled
+SELINUXTYPE=targeted
+EOF
+                REBOOT
+                ;;
+            1)
+                echo "Ensure that we now have a system in permissive mode"
+                if [ "$(/usr/sbin/getenforce)" != "Disabled" ]; then
+                    exit 1
+                fi
+                ;;
+            *)
+                ;;
+        esac
+    fi
+
     install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        apt-cache policy snapd
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            apt-cache policy snapd
+        fi
         exit 1
     fi
     if $LIBEXECDIR/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        apt-cache policy snap-confine
         $LIBEXECDIR/snapd/snap-confine --version
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            apt-cache policy snap-confine
+        fi
         exit 1
     fi
 
@@ -136,12 +161,14 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output is empty on classic"
-        output=$(grub-editenv list)
-        if [ -n "$output" ]; then
-            echo "Expected empty grub environment, got:"
-            echo "$output"
-            exit 1
+        if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+            echo "Ensure that the grub-editenv list output is empty on classic"
+            output=$(grub-editenv list)
+            if [ -n "$output" ]; then
+                echo "Expected empty grub environment, got:"
+                echo "$output"
+                exit 1
+            fi
         fi
 
         systemctl stop snapd.service snapd.socket

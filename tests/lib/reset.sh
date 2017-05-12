@@ -43,7 +43,7 @@ reset_classic() {
         systemctl start snapd.socket
 
         # wait for snapd listening
-        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
+        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U /run/snapd.socket; do sleep 0.5; done
     fi
 }
 

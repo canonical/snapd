@@ -17,6 +17,9 @@ install_build_snapd(){
         apt update
     else
         packages="${GOPATH}/snapd_*.deb"
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            packages="${GOPATH}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+        fi
         distro_install_local_package $packages
     fi
 }
