@@ -130,7 +130,7 @@ func (iface *HidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	return nil
 }
 
-func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
@@ -149,7 +149,7 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -178,4 +178,12 @@ func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 		return true
 	}
 	return false
+}
+
+func (iface *HidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&HidrawInterface{})
 }
