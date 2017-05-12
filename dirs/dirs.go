@@ -36,14 +36,17 @@ var (
 	// RawSnapMountDir is the path of the snap mount dir without
 	// the GlobalRootDir as prefix.
 	RawSnapMountDir string
+
 	// CoreSnapMountDir is the path of the snap mount dir inside
 	// the snap confinement environment. Give this nature it will
 	// not include the GlobalRootDir as prefix.
 	CoreSnapMountDir string
+
 	// CoreLibExecDir is similar to CoreSnapMountDir but for the
 	// LibExecDir used by snapd.
 	CoreLibExecDir            string
 	DistroLibExecDir          string
+
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
