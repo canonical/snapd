@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const networkSetupControlConnectedPlugAppArmor = `
 # Description: Can read/write netplan configuration files
 
@@ -30,15 +26,10 @@ const networkSetupControlConnectedPlugAppArmor = `
 /etc/network/{,**} rw,
 `
 
-// NewNetworkSetupControlInterface returns a new "network-setup-control" interface.
-func NewNetworkSetupControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "network-setup-control",
 		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewNetworkSetupControlInterface())
+	})
 }
