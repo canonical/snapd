@@ -35,6 +35,7 @@ const timezoneControlConnectedPlugAppArmor = `
 /usr/share/zoneinfo/      r,
 /usr/share/zoneinfo/**    r,
 /etc/{,writable/}timezone rw,
+/etc/{,writable/}localtime rw,
 
 # Introspection of org.freedesktop.timedate1
 dbus (send)
