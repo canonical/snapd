@@ -155,5 +155,7 @@ if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
 go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
-# Build fakedevicesvc.
+
+# Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
+go get ./tests/lib/systemd-escape
