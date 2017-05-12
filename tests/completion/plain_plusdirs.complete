@@ -1,0 +1,3 @@
+# -*- sh -*-
+
+complete -W "alpha beta chi" -o plusdirs complexion

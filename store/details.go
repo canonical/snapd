@@ -60,6 +60,14 @@ type snapDetails struct {
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
+
+	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
+}
+
+// channelMap contains
+type channelMap struct {
+	Track       string                   `json:"track"`
+	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
 }
 
 type snapDeltaDetail struct {
@@ -81,4 +89,5 @@ type channelSnapInfoDetails struct {
 	Channel      string `json:"channel"`
 	Epoch        string `json:"epoch"`
 	DownloadSize int64  `json:"binary_filesize"`
+	Info         string `json:"info"`
 }

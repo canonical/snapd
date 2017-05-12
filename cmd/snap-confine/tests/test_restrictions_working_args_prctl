@@ -19,7 +19,6 @@ for i in PR_CAP_AMBIENT PR_CAP_AMBIENT_RAISE PR_CAP_AMBIENT_LOWER PR_CAP_AMBIENT
     if $L snap.name.app /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 
@@ -31,7 +30,6 @@ for i in PR_CAP_AMBIENT PR_CAP_AMBIENT_RAISE PR_CAP_AMBIENT_LOWER PR_CAP_AMBIENT
             if $L snap.name.app /bin/true ; then
                 PASS
             else
-                dmesg|tail -n1
                 FAIL
             fi
         done

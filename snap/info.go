@@ -145,7 +145,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
-	Aliases          map[string]*AppInfo
+	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
@@ -167,7 +167,12 @@ type Info struct {
 	Publisher   string
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*ChannelSnapInfo
+
+	// The flattended channel map with $track/$risk
+	Channels map[string]*ChannelSnapInfo
+
+	// The ordered list of tracks that contain channels
+	Tracks []string
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -357,9 +362,9 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name    string
-	Aliases []string
-	Command string
+	Name          string
+	LegacyAliases []string // FIXME: eventually drop this
+	Command       string
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
@@ -367,6 +372,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
+	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -581,4 +587,14 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 		return l[0], l[0]
 	}
 	return l[0], l[1]
+}
+
+// JoinSnapApp produces a full application wrapper name from the
+// `snap` and the `app` part. It also deals with the special
+// case of snapName == appName.
+func JoinSnapApp(snap, app string) string {
+	if snap == app {
+		return app
+	}
+	return fmt.Sprintf("%s.%s", snap, app)
 }

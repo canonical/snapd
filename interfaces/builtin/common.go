@@ -77,7 +77,7 @@ func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
@@ -93,7 +93,7 @@ func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return !iface.rejectAutoConnectPairs
 }
 
-func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for _, m := range iface.connectedPlugKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for _, m := range iface.connectedSlotKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -129,7 +129,7 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 	return nil
 }
 
-func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.connectedPlugSecComp != "" {
 		spec.AddSnippet(iface.connectedPlugSecComp)
 	}

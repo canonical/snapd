@@ -170,6 +170,31 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	c.Check(authorization, Equals, "")
 }
 
+func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
+	email, err := cs.cli.WhoAmI()
+	c.Assert(err, IsNil)
+	c.Check(email, Equals, "")
+}
+
+func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
+	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+
+	email, err := cs.cli.WhoAmI()
+	c.Check(err, NotNil)
+	c.Check(email, Equals, "")
+}
+
+func (cs *clientSuite) TestClientWhoAmISomebody(c *C) {
+	mockUserData := client.User{
+		Email: "foo@example.com",
+	}
+	c.Assert(client.TestWriteAuth(mockUserData), IsNil)
+
+	email, err := cs.cli.WhoAmI()
+	c.Check(err, IsNil)
+	c.Check(email, Equals, "foo@example.com")
+}
+
 func (cs *clientSuite) TestClientSysInfo(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",

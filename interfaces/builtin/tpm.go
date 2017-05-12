@@ -34,3 +34,7 @@ func NewTpmInterface() interfaces.Interface {
 		reservedForOS:         true,
 	}
 }
+
+func init() {
+	registerIface(NewTpmInterface())
+}

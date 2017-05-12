@@ -81,3 +81,7 @@ func NewKubernetesSupportInterface() interfaces.Interface {
 		reservedForOS:            true,
 	}
 }
+
+func init() {
+	registerIface(NewKubernetesSupportInterface())
+}
