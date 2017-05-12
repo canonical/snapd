@@ -97,7 +97,9 @@ fi
 
 create_test_user
 
-quiet apt-get update
+. "$TESTSLIB/pkgdb.sh"
+
+distro_update_package_db
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     if [ ! -d packaging/ubuntu-14.04 ]; then
@@ -119,17 +121,14 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd
+distro_purge_package snapd
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"
-quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git
+distro_install_package build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd
 
 # in 16.04: apt build-dep -y ./
 quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
-
-# Necessary tools for our test setup
-quiet apt-get install -y netcat-openbsd
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
