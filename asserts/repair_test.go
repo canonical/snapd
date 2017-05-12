@@ -105,6 +105,7 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
 		{"repair-id: repair-42\n", "repair-id: no-suffix-number\n", `"repair-id" header contains invalid characters: "no-suffix-number"`},
+		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 	}
 
 	for _, test := range invalidTests {
