@@ -43,9 +43,9 @@ fedora_build_rpm() {
     mkdir -p $HOME/rpmbuild/SOURCES
     (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
 
-    rpmbuild -bs packaging/fedora-25/snapd.spec
+    rpmbuild --with testkeys -bs packaging/fedora-25/snapd.spec
     # FIXME 1.fc25 + arch needs to be dynamic as well
-    mock /root/rpmbuild/SRPMS/snapd-$version-1.fc25.src.rpm
+    mock --with testkeys /root/rpmbuild/SRPMS/snapd-$version-1.fc25.src.rpm
     cp /var/lib/mock/fedora-25-x86_64/result/snapd-$version-1.fc25.x86_64.rpm $GOPATH
     cp /var/lib/mock/fedora-25-x86_64/result/snapd-selinux-$version-1.fc25.noarch.rpm $GOPATH
     cp /var/lib/mock/fedora-25-x86_64/result/snap-confine-$version-1.fc25.x86_64.rpm $GOPATH

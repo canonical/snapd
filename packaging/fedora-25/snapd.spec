@@ -10,6 +10,7 @@
 %global with_debug 1
 %global with_check 0
 %global with_unit_test 0
+%global with_test_keys 0
 
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
@@ -18,6 +19,12 @@
 %global with_bundled 0
 %else
 %global with_bundled 1
+%endif
+
+%if ! %{with testkeys}
+%global with_test_keys 0
+%else
+%global with_test_keys 1
 %endif
 
 %if 0%{?with_debug}
@@ -321,8 +328,13 @@ export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %gobuild -o bin/snap %{import_path}/cmd/snap
 %gobuild -o bin/snap-exec %{import_path}/cmd/snap-exec
 %gobuild -o bin/snapctl %{import_path}/cmd/snapctl
-%gobuild -o bin/snapd %{import_path}/cmd/snapd
 %gobuild -o bin/snap-update-ns %{import_path}/cmd/snap-update-ns
+
+%if 0%{?with_test_keys}
+%gobuild -o bin/snapd -tags withtestkeys %{import_path}/cmd/snapd
+%else
+%gobuild -o bin/snapd -tags withtestkeys %{import_path}/cmd/snapd
+%endif
 
 # Build SELinux module
 pushd ./data/selinux
