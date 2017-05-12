@@ -9,7 +9,7 @@ execute: |
     mkdir -p $SNAPMOUNTDIR/bin
     ln -s /usr/bin/snap $SNAPMOUNTDIR/bin/xxx
     echo Running unknown command
-    expected='internal error, please report: running "xxx" failed: cannot find current revision for snap xxx: readlink$SNAPMOUNTDIR/xxx/current: no such file or directory'
+    expected='internal error, please report: running "xxx" failed: cannot find current revision for snap xxx: readlink $SNAPMOUNTDIR/xxx/current: no such file or directory'
     output="$($SNAPMOUNTDIR/bin/xxx 2>&1 )" && exit 1
     echo $output
     err=$?
