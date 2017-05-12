@@ -306,7 +306,34 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 	return nil
 }
 
+func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+	// check if this is relevant
+	if snapInfo.Type != snap.TypeApp {
+		return nil
+	}
+	if snapInfo.Base == "" {
+		return nil
+	}
+
+	snapStates, err := All(st)
+	if err != nil {
+		return err
+	}
+	for otherSnap, snapst := range snapStates {
+		snapst, err := snapst.Type()
+		if err != nil {
+			return err
+		}
+		if snapst == snap.TypeBase && otherSnap == snapInfo.Base {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
+	AddCheckSnapCallback(checkBases)
 }
