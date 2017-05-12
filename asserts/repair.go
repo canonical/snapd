@@ -76,7 +76,7 @@ var _ consistencyChecker = (*Repair)(nil)
 // the repair-id can either be:
 // - repair-$ID
 // - $brand-$ID
-// - $brand-$model-$ID
+// - $brand_$model-$ID
 var validRepairID = regexp.MustCompile("^.*-[0-9]+$")
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
