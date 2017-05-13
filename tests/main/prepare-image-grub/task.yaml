@@ -46,8 +46,8 @@ execute: |
     for f in pc pc-kernel core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
     done
-    grep snap_core=core $IMAGE/boot/grub/grubenv
-    grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+    MATCH snap_core=core < $IMAGE/boot/grub/grubenv
+    MATCH snap_kernel=pc-kernel < $IMAGE/boot/grub/grubenv
 
     # check copied assertions
     cmp $TESTSLIB/assertions/developer1-pc.model $IMAGE/var/lib/snapd/seed/assertions/model
@@ -66,13 +66,13 @@ execute: |
     else
         core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
     fi
-    grep -q "snap-id: ${core_snap_id}" $IMAGE/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: ${core_snap_id}" < $IMAGE/var/lib/snapd/seed/seed.yaml
 
     for snap in pc pc-kernel core; do
-        grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+        MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
     for name in pc pc-kernel core; do
-        grep "snap-name: $name" $IMAGE/var/lib/snapd/seed/assertions/*
+        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done
