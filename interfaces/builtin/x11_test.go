@@ -45,10 +45,11 @@ apps:
   plugs: [x11]
 `
 
-var _ = Suite(&X11InterfaceSuite{})
+var _ = Suite(&X11InterfaceSuite{
+	iface: builtin.MustInterface("x11"),
+})
 
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewX11Interface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

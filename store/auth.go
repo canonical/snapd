@@ -126,7 +126,8 @@ func retryPostRequest(endpoint string, headers map[string]string, data []byte, d
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		maybeLogRetryAttempt(endpoint, attempt, startTime)
 
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+		var req *http.Request
+		req, err = http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}

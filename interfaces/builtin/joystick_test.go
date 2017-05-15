@@ -37,7 +37,7 @@ type JoystickInterfaceSuite struct {
 }
 
 var _ = Suite(&JoystickInterfaceSuite{
-	iface: &builtin.JoystickInterface{},
+	iface: builtin.MustInterface("joystick"),
 })
 
 func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
