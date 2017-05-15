@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const classicSupportPlugAppArmor = `
 # Description: permissions to use classic dimension. This policy is
 # intentionally not restricted. This gives device ownership to
@@ -104,14 +100,10 @@ umount
 umount2
 `
 
-func NewClassicSupportInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "classic-support",
 		connectedPlugAppArmor: classicSupportPlugAppArmor,
 		connectedPlugSecComp:  classicSupportPlugSecComp,
-	}
-}
-
-func init() {
-	registerIface(NewClassicSupportInterface())
+	})
 }

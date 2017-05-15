@@ -36,7 +36,9 @@ type TpmInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TpmInterfaceSuite{})
+var _ = Suite(&TpmInterfaceSuite{
+	iface: builtin.MustInterface("tpm"),
+})
 
 func (s *TpmInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [tpm]
 `
-	s.iface = builtin.NewTpmInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

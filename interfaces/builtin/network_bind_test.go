@@ -45,10 +45,11 @@ apps:
   plugs: [network-bind]
 `
 
-var _ = Suite(&NetworkBindInterfaceSuite{})
+var _ = Suite(&NetworkBindInterfaceSuite{
+	iface: builtin.MustInterface("network-bind"),
+})
 
 func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkBindInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

@@ -36,7 +36,9 @@ type HomeInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HomeInterfaceSuite{})
+var _ = Suite(&HomeInterfaceSuite{
+	iface: builtin.MustInterface("home"),
+})
 
 func (s *HomeInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [home]
 `
-	s.iface = builtin.NewHomeInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

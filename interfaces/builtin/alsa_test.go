@@ -36,7 +36,9 @@ type AlsaInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AlsaInterfaceSuite{})
+var _ = Suite(&AlsaInterfaceSuite{
+	iface: builtin.MustInterface("alsa"),
+})
 
 func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [alsa]
 `
-	s.iface = builtin.NewAlsaInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -56,6 +57,7 @@ apps:
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["alsa"]}
+	c.Assert(s.iface, NotNil)
 }
 
 func (s *AlsaInterfaceSuite) TestName(c *C) {
