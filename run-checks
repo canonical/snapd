@@ -71,13 +71,13 @@ endmsg() {
 addtrap endmsg
 
 # Append the coverage profile of a package to the project coverage.
-append_coverage() {
-    local profile="$1"
-    if [ -f $profile ]; then
-        cat $profile | grep -v "mode: set" | cat >> .coverage/coverage.out
-        rm $profile
+append_coverage() (
+    profile="$1"
+    if [ -f "$profile" ]; then
+        grep -v "mode: set" -- "$profile" >> .coverage/coverage.out
+        rm "$profile"
     fi
-}
+)
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
@@ -145,7 +145,7 @@ if [ "$UNIT" = 1 ]; then
     done
 
     # copy in place for codecov.io
-    cp .coverae/profile.out coverage.txt
+    cp .coverage/coverage.out coverage.txt
 fi
 
 if [ "$SPREAD" = 1 ]; then
