@@ -63,7 +63,7 @@ func run() error {
 	if err := BootstrapError(); err != nil {
 		// If there is no mount namespace to transition to let's just quit
 		// instantly without any errors as there is nothing to do anymore.
-		if err == ErrNoNS {
+		if err == ErrNoNamespace {
 			return nil
 		}
 		return err
