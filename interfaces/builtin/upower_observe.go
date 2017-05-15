@@ -106,7 +106,9 @@ dbus (receive, send)
 `
 
 const upowerObservePermanentSlotSeccomp = `
+# libudev
 bind
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -191,15 +193,23 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/UPower
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type UpowerObserveInterface struct{}
+type upowerObserveInterface struct{}
 
-func (iface *UpowerObserveInterface) Name() string {
+func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	if release.OnClassic {
@@ -211,22 +221,22 @@ func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *UpowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 	return nil
 }
 
-func (iface *UpowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(upowerObservePermanentSlotDBus)
 	return nil
 }
 
-func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
@@ -234,14 +244,14 @@ func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *UpowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *upowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *UpowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
@@ -251,7 +261,11 @@ func (iface *UpowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *UpowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&upowerObserveInterface{})
 }

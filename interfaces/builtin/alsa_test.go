@@ -36,7 +36,9 @@ type AlsaInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AlsaInterfaceSuite{})
+var _ = Suite(&AlsaInterfaceSuite{
+	iface: builtin.MustInterface("alsa"),
+})
 
 func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [alsa]
 `
-	s.iface = builtin.NewAlsaInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -56,6 +57,7 @@ apps:
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["alsa"]}
+	c.Assert(s.iface, NotNil)
 }
 
 func (s *AlsaInterfaceSuite) TestName(c *C) {
@@ -88,8 +90,12 @@ func (s *AlsaInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/dev/snd/* rw,")
+}
+
+func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

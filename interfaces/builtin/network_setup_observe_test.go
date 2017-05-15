@@ -36,7 +36,9 @@ type NetworkSetupObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkSetupObserveInterfaceSuite{})
+var _ = Suite(&NetworkSetupObserveInterfaceSuite{
+	iface: builtin.MustInterface("network-setup-observe"),
+})
 
 func (s *NetworkSetupObserveInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [network-setup-observe]
 `
-	s.iface = builtin.NewNetworkSetupObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,8 +89,12 @@ func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C)
 func (s *NetworkSetupObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/netplan")
+}
+
+func (s *NetworkSetupObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -38,7 +38,9 @@ type PppInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&PppInterfaceSuite{})
+var _ = Suite(&PppInterfaceSuite{
+	iface: builtin.MustInterface("ppp"),
+})
 
 func (s *PppInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -56,8 +58,6 @@ apps:
   command: foo
   slots: [ppp]
 `
-
-	s.iface = &builtin.PppInterface{}
 	slotSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["ppp"]}
 
@@ -71,7 +71,7 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 
 func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/usr/sbin/pppd ix,`)
@@ -82,7 +82,7 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 	dbusSpec = &dbus.Specification{}
@@ -95,9 +95,13 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
 
 	spec := &kmod.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,
 	})
+}
+
+func (s *PppInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

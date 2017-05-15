@@ -36,7 +36,9 @@ type CoreSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&CoreSupportInterfaceSuite{})
+var _ = Suite(&CoreSupportInterfaceSuite{
+	iface: builtin.MustInterface("core-support"),
+})
 
 func (s *CoreSupportInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -45,7 +47,6 @@ hooks:
  prepare-device:
      plugs: [core-support]
 `
-	s.iface = builtin.NewCoreSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,15 +89,19 @@ func (s *CoreSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *CoreSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
 func (s *CoreSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.hook.prepare-device"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.hook.prepare-device"), testutil.Contains, `/bin/systemctl Uxr,`)
+}
+
+func (s *CoreSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

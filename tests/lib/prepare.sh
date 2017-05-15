@@ -34,21 +34,19 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
-    # also inject new version of snap-confine and snap-scard-ns
-    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    # clean the old snapd libexec binaries, just in case
+    rm squashfs-root/usr/lib/snapd/*
+    # and copy in the current ones
+    cp -a /usr/lib/snapd/* squashfs-root/usr/lib/snapd/
+    # also the binaries themselves
+    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # and snap-confine's apparmor
     if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
         cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     else
         cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     fi
-    # also add snap/snapd because we re-exec by default and want to test
-    # this version
-    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -176,7 +174,7 @@ setup_reflash_magic() {
         snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
-        snap install --devmode --edge ubuntu-image
+        snap install --classic --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs

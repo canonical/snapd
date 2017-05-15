@@ -28,12 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-// There are no syscall constant for those.
-const (
-	lockEx = 2
-	lockUn = 8
-)
-
 // lockFileName returns the name of the lock file for the given snap.
 func lockFileName(snapName string) string {
 	return filepath.Join(dirs.SnapRunLockDir, fmt.Sprintf("%s.lock", snapName))
@@ -41,18 +35,28 @@ func lockFileName(snapName string) string {
 
 // NSLock describes a lock on a mount namespace of a particular snap.
 type NSLock struct {
-	file *os.File
+	file  *os.File
+	fname string
 }
 
 // OpenLock creates and opens a lock file associated with a particular snap.
 func OpenLock(snapName string) (*NSLock, error) {
+	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create lock directory: %s", err)
+	}
 	fname := lockFileName(snapName)
 	mode := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
 	file, err := os.OpenFile(fname, mode, os.FileMode(0600))
 	if err != nil {
 		return nil, err
 	}
-	return &NSLock{file: file}, nil
+	l := &NSLock{fname: fname, file: file}
+	return l, nil
+}
+
+// Path returns the path of the lock file.
+func (l *NSLock) Path() string {
+	return l.fname
 }
 
 // Close closes the lock, unlocking it automatically if needed.
@@ -62,10 +66,10 @@ func (l *NSLock) Close() error {
 
 // Lock acquires an exclusive lock on the mount namespace.
 func (l *NSLock) Lock() error {
-	return syscall.Flock(int(l.file.Fd()), lockEx)
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
 }
 
 // Unlock releases an acquired lock.
 func (l *NSLock) Unlock() error {
-	return syscall.Flock(int(l.file.Fd()), lockUn)
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 }

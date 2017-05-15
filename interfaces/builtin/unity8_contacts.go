@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const unity8ContactsPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. This gives privileged access
 # to the system.
@@ -175,12 +171,11 @@ dbus (receive, send)
 	peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-// NewUnity8ContactsInterface returns a new "unity8-contacts" interface.
-func NewUnity8ContactsInterface() interfaces.Interface {
-	return &unity8PimCommonInterface{
+func init() {
+	registerIface(&unity8PimCommonInterface{
 		name: "unity8-contacts",
 		permanentSlotAppArmor: unity8ContactsPermanentSlotAppArmor,
 		connectedSlotAppArmor: unity8ContactsConnectedSlotAppArmor,
 		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,
-	}
+	})
 }

@@ -112,11 +112,6 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("cannot read mount-info table: %s", err)
 		}
-		if !change.Needed(mounted) {
-			changesMade = append(changesMade, change)
-			continue
-		}
-		fmt.Printf("%s\n", change)
 		if err := change.Perform(); err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue

@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type LibvirtInterfaceSuite struct {
@@ -34,7 +35,7 @@ type LibvirtInterfaceSuite struct {
 }
 
 var _ = Suite(&LibvirtInterfaceSuite{
-	iface: builtin.NewLibvirtInterface(),
+	iface: builtin.MustInterface("libvirt"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "libvirt"},
@@ -63,4 +64,8 @@ func (s *LibvirtInterfaceSuite) TestSanitizeSlot(c *C) {
 func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
+}
+
+func (s *LibvirtInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
