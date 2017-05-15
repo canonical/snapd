@@ -39,9 +39,10 @@ execute: |
     # Check that the shared content is not mounted.
     snap run --shell $PLUG_SNAP.content-plug -c 'test ! -e $SNAP/import/shared-content'
 
-    # Run snap-update-ns to see that setns part worked and we got did nothing at all.
-    # We did nothing at all because the namespace is exactly as it needs to be already
-    # because snap-confine just constructed it according to the desired description.
+    # Run snap-update-ns to see that we managed to switch namespaces correctly
+    # and did nothing more. We did nothing more because the namespace already
+    # is exactly as it needs to be. The snap-confine program has just
+    # constructed it according to the desired description.
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
