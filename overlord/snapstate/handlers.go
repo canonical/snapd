@@ -520,9 +520,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	//	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
-	//		return fmt.Errorf("Failed to create snap context: %v", err)
-	//	}
+	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap context: %v", err)
+	}
 
 	cand := snapsup.SideInfo
 	m.backend.Candidate(cand)
