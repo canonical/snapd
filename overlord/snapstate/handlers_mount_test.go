@@ -131,7 +131,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: filepath.Join(dirs.RawSnapMountDir, "core/1"),
+			old: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/1"),
 		},
 		{
 			op:    "setup-snap",
@@ -140,7 +140,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.RawSnapMountDir, "core/2"),
+			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/2"),
 			stype: "os",
 		},
 	})
