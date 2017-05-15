@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const kubernetesSupportConnectedPlugAppArmor = `
 # Description: can use kubernetes to control Docker containers. This interface
 # is restricted because it gives wide ranging access to the host and other
@@ -72,12 +68,11 @@ ptrace (read, trace) peer=unconfined,
 
 var kubernetesSupportConnectedPlugKmod = []string{`llc`, `stp`}
 
-// NewKubernetesSupportInterface returns a new "openvswitch-support" interface.
-func NewKubernetesSupportInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "kubernetes-support",
 		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
 		reservedForOS:            true,
-	}
+	})
 }

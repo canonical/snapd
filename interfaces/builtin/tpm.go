@@ -19,18 +19,16 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const tpmConnectedPlugAppArmor = `
 # Description: for those who need to talk to the system TPM chip over /dev/tpm0
 
 /dev/tpm0 rw,
 `
 
-func NewTpmInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "tpm",
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

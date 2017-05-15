@@ -45,10 +45,11 @@ apps:
   plugs: [kernel-module-control]
 `
 
-var _ = Suite(&KernelModuleControlInterfaceSuite{})
+var _ = Suite(&KernelModuleControlInterfaceSuite{
+	iface: builtin.MustInterface("kernel-module-control"),
+})
 
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewKernelModuleControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -90,15 +91,19 @@ func (s *KernelModuleControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C)
 func (s *KernelModuleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability sys_module,")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "finit_module\n")
+}
+
+func (s *KernelModuleControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

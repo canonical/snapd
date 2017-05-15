@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const alsaConnectedPlugAppArmor = `
 # Description: Allow access to raw ALSA devices.
 
@@ -33,10 +31,10 @@ const alsaConnectedPlugAppArmor = `
 /var/lib/alsa/{,*}         r,
 `
 
-func NewAlsaInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "alsa",
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

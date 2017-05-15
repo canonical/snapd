@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain browsing, service browsing and service resolving
 
@@ -39,6 +37,14 @@ dbus (send)
     member=Get*
     peer=(name=org.freedesktop.Avahi,label=unconfined),
 
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.
@@ -105,10 +111,10 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-func NewAvahiObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "avahi-observe",
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

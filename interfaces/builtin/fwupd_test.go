@@ -54,10 +54,11 @@ apps:
   slots: [fwupd]
 `
 
-var _ = Suite(&FwupdInterfaceSuite{})
+var _ = Suite(&FwupdInterfaceSuite{
+	iface: builtin.MustInterface("fwupd"),
+})
 
 func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.FwupdInterface{}
 	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}
@@ -86,7 +87,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
@@ -110,7 +111,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.{app1,app2}"),`)
@@ -119,7 +120,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 // The label uses short form when exactly one app is bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.app2"),`)
@@ -128,9 +129,9 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
@@ -160,8 +161,12 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotDBus(c *C) {
 
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, "bind\n")
+}
+
+func (s *FwupdInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

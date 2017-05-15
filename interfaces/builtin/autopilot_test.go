@@ -45,10 +45,11 @@ apps:
   plugs: [autopilot-introspection]
 `
 
-var _ = Suite(&AutopilotInterfaceSuite{})
+var _ = Suite(&AutopilotInterfaceSuite{
+	iface: builtin.MustInterface("autopilot-introspection"),
+})
 
 func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewAutopilotIntrospectionInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -90,15 +91,19 @@ func (s *AutopilotInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/com/canonical/Autopilot/Introspection\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "recvmsg\n")
+}
+
+func (s *AutopilotInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

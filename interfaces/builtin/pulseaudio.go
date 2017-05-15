@@ -107,15 +107,17 @@ shmctl
 # pulseaudio creates on startup.
 setgroups
 setgroups32
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-type PulseAudioInterface struct{}
+type pulseAudioInterface struct{}
 
-func (iface *PulseAudioInterface) Name() string {
+func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *PulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
@@ -123,29 +125,33 @@ func (iface *PulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *PulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *PulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *PulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *pulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *pulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
+}
+
+func init() {
+	registerIface(&pulseAudioInterface{})
 }

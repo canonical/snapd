@@ -145,6 +145,14 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const udisks2PermanentSlotSecComp = `
@@ -159,6 +167,8 @@ mount
 shmctl
 umount
 umount2
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `
@@ -332,23 +342,23 @@ KERNEL=="sr*", ENV{ID_VENDOR}=="SanDisk", ENV{ID_MODEL}=="Cruzer", ENV{ID_FS_LAB
 ENV{ID_PART_TABLE_TYPE}=="dos", ENV{ID_PART_ENTRY_TYPE}=="0x0", ENV{ID_PART_ENTRY_NUMBER}=="1", ENV{ID_FS_TYPE}=="iso9660|udf", ENV{UDISKS_IGNORE}="0"
 `
 
-type UDisks2Interface struct{}
+type udisks2Interface struct{}
 
-func (iface *UDisks2Interface) Name() string {
+func (iface *udisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *UDisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(udisks2ConnectedPlugDBus)
 	return nil
 }
 
-func (iface *UDisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotDBus)
 	return nil
 }
 
-func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
@@ -356,17 +366,17 @@ func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *UDisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotUDev)
 	return nil
 }
 
-func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
@@ -374,20 +384,24 @@ func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
 	return nil
 }
 
-func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *udisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *UDisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *udisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&udisks2Interface{})
 }

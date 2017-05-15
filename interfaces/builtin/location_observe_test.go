@@ -36,7 +36,9 @@ type LocationObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocationObserveInterfaceSuite{})
+var _ = Suite(&LocationObserveInterfaceSuite{
+	iface: builtin.MustInterface("location-observe"),
+})
 
 func (s *LocationObserveInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -53,7 +55,6 @@ apps:
   command: foo
   slots: [location-observe]
 `
-	s.iface = &builtin.LocationObserveInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["location-observe"]}
 	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
@@ -81,7 +82,7 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.location.*"),`)
@@ -105,7 +106,7 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSom
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.location.{app1,app2}"),`)
@@ -127,7 +128,7 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.location.app"),`)
@@ -150,7 +151,7 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.location.app2"), testutil.Contains, `peer=(label="snap.location.*"),`)
@@ -174,7 +175,7 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSom
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.location.app2"), testutil.Contains, `peer=(label="snap.location.{app1,app2}"),`)
@@ -196,8 +197,12 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.location.app2"), testutil.Contains, `peer=(label="snap.location.app"),`)
+}
+
+func (s *LocationObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

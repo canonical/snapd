@@ -111,6 +111,15 @@ const fwupdConnectedPlugAppArmor = `
       path=/
       interface=org.freedesktop.DBus.Properties
       peer=(label=###SLOT_SECURITY_TAGS###),
+
+  # Allow clients to introspect the service on non-classic (due to the path,
+  # allowing on classic would reveal too much for unconfined)
+  dbus (send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const fwupdConnectedSlotAppArmor = `
@@ -163,28 +172,29 @@ const fwupdPermanentSlotSecComp = `
 # access to the system.
 # Can communicate with DBus system service
 bind
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
-
 const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.
 bind
 `
 
-// FwupdInterface type
-type FwupdInterface struct{}
+// fwupdInterface type
+type fwupdInterface struct{}
 
-// Name of the FwupdInterface
-func (iface *FwupdInterface) Name() string {
+// Name of the fwupdInterface
+func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *FwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotDBus)
 	return nil
 }
 
-func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
@@ -192,13 +202,13 @@ func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotAppArmor)
 	return nil
 
 }
 
-func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
@@ -206,27 +216,31 @@ func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(fwupdConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *FwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotSecComp)
 	return nil
 }
 
 // SanitizePlug checks the plug definition is valid
-func (iface *FwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
 // SanitizeSlot checks the slot definition is valid
-func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&fwupdInterface{})
 }

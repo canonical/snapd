@@ -4,17 +4,16 @@ details: |
     the mount namespace used by snap applications into the main mount
     namespace.
 prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local_devmode test-snapd-tools
     mkdir -p /media/src
     mkdir -p /media/dst
     touch /media/src/canary
-    snap install --devmode snapd-hacker-toolbelt
 execute: |
-    export PATH=$PATH:/snap/bin
     test ! -e /media/dst/canary
-    snapd-hacker-toolbelt.busybox sh -c 'mount --bind /media/src /media/dst'
+    test-snapd-tools.cmd mount --bind /media/src /media/dst
     test -e /media/dst/canary
 restore: |
-    snap remove snapd-hacker-toolbelt
     # If this doesn't work maybe it is because the test didn't execute correctly
     umount /media/dst || true
     rm -f /media/src/canary

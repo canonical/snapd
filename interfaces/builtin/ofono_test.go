@@ -38,7 +38,9 @@ type OfonoInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OfonoInterfaceSuite{})
+var _ = Suite(&OfonoInterfaceSuite{
+	iface: builtin.MustInterface("ofono"),
+})
 
 func (s *OfonoInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -58,7 +60,6 @@ apps:
   command: foo
   slots: [ofono]
 `
-	s.iface = &builtin.OfonoInterface{}
 	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: snapInfo.Slots["ofono"]}
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -87,7 +88,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.ofono.*"),`)
@@ -112,7 +113,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.ofono.{app1,app2}"),`)
@@ -135,7 +136,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.ofono.app"),`)
@@ -145,7 +146,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClass
 	release.OnClassic = true
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -158,7 +159,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClass
 func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -170,7 +171,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 
 func (s *OfonoInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	aasnippets := apparmorSpec.Snippets()
 	c.Assert(aasnippets, HasLen, 1)
@@ -193,4 +194,8 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
 	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
+}
+
+func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
