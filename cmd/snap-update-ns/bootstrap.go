@@ -44,10 +44,11 @@ import (
 )
 
 var (
+	// ErrNoNS is a distinct error returned when a snap namespace does not exist.
 	ErrNoNS = errors.New("cannot update mount namespace that was not created yet")
 )
 
-// Error returns error (if any) encountered in pre-main C code.
+// BootstrapError returns error (if any) encountered in pre-main C code.
 func BootstrapError() error {
 	if C.bootstrap_msg == nil {
 		return nil
