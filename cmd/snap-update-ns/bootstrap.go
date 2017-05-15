@@ -44,8 +44,8 @@ import (
 )
 
 var (
-	// ErrNoNS is a distinct error returned when a snap namespace does not exist.
-	ErrNoNS = errors.New("cannot update mount namespace that was not created yet")
+	// ErrNoNamespace is returned when a snap namespace does not exist.
+	ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
 )
 
 // BootstrapError returns error (if any) encountered in pre-main C code.
@@ -56,7 +56,7 @@ func BootstrapError() error {
 	errno := syscall.Errno(C.bootstrap_errno)
 	// Translate EINVAL from setns or ENOENT from open into a dedicated error.
 	if errno == syscall.EINVAL || errno == syscall.ENOENT {
-		return ErrNoNS
+		return ErrNoNamespace
 	}
 	if errno != 0 {
 		return fmt.Errorf("%s: %s", C.GoString(C.bootstrap_msg), errno)
