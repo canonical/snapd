@@ -39,7 +39,9 @@ type Unity8ContactsInterfaceSuite struct {
 	plug     *interfaces.Plug
 }
 
-var _ = Suite(&Unity8ContactsInterfaceSuite{})
+var _ = Suite(&Unity8ContactsInterfaceSuite{
+	iface: builtin.MustInterface("unity8-contacts"),
+})
 
 func (s *Unity8ContactsInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -57,7 +59,6 @@ apps:
   command: foo
   slots: [unity8-contacts]
 `
-	s.iface = builtin.NewUnity8ContactsInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

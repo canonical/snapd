@@ -36,7 +36,9 @@ type LocationObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocationObserveInterfaceSuite{})
+var _ = Suite(&LocationObserveInterfaceSuite{
+	iface: builtin.MustInterface("location-observe"),
+})
 
 func (s *LocationObserveInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -53,7 +55,6 @@ apps:
   command: foo
   slots: [location-observe]
 `
-	s.iface = &builtin.LocationObserveInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["location-observe"]}
 	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
