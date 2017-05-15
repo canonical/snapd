@@ -36,7 +36,9 @@ type OpenvSwitchInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OpenvSwitchInterfaceSuite{})
+var _ = Suite(&OpenvSwitchInterfaceSuite{
+	iface: builtin.MustInterface("openvswitch"),
+})
 
 func (s *OpenvSwitchInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [openvswitch]
 `
-	s.iface = builtin.NewOpenvSwitchInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

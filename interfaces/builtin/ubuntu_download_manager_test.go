@@ -36,7 +36,9 @@ type UbuntuDownloadManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{})
+var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{
+	iface: builtin.MustInterface("ubuntu-download-manager"),
+})
 
 func (s *UbuntuDownloadManagerInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [ubuntu-download-manager]
 `
-	s.iface = &builtin.UbuntuDownloadManagerInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["ubuntu-download-manager"]}
 	s.slot = &interfaces.Slot{
