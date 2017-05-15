@@ -20,23 +20,36 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
-	return iface.getName(attribs)
+var (
+	RegisterIface          = registerIface
+	ResolveSpecialVariable = resolveSpecialVariable
+)
+
+func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
+	return iface.(*mprisInterface).getName(attribs)
 }
 
-var ResolveSpecialVariable = resolveSpecialVariable
-
+// MockInterfaces replaces the set of known interfaces and returns a restore function.
 func MockInterfaces(ifaces map[string]interfaces.Interface) (restore func()) {
 	old := allInterfaces
 	allInterfaces = ifaces
 	return func() { allInterfaces = old }
 }
 
+// Interface returns the interface with the given name (or nil).
 func Interface(name string) interfaces.Interface {
 	return allInterfaces[name]
 }
 
-var RegisterIface = registerIface
+// MustInterface returns the interface with the given name or panics.
+func MustInterface(name string) interfaces.Interface {
+	if iface, ok := allInterfaces[name]; ok {
+		return iface
+	}
+	panic(fmt.Errorf("cannot find interface with name %q", name))
+}
