@@ -77,7 +77,6 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	oldDir := dirs.SnapContextDir
 	dirs.SnapContextDir = c.MkDir()
 
 	s.fakeBackend = &fakeSnappyBackend{}
@@ -102,7 +101,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.reset = func() {
 		restore2()
 		restore1()
-		dirs.SnapContextDir = oldDir
+		dirs.SetRootDir("/")
 	}
 
 	s.state.Lock()
