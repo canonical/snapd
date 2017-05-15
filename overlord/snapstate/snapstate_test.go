@@ -5702,6 +5702,45 @@ version: 1.0
 	})
 }
 
+func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c)
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	defls, err := snapstate.ConfigDefaults(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
+
+	snapstate.Set(s.state, "local-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "local-snap", Revision: snap.R(5)},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+	})
+	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
 	var mockGadgetSnapYaml = `
 name: canonical-pc
@@ -5772,7 +5811,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	c.Assert(runHook.Kind(), Equals, "run-hook")
 	err = runHook.Get("hook-context", &m)
 	c.Assert(err, IsNil)
-	c.Assert(m["patch"], DeepEquals, map[string]interface{}{"key": "value"})
+	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
