@@ -38,7 +38,7 @@ type OnlineAccountsServiceInterfaceSuite struct {
 }
 
 var _ = Suite(&OnlineAccountsServiceInterfaceSuite{
-	iface: &builtin.OnlineAccountsServiceInterface{},
+	iface: builtin.MustInterface("online-accounts-service"),
 })
 
 func (s *OnlineAccountsServiceInterfaceSuite) SetUpTest(c *C) {

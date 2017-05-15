@@ -7,10 +7,10 @@ restore: |
     fanctl down -e
 execute: |
     echo "Test that fanctl exists"
-    fanctl |grep "Usage: /usr/sbin/fanctl <cmd>.*" || true
+    command -v fanctl
 
     echo "Test fanctl created fan bridge"
-    ifconfig |grep ^fan-241
+    ifconfig |MATCH ^fan-241
 
     # FIXME: port the docker tests once we have docker again
     # https://github.com/snapcore/snapd/blob/2.13/integration-tests/tests/ubuntufan_test.go#L88

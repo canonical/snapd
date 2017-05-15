@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
 
@@ -58,15 +54,10 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-// NewShutdownInterface returns a new "shutdown" interface.
-func NewShutdownInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "shutdown",
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewShutdownInterface())
+	})
 }

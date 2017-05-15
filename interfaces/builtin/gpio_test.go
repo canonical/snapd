@@ -42,7 +42,7 @@ type GpioInterfaceSuite struct {
 }
 
 var _ = Suite(&GpioInterfaceSuite{
-	iface: &builtin.GpioInterface{},
+	iface: builtin.MustInterface("gpio"),
 })
 
 func (s *GpioInterfaceSuite) SetUpTest(c *C) {

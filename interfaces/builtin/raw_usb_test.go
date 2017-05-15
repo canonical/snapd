@@ -36,7 +36,9 @@ type RawUsbSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&RawUsbSuite{})
+var _ = Suite(&RawUsbSuite{
+	iface: builtin.MustInterface("raw-usb"),
+})
 
 func (s *RawUsbSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [raw-usb]
 `
-	s.iface = builtin.NewRawUsbInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
