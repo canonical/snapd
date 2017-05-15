@@ -38,7 +38,7 @@ type ConsolesInterfaceSuite struct {
 }
 
 var _ = Suite(&ConsolesInterfaceSuite{
-	iface: &builtin.ConsolesInterface{},
+	iface: builtin.MustInterface("consoles"),
 })
 
 func (s *ConsolesInterfaceSuite) SetUpTest(c *C) {
