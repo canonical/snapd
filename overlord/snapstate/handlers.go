@@ -800,10 +800,10 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
 
-	//if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
-	//	return fmt.Errorf("Cannot remove snap context: %v", err)
-	//}
-	return nil
+	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("cannot remove snap context: %v", err)
+	}
+	return err
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {

@@ -59,6 +59,7 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
+	oldDir := dirs.SnapContextDir
 	dirs.SnapContextDir = c.MkDir()
 
 	s.stateBackend = &witnessRestartReqStateBackend{}
@@ -72,7 +73,11 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		reset1()
+		dirs.SnapContextDir = oldDir
+	}
 }
 
 func (s *linkSnapSuite) TearDownTest(c *C) {
