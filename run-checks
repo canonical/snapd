@@ -143,9 +143,6 @@ if [ "$UNIT" = 1 ]; then
         $goctest -v -coverprofile=.coverage/profile.out -covermode=atomic $pkg
         append_coverage .coverage/profile.out
     done
-
-    # copy in place for codecov.io
-    cp .coverage/coverage.out coverage.txt
 fi
 
 if [ "$SPREAD" = 1 ]; then
