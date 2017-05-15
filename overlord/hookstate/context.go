@@ -48,14 +48,14 @@ type Context struct {
 
 // NewContext returns a new Context.
 // The task is optional, if nil then context becomes ephemeral. If contextID is empty, then a random ID will be generated.
-func NewContext(task *state.Task, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
+func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
 	if contextID == "" {
 		contextID = strutil.MakeRandomString(40)
 	}
 
 	return &Context{
 		task:    task,
-		state:   task.State(),
+		state:   state,
 		setup:   setup,
 		id:      contextID,
 		handler: handler,

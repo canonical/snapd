@@ -129,7 +129,7 @@ func (m *HookManager) snapContext(contextID string) (context *Context, err error
 	}
 	if snapName, ok := contexts[contextID]; ok {
 		// create new ephemeral context
-		context, err = NewContext(nil, &HookSetup{Snap: snapName}, nil, contextID)
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, contextID)
 		return context, err
 	}
 	return nil, fmt.Errorf("unknown snap context requested")
@@ -196,7 +196,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
-	context, err := NewContext(task, hooksup, nil, "")
+	context, err := NewContext(task, task.State(), hooksup, nil, "")
 	if err != nil {
 		return err
 	}

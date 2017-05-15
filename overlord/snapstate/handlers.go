@@ -492,18 +492,22 @@ func (m *SnapManager) removeSnapContext(st *state.State, snapName string) error 
 	var contexts map[string]string
 	err := st.Get("snap-contexts", &contexts)
 	if err != nil {
-		return err
+		if err != state.ErrNoState {
+			return fmt.Errorf("failed to get snap contexts: %v", err)
+		}
+		contexts = make(map[string]string)
 	}
+
 	for contextID, snap := range contexts {
 		if snapName == snap {
 			delete(contexts, contextID)
 			st.Set("snap-contexts", contexts)
 			// error on removing the context file is not fatal
 			_ = os.Remove(filepath.Join(dirs.SnapContextDir, fmt.Sprintf("snap.%s", snapName)))
-			return nil
+			break
 		}
 	}
-	return fmt.Errorf("context for snap %q not found", snapName)
+	return nil
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -516,9 +520,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
-		return err
-	}
+	//	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
+	//		return fmt.Errorf("Failed to create snap context: %v", err)
+	//	}
 
 	cand := snapsup.SideInfo
 	m.backend.Candidate(cand)
@@ -796,7 +800,10 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
 
-	return m.removeSnapContext(st, snapsup.Name())
+	//if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+	//	return fmt.Errorf("Cannot remove snap context: %v", err)
+	//}
+	return nil
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {

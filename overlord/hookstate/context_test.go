@@ -42,7 +42,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 	s.task = state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 	var err error
-	s.context, err = NewContext(s.task, s.setup, nil, "")
+	s.context, err = NewContext(s.task, s.task.State(), s.setup, nil, "")
 	c.Check(err, IsNil)
 }
 
@@ -73,7 +73,7 @@ func (s *contextSuite) TestSetPersistence(c *C) {
 
 	// Verify that "foo" is still "bar" within another context of the same hook
 	// on the same task.
-	anotherContext := &Context{task: s.task, setup: s.setup}
+	anotherContext := &Context{task: s.task, state: s.task.State(), setup: s.setup}
 	anotherContext.Lock()
 	defer anotherContext.Unlock()
 

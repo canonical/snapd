@@ -77,6 +77,8 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	dirs.SnapContextDir = c.MkDir()
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 	s.fakeStore = &fakeStore{
@@ -1248,7 +1250,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-6]
+	linkTask := ta[len(ta)-5]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
 	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
@@ -2372,7 +2374,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 15
+			j += 14
 			c.Check(first.Kind(), Equals, "download-snap")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -2476,7 +2478,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2491,9 +2493,9 @@ version: 1.0`)
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
-	c.Check(s.fakeBackend.ops[7].op, Equals, "setup-profiles:Doing") // core phase 2
-	c.Check(s.fakeBackend.ops[9].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[9].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[6].op, Equals, "setup-profiles:Doing") // core phase 2
+	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2552,7 +2554,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops, HasLen, 14)
+	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/x2")
 	// and setup-snap
@@ -2587,9 +2589,9 @@ version: 1.0`)
 	})
 	c.Check(ops[8].op, Equals, "link-snap")
 	c.Check(ops[8].name, Equals, "/snap/mock/x3")
-	c.Check(ops[10].op, Equals, "setup-profiles:Doing") // core phase 2
-	c.Check(ops[12].op, Equals, "start-snap-services")
-	c.Check(ops[12].name, Equals, "/snap/mock/x3")
+	c.Check(ops[9].op, Equals, "setup-profiles:Doing") // core phase 2
+	c.Check(ops[11].op, Equals, "start-snap-services")
+	c.Check(ops[11].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2649,7 +2651,7 @@ version: 1.0`)
 
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	ops := s.fakeBackend.ops
-	c.Assert(ops, HasLen, 14)
+	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/100001")
 	// and setup-snap
@@ -2703,7 +2705,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2715,8 +2717,8 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
-	c.Check(s.fakeBackend.ops[9].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[9].name, Equals, "/snap/some-snap/42")
+	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/some-snap/42")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2770,7 +2772,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 10)
+	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
@@ -3081,7 +3083,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 6)
+	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
@@ -3469,7 +3471,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 
 	// ensure garbage collection runs as the last tasks
 	ops := s.fakeBackend.ops
-	c.Assert(ops[len(ops)-9], DeepEquals, fakeOp{
+	c.Assert(ops[len(ops)-8], DeepEquals, fakeOp{
 		op:   "link-snap",
 		name: "/snap/some-snap/11",
 	})
@@ -3718,7 +3720,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 9)
+	c.Assert(s.fakeBackend.ops, HasLen, 8)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -5641,7 +5643,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 7*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",

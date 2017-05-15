@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -58,6 +59,8 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
+	dirs.SnapContextDir = c.MkDir()
+
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(s.stateBackend)
