@@ -105,13 +105,6 @@ func run() error {
 			changesMade = append(changesMade, change)
 			continue
 		}
-		// Read mount info each time as our operations may have unexpected
-		// consequences and we want to know the real state of what is mounted
-		// at each iteration.
-		mounted, err := mount.LoadMountInfo(mount.ProcSelfMountInfo)
-		if err != nil {
-			return fmt.Errorf("cannot read mount-info table: %s", err)
-		}
 		if err := change.Perform(); err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
