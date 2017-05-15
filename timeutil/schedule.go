@@ -102,7 +102,18 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 	}
 }
 
-func randDur(dur time.Duration) time.Duration {
+func randDur(a, b time.Time) time.Duration {
+	dur := b.Sub(a)
+	if dur > 5*time.Minute {
+		// doing it this way we still spread really small windows about
+		dur -= 5 * time.Minute
+	}
+
+	if dur <= 0 {
+		// avoid panic'ing (even if things are probably messed up)
+		return 0
+	}
+
 	return time.Duration(rand.Int63n(int64(dur)))
 }
 
@@ -135,7 +146,7 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 		return 0
 	}
 
-	when := a.Sub(now) + randDur(b.Add(-5*time.Minute).Sub(a))
+	when := a.Sub(now) + randDur(a, b)
 
 	return when
 }

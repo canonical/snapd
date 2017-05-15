@@ -7,13 +7,13 @@ prepare: |
 execute: |
   touch foo
   # no immutable flag:
-  lsattr foo | grep -qv i
+  lsattr foo | MATCH -v i
   test "$(./toggle foo)" = "mutable -> immutable"
   # and now an immutable flag!:
-  lsattr foo | grep -q i
+  lsattr foo | MATCH i
   test "$(./toggle foo)" = "immutable -> mutable"
   # no immutable flag again:
-  lsattr foo | grep -qv i
+  lsattr foo | MATCH -v i
 restore: |
     rm -f foo
     rm -f toggle

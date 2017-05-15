@@ -105,12 +105,6 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		// ensure that "/" or "/snap" is mounted with the
-		// "shared" option, see LP:#1668659
-		int global_lock_fd = sc_lock_global();
-		sc_ensure_shared_snap_mount();
-		sc_unlock_global(global_lock_fd);
-
 		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
@@ -139,10 +133,12 @@ int main(int argc, char **argv)
 			sc_reassociate_with_pid1_mount_ns();
 			// Do global initialization:
 			int global_lock_fd = sc_lock_global();
+			// ensure that "/" or "/snap" is mounted with the
+			// "shared" option, see LP:#1668659
+			debug("ensuring that snap mount directory is shared");
+			sc_ensure_shared_snap_mount();
 			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
-			// TODO: implement this.
-			debug("share snap directory here...");
 			sc_unlock_global(global_lock_fd);
 
 			// Do per-snap initialization.

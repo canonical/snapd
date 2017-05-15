@@ -42,7 +42,7 @@ execute: |
         sleep 1
     done
 
-    if snap list|grep ubuntu-core; then
+    if ! snap list|MATCH -v ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
