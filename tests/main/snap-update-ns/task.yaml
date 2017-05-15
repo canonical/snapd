@@ -30,7 +30,7 @@ execute: |
     # inert, as a way to provide content, but it does not execute and does not
     # need a namespace namespace.
 
-    # Check that update doesn't error if there is no namespace yet.
+    # Check that update tool doesn't fail if there is no namespace yet.
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP
 
     # Run a trivial command to build and preserve a mount namespace.
@@ -42,16 +42,16 @@ execute: |
     # Run snap-update-ns to see that setns part worked and we got did nothing at all.
     # We did nothing at all because the namespace is exactly as it needs to be already
     # because snap-confine just constructed it according to the desired description.
-    echo "Check that snap-update-ns does nothing, on 1st call, after installing two snaps."
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
+    diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Connect the plug to the slot.
     snap connect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
 
     # Run the update tool manually to see that it is idempotent.
-    echo "Check that snap-update-ns does nothing, on manual call, after connecting the content interface"
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Check that the shared content is mounted.
@@ -61,9 +61,8 @@ execute: |
     snap disconnect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
 
     # Run the update tool manually to see that it is idempotent.
-    echo "Check that snap-update-ns does unmount, on manual call, after disconnecting the content interface"
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Check that the shared content is not mounted.
@@ -71,5 +70,4 @@ execute: |
 
     # Discard the namespace so that update has nothing useful to do.
     /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
-    echo "Check that snap-update-ns silently does nothing after discarding the mount namespace"
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP

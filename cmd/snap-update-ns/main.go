@@ -116,7 +116,6 @@ func run() error {
 			changesMade = append(changesMade, change)
 			continue
 		}
-		fmt.Printf("%s\n", change)
 		if err := change.Perform(); err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
