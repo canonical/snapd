@@ -33,9 +33,6 @@ var (
 	GlobalRootDir string
 
 	SnapMountDir string
-	// RawSnapMountDir is the path of the snap mount dir without
-	// the GlobalRootDir as prefix.
-	RawSnapMountDir string
 
 	// CoreSnapMountDir is the path of the snap mount dir inside
 	// the snap confinement environment. Give this nature it will
@@ -44,8 +41,8 @@ var (
 
 	// CoreLibExecDir is similar to CoreSnapMountDir but for the
 	// LibExecDir used by snapd.
-	CoreLibExecDir            string
-	DistroLibExecDir          string
+	CoreLibExecDir   string
+	DistroLibExecDir string
 
 	SnapBlobDir               string
 	SnapDataDir               string
@@ -138,11 +135,9 @@ func SetRootDir(rootdir string) {
 
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel", "arch":
-		RawSnapMountDir = "/var/lib/snapd/snap"
-		SnapMountDir = filepath.Join(rootdir, RawSnapMountDir)
+		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
-		RawSnapMountDir = defaultSnapMountDir
-		SnapMountDir = filepath.Join(rootdir, RawSnapMountDir)
+		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
