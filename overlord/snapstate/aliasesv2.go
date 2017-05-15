@@ -201,6 +201,11 @@ func autoAliasesDelta(st *state.State, names []string) (changed map[string][]str
 	return changed, dropped, firstErr
 }
 
+func nonDaemon(info *snap.Info, appName string) bool {
+	app := info.Apps[appName]
+	return app != nil && app.Daemon == ""
+}
+
 // refreshAliases applies the current snap-declaration aliases
 // considering which applications exist in info and produces new aliases
 // for the snap.
@@ -213,8 +218,8 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
 	// apply the current auto-aliases
 	for alias, target := range autoAliases {
-		if info.Apps[target] == nil {
-			// not an existing app
+		if !nonDaemon(info, target) {
+			// non-existing app or a daemon
 			continue
 		}
 		newAliases[alias] = &AliasTarget{Auto: target}
@@ -225,8 +230,8 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 		if curTarget.Manual == "" {
 			continue
 		}
-		if info.Apps[curTarget.Manual] == nil {
-			// not an existing app
+		if !nonDaemon(info, curTarget.Manual) {
+			// non-existing app or daemon
 			continue
 		}
 		newTarget := newAliases[alias]
@@ -401,8 +406,8 @@ func reenableAliases(info *snap.Info, curAliases map[string]*AliasTarget, disabl
 	}
 
 	for alias, manual := range disabledManual {
-		if info.Apps[manual] == nil {
-			// not an app presently
+		if !nonDaemon(info, manual) {
+			// not a non-daemon app presently
 			continue
 		}
 
@@ -561,8 +566,14 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 // manualAliases returns newAliases with a manual alias to target setup over
 // curAliases.
 func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
-	if info.Apps[target] == nil {
-		return nil, fmt.Errorf("cannot enable alias %q for %q, target application %q does not exist", alias, info.Name(), target)
+	if !nonDaemon(info, target) {
+		var reason string
+		if info.Apps[target] == nil {
+			reason = fmt.Sprintf("target application %q does not exist", target)
+		} else {
+			reason = fmt.Sprintf("target application %q is a daemon", target)
+		}
+		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.Name(), reason)
 	}
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
