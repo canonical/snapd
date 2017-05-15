@@ -89,7 +89,6 @@ func Manager(s *state.State) (*HookManager, error) {
 		runner:     runner,
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
-		//snapContexts: newSnapContexts(s),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)

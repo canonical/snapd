@@ -18,7 +18,7 @@
 #ifndef SNAP_CONFINE_CONTEXT_SUPPORT_H
 #define SNAP_CONFINE_CONTEXT_SUPPORT_H
 
-#include "error.h"
+#include "../libsnap-confine-private/error.h"
 
 /**
  * Error domain for errors related to snap context handling.

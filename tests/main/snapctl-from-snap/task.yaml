@@ -9,7 +9,7 @@ restore: |
 
 execute: |
     echo "Verify that context file exists and has proper permissions"
-    CONTEXT_FILE=/var/lib/snapd/contexts/snap.snapctl-from-snap
+    CONTEXT_FILE=/var/lib/snapd/context/snap.snapctl-from-snap
     if ! test -f $CONTEXT_FILE ; then
         echo "Context file $CONTEXT_FILE is missing"
         exit 1

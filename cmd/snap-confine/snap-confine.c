@@ -87,23 +87,17 @@ int main(int argc, char **argv)
 #endif
 
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-	const char *snap_name = getenv("SNAP_NAME");
-	if (snap_name != NULL) {
-		if (!verify_snap_name(snap_name)) {
-			die("invalid SNAP_NAME");
-		}
-		// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
-		if (!verify_is_hook_security_tag(security_tag)) {
-			struct sc_error *err
-			    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
-			snap_context =
-			    sc_nonfatal_context_get_from_snapd(snap_name, &err);
-			if (err != NULL) {
-				error("cannot get context: %s",
-				      sc_error_msg(err));
-			}
-		}
-	}
+  // Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
+  if (!verify_is_hook_security_tag(security_tag)) {
+    struct sc_error *err
+      __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+    snap_context =
+      sc_nonfatal_context_get_from_snapd(snap_name, &err);
+    if (err != NULL) {
+      error("cannot get context: %s",
+            sc_error_msg(err));
+    }
+  }
 
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);

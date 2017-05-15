@@ -15,10 +15,12 @@
  *
  */
 
-#include "cleanup-funcs.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
+
 #include "config.h"
 #include "context-support.h"
-#include "utils.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -27,7 +29,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define CONTEXTS_DIR "/var/lib/snapd/contexts"
+#define CONTEXT_DIR "/var/lib/snapd/context"
 
 char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 					 struct sc_error **errorp)
@@ -41,8 +43,8 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 	}
 
 	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
-	must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
-		      CONTEXTS_DIR, snap_name);
+	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
+		      CONTEXT_DIR, snap_name);
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		err =
