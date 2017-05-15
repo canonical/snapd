@@ -40,6 +40,7 @@ import (
 // control flags for doInstall
 const (
 	maybeCore = 1 << iota
+	skipConfigure
 )
 
 // control flags for "Configure()"
@@ -220,6 +221,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 
+	if flags&skipConfigure != 0 {
+		return installSet, nil
+	}
+
 	var confFlags int
 	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
 		// installation, run configure using the gadget defaults
@@ -227,18 +232,23 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		confFlags |= UseConfigDefaults
 	}
 
-	// This is slightly ugly, ideally we would check the type instead
-	// of hardcoding the name here. Unfortunately we do not have the
-	// type until we actually run the change.
-	if snapsup.Name() == "core" {
-		confFlags |= IgnoreHookError
-		confFlags |= TrackHookError
-	}
-	configSet := Configure(st, snapsup.Name(), nil, confFlags)
+	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 	configSet.WaitAll(installSet)
 	installSet.AddAll(configSet)
 
 	return installSet, nil
+}
+
+// ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
+func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskSet {
+	// This is slightly ugly, ideally we would check the type instead
+	// of hardcoding the name here. Unfortunately we do not have the
+	// type until we actually run the change.
+	if snapName == "core" {
+		confFlags |= IgnoreHookError
+		confFlags |= TrackHookError
+	}
+	return Configure(st, snapName, nil, confFlags)
 }
 
 var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
@@ -330,6 +340,13 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
+	instFlags := maybeCore
+	if flags.SkipConfigure {
+		// extract it as a doInstall flag, this is not passed
+		// into SnapSetup
+		instFlags |= skipConfigure
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: si,
 		SnapPath: path,
@@ -337,7 +354,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		Flags:    flags.ForSnapSetup(),
 	}
 
-	return doInstall(st, &snapst, snapsup, maybeCore)
+	return doInstall(st, &snapst, snapsup, instFlags)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.

@@ -5814,6 +5814,33 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
 }
 
+func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c)
+
+	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{SkipConfigure: true})
+	c.Assert(err, IsNil)
+
+	runHook := taskWithKind(ts, "run-hook")
+	c.Assert(runHook, IsNil)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.SkipConfigure, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
