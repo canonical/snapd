@@ -20,20 +20,11 @@ execute: |
     fi
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
-    OUTPUT=$(/snap/bin/snapctl-from-snap.app1)
-    EXPECTED="bar"
-    if [ "$OUTPUT" != $EXPECTED ]; then
-        echo "Expected '$EXPECTED', got '$OUTPUT'"
-        exit 1
-    fi
+    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    OUTPUT=$(/snap/bin/snapctl-from-snap.app2)
-    EXPECTED="123"
-    if [ "$OUTPUT" != $EXPECTED ]; then
-        echo "Expected '$EXPECTED', got '$OUTPUT'"
-        exit 1
-    fi
+    /snap/bin/snapctl-from-snap.snapctl-set foo=123
+    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
 
     echo "Verify that snap context is removed on snap removal"
     snap remove snapctl-from-snap

@@ -1,3 +1,0 @@
-#!/bin/sh
-snapctl set foo=123
-snapctl get foo
