@@ -85,19 +85,19 @@ capability sys_time,
 `
 
 // The type for the rtc interface
-type TimeControlInterface struct{}
+type timeControlInterface struct{}
 
 // Getter for the name of the rtc interface
-func (iface *TimeControlInterface) Name() string {
+func (iface *timeControlInterface) Name() string {
 	return "time-control"
 }
 
-func (iface *TimeControlInterface) String() string {
+func (iface *timeControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *TimeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -112,7 +112,7 @@ func (iface *TimeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -120,12 +120,12 @@ func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *TimeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(timeControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *TimeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -134,11 +134,11 @@ func (iface *TimeControlInterface) UDevConnectedPlug(spec *udev.Specification, p
 	return nil
 }
 
-func (iface *TimeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *timeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&TimeControlInterface{})
+	registerIface(&timeControlInterface{})
 }

@@ -38,7 +38,9 @@ type MaliitInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MaliitInterfaceSuite{})
+var _ = Suite(&MaliitInterfaceSuite{
+	iface: builtin.MustInterface("maliit"),
+})
 
 func (s *MaliitInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -55,7 +57,6 @@ apps:
   command: foo
   slots: [maliit]
 `
-	s.iface = &builtin.MaliitInterface{}
 	slotSnap := snaptest.MockInfo(c, mockCoreSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["maliit"]}
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)

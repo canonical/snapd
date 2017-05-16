@@ -36,7 +36,9 @@ type TimeserverControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TimeserverControlInterfaceSuite{})
+var _ = Suite(&TimeserverControlInterfaceSuite{
+	iface: builtin.MustInterface("timeserver-control"),
+})
 
 func (s *TimeserverControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [timeserver-control]
 `
-	s.iface = builtin.NewTimeserverControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

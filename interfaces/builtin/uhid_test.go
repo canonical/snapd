@@ -32,13 +32,12 @@ import (
 
 type UhidInterfaceSuite struct {
 	iface interfaces.Interface
-
-	slot *interfaces.Slot
-	plug *interfaces.Plug
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
 var _ = Suite(&UhidInterfaceSuite{
-	iface: &builtin.UhidInterface{},
+	iface: builtin.MustInterface("uhid"),
 })
 
 func (s *UhidInterfaceSuite) SetUpTest(c *C) {

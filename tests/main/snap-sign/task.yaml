@@ -11,7 +11,7 @@ execute: |
     expect -f create-key.exp
 
     echo "Ensure we have the new key"
-    snap keys|grep default
+    snap keys|MATCH default
     key=$(snap keys|grep default|tr -s ' ' |cut -f2 -d' ')
 
     echo "Create an example model assertion"
@@ -32,7 +32,7 @@ execute: |
     expect -d -f sign-model.exp
 
     echo "Verify that the resulting model assertion is signed"
-    grep "sign-key-sha3-384: $key" pi3.model
+    MATCH "sign-key-sha3-384: $key" < pi3.model
 
 restore: |
     rm -f pi3.model

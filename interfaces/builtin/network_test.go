@@ -45,10 +45,11 @@ apps:
   plugs: [network]
 `
 
-var _ = Suite(&NetworkInterfaceSuite{})
+var _ = Suite(&NetworkInterfaceSuite{
+	iface: builtin.MustInterface("network"),
+})
 
 func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
