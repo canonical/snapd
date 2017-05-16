@@ -53,6 +53,11 @@ func (s *lockSuite) TestOpenLock(c *C) {
 
 // Test that Lock and Unlock work as expected.
 func (s *lockSuite) TestLockUnlockWorks(c *C) {
+	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
+		c.Skip("Cannot use this under travis")
+		return
+	}
+
 	lock, err := mount.OpenLock("name")
 	c.Assert(err, IsNil)
 	defer lock.Close()
