@@ -50,9 +50,9 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
+func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
 	if err := snap.ValidateApp(app); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return genServiceFile(app), nil
@@ -96,7 +96,7 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 		}
 		svcFilePath := app.ServiceFile()
 		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
-		if err := osutil.AtomicWriteFile(svcFilePath, []byte(content), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
 			return err
 		}
 	}
@@ -168,7 +168,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func genServiceFile(appInfo *snap.AppInfo) string {
+func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
@@ -247,5 +247,5 @@ WantedBy={{.ServicesTarget}}
 		logger.Panicf("Unable to execute template: %v", err)
 	}
 
-	return templateOut.String()
+	return templateOut.Bytes()
 }

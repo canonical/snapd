@@ -280,6 +280,7 @@ func snapCmd() string {
 
 var syscallKill = syscall.Kill
 var cmdWaitTimeout = 5 * time.Second
+var defaultHookTimeout = 10 * time.Minute
 
 func killemAll(cmd *exec.Cmd) error {
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
@@ -316,6 +317,9 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// add timeout handling
 	var killTimerCh <-chan time.Time
+	if timeout == 0 {
+		timeout = defaultHookTimeout
+	}
 	if timeout > 0 {
 		killTimerCh = time.After(timeout)
 	}

@@ -54,7 +54,7 @@ type BoolFileInterfaceSuite struct {
 }
 
 var _ = Suite(&BoolFileInterfaceSuite{
-	iface: &builtin.BoolFileInterface{},
+	iface: builtin.MustInterface("bool-file"),
 })
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {

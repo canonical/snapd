@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const coreSupportConnectedPlugAppArmor = `
 # Description: Can control all aspects of systemd via the systemctl command,
 # update rsyslog configuration, update systemd-timesyncd configuration and
@@ -78,17 +74,12 @@ owner /boot/uboot/config.txt rwk,
 owner /boot/uboot/config.txt.tmp rwk,
 `
 
-// NewShutdownInterface returns a new "shutdown" interface.
-func NewCoreSupportInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "core-support",
-		// NOTE: cure-support implicitly contains the rules from network-bind.
+		// NOTE: core-support implicitly contains the rules from network-bind.
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewCoreSupportInterface())
+	})
 }

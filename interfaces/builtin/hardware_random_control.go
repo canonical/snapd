@@ -45,15 +45,15 @@ const hardwareRandomControlConnectedPlugAppArmor = `
 `
 
 // The type for physical-memory-control interface
-type HardwareRandomControlInterface struct{}
+type hardwareRandomControlInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *HardwareRandomControlInterface) Name() string {
+func (iface *hardwareRandomControlInterface) Name() string {
 	return "hardware-random-control"
 }
 
 // Check validity of the defined slot
-func (iface *HardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
@@ -65,7 +65,7 @@ func (iface *HardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot)
 }
 
 // Checks and possibly modifies a plug
-func (iface *HardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *hardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -73,12 +73,12 @@ func (iface *HardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-func (iface *HardwareRandomControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hardwareRandomControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(hardwareRandomControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *HardwareRandomControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hardwareRandomControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="hwrng", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -87,11 +87,11 @@ func (iface *HardwareRandomControlInterface) UDevConnectedPlug(spec *udev.Specif
 	return nil
 }
 
-func (iface *HardwareRandomControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *hardwareRandomControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&HardwareRandomControlInterface{})
+	registerIface(&hardwareRandomControlInterface{})
 }

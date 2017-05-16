@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const systemTraceConnectedPlugAppArmor = `
 # Description: Can use kernel tracing facilities. This is restricted because it
 # gives privileged access to all processes on the system and should only be
@@ -55,16 +51,11 @@ bpf
 perf_event_open
 `
 
-// NewSystemTraceInterface returns a new "system-trace" interface.
-func NewSystemTraceInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "system-trace",
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewSystemTraceInterface())
+	})
 }
