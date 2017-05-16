@@ -454,9 +454,14 @@ func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
 }
 
+// Servicename returns the systemd service name for the daemon app.
+func (app *AppInfo) ServiceName() string {
+	return app.SecurityTag() + ".service"
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
+	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
 // ServiceSocketFile returns the systemd socket file path for the daemon app.
