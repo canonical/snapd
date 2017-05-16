@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+# bash because of the codecov integration
+
 if [ "$TRAVIS_BUILD_NUMBER" ]; then
     echo travis_fold:start:env
     printenv | sort
