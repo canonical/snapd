@@ -12,7 +12,10 @@ execute: |
     dpkg --purge --force-depends snapd
     apt-get install -f -y
     install_build_snapd
-    snap install --${CORE_CHANNEL} ubuntu-core
+
+    snap download --${CORE_CHANNEL} ubuntu-core
+    snap ack ./ubuntu-core_*.assert
+    snap install ./ubuntu-core_*.snap
 
     mkdir -p /root/.snap/
     echo '{}' > /root/.snap/auth.json

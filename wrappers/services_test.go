@@ -67,11 +67,15 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
 
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
 
@@ -154,8 +158,5 @@ func (s *servicesTestSuite) TestStartSnapServices(c *C) {
 	err := wrappers.StartSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(sysdLog, HasLen, 3)
-	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
-	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
-	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
+	c.Assert(sysdLog, DeepEquals, [][]string{{"start", filepath.Base(svcFile)}})
 }
