@@ -320,11 +320,11 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 		return err
 	}
 	for otherSnap, snapst := range snapStates {
-		snapst, err := snapst.Type()
+		typ, err := snapst.Type()
 		if err != nil {
 			return err
 		}
-		if snapst == snap.TypeBase && otherSnap == snapInfo.Base {
+		if typ == snap.TypeBase && otherSnap == snapInfo.Base {
 			return nil
 		}
 	}
