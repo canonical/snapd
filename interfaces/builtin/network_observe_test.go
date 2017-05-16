@@ -45,10 +45,11 @@ apps:
   plugs: [network-observe]
 `
 
-var _ = Suite(&NetworkObserveInterfaceSuite{})
+var _ = Suite(&NetworkObserveInterfaceSuite{
+	iface: builtin.MustInterface("network-observe"),
+})
 
 func (s *NetworkObserveInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const autopilotIntrospectionPlugAppArmor = `
 # Description: Allows an application to be introspected and export its ui
 # status over DBus
@@ -56,17 +52,11 @@ sendmsg
 sendto
 `
 
-// NewAutopilotIntrospectionInterface returns a new "autopilot-introspection"
-// interface.
-func NewAutopilotIntrospectionInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "autopilot-introspection",
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
 		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewAutopilotIntrospectionInterface())
+	})
 }

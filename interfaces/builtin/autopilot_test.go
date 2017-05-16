@@ -45,10 +45,11 @@ apps:
   plugs: [autopilot-introspection]
 `
 
-var _ = Suite(&AutopilotInterfaceSuite{})
+var _ = Suite(&AutopilotInterfaceSuite{
+	iface: builtin.MustInterface("autopilot-introspection"),
+})
 
 func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewAutopilotIntrospectionInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

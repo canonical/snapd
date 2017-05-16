@@ -36,7 +36,9 @@ type LogObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LogObserveInterfaceSuite{})
+var _ = Suite(&LogObserveInterfaceSuite{
+	iface: builtin.MustInterface("log-observe"),
+})
 
 func (s *LogObserveInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [log-observe]
 `
-	s.iface = builtin.NewLogObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

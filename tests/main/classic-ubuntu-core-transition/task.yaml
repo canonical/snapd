@@ -42,7 +42,10 @@ execute: |
     mv state.json.new /var/lib/snapd/state.json
     systemctl start snapd.{service,socket}
 
-    snap install --${CORE_CHANNEL} ubuntu-core
+    snap download --${CORE_CHANNEL} ubuntu-core
+    snap ack ./ubuntu-core_*.assert
+    snap install ./ubuntu-core_*.snap
+
     snap install test-snapd-python-webserver
     snap interfaces | MATCH ":network +test-snapd-python-webserver"
     snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"

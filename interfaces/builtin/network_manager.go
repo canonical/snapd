@@ -371,13 +371,13 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
-type NetworkManagerInterface struct{}
+type networkManagerInterface struct{}
 
-func (iface *NetworkManagerInterface) Name() string {
+func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -392,7 +392,7 @@ func (iface *NetworkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
@@ -400,34 +400,34 @@ func (iface *NetworkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *NetworkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *NetworkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&NetworkManagerInterface{})
+	registerIface(&networkManagerInterface{})
 }

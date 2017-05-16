@@ -38,7 +38,9 @@ type BluezInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BluezInterfaceSuite{})
+var _ = Suite(&BluezInterfaceSuite{
+	iface: builtin.MustInterface("bluez"),
+})
 
 const bluezMockPlugSnapInfoYaml = `name: other
 version: 1.0
@@ -56,7 +58,6 @@ apps:
 `
 
 func (s *BluezInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.BluezInterface{}
 	slotSnap := snaptest.MockInfo(c, bluezMockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["bluez"]}
 	plugSnap := snaptest.MockInfo(c, bluezMockPlugSnapInfoYaml, nil)
