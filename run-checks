@@ -147,7 +147,7 @@ if [ "$UNIT" = 1 ]; then
     done
 
     # upload to codecov.io if on travis
-    if [ "$TRAVIS_BUILD_NUMBER" ]; then
+    if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
         bash <(curl -s https://codecov.io/bash) -f .coverage/coverage.out
     fi
 fi
