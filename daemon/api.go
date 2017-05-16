@@ -2297,6 +2297,14 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
+	if context.IsEphemeral() {
+		context.Lock()
+		defer context.Unlock()
+		if err := context.Done(); err != nil {
+			return BadRequest(i18n.G("set failed: %v"), err)
+		}
+	}
+
 	result := map[string]string{
 		"stdout": string(stdout),
 		"stderr": string(stderr),

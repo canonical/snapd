@@ -111,14 +111,6 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		tr.Set(s.context().SnapName(), key, value)
 	}
 
-	if context.IsEphemeral() {
-		context.Lock()
-		defer context.Unlock()
-		if err := context.Done(); err != nil {
-			return fmt.Errorf(i18n.G("set failed: %v"), err)
-		}
-	}
-
 	return nil
 }
 
