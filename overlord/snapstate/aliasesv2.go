@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 // AliasTarget carries the targets of an alias in the context of snap.
@@ -201,11 +202,6 @@ func autoAliasesDelta(st *state.State, names []string) (changed map[string][]str
 	return changed, dropped, firstErr
 }
 
-func nonDaemon(info *snap.Info, appName string) bool {
-	app := info.Apps[appName]
-	return app != nil && app.Daemon == ""
-}
-
 // refreshAliases applies the current snap-declaration aliases
 // considering which applications exist in info and produces new aliases
 // for the snap.
@@ -218,7 +214,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
 	// apply the current auto-aliases
 	for alias, target := range autoAliases {
-		if !nonDaemon(info, target) {
+		if app := info.Apps[target]; app == nil || wrappers.IsService(app) {
 			// non-existing app or a daemon
 			continue
 		}
@@ -230,7 +226,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 		if curTarget.Manual == "" {
 			continue
 		}
-		if !nonDaemon(info, curTarget.Manual) {
+		if app := info.Apps[curTarget.Manual]; app == nil || wrappers.IsService(app) {
 			// non-existing app or daemon
 			continue
 		}
@@ -406,7 +402,7 @@ func reenableAliases(info *snap.Info, curAliases map[string]*AliasTarget, disabl
 	}
 
 	for alias, manual := range disabledManual {
-		if !nonDaemon(info, manual) {
+		if app := info.Apps[manual]; app == nil || wrappers.IsService(app) {
 			// not a non-daemon app presently
 			continue
 		}
@@ -566,9 +562,9 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 // manualAliases returns newAliases with a manual alias to target setup over
 // curAliases.
 func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
-	if !nonDaemon(info, target) {
+	if app := info.Apps[target]; app == nil || wrappers.IsService(app) {
 		var reason string
-		if info.Apps[target] == nil {
+		if app == nil {
 			reason = fmt.Sprintf("target application %q does not exist", target)
 		} else {
 			reason = fmt.Sprintf("target application %q is a daemon", target)
