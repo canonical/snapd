@@ -58,6 +58,7 @@ func distroSupportsReExec() bool {
 	}
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel", "opensuse", "suse", "poky":
+		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
 	return true
@@ -74,20 +75,25 @@ func coreSupportsReExec(corePath string) bool {
 	}
 	content, err := ioutil.ReadFile(fullInfo)
 	if err != nil {
-		logger.Noticef("cannot read info file %q: %s", fullInfo, err)
+		logger.Noticef("cannot read snapd info file %q: %s", fullInfo, err)
 		return false
 	}
 	ver := regexp.MustCompile("(?m)^VERSION=(.*)$").FindStringSubmatch(string(content))
 	if len(ver) != 2 {
-		logger.Noticef("cannot find version information in %q", content)
+		logger.Noticef("cannot find snapd version information in %q", content)
 		return false
 	}
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver[1])
 	if err != nil {
+		logger.Debugf("cannot version compare %q and %q: %s", Version, ver[1], res)
 		return false
 	}
-	return res <= 0
+	if res > 0 {
+		logger.Debugf("core snap (at %q) is older (%q) than distribution package (%q)", corePath, ver[1], Version)
+		return false
+	}
+	return true
 }
 
 // InternalToolPath returns the path of the internal snapd tool.
@@ -102,6 +108,7 @@ func InternalToolPath(tool string) string {
 	// If we are asked not to re-execute use distribution packages. This is
 	// "spiritual" re-exec so use the same environment variable to decide.
 	if !osutil.GetenvBool(reExecKey, true) {
+		logger.Debugf("re-exec disabled by user")
 		return distroTool
 	}
 
@@ -132,6 +139,7 @@ func ExecInCoreSnap() {
 	// If we are asked not to re-execute use distribution packages. This is
 	// "spiritual" re-exec so use the same environment variable to decide.
 	if !osutil.GetenvBool(reExecKey, true) {
+		logger.Debugf("re-exec disabled by user")
 		return
 	}
 
