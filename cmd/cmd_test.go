@@ -23,6 +23,9 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/release"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -30,3 +33,22 @@ func Test(t *testing.T) { TestingT(t) }
 type cmdSuite struct{}
 
 var _ = Suite(&cmdSuite{})
+
+func (s *cmdSuite) TestDistroSupportsReExec(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// Some distributions don't support re-execution yet.
+	for _, id := range []string{"fedora", "centos", "rhel", "opensuse", "suse", "poky"} {
+		restore = release.MockReleaseInfo(&release.OS{ID: id})
+		defer restore()
+		c.Assert(cmd.DistroSupportsReExec(), Equals, false, Commentf("ID: %q", id))
+	}
+
+	// While others do.
+	for _, id := range []string{"debian", "ubuntu"} {
+		restore = release.MockReleaseInfo(&release.OS{ID: id})
+		defer restore()
+		c.Assert(cmd.DistroSupportsReExec(), Equals, true, Commentf("ID: %q", id))
+	}
+}
