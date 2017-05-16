@@ -4064,11 +4064,19 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	flags := snapstate.Flags{
+		DevMode:  true,
+		JailMode: true,
+		Classic:  true,
+		TryMode:  true,
+		Required: true,
+	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 		Active:   false,
 		Channel:  "edge",
+		Flags:    flags,
 	})
 
 	chg := s.state.NewChange("enable", "enable a snap")
@@ -4110,6 +4118,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
+	c.Check(snapst.Flags, DeepEquals, flags)
 
 	c.Assert(snapst.Active, Equals, true)
 	info, err := snapst.CurrentInfo()

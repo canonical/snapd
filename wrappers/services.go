@@ -50,9 +50,9 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
+func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
 	if err := snap.ValidateApp(app); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return genServiceFile(app), nil
@@ -60,22 +60,12 @@ func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
 
 // StartSnapServices starts service units for the applications from the snap which are services.
 func StartSnapServices(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
 		}
-		// daemon-reload and enable plus start
-		serviceName := filepath.Base(app.ServiceFile())
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
-
-		if err := sysd.Start(serviceName); err != nil {
+		if err := sysd.Start(app.ServiceName()); err != nil {
 			return err
 		}
 	}
@@ -85,10 +75,14 @@ func StartSnapServices(s *snap.Info, inter interacter) error {
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	nservices := 0
+
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
 		}
+		nservices++
 		// Generate service file
 		content, err := generateSnapServiceFile(app)
 		if err != nil {
@@ -96,7 +90,16 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 		}
 		svcFilePath := app.ServiceFile()
 		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
-		if err := osutil.AtomicWriteFile(svcFilePath, []byte(content), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
+			return err
+		}
+		if err := sysd.Enable(app.ServiceName()); err != nil {
+			return err
+		}
+	}
+
+	if nservices > 0 {
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
@@ -135,7 +138,6 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-
 	nservices := 0
 
 	for _, app := range s.Apps {
@@ -168,7 +170,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func genServiceFile(appInfo *snap.AppInfo) string {
+func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
@@ -247,5 +249,5 @@ WantedBy={{.ServicesTarget}}
 		logger.Panicf("Unable to execute template: %v", err)
 	}
 
-	return templateOut.String()
+	return templateOut.Bytes()
 }
