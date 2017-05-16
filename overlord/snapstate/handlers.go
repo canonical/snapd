@@ -379,6 +379,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap context: %v", err)
+	}
+
 	snapst.Active = true
 	err = m.backend.LinkSnap(oldInfo)
 	if err != nil {
@@ -698,6 +702,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.UnlinkSnap(newInfo, pb)
 	if err != nil {
 		return err
+	}
+
+	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("cannot remove snap context: %v", err)
 	}
 
 	// mark as inactive
