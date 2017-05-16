@@ -144,6 +144,9 @@ if [ "$UNIT" = 1 ]; then
         append_coverage .coverage/profile.out
     done
 
+    # send to coveralls.io
+    go get github.com/mattn/goveralls
+    $GOPATH/bin/goveralls -service=travis-ci
 fi
 
 if [ "$SPREAD" = 1 ]; then
