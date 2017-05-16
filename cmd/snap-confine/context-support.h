@@ -21,11 +21,6 @@
 #include "../libsnap-confine-private/error.h"
 
 /**
- * Error domain for errors related to snap context handling.
- **/
-#define SC_CONTEXT_DOMAIN "context"
-
-/**
  * Return snap context string for given snap.
  *
  * The context value is read from /var/lib/snapd/contexts/snap.<snapname>
@@ -42,6 +37,6 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
  *
  * Set the SNAP_CONTEXT environment variable with the value of context.
  **/
-void sc_context_set_environment(const char *context);
+void sc_maybe_set_context_environment(const char *context);
 
 #endif

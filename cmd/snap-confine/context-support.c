@@ -42,13 +42,13 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 		die("SNAP_NAME is not set");
 	}
 
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
 		      CONTEXT_DIR, snap_name);
+	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		err =
-		    sc_error_init(SC_CONTEXT_DOMAIN, 0,
+		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "cannot open context file %s, SNAP_CONTEXT will not be set: %s",
 				  context_path, strerror(errno));
 		goto out;
@@ -62,7 +62,7 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 		free(context_val);
 		context_val = NULL;
 		err =
-		    sc_error_init(SC_CONTEXT_DOMAIN, 0,
+		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "failed to read context file %s: %s",
 				  context_path, strerror(errno));
 		goto out;
@@ -73,7 +73,7 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 	return context_val;
 }
 
-void sc_context_set_environment(const char *context)
+void sc_maybe_set_context_environment(const char *context)
 {
 	if (context != NULL) {
 		// Overwrite context env value.
