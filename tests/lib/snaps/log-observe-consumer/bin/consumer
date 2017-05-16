@@ -5,7 +5,7 @@ import sys
 
 def run():
   try:
-    subprocess.check_output("tail -n 10 /var/log/syslog", shell=True)
+    subprocess.check_output("journalctl -n 10", shell=True)
     print("ok")
   except Exception as e:
     print("error accessing log")
