@@ -250,8 +250,13 @@ type: kernel`
 
 	writeAssertionsToFile("kernel.asserts", []asserts.Assertion{snapRevKernel, snapDeclKernel})
 
-	// put gadget snap into the SnapBlobDir
-	files = append(files, []string{"meta/gadget.yaml", `
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	if withConfigure {
+		gadgetYaml += `
 defaults:
     foo-snap-id:
        foo-cfg: foo.
@@ -261,11 +266,12 @@ defaults:
        pc-kernel-cfg: pc-kernel.
     pc-snap-id:
        pc-cfg: pc.
+`
+	}
 
-volumes:
-    volume-id:
-        bootloader: grub
-`})
+	// put gadget snap into the SnapBlobDir
+	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+
 	snapYaml = `name: pc
 version: 1.0
 type: gadget`

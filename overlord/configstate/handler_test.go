@@ -87,7 +87,78 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransactionUseDefaults(c *C
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	var mockGadgetSnapYaml = `
+	const mockGadgetSnapYaml = `
+name: canonical-pc
+type: gadget
+`
+	var mockGadgetYaml = []byte(`
+defaults:
+  test-snap-id:
+      bar: baz
+      num: 1.305
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(1)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "canonical-pc", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+
+	const mockTestSnapYaml = `
+name: test-snap
+hooks:
+    configure:
+`
+
+	snaptest.MockSnap(c, mockTestSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(11)})
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-id"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	// Initialize context
+	s.context.Lock()
+	s.context.Set("use-defaults", true)
+	s.context.Unlock()
+
+	c.Check(s.handler.Before(), IsNil)
+
+	s.context.Lock()
+	tr := configstate.ContextTransaction(s.context)
+	s.context.Unlock()
+
+	var value string
+	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Check(value, Equals, "baz")
+	var fl float64
+	c.Check(tr.Get("test-snap", "num", &fl), IsNil)
+	c.Check(fl, Equals, 1.305)
+}
+
+func (s *configureHandlerSuite) TestBeforeUseDefaultsMissingHook(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const mockGadgetSnapYaml = `
 name: canonical-pc
 type: gadget
 `
@@ -131,16 +202,6 @@ volumes:
 	s.context.Set("use-defaults", true)
 	s.context.Unlock()
 
-	c.Check(s.handler.Before(), IsNil)
-
-	s.context.Lock()
-	tr := configstate.ContextTransaction(s.context)
-	s.context.Unlock()
-
-	var value string
-	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
-	c.Check(value, Equals, "baz")
-	var fl float64
-	c.Check(tr.Get("test-snap", "num", &fl), IsNil)
-	c.Check(fl, Equals, 1.305)
+	err = s.handler.Before()
+	c.Check(err, ErrorMatches, `cannot apply gadget config defaults for snap "test-snap", no configure hook`)
 }

@@ -20,6 +20,8 @@
 package configstate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -77,11 +79,22 @@ func (h *configureHandler) Before() error {
 	}
 
 	snapName := h.context.SnapName()
+	st := h.context.State()
 	if useDefaults {
 		var err error
-		patch, err = snapstate.ConfigDefaults(h.context.State(), snapName)
+		patch, err = snapstate.ConfigDefaults(st, snapName)
 		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if len(patch) != 0 {
+			// TODO: helper on context?
+			info, err := snapstate.CurrentInfo(st, snapName)
+			if err != nil {
+				return err
+			}
+			if info.Hooks["configure"] == nil {
+				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", snapName)
+			}
 		}
 	} else {
 		if err := h.context.Get("patch", &patch); err != nil && err != state.ErrNoState {
