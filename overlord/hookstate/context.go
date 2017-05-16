@@ -127,8 +127,14 @@ func (c *Context) Set(key string, value interface{}) {
 	c.writing()
 
 	var data map[string]*json.RawMessage
-	if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
-		panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
+	if c.IsEphemeral() {
+		if val, ok := c.cache["ephemeral-context"]; ok {
+			data = val.(map[string]*json.RawMessage)
+		}
+	} else {
+		if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
+			panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
+		}
 	}
 	if data == nil {
 		data = make(map[string]*json.RawMessage)
@@ -141,7 +147,11 @@ func (c *Context) Set(key string, value interface{}) {
 	raw := json.RawMessage(marshalledValue)
 	data[key] = &raw
 
-	c.task.Set("hook-context", data)
+	if c.IsEphemeral() {
+		c.cache["ephemeral-context"] = data
+	} else {
+		c.task.Set("hook-context", data)
+	}
 }
 
 // Get unmarshals the stored value associated with the provided key into the
@@ -151,8 +161,17 @@ func (c *Context) Get(key string, value interface{}) error {
 	c.reading()
 
 	var data map[string]*json.RawMessage
-	if err := c.task.Get("hook-context", &data); err != nil {
-		return err
+	if c.IsEphemeral() {
+		if val, ok := c.cache["ephemeral-context"]; ok {
+			data = val.(map[string]*json.RawMessage)
+		}
+		if data == nil {
+			return state.ErrNoState
+		}
+	} else {
+		if err := c.task.Get("hook-context", &data); err != nil {
+			return err
+		}
 	}
 
 	raw, ok := data[key]
