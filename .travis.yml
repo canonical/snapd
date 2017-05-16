@@ -23,4 +23,4 @@ script:
 
 # send to codecov.io
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -f .coverage/coverage.out
+  - bash <(curl -s https://codecov.io/bash) -f $TRAVIS_TEST_RESULT/.coverage/coverage.out
