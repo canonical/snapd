@@ -35,7 +35,7 @@ execute: |
     mount --bind /tmp/old-info /snap/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list
-    journalctl | MATCH "not restarting into.*older than"
+    journalctl | MATCH "core snap \(at .*\) is older \(.*\) than distribution package"
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
