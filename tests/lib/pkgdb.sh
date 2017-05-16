@@ -29,6 +29,18 @@ distro_name_package() {
 }
 
 distro_install_local_package() {
+    allow_downgrades=false
+    while [ -n "$1" ]; do
+        case "$1" in
+            --allow-downgrades)
+                allow_downgrades=true
+                shift
+                ;;
+            *)
+                break
+        esac
+    done
+
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
             ;&
@@ -38,7 +50,11 @@ distro_install_local_package() {
                 dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
                 apt-get -f install -y
             else
-                apt install -y "$@"
+                flags="-y"
+                if [ "$allow_downgrades" = "true" ]; then
+                    flags="$flags --allow-downgrades"
+                fi
+                apt install $flags "$@"
             fi
             ;;
         *)
