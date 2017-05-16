@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain browsing, service browsing and service resolving
 
@@ -113,14 +111,10 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-func NewAvahiObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "avahi-observe",
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewAvahiObserveInterface())
+	})
 }

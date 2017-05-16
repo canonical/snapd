@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
@@ -32,15 +30,11 @@ accept
 accept4
 `
 
-func NewLibvirtInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "libvirt",
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewLibvirtInterface())
+	})
 }

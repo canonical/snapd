@@ -45,10 +45,11 @@ apps:
   plugs: [lxd-support]
 `
 
-var _ = Suite(&LxdSupportInterfaceSuite{})
+var _ = Suite(&LxdSupportInterfaceSuite{
+	iface: builtin.MustInterface("lxd-support"),
+})
 
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.LxdSupportInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

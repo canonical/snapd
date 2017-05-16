@@ -38,7 +38,7 @@ type TimeControlTestInterfaceSuite struct {
 }
 
 var _ = Suite(&TimeControlTestInterfaceSuite{
-	iface: &builtin.TimeControlInterface{},
+	iface: builtin.MustInterface("time-control"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

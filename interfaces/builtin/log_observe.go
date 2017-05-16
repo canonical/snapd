@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const logObserveConnectedPlugAppArmor = `
 # Description: Can read system logs and set kernel log rate-limiting
@@ -46,15 +42,10 @@ const logObserveConnectedPlugAppArmor = `
 capability dac_override,
 `
 
-// NewLogObserveInterface returns a new "log-observe" interface.
-func NewLogObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "log-observe",
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewLogObserveInterface())
+	})
 }

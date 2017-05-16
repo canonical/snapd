@@ -510,13 +510,13 @@ const unity7ConnectedPlugSeccomp = `
 shutdown
 `
 
-type Unity7Interface struct{}
+type unity7Interface struct{}
 
-func (iface *Unity7Interface) Name() string {
+func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
@@ -528,12 +528,12 @@ func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
 }
 
-func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -541,7 +541,7 @@ func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
@@ -554,11 +554,11 @@ func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *Unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&Unity7Interface{})
+	registerIface(&unity7Interface{})
 }
