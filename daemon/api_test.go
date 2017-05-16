@@ -144,9 +144,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
 	s.restoreRelease = release.MockForcedDevmode(false)
 
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
-		return false, nil
-	}
+	snapstate.CanAutoRefresh = nil
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
