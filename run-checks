@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+# bash because of the codecov integration
+
 if [ "$TRAVIS_BUILD_NUMBER" ]; then
     echo travis_fold:start:env
     printenv | sort
@@ -71,13 +73,13 @@ endmsg() {
 addtrap endmsg
 
 # Append the coverage profile of a package to the project coverage.
-append_coverage() {
-    local profile="$1"
-    if [ -f $profile ]; then
-        cat $profile | grep -v "mode: set" | cat >> .coverage/coverage.out
-        rm $profile
+append_coverage() (
+    profile="$1"
+    if [ -f "$profile" ]; then
+        grep -v "mode: set" -- "$profile" >> .coverage/coverage.out
+        rm "$profile"
     fi
-}
+)
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
@@ -140,10 +142,14 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from $(pwd)
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
         go test -i $pkg
-        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        $goctest -v -coverprofile=.coverage/profile.out -covermode=atomic $pkg
         append_coverage .coverage/profile.out
     done
 
+    # upload to codecov.io if on travis
+    if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
+        bash <(curl -s https://codecov.io/bash) -f .coverage/coverage.out
+    fi
 fi
 
 if [ "$SPREAD" = 1 ]; then
