@@ -26,6 +26,9 @@ execute: |
     /snap/bin/snapctl-from-snap.snapctl-set foo=123
     /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
 
+    echo "Verify configuration value with snap get"
+    snap get snapctl-from-snap foo | MATCH 123
+
     echo "Verify that snap context is removed on snap removal"
     snap remove snapctl-from-snap
     if test -f $CONTEXT_FILE ; then

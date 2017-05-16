@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -83,6 +84,20 @@ func (s *linkSnapSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
+func checkHasContextForSnap(c *C, st *state.State, snapName string) {
+	var contexts map[string]interface{}
+	err := st.Get("snap-contexts", &contexts)
+	c.Assert(err, IsNil)
+	c.Check(contexts, HasLen, 1)
+
+	for _, snap := range contexts {
+		if snapName == snap {
+			return
+		}
+	}
+	panic(fmt.Sprintf("Context missing for snap %q", snapName))
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
@@ -105,6 +120,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
+
+	checkHasContextForSnap(c, s.state, "foo")
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
