@@ -42,7 +42,13 @@ var (
 	CrashDbURLBase string
 	SnapdVersion   string
 
-	machineID       = "/var/lib/dbus/machine-id"
+	// The machine-id file is at different locations depending on how the system
+	// is setup. On Fedora for example /var/lib/dbus/machine-id doesn't exist
+	// but we have /etc/machine-id. See
+	// https://www.freedesktop.org/software/systemd/man/machine-id.html for a
+	// few more details.
+	machineIDs = []string{"/var/lib/dbus/machine-id", "/etc/machine-id"}
+
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
 
@@ -64,10 +70,19 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		return "", nil
 	}
 
-	machineID, err := ioutil.ReadFile(machineID)
-	if err != nil {
-		return "", err
+	var machineID []byte
+	var err error
+	for _, id := range machineIDs {
+		machineID, err = ioutil.ReadFile(id)
+		if err == nil {
+			break
+		}
 	}
+
+	if len(machineID) == 0 {
+		return "", fmt.Errorf("Can not report as no machine id found")
+	}
+
 	machineID = bytes.TrimSpace(machineID)
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
 
