@@ -41,9 +41,14 @@ func (s *hooktestSuite) SetUpTest(c *C) {
 }
 
 func (s *hooktestSuite) TestBefore(c *C) {
+	var callbackCalled = false
+	s.mockHandler.BeforeCallback = func() {
+		callbackCalled = true
+	}
 	c.Check(s.mockHandler.BeforeCalled, Equals, false)
 	c.Check(s.mockHandler.Before(), IsNil)
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(callbackCalled, Equals, true)
 }
 
 func (s *hooktestSuite) TestBeforeError(c *C) {
@@ -53,10 +58,15 @@ func (s *hooktestSuite) TestBeforeError(c *C) {
 }
 
 func (s *hooktestSuite) TestDone(c *C) {
+	var callbackCalled = false
+	s.mockHandler.DoneCallback = func() {
+		callbackCalled = true
+	}
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	s.mockHandler.Executing = 1
 	c.Check(s.mockHandler.Done(), IsNil)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(callbackCalled, Equals, true)
 }
 
 func (s *hooktestSuite) TestDoneError(c *C) {

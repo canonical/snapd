@@ -21,6 +21,7 @@ package hookstate_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -701,6 +702,24 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
+	var Executing int32
+	var TotalExecutions int32
+
+	s.mockHandler.BeforeCallback = func() {
+		executing := atomic.AddInt32(&Executing, 1)
+		if executing != 1 {
+			panic(fmt.Sprintf("More than one handler executed: %d", executing))
+		}
+	}
+
+	s.mockHandler.DoneCallback = func() {
+		executing := atomic.AddInt32(&Executing, -1)
+		if executing != 0 {
+			panic(fmt.Sprintf("More than one handler executed: %d", executing))
+		}
+		atomic.AddInt32(&TotalExecutions, 1)
+	}
+
 	hooksup := &hookstate.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "configure",
@@ -732,8 +751,8 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 		c.Check(tasks[i].Kind(), Equals, "run-hook")
 		c.Check(tasks[i].Status(), Equals, state.DoneStatus)
 	}
-	c.Assert(atomic.LoadInt32(&s.mockHandler.TotalExecutions), Equals, int32(1+len(tasks)))
-	c.Assert(atomic.LoadInt32(&s.mockHandler.Executing), Equals, int32(0))
+	c.Assert(atomic.LoadInt32(&TotalExecutions), Equals, int32(1+len(tasks)))
+	c.Assert(atomic.LoadInt32(&Executing), Equals, int32(0))
 }
 
 type MockConcurrentHandler struct {
