@@ -190,13 +190,28 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # Improve entropy for the whole system quite a lot to get fast
-        # key generation during our test cycles
-        apt-get install rng-tools
-        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
-        /etc/init.d/rng-tools restart
-    fi
+    # Improve entropy for the whole system quite a lot to get fast
+    # key generation during our test cycles
+    distro_install_package rng-tools
+
+    case "$SPREAD_SYSTEM" in
+        debian-*)
+            ;&
+        ubuntu-*)
+            echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+            /etc/init.d/rng-tools restart
+            ;;
+        fedora-*)
+            # There is no easy way to configure rngd on Fedora so we have to
+            # modify the systemd service unit itself
+            sed -i 's:^ExecStart.*:ExecStart=/sbin/rngd -f -r /dev/urandom:g' \
+                /usr/lib/systemd/system/rngd.service
+            systemctl daemon-reload
+            systemctl restart rngd
+            ;;
+        *)
+            ;;
+    esac
 
     disable_kernel_rate_limiting
 }

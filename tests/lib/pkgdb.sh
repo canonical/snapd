@@ -8,8 +8,23 @@ debian_name_package() {
             ;&
         curl)
             ;&
+        jq)
+            ;&
+        printer-driver-cups-pdf)
+            ;&
         python3-yaml)
             echo $1
+            ;;
+    esac
+}
+
+ubuntu_14_04_name_package() {
+    case "$1" in
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        *)
+            debian_name_package $1
             ;;
     esac
 }
@@ -17,6 +32,8 @@ debian_name_package() {
 fedora_name_package() {
     case "$1" in
         xdelta3)
+            ;&
+        jq)
             ;&
         curl)
             echo $1
@@ -27,6 +44,9 @@ fedora_name_package() {
         openvswitch-switch)
             echo "openvswitch"
             ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
         *)
             echo $1
             ;;
@@ -35,6 +55,9 @@ fedora_name_package() {
 
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            ubuntu_14_04_name_package $1
+            ;;
         ubuntu-*)
             ;&
         debian-*)
@@ -66,6 +89,9 @@ distro_install_local_package() {
         fedora-*)
             quiet dnf install -y "$@"
             ;;
+        opensuse-*)
+            quiet zypper instal "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
@@ -90,6 +116,9 @@ distro_install_package() {
                 ;;
             fedora-*)
                 dnf install -y $package_name
+                ;;
+            opensuse-*)
+                zypper install $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -117,7 +146,9 @@ distro_purge_package() {
             fedora-*)
                 quiet dnf remove -y $package_name
                 ;;
-
+            opensuse-*)
+                quiet zypper remove $package_name
+                ;;
             *)
                 echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
                 exit 1
@@ -136,6 +167,9 @@ distro_update_package_db() {
         fedora-*)
             quiet dnf update -y
             ;;
+        opensuse-*)
+            quiet zypper update
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
@@ -151,6 +185,8 @@ distro_auto_remove_packages() {
             quiet apt-get -y autoremove
             ;;
         fedora-*)
+            ;&
+        opensuse-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"

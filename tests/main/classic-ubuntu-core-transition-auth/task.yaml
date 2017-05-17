@@ -2,15 +2,18 @@ summary: Ensure that the ubuntu-core -> core transition works with auth.json
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*]
+# we disable on feodra as the rpm doesn't yet support cleaning up everything on removal
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -fedora-*]
 
 warn-timeout: 1m
 kill-timeout: 5m
 execute: |
     . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
+
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge --force-depends snapd
-    apt-get install -f -y
+    distro_purge_package snapd
+
     install_build_snapd
 
     snap download --${CORE_CHANNEL} ubuntu-core

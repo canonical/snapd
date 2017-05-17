@@ -1,5 +1,6 @@
 summary: Check that `snap connect` runs interface hooks
 
+# FIXME test case broken because snapctl gets killed by seccomp when it calls bind
 systems: [-fedora-*]
 
 prepare: |

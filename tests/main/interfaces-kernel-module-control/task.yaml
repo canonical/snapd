@@ -1,5 +1,6 @@
 summary: Ensure that the kernel-module-control interface works.
 
+# FIXME Needs different kernel than Linode one
 systems: [-fedora-*]
 
 details: |

@@ -8,9 +8,6 @@ details: |
     The plug must not be autoconnected on install and, as usual, must be able to be
     reconnected.
 
-systems:
-    - -fedora-*
-
 environment:
     SNAP_NAME: log-observe-consumer
     SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
@@ -52,7 +49,11 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access the system logs"
-    log-observe-consumer | grep -Pqz "ok\n"
+    log_path=/var/log/syslog
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        log_path=/var/log/boot.log
+    fi
+    log-observe-consumer $log_path | grep -Pqz "ok\n"
 
     if snap forced-devmode ; then
         echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
@@ -66,7 +67,7 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access the system logs"
-    if log-observe-consumer; then
+    if log-observe-consumer $log_path; then
         echo "System log shouldn't be accessible"
         exit 1
     fi

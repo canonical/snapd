@@ -1,5 +1,8 @@
 summary: Check that `snap set` runs configure hook.
+
+# FIXME hooks are broken with just having seccomp enabled as we have on Fedora
 systems: [-fedora-*]
+
 prepare: |
     echo "Build basic test package (without hooks)"
     snapbuild $TESTSLIB/snaps/basic .

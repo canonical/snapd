@@ -7,7 +7,6 @@ details: |
     When executing against the remote stores the tests rely in the existence of
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
-systems: [-fedora-*]
 environment:
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools
     SNAP_NAME/classic_fake,classic_remote: test-snapd-classic-confinement
@@ -29,9 +28,13 @@ prepare: |
 
     flags=
     if [[ $SNAP_NAME =~ classic ]]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
-            exit
-        fi
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+            *)
+                ;;
+        esac
         flags=--classic
     fi
 
@@ -63,17 +66,27 @@ restore: |
 
 execute: |
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-            exit
-        fi
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+            *)
+                ;;
+        esac
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
         fi
     fi
 
-    if [[ $SNAP_NAME =~ classic && "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
-        exit
+    if [[ $SNAP_NAME =~ classic ]]; then
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+            *)
+                ;;
+        esac
     fi
 
     # FIXME: currently the --list from channel doesn't work

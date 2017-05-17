@@ -2,7 +2,6 @@ summary: Ensure that the cups interface works.
 
 systems:
     - -ubuntu-core-16-*
-    - -fedora-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -21,22 +20,21 @@ environment:
     TEST_FILE: /var/snap/test-snapd-cups-control-consumer/current/test_file.txt
 
 prepare: |
+    . $TESTSLIB/pkgdb.sh
+
     echo "Given a snap declaring a cups plug is installed"
     snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get install -y --no-install-recommends cups-pdf
-    else
-        apt-get install -y --no-install-recommends printer-driver-cups-pdf
-    fi
+    distro_install_package printer-driver-cups-pdf
+
+    # Not all distros are starting the service directly after
+    # package installation
+    systemctl start cups
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get purge -y --auto-remove cups-pdf
-    else
-        apt-get purge -y --auto-remove printer-driver-cups-pdf
-    fi
+    . $TESTSLIB/pkgdb.sh
+    distro_purge_package printer-driver-cups-pdf
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |

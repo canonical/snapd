@@ -2,6 +2,8 @@ summary: Ensure that the locale-control interface works.
 
 systems:
     - -ubuntu-core-16-*
+    # Does not apply to non-Debian based systems as elsewhere locales are
+    # handled differently. Needs a major rework of the test case.
     - -fedora-*
 
 summary: |

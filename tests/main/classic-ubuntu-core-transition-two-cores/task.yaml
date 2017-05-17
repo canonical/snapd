@@ -2,14 +2,16 @@ summary: Ensure that the ubuntu-core -> core transition works with two cores
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
 execute: |
     . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
+
     echo "Ensure we have two cores"
-    apt install -y jq
+    distro_install_package jq
 
     echo "install a snap"
     snap install test-snapd-python-webserver

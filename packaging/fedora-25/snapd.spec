@@ -44,7 +44,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.24
+Version:        2.25
 Release:        1%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -79,6 +79,9 @@ Requires:       bash-completion
 # Force the SELinux module to be installed
 Requires:       %{name}-selinux = %{version}-%{release}
 
+# gnupg is required for assertion validation
+Requires:       gnupg
+
 %if ! 0%{?with_bundled}
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
@@ -112,6 +115,8 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  gcc
+BuildRequires:  gettext
+BuildRequires:  gnupg
 BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
@@ -437,7 +442,7 @@ echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 install -d -p %{buildroot}/%{gopath}/src/%{import_path}/
 echo "%%dir %%{gopath}/src/%%{import_path}/." >> devel.file-list
 # find all *.go but no *_test.go files and generate devel.file-list
-for file in $(find . -iname "*.go" \! -iname "*_test.go") ; do
+for file in $(find . -iname "*.go" -o -iname "*.s" \! -iname "*_test.go") ; do
     echo "%%dir %%{gopath}/src/%%{import_path}/$(dirname $file)" >> devel.file-list
     install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$(dirname $file)
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
@@ -455,6 +460,11 @@ for file in $(find . -iname "*_test.go"); do
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
     echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 done
+
+# Install additional testdata
+install -d %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
+cp -pav cmd/snap/test-data/* %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
+echo "%%{gopath}/src/%%{import_path}/cmd/snap/test-data" >> unit-test-devel.file-list
 %endif
 
 %if 0%{?with_devel}
@@ -469,7 +479,7 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %else
 export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %endif
-%gotest %{import_path}
+%gotest %{import_path}/...
 %endif
 
 # snap-confine tests (these always run!)
@@ -480,7 +490,7 @@ popd
 %files
 #define license tag if not already defined
 %{!?_licensedir:%global license %doc}
-%license COPYING 
+%license COPYING
 %doc README.md docs/*
 %{_bindir}/snap
 %{_bindir}/snapctl
@@ -578,6 +588,10 @@ fi
 
 
 %changelog
+* Mon May 01 2017 Neal Gompa <ngompa13@gmail.com> - 2.25-1
+- Update to snapd 2.25
+- Ensure all Snappy content is gone on final uninstall (#1444422)
+
 * Tue Apr 11 2017 Neal Gompa <ngompa13@gmail.com> - 2.24-1
 - Update to snapd 2.24
 - Drop merged patches

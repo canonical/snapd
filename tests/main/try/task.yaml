@@ -1,7 +1,6 @@
 summary: Check that try command works
 systems:
     - -ubuntu-core-16-*
-    - -fedora-*
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
@@ -11,7 +10,11 @@ environment:
 prepare: |
     . $TESTSLIB/systemd.sh
     echo "Given a service listening on a port"
-    printf "#!/bin/sh -e\nwhile true; do printf \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    EXTRA_NC_ARGS=""
+    if [[ "$SPREAD_SYSTEM" = debian-* || "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        EXTRA_NC_ARGS="-q 1"
+    fi
+    printf "#!/bin/sh -e\nwhile true; do printf \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT $EXTRA_NC_ARGS; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
@@ -71,25 +74,27 @@ execute: |
     echo "Then the snap is able to access the network resource"
     network-consumer http://127.0.0.1:$PORT | MATCH "ok"
 
-    echo "====================================="
-    n=test-snapd-classic-confinement
-    s=$TESTSLIB/snaps/$n
-    echo "Given a buildable snap with classic confinement:"
-    echo " - you can't try it without --classic:"
-    snap try $s && exit 1 || true
-    snap try --jailmode $s && exit 1 || true
-    snap try --devmode $s && exit 1 || true
+    if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+        echo "====================================="
+        n=test-snapd-classic-confinement
+        s=$TESTSLIB/snaps/$n
+        echo "Given a buildable snap with classic confinement:"
+        echo " - you can't try it without --classic:"
+        snap try $s && exit 1 || true
+        snap try --jailmode $s && exit 1 || true
+        snap try --devmode $s && exit 1 || true
 
-    touch /tmp/lala
+        touch /tmp/lala
 
-    echo " - you can try it with --classic:"
-    snap try --classic $s
-    snap list $n | MATCH $n.*classic
-    $n | MATCH lala
-    snap remove $n
+        echo " - you can try it with --classic:"
+        snap try --classic $s
+        snap list $n | MATCH $n.*classic
+        $n | MATCH lala
+        snap remove $n
 
-    # SOON:
-    # echo " - you can also try it with --classic --jailmode:"
-    # snap try --classic --devmode $s
-    # snap list $n | MATCH "$n.*(classic,jailmode|jailmode,classic)"
-    # $n | MATCH lala
+        # SOON:
+        # echo " - you can also try it with --classic --jailmode:"
+        # snap try --classic --devmode $s
+        # snap list $n | MATCH "$n.*(classic,jailmode|jailmode,classic)"
+        # $n | MATCH lala
+    fi

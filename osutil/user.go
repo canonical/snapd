@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/release"
 )
 
 var userLookup = user.Lookup
@@ -65,13 +67,24 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	cmdStr := []string{
 		"adduser",
-		"--force-badname",
-		"--gecos", opts.Gecos,
-		"--disabled-password",
 	}
-	if opts.ExtraUsers {
-		cmdStr = append(cmdStr, "--extrausers")
+
+	// Various options are only supported on debian or ubuntu based
+	// distributions or one of their variants. Mid term this needs
+	// to be refactored to either modify /etc/passwd directly or
+	// we get additional patches added upstream / in the relevant
+	// distributions to support these features there as well.
+	if release.ReleaseInfo.IsBasedOnDistro("debian") || release.ReleaseInfo.IsBasedOnDistro("ubuntu") {
+		cmdStr = append(cmdStr, "--force-badname")
+		cmdStr = append(cmdStr, "--gecos")
+		cmdStr = append(cmdStr, opts.Gecos)
+		cmdStr = append(cmdStr, "--disable-password")
+
+		if opts.ExtraUsers {
+			cmdStr = append(cmdStr, "--extrausers")
+		}
 	}
+
 	cmdStr = append(cmdStr, name)
 
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)

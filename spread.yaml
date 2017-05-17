@@ -38,6 +38,9 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
+environment-includes:
+    - $TESTSLIB/distro.sh
+
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
@@ -62,6 +65,7 @@ backends:
             - fedora-25-64:
                 workers: 4
     qemu:
+        CPUs: 4
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
@@ -96,6 +100,9 @@ backends:
             - fedora-25-64:
                 username: fedora
                 password: fedora
+            - opensuse-42.2-64:
+                username: opensuse
+                password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |

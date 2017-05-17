@@ -1,6 +1,9 @@
 summary: Test that snap-confine is run from core on re-exec
 
-systems: [-ubuntu-core-16-*, -fedora-*]
+systems:
+    - -ubuntu-core-16-*
+    # We do not support re-execution on Fedora yet
+    - -fedora-*
 
 prepare: |
     echo "Installing test-snapd-tools"
