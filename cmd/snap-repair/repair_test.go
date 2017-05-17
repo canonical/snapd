@@ -56,11 +56,12 @@ echo "hello world"
 `
 
 var mockRepair1 = fmt.Sprintf(`type: repair
-authority-id: canonical
+authority-id: acme
 brand-id: acme
 repair-id: repair-1
 series:
   - 16
+arch: all
 body-length: %v
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -69,11 +70,12 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`, len(script), script)
 
 var mockRepair42 = fmt.Sprintf(`type: repair
-authority-id: canonical
+authority-id: acme
 brand-id: acme
 repair-id: repair-42
 series:
   - 16
+arch: all
 body-length: %v
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
