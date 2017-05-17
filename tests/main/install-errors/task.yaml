@@ -32,11 +32,11 @@ execute: |
     echo "============================================"
 
     echo "Install points to sudo when not authenticated"
-    if su - -c "snap install $SNAP_NAME 2>${PWD}/install.output" test; then
+    if su - -c "snap install $SNAP_NAME" test 2>install.output; then
         echo "Unauthenticated install should fail"
         exit 1
     fi
-    grep "try with sudo" install.output
+    MATCH "try with sudo" < install.output
 
     echo "============================================"
 
@@ -51,4 +51,13 @@ execute: |
     echo "Install a snap that is already installed shows a message"
     echo "but does "exit 0" (LP: #1622782)"
     snap install $SNAP_NAME 2> stderr.out
-    cat stderr.out | MATCH "snap \"$SNAP_NAME\" is already installed"
+    MATCH "snap \"$SNAP_NAME\" is already installed" < stderr.out
+
+    echo "============================================"
+
+    echo "Install ubuntu-core"
+    if snap install ubuntu-core 2> stderr.out; then
+        echo "Installing ubuntu-core should fail"
+        exit 1
+    fi
+    MATCH 'cannot install "ubuntu-core", please use "core" instead' < stderr.out

@@ -38,7 +38,7 @@ type StorageFrameworkServiceInterfaceSuite struct {
 }
 
 var _ = Suite(&StorageFrameworkServiceInterfaceSuite{
-	iface: &builtin.StorageFrameworkServiceInterface{},
+	iface: builtin.MustInterface("storage-framework-service"),
 })
 
 func (s *StorageFrameworkServiceInterfaceSuite) SetUpTest(c *C) {

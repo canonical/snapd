@@ -473,6 +473,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  network-status:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   ofono:
     allow-installation:
       slot-snap-type:

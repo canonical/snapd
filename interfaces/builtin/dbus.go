@@ -186,14 +186,14 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type DbusInterface struct{}
+type dbusInterface struct{}
 
-func (iface *DbusInterface) Name() string {
+func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
 
 // Obtain yaml-specified bus well-known name
-func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
+func (iface *dbusInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
 	// bus attribute
 	bus, ok := attribs["bus"].(string)
 	if !ok {
@@ -282,7 +282,7 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return err
@@ -319,7 +319,7 @@ func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -353,7 +353,7 @@ func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 	return nil
 }
 
-func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -380,7 +380,7 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -410,7 +410,7 @@ func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -419,7 +419,7 @@ func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return err
 }
 
-func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -441,19 +441,19 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *DbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *dbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
-func (iface *DbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *dbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&DbusInterface{})
+	registerIface(&dbusInterface{})
 }

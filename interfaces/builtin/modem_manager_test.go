@@ -60,10 +60,11 @@ apps:
    - modem-manager
 `
 
-var _ = Suite(&ModemManagerInterfaceSuite{})
+var _ = Suite(&ModemManagerInterfaceSuite{
+	iface: builtin.MustInterface("modem-manager"),
+})
 
 func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.ModemManagerInterface{}
 	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "modem-manager"},

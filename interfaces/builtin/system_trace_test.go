@@ -36,7 +36,9 @@ type SystemTraceInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SystemTraceInterfaceSuite{})
+var _ = Suite(&SystemTraceInterfaceSuite{
+	iface: builtin.MustInterface("system-trace"),
+})
 
 func (s *SystemTraceInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [system-trace]
 `
-	s.iface = builtin.NewSystemTraceInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

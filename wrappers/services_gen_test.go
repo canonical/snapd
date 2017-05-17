@@ -105,7 +105,7 @@ apps:
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
-	c.Check(generatedWrapper, Equals, expectedAppService)
+	c.Check(string(generatedWrapper), Equals, expectedAppService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
@@ -123,8 +123,9 @@ apps:
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
-		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
+		wrapperText := string(generatedWrapper)
 		if cond == systemd.RestartNever {
 			c.Check(wrapperText, Matches,
 				`(?ms).*^Restart=no$.*`, Commentf(name))
@@ -153,7 +154,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedTypeForkingWrapper)
+	c.Assert(string(generatedWrapper), Equals, expectedTypeForkingWrapper)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) {
@@ -193,8 +194,8 @@ apps:
 
 	app := info.Apps["app"]
 
-	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
 
-	c.Assert(wrapperText, Equals, expectedOneshotService)
+	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
 }
