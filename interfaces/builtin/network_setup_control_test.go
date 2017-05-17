@@ -36,7 +36,9 @@ type NetworkSetupControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkSetupControlInterfaceSuite{})
+var _ = Suite(&NetworkSetupControlInterfaceSuite{
+	iface: builtin.MustInterface("network-setup-control"),
+})
 
 func (s *NetworkSetupControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -46,7 +48,6 @@ apps:
     command: foo
     plugs: [network-setup-control]
 `, nil)
-	s.iface = builtin.NewNetworkSetupControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

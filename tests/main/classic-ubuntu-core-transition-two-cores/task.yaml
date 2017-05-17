@@ -22,7 +22,9 @@ execute: |
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
-    snap install --${CORE_CHANNEL} ubuntu-core
+    snap download --${CORE_CHANNEL} ubuntu-core
+    snap ack ./ubuntu-core_*.assert
+    snap install ./ubuntu-core_*.snap
 
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
     cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="os"' > /var/lib/snapd/state.json
@@ -40,7 +42,7 @@ execute: |
         sleep 1
     done
 
-    if snap list|grep ubuntu-core; then
+    if ! snap list|MATCH -v ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi

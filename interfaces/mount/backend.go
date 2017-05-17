@@ -66,6 +66,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
+	if err := UpdateSnapNamespace(snapName); err != nil {
+		return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
+	}
 	return nil
 }
 

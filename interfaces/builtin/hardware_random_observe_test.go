@@ -38,7 +38,7 @@ type HardwareRandomObserveInterfaceSuite struct {
 }
 
 var _ = Suite(&HardwareRandomObserveInterfaceSuite{
-	iface: &builtin.HardwareRandomObserveInterface{},
+	iface: builtin.MustInterface("hardware-random-observe"),
 })
 
 func (s *HardwareRandomObserveInterfaceSuite) SetUpTest(c *C) {

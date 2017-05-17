@@ -8,7 +8,7 @@ prepare: |
         exit
     fi
     echo "Ensure the testrootorg-store.account-key is not already added"
-    output=$(snap known account-key | grep "name: test-store"|wc -l)
+    output=$(snap known account-key | grep -c "name: test-store" || true)
     if [ "$output" != "0" ]; then
             echo " testrootorg-store.account-key is already added"
             exit 1
@@ -32,4 +32,4 @@ execute: |
     fi
     echo "`snap auto-import` imports assertions from the mounted ramdisk"
     snap auto-import
-    snap known account-key | grep "name: test-store"
+    snap known account-key | MATCH "name: test-store"

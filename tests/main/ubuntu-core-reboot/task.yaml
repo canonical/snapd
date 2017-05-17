@@ -13,8 +13,8 @@ prepare: |
 
 execute: |
     echo "Ensure snaps are (still) there."
-    snap list | grep test-snapd-tools
-    snap list | grep network-bind-consumer
+    snap list | MATCH test-snapd-tools
+    snap list | MATCH network-bind-consumer
 
     echo "Ensure the service is (still) running."
     retries=120
@@ -29,7 +29,7 @@ execute: |
 
     echo "Ensure apparmor profiles are (still) loaded."
     for app in success fail echo head env block cat; do
-        grep "snap.test-snapd-tools.$app (enforce)" /sys/kernel/security/apparmor/profiles
+        MATCH "snap.test-snapd-tools.$app \(enforce\)" < /sys/kernel/security/apparmor/profiles
     done
 
     if [ "$SPREAD_REBOOT" = "0" ]; then

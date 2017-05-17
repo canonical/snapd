@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
 const homeConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's $HOME. This is restricted
@@ -48,15 +44,10 @@ owner /run/user/[0-9]*/gvfs/{,**} r,
 owner /run/user/[0-9]*/gvfs/*/**  w,
 `
 
-// NewHomeInterface returns a new "home" interface.
-func NewHomeInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "home",
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewHomeInterface())
+	})
 }

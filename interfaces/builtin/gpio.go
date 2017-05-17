@@ -30,21 +30,21 @@ import (
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
 var gpioSysfsExport = "/sys/class/gpio/export"
 
-// GpioInterface type
-type GpioInterface struct{}
+// gpioInterface type
+type gpioInterface struct{}
 
 // String returns the same value as Name().
-func (iface *GpioInterface) String() string {
+func (iface *gpioInterface) String() string {
 	return iface.Name()
 }
 
-// Name of the GpioInterface
-func (iface *GpioInterface) Name() string {
+// Name of the gpioInterface
+func (iface *gpioInterface) Name() string {
 	return "gpio"
 }
 
 // SanitizeSlot checks the slot definition is valid
-func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Paranoid check this right interface type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -71,7 +71,7 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks the plug definition is valid
-func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *gpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	// Make sure right interface type
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
@@ -81,7 +81,7 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
@@ -96,7 +96,7 @@ func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 }
 
-func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	gpioNum, ok := slot.Attrs["number"].(int64)
 	if !ok {
 		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
@@ -111,15 +111,15 @@ func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 	return spec.AddService(serviceName, service)
 }
 
-func (iface *GpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *gpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *GpioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *gpioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&GpioInterface{})
+	registerIface(&gpioInterface{})
 }

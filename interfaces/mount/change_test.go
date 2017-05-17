@@ -50,7 +50,9 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	desired := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	changes := mount.NeededChanges(current, desired)
-	c.Assert(changes, IsNil)
+	c.Assert(changes, DeepEquals, []mount.Change{
+		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: mount.Keep},
+	})
 }
 
 // When the content interface is connected we should mount the new entry.
@@ -115,6 +117,7 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 	}}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
+		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: mount.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: mount.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda1"}, Action: mount.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda2"}, Action: mount.Mount},
@@ -136,7 +139,9 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 	}}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
+		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: mount.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: mount.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda2"}, Action: mount.Mount},
 	})
 }
@@ -163,6 +168,7 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: mount.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda1"}, Action: mount.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b-1/3"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/a/b-1"}, Action: mount.Keep},
 
 		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda2"}, Action: mount.Mount},
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: mount.Mount},

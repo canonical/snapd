@@ -45,10 +45,11 @@ apps:
   plugs: [hardware-observe]
 `
 
-var _ = Suite(&HardwareObserveInterfaceSuite{})
+var _ = Suite(&HardwareObserveInterfaceSuite{
+	iface: builtin.MustInterface("hardware-observe"),
+})
 
 func (s *HardwareObserveInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewHardwareObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
