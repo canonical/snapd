@@ -397,18 +397,16 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "start-snap-services",
-		name: info.MountDir(),
+		op: "start-snap-services",
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "stop-snap-services",
-		name: info.MountDir(),
+		op: "stop-snap-services",
 	})
 	return nil
 }

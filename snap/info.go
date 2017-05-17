@@ -280,6 +280,19 @@ func (s *Info) NeedsClassic() bool {
 	return s.Confinement == ClassicConfinement
 }
 
+// Services returns a list of the apps that have "daemon" set.
+func (s *Info) Services() []*AppInfo {
+	svcs := make([]*AppInfo, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		svcs = append(svcs, app)
+	}
+
+	return svcs
+}
+
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
@@ -454,7 +467,7 @@ func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
 }
 
-// Servicename returns the systemd service name for the daemon app.
+// ServiceName returns the systemd service name for the daemon app.
 func (app *AppInfo) ServiceName() string {
 	return app.SecurityTag() + ".service"
 }
