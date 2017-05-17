@@ -2284,13 +2284,24 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
 			return BadRequest("error running snapctl: %s", err)
+		}
+	}
+
+	if context.IsEphemeral() {
+		context.Lock()
+		defer context.Unlock()
+		if err := context.Done(); err != nil {
+			return BadRequest(i18n.G("set failed: %v"), err)
 		}
 	}
 

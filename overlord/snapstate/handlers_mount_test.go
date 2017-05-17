@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -41,6 +42,9 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
+	oldDir := dirs.SnapContextDir
+	dirs.SnapContextDir = c.MkDir()
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
@@ -51,7 +55,11 @@ func (s *mountSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		reset1()
+		dirs.SnapContextDir = oldDir
+	}
 }
 
 func (s *mountSnapSuite) TearDownTest(c *C) {
