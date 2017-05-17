@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,52 +17,45 @@
  *
  */
 
-package partition
+package partition_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/partition"
 )
 
-func mockAndroidbootFile(c *C, newPath string, mode os.FileMode) {
-	newpath := filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
-	os.MkdirAll(newpath, os.ModePerm)
-	err := ioutil.WriteFile(newPath, nil, mode)
-	c.Assert(err, IsNil)
+type androidbootTestSuite struct {
 }
 
-func (s *PartitionTestSuite) makeFakeAndroidbootConfig(c *C) {
-	// these files just needs to exist
-	a := &androidboot{}
-	mockAndroidbootFile(c, a.ConfigFile(), 0644)
+var _ = Suite(&androidbootTestSuite{})
+
+func (g *androidbootTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	// the file needs to exist
+	partition.MockAndroidbootFile(c, 0644)
 }
 
-func (s *PartitionTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	s.makeFakeAndroidbootConfig(c)
+func (g *androidbootTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
 
-	dirs.GlobalRootDir = "/something/not/there"
-	a := newAndroidboot()
+func (s *androidbootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
+	dirs.SetRootDir("")
+	a := partition.MockNewAndroidboot()
 	c.Assert(a, IsNil)
 }
 
-func (s *PartitionTestSuite) TestNewAndroidboot(c *C) {
-	s.makeFakeAndroidbootConfig(c)
-
-	a := newAndroidboot()
+func (s *androidbootTestSuite) TestNewAndroidboot(c *C) {
+	a := partition.MockNewAndroidboot()
 	c.Assert(a, NotNil)
-	c.Assert(a, FitsTypeOf, &androidboot{})
 }
 
-func (s *PartitionTestSuite) TestSetGetBootVar(c *C) {
-	s.makeFakeAndroidbootConfig(c)
-
-	a := newAndroidboot()
-	bootVars := map[string]string{}
-	bootVars["snap_mode"] = "try"
+func (s *androidbootTestSuite) TestSetGetBootVar(c *C) {
+	a := partition.MockNewAndroidboot()
+	bootVars := map[string]string{"snap_mode": "try"}
 	a.SetBootVars(bootVars)
 
 	v, err := a.GetBootVars("snap_mode")

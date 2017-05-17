@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,10 +20,14 @@
 package androidbootenv
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
+	"strings"
+
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type Env struct {
@@ -47,45 +51,33 @@ func (a *Env) Set(key, value string) {
 }
 
 func (a *Env) Load() error {
-	buf, err := ioutil.ReadFile(a.path)
+	file, err := os.Open(a.path)
 	if err != nil {
 		return err
 	}
 
-	rawEnv := bytes.Split(buf, []byte("\n"))
-	for _, env := range rawEnv {
-		l := bytes.SplitN(env, []byte("="), 2)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		l := strings.SplitN(scanner.Text(), "=", 2)
 		// be liberal in what you accept
 		if len(l) < 2 {
+			logger.Noticef("WARNING: bad value while parsing %v", a.path)
 			continue
 		}
-		k := string(l[0])
-		v := string(l[1])
-		a.env[k] = v
+		a.env[l[0]] = l[1]
 	}
 
 	return nil
 }
 
 func (a *Env) Save() error {
-	w := bytes.NewBuffer(nil)
+	var w bytes.Buffer
 
 	for k, v := range a.env {
-		if _, err := fmt.Fprintf(w, "%s=%s\n", k, v); err != nil {
+		if _, err := fmt.Fprintf(&w, "%s=%s\n", k, v); err != nil {
 			return err
 		}
 	}
 
-	f, err := os.Create(a.path)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(w.Bytes()); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-
-	return f.Close()
+	return osutil.AtomicWriteFile(a.path, w.Bytes(), 0644, 0)
 }

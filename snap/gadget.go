@@ -121,7 +121,7 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		case "grub", "u-boot", "android-boot":
 			foundBootloader = true
 		default:
-			return nil, fmt.Errorf(errorFormat, "bootloader must be either grub, u-boot or android-boot")
+			return nil, fmt.Errorf(errorFormat, "bootloader must be one of grub, u-boot or android-boot")
 		}
 	}
 	if !foundBootloader {
