@@ -1,9 +1,5 @@
 summary: Ensure that the network-observe interface works
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The network-observe interface allows a snap to query the network status information.
 
@@ -27,7 +23,11 @@ prepare: |
     snap install --dangerous network-observe-consumer_1.0_all.snap
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    EXTRA_NC_ARGS="-q 1"
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
+        EXTRA_NC_ARGS=""
+    fi
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT $EXTRA_NC_ARGS; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
@@ -55,14 +55,18 @@ execute: |
     echo "Then the snap command can query network status information"
     network-observe-consumer | grep -P "0.0.0.0:$PORT.*?LISTEN"
 
-    echo "===================================="
+    if ! snap forced-devmode ; then
+        echo "===================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect network-observe-consumer:network-observe
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect network-observe-consumer:network-observe
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap command can not query network status information"
-    if network-observe-consumer 2>net-query.output; then
-        echo "Expected error caling command with disconnected plug"
+        echo "Then the snap command can not query network status information"
+        if network-observe-consumer 2>net-query.output; then
+            echo "Expected error caling command with disconnected plug"
+        fi
+        cat net-query.output | grep -Pq "Permission denied"
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-    cat net-query.output | grep -Pq "Permission denied"

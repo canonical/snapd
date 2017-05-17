@@ -1,8 +1,6 @@
 summary: Ensures that introspection of login1 of the shutdown interface works.
 
 systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
     # unity7 implicit classic slot needed (used to access dbus-send) not
     # available on core
     - -ubuntu-core-*
@@ -31,6 +29,11 @@ execute: |
     echo "Then the snap is able to get introspect org.freedesktop.login1"
     expected="<interface name=\"org.freedesktop.login1.Manager\">"
     su -l -c "shutdown-introspection-consumer" test | MATCH "$expected"
+
+    if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
+        exit 0
+    fi
 
     echo "==========================================="
 

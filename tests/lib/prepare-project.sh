@@ -7,8 +7,8 @@ create_test_user(){
         # the all-snap, which has its own user & group database.
         # Nothing special about 12345 beyond it being high enough it's
         # unlikely to ever clash with anything, and easy to remember.
-        addgroup --quiet --gid 12345 test
-        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+        groupadd --gid 12345 test
+        adduser --uid 12345 --gid 12345 test
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -30,6 +30,25 @@ build_deb(){
     quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb $GOPATH
+}
+
+fedora_build_rpm() {
+    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    version="1337.$base_version"
+    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-25/snapd.spec
+
+    mkdir -p /tmp/pkg/snapd-$version
+    cp -rav * /tmp/pkg/snapd-$version/
+
+    mkdir -p $HOME/rpmbuild/SOURCES
+    (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
+
+    rpmbuild --with testkeys -bs packaging/fedora-25/snapd.spec
+    # FIXME 1.fc25 + arch needs to be dynamic as well
+    mock --with testkeys /root/rpmbuild/SRPMS/snapd-$version-1.fc25.src.rpm
+    cp /var/lib/mock/fedora-25-x86_64/result/snapd-$version-1.fc25.x86_64.rpm $GOPATH
+    cp /var/lib/mock/fedora-25-x86_64/result/snapd-selinux-$version-1.fc25.noarch.rpm $GOPATH
+    cp /var/lib/mock/fedora-25-x86_64/result/snap-confine-$version-1.fc25.x86_64.rpm $GOPATH
 }
 
 download_from_published(){
@@ -68,17 +87,18 @@ fi
 
 # declare the "quiet" wrapper
 . "$TESTSLIB/quiet.sh"
+. "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
        snap install --edge test-snapd-snapbuild
-       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       cp $SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e /snap/core/current/meta/hooks/configure ]; then
+   if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
@@ -97,7 +117,9 @@ fi
 
 create_test_user
 
-quiet apt-get update
+. "$TESTSLIB/pkgdb.sh"
+
+distro_update_package_db
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     if [ ! -d packaging/ubuntu-14.04 ]; then
@@ -119,27 +141,36 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd
-# utilities
-# XXX: build-essential seems to be required. Otherwise package build
-# fails with unmet dependency on "build-essential:native"
-quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git
+. "$TESTSLIB/distro.sh"
 
-# in 16.04: apt build-dep -y ./
-quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+distro_purge_package snapd || true
+distro_install_package $DISTRO_BUILD_DEPS
 
-# Necessary tools for our test setup
-quiet apt-get install -y netcat-openbsd
+# We take a special case for Debian/Ubuntu where we install additional build deps
+# base on the packaging. In Fedora/Suse this is handled via mock/osc
+case "$SPREAD_SYSTEM" in
+    debian-*)
+        ;&
+    ubuntu-*)
+        # in 16.04: apt build-dep -y ./
+        quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+        ;;
+    *)
+esac
 
 # update vendoring
-if [ "$(which govendor)" = "" ]; then
+if [ -z "$(which govendor)" ]; then
     rm -rf $GOPATH/src/github.com/kardianos/govendor
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
 
 if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
-    build_deb
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        fedora_build_rpm
+    else
+        build_deb
+    fi
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
@@ -154,5 +185,7 @@ if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
 go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
-# Build fakedevicesvc.
+
+# Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
+go get ./tests/lib/systemd-escape

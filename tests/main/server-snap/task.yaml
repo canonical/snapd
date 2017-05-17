@@ -26,7 +26,18 @@ restore: |
     rm -f request.txt
 
 execute: |
-    response=$(nc -q 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
+    EXTRA_NC_ARGS="-q 5"
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        EXTRA_NC_ARGS=
+    fi
+
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        if [ "$LOCALHOST" = ip6-localhost ]; then
+            LOCALHOST=localhost6
+        fi
+    fi
+
+    response=$(nc $EXTRA_NC_ARGS -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 
     statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
     echo "$response" | grep -Pzq "$statusPattern"

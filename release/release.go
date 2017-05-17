@@ -34,6 +34,7 @@ var Series = "16"
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
 	ID        string `json:"id"`
+	IDLike    string `json:"id-like"`
 	VersionID string `json:"version-id,omitempty"`
 }
 
@@ -65,6 +66,13 @@ func (o *OS) ForceDevMode() bool {
 	}
 
 	return false
+}
+
+// IsBasedOnDistro checks if the OS is based on specific distribution supplied
+// with name. Internally it uses the ID and ID_LIKE fields of /etc/os-release
+// for this.
+func (o *OS) IsBasedOnDistro(name string) bool {
+	return (o.ID == name || o.IDLike == name)
 }
 
 var (
@@ -112,6 +120,8 @@ func readOSRelease() OS {
 			// not being too good at reading comprehension.
 			// Works around e.g. lp:1602317
 			osRelease.ID = strings.Fields(strings.ToLower(v))[0]
+		case "ID_LIKE":
+			osRelease.IDLike = strings.Fields(strings.ToLower(v))[0]
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}

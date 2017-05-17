@@ -1,9 +1,5 @@
 summary: Check that the log-observe interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The log-observe interface allows a snap to read system logs and set kernel
     log rate-limiting.
@@ -53,7 +49,16 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access the system logs"
-    log-observe-consumer | grep -Pqz "ok\n"
+    log_path=/var/log/syslog
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        log_path=/var/log/boot.log
+    fi
+    log-observe-consumer $log_path | grep -Pqz "ok\n"
+
+    if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
+        exit 0
+    fi
 
     echo "============================================"
 
@@ -62,7 +67,7 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access the system logs"
-    if log-observe-consumer; then
+    if log-observe-consumer $log_path; then
         echo "System log shouldn't be accessible"
         exit 1
     fi

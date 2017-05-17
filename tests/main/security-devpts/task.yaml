@@ -8,6 +8,11 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
 
+    . $TESTSLIB/dirs.sh
+    cat pts.exp.in | \
+        sed s:@SNAP_MOUNT_DIR@:$SNAPMOUNTDIR:g  | \
+        cat > pts.exp
+
 execute: |
     echo "Then the pts device follows confinement rules"
     expect -d -f pts.exp

@@ -1,5 +1,8 @@
 summary: Check that `snapctl` can be run from within hooks
 
+# FIXME hooks are broken with just having seccomp enabled as we have on Fedora
+systems: [-fedora-*]
+
 prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
     snap install --dangerous snapctl-hooks_1.0_all.snap

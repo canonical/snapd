@@ -2,6 +2,7 @@
 
 set -eux
 
+. $TESTSLIB/dirs.sh
 . $TESTSLIB/apt.sh
 . $TESTSLIB/snaps.sh
 
@@ -28,25 +29,26 @@ update_core_snap_for_classic_reexec() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f /snap/core/current || readlink -f /snap/ubuntu-core/current)"
+    core="$(readlink -f $SNAPMOUNTDIR/core/current || readlink -f $SNAPMOUNTDIR/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
     # clean the old snapd libexec binaries, just in case
-    rm squashfs-root/usr/lib/snapd/*
+    rm squashfs-root/$CORELIBEXECDIR/snapd/*
     # and copy in the current ones
-    cp -a /usr/lib/snapd/* squashfs-root/usr/lib/snapd/
+    cp -a $LIBEXECDIR/snapd/* squashfs-root/$CORELIBEXECDIR/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
-    # and snap-confine's apparmor
-    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    else
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+        # and snap-confine's apparmor
+        if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+            cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+        else
+            cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+        fi
     fi
-
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -55,12 +57,19 @@ update_core_snap_for_classic_reexec() {
     # Now mount the new core snap
     mount "$snap" "$core"
 
-    # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
-        if ! cmp ${p} ${core}${p}; then
-            echo "$p in tree and $p in core snap are unexpectedly not the same"
+    check_file() {
+        if ! cmp $1 $2 ; then
+            echo "$1 in tree and $2 in core snap are unexpectedly not the same"
             exit 1
         fi
+    }
+
+    # Make sure we're running with the correct copied bits
+    for p in $LIBEXECDIR/snapd/snap-exec $LIBEXECDIR/snapd/snap-confine $LIBEXECDIR/snapd/snap-discard-ns $LIBEXECDIR/snapd/snapd; do
+        check_file ${p} ${core}${CORELIBEXECDIR}/snapd/$(basename ${p})
+    done
+    for p in /usr/bin/snapctl /usr/bin/snap; do
+        check_file ${p} ${core}${p}
     done
 }
 
@@ -81,17 +90,41 @@ EOF
 }
 
 prepare_classic() {
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        case "$SPREAD_REBOOT" in
+            0)
+                cat << EOF > /etc/selinux/config
+SELINUX=disabled
+SELINUXTYPE=targeted
+EOF
+                REBOOT
+                ;;
+            1)
+                echo "Ensure that we now have a system in permissive mode"
+                if [ "$(/usr/sbin/getenforce)" != "Disabled" ]; then
+                    exit 1
+                fi
+                ;;
+            *)
+                ;;
+        esac
+    fi
+
     install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        apt-cache policy snapd
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            apt-cache policy snapd
+        fi
         exit 1
     fi
-    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
+    if $LIBEXECDIR/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        /usr/lib/snapd/snap-confine --version
-        apt-cache policy snap-confine
+        $LIBEXECDIR/snapd/snap-confine --version
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            apt-cache policy snap-confine
+        fi
         exit 1
     fi
 
@@ -128,12 +161,14 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output is empty on classic"
-        output=$(grub-editenv list)
-        if [ -n "$output" ]; then
-            echo "Expected empty grub environment, got:"
-            echo "$output"
-            exit 1
+        if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+            echo "Ensure that the grub-editenv list output is empty on classic"
+            output=$(grub-editenv list)
+            if [ -n "$output" ]; then
+                echo "Expected empty grub environment, got:"
+                echo "$output"
+                exit 1
+            fi
         fi
 
         systemctl stop snapd.service snapd.socket
@@ -141,12 +176,13 @@ EOF
         update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
-        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        escaped_snap_mount_dir="$(systemd-escape --path $SNAPMOUNTDIR)"
+        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $SNAPMOUNTDIR /etc/systemd/system/$escaped_snap_mount_dir-*core*.mount
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start $unit
@@ -154,13 +190,28 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # Improve entropy for the whole system quite a lot to get fast
-        # key generation during our test cycles
-        apt-get install rng-tools
-        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
-        /etc/init.d/rng-tools restart
-    fi
+    # Improve entropy for the whole system quite a lot to get fast
+    # key generation during our test cycles
+    distro_install_package rng-tools
+
+    case "$SPREAD_SYSTEM" in
+        debian-*)
+            ;&
+        ubuntu-*)
+            echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+            /etc/init.d/rng-tools restart
+            ;;
+        fedora-*)
+            # There is no easy way to configure rngd on Fedora so we have to
+            # modify the systemd service unit itself
+            sed -i 's:^ExecStart.*:ExecStart=/sbin/rngd -f -r /dev/urandom:g' \
+                /usr/lib/systemd/system/rngd.service
+            systemctl daemon-reload
+            systemctl restart rngd
+            ;;
+        *)
+            ;;
+    esac
 
     disable_kernel_rate_limiting
 }

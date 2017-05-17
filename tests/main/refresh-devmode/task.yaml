@@ -7,7 +7,6 @@ details: |
     When executing against the remote stores the tests rely in the existence of
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
-
 environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1

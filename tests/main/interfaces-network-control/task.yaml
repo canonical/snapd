@@ -1,9 +1,5 @@
 summary: Ensure that the network-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The network-control interface allows a snap to configure networking.
 
@@ -14,6 +10,9 @@ details: |
     A snap declaring a plug on this interface must be able to modify the network configuration
     and ask for its status, the test sets up a network service, gets information about it (read
     capability) and creates an arp entry (write capability).
+
+# FIXME needs a linode system booted with the distro kernel instead of the linode one
+systems: [-fedora-*]
 
 environment:
     PORT: 8081
@@ -29,7 +28,11 @@ prepare: |
     snap install --dangerous network-control-consumer_1.0_all.snap
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    EXTRA_NC_ARGS=""
+    if [[ "$SPREAD_SYSTEM" = debian-* || "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        EXTRA_NC_ARGS="-q 1"
+    fi
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT $EXTRA_NC_ARGS; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
@@ -67,18 +70,22 @@ execute: |
 
     echo "===================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    if ! snap forced-devmode ; then
+        echo "When the plug is disconnected"
+        snap disconnect network-control-consumer:network-control
+        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap command can not query network status information"
-    if network-control-consumer.cmd netstat -lnt 2>net-query.output; then
-        echo "Expected error caling command with disconnected plug"
-        exit 1
+        echo "Then the snap command can not query network status information"
+        if network-control-consumer.cmd netstat -lnt 2>net-query.output; then
+            echo "Expected error caling command with disconnected plug"
+            exit 1
+        fi
+        cat net-query.output | MATCH "Permission denied"
+
+        echo "===================================="
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-    cat net-query.output | MATCH "Permission denied"
-
-    echo "===================================="
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
@@ -91,18 +98,22 @@ execute: |
 
     echo "===================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    if ! snap forced-devmode ; then
+        echo "When the plug is disconnected"
+        snap disconnect network-control-consumer:network-control
+        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap command can not modify the network configuration"
-    if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
-        echo "Expected error calling command with disconnected plug"
-        exit 1
+        echo "Then the snap command can not modify the network configuration"
+        if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
+            echo "Expected error calling command with disconnected plug"
+            exit 1
+        fi
+        cat net-command.output | MATCH "Permission denied"
+
+        echo "===================================="
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-    cat net-command.output | MATCH "Permission denied"
-
-    echo "===================================="
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
@@ -125,31 +136,35 @@ execute: |
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
 
-    echo "===================================="
+    if ! snap forced-devmode ; then
+        echo "===================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect network-control-consumer:network-control
+        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "The snap is not able to create a network namespace"
-    if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
-        echo "Expected error calling ns create command with disconnected plug"
+        echo "The snap is not able to create a network namespace"
+        if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
+            echo "Expected error calling ns create command with disconnected plug"
+        fi
+        cat ns-create.output | MATCH "Permission denied"
+
+        echo "And the snap can't add a veth interface to an existing namespace"
+        # first, move veth1 back to the root namespace
+        ip netns exec test-ns ip link set veth1 netns 1
+        if network-control-consumer.cmd ip link set veth1 netns test-ns 2>ns-move.output; then
+            echo "Expected error trying to move veth to network namespace with disconnected plug"
+            exit 1
+        fi
+        cat ns-move.output | MATCH "Permission denied"
+
+
+        echo "And the snap can't execute a command in the context of the namespace"
+        if network-control-consumer.cmd ip netns exec test-ns ip link list 2>ns-exec.output; then
+            echo "Expected error trying to execute command in a network namespace context with disconnected plug"
+            exit 1
+        fi
+        cat ns-exec.output | MATCH "Permission denied"
+    else
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
-    cat ns-create.output | MATCH "Permission denied"
-
-    echo "And the snap can't add a veth interface to an existing namespace"
-    # first, move veth1 back to the root namespace
-    ip netns exec test-ns ip link set veth1 netns 1
-    if network-control-consumer.cmd ip link set veth1 netns test-ns 2>ns-move.output; then
-        echo "Expected error trying to move veth to network namespace with disconnected plug"
-        exit 1
-    fi
-    cat ns-move.output | MATCH "Permission denied"
-
-
-    echo "And the snap can't execute a command in the context of the namespace"
-    if network-control-consumer.cmd ip netns exec test-ns ip link list 2>ns-exec.output; then
-        echo "Expected error trying to execute command in a network namespace context with disconnected plug"
-        exit 1
-    fi
-    cat ns-exec.output | MATCH "Permission denied"

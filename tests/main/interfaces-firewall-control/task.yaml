@@ -1,9 +1,5 @@
 summary: Ensure that the firewall-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
@@ -16,6 +12,9 @@ details: |
     localhost to a given IP can be added by the snap, ensuring that a generic client can
     access a generic service listening on localhost through the IP set up in the firewall
     rule.
+
+# FIXME needs a linode system booted with the distro kernel instead of the linode one
+systems: [-fedora-*]
 
 environment:
     PORT: 8081
@@ -30,7 +29,11 @@ prepare: |
     snap install --dangerous firewall-control-consumer_1.0_all.snap
 
     echo "And a service is listening"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    EXTRA_NC_ARGS=""
+    if [[ "$SPREAD_SYSTEM" = debian-* || "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        EXTRA_NC_ARGS="-q 1"
+    fi
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT $EXTRA_NC_ARGS; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     . "$TESTSLIB/systemd.sh"
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
@@ -72,6 +75,11 @@ execute: |
 
     echo "Then the service listening on localhost is no longer accessible through the destination IP in the rule"
     ! nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE
+
+    if snap forced-devmode ; then
+        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
+        exit 0
+    fi
 
     echo "==================================="
 

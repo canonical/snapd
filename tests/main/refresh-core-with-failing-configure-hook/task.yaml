@@ -1,6 +1,5 @@
 summary: Check refresh with a broken configure hook on core still works
 
-# FIXME: for now only
 systems: [-ubuntu-core-*]
 
 environment:

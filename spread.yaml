@@ -6,7 +6,7 @@ environment:
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
+    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
@@ -38,6 +38,9 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
+environment-includes:
+    - $TESTSLIB/distro.sh
+
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
@@ -59,7 +62,10 @@ backends:
             - debian-unstable-64:
                 kernel: GRUB 2
                 workers: 4
+            - fedora-25-64:
+                workers: 1
     qemu:
+        CPUs: 4
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
@@ -91,6 +97,12 @@ backends:
             - debian-9-64:
                 username: debian
                 password: debian
+            - fedora-25-64:
+                username: fedora
+                password: fedora
+            - opensuse-42.2-64:
+                username: opensuse
+                password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |
@@ -221,27 +233,6 @@ debug-each: |
     echo '# snap interfaces'
     snap interfaces || true
 
-rename:
-    # Move content into a directory, so that deltas computed by repack benefit
-    # from the content looking similar to codeload.github.com.
-    - s,^,$DELTA_PREFIX,S
-
-repack: |
-    # For Linode, compute a delta based on a known git reference that can be
-    # obtained directly from GitHub. There's nothing special about that reference,
-    # other than it will often be in the local repository's history already.
-    # The more recent the reference, the smaller the delta.
-    if ! echo $SPREAD_BACKENDS | grep linode; then
-        cat <&3 >&4
-    elif ! git show-ref $DELTA_REF > /dev/null; then
-        cat <&3 >&4
-    else
-        trap "rm -f delta-ref.tar current.delta" EXIT
-        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
-        xdelta3 -s delta-ref.tar <&3 > current.delta
-        tar c current.delta >&4
-    fi
-
 prepare: |
     # check if running inside a container, the testsuite will not
     # work in such an environment
@@ -302,7 +293,9 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
+                distro_purge_package snap-confine
             fi
 
     tests/completion/:
