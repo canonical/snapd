@@ -1,3 +1,189 @@
+snapd (2.26.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - store: fix panic error in auth
+    - tests: the new ubuntu-image snap needs classic confinement, adjust
+      tests
+    - cmd/snap-confine: don't fail on pre 3.8 kernel
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 May 2017 21:44:27 +0200
+
+snapd (2.26~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - timeutil: avoid panicking when the window is very small
+    - image: fix go vet issue
+    - overlord/ifacestate: don't spam logs with harmless auto-connect
+      messages
+    - interfaces/builtin: add network-status interface
+    - interfaces/builtin: add online-accounts-service interface
+    - interfaces/builtin: distribute code of touching allInterfaces
+    - interfaces: API additions for interface hooks
+    - interfaces/builtin: add storage-framework-service interface
+    - tests: disable create-key test on ppc64el for artful (expect not
+      working)
+    - snap: make `snap prepare-image --extra-snaps` derive side info
+    - tests: unify tests/{main/completion,completion}/lib.exp0
+    - cmd/snap: tweak info channels output
+    - interfaces: ensure that legacy interface methods are unused
+    - packaging: cleanup how built-using is generated
+    - tests: extend kernel-module-control interface test
+    - interfaces/network: workaround Go's need for NETLINK_ROUTE with
+      'net'.
+    - cmd/snap-confine: use defensive argument parser
+    - tests: add test for empty snap name on revert
+    - overlord/hookstate: remove unused Context.timeout
+    - tests: additional setup in docker test for core systems
+    - configstate: return error if patch is invalid
+    - interfaces: add random interface
+    - store, daemon, client, cmd/snap: handle PASSWORD_POLICY_ERROR
+    - cmd/snap, client: add "whoami" command
+    - cmd/snap: iterate interface tab completion
+    - snap: move locale-control to only be present on classic
+    - interfaces/browser-support: deny read on squashfs backing files
+      and LVM vg names
+    - tests: wait for the docker socket to be listening
+    - snap: add `snap refresh --time` option
+    - tests: re-enable and moderninze /media sharing test
+    - cmd: make rst2man optional
+    - tests: remove quoting from [[ ]] when globs
+    - interfaces: allow plugging DBus clients to introspect the slot
+      service
+    - packaging/ubuntu*/changelog: drop extra dash
+    - snap-confine: init the ENTRY variable, coverity is unhappy
+      otherwise
+    - cmd/snap-confine/spread-tests: discard useless --version test
+    - spread: add spread target qemu:debian-9-64
+    - interfaces: mediate netlink sockets via seccomp
+    - tests,cmd/snap-confine: port older snapd-discard-ns tests
+    - cmd/snap-confine/tests: fix shellcheck on recently added files
+    - tests/upgrade: force install core snap from beta for debian
+    - overlord/snapstate/backend,interfaces/mount: move ns management
+      code.
+    - tests: extend network-control spread test to cope with network
+      namespaces
+    - tests: fail early in the spread suite if trying to run it inside a
+      container
+    - tests: set ownership of $PROJECT_PATH for the external backend
+    - tests: specify the auto-refreshable snap being tested
+    - many: fix tests with go1.8 / artful
+    - fix for tests: debian does not have /snap/bin in secure_path so
+      sudo
+    - snap: support for snap tasks --last=...
+    - cmd/snap-confine: remove obsolete debug message
+    - address review feedback, add a lot of comments :-), call
+      shellcheck on the completion scripts, fix a bug in compopt
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 May 2017 10:11:07 +0200
+
+snapd (2.25~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1686713
+    - interfaces/default: allow mknod for regular files, pipes and
+      sockets
+    - many: use "SNAP.APP as ALIAS" instead of => when listing
+      added/removed aliases
+    - cmd/snap-confine: write current mount profile
+    - cmd/snap-discard-ns: remove current profile when cleaning up
+    - many: support debian in our CI
+    - tests: tweak time for econnreset test a bit more
+    - cmd/snap-confine: re-enable re-assciate fix for CE
+    - many: aliases v2 cleanups
+    - cmd/snap-confine: don't use apparmor if it is disabled on boot
+    - many: implement `snap prefer <snap>`  (aliases v2)
+    - many: adjust /aliases and "snap aliases" to aliases v2, also some
+      cleanup
+    - snapstate: normalize gadget defaults
+    - many: allow core refresh.schedule setting
+    - many: show alias changes on snap alias/unalias (aliases v2)
+    - client,cmd/snap: improve messaging on --devmode and --classic
+    - many: implement `snap unalias <alias-or-snap>` (aliases v2)
+    - store: retry on connection reset
+    - interfaces/mount: add Change.Perform
+    - tests: add openvswitch interface spread test
+    - interfaces/i2c: allow modifying device-specific sysfs entries
+    - interfaces: allow writing to /run/systemd/journal/stdout by
+      default
+    - tests: ensure travis fails early if static checks fail
+    - store,daemon: make store interpret channel="" as stable in most
+      cases
+    - overlord/snapstate: make UpdateAliases idempotent, simplify the
+      backend interface bits for aliases not used anymore (aliases v2)
+    - many: implement snap alias <snap.app> <alias> (aliases v2)
+    - snap-confine: add code to ensure that / or /snap is mounted
+      "shared"
+    - many: show available "tracks" in `snap info`
+    - cmd/snap: make users Xauthority file available in snap environment
+    - interfaces/mount: write current fstab files with mode 0644
+    - overlord: switch to aliases v2 tasks for install/refresh etc ops
+      plus transition
+    - tests: parameterize gadget snap channel (#3117)
+    - tests: copy .real profile as .real
+    - tests: add empty initrd failover test
+    - many: mount squashfs as read-only
+    - cmd: make locking around namespaces explicit
+    - tests: address review comments from #3186
+    - tests: add dbus interface spread test
+    - interfaces/mount: add ReadMountInfo and LoadMountInfo
+    - snap: require snap name for 'revert'
+    - overlord: maintain per-revision snapshots of snap configuration
+    - tests: relax network-bind interface regexps
+    - interfaces: re-add reverted ioctl and quotactl (revert 21bc6b9f)
+    - store: retry once on hashsum mismatches in a Download()
+    - interfaces/builtin: don't panic if content plug has nil attrs
+    - interfaces/mount: pass mount.Profile to mount.NeededChanges
+    - packaging: add `built-using` header for 16.04 packaging
+    - interfaces: add media-hub interface
+    - interfaces/builtin: allow full access to properties iface of the
+      udisks service
+    - tests: handle case when both .real and plain are present
+    - interfaces/mount: add Change.String for readable output
+    - tests: ensure we mock force dev mode as well to fix FTBFS in
+      sbuild
+    - store: add more logs around retry in download
+    - interfaces/mount: add stub Change.{Needed,Perform}
+    - tests: allow installing snapd from -proposed for SRU validation
+    - interfaces/mount: parse mount options to map[string]string
+    - snap: added tasks subcommand
+    - tests: copy snap-confine apparmor profile into testbed
+    - interfaces/mount: improve go identifier names of mountinfo, parse
+      optional fields
+    - Arch Linux wants to respect FHS
+      (https://bugs.archlinux.org/task/53656),
+    - daemon: do not set RemoveSnapPath flag when doing a try
+    - debian: add maintscript helper to remove usr.lib.snapd.snap-
+      confine in snap-confine
+    - cmd/snap-confine: don't use plain "classic" term
+    - cmd/snap-confine: set TMPDIR and TEMPDIR each time
+    - many: fixes for `go vet` in go 1.7
+    - tests: add kernel-module-control interface test
+    - overlord/snapstate: introduce tasks for aliases v2 semantics with
+      temporary names for now (aliases v2)
+    - overlord/devicestate: switch to ssh-keygen for device key
+      generation
+    - snap: skip /dev/ram from auto-import assertions to make it less
+      noisy (#3010)
+    - interfaces: add kubernetes-support interface and adjust related
+      interfaces (LP: #1664638)
+    - tests: download previous snapd package from published versions
+      instead of specific PPA
+    - snap: run snap-confine from core if snap is also running from core
+    - overlord/ifacestate: automatically rename connections on core snap
+    - many: break the /aliases mutation API with a clean 400 (aliases
+      v2)
+    - interfaces/builting: allow read-only access to /sys/module
+    - tests: add extra test after the core transition for snap get/set
+      core
+    - store: misc cleanups in tests
+    - interfaces/mount: add parser for mountinfo entries
+    - store: tests for unexpected EOF
+    - tests: fix unity test
+    - interfaces,overlord: log interface auto-connection failures
+    - cmd/snap-update-ns: add C preamble for setns
+    - interfaces: validate plug/slot uniqueness
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 28 Apr 2017 07:57:49 +0200
+
 snapd (2.24~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1681799:

@@ -39,7 +39,9 @@ type Unity8ContactsInterfaceSuite struct {
 	plug     *interfaces.Plug
 }
 
-var _ = Suite(&Unity8ContactsInterfaceSuite{})
+var _ = Suite(&Unity8ContactsInterfaceSuite{
+	iface: builtin.MustInterface("unity8-contacts"),
+})
 
 func (s *Unity8ContactsInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -57,7 +59,6 @@ apps:
   command: foo
   slots: [unity8-contacts]
 `
-	s.iface = builtin.NewUnity8ContactsInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -92,7 +93,7 @@ func (s *Unity8ContactsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *Unity8ContactsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
@@ -115,7 +116,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.*"),`)
@@ -140,7 +141,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
@@ -163,7 +164,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.app"),`)
@@ -173,7 +174,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLab
 	release.OnClassic = true
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -188,7 +189,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -200,7 +201,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 
 func (s *Unity8ContactsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "peer=(label=\"snap.other.app\")")
@@ -220,4 +221,8 @@ func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "listen\n")
+}
+
+func (s *Unity8ContactsInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

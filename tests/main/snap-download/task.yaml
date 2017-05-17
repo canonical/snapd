@@ -2,9 +2,9 @@ summary: Check that snap download works
 execute: |
     verify_asserts() {
         fn="$1"
-        grep "type: account-key" "$fn"
-        grep "type: snap-declaration" "$fn"
-        grep "type: snap-revision" "$fn"
+        MATCH "type: account-key" < "$fn"
+        MATCH "type: snap-declaration" < "$fn"
+        MATCH "type: snap-revision" < "$fn"
     }
     echo "Snap download can download snaps"
     snap download test-snapd-control-consumer

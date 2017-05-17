@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
@@ -33,6 +29,11 @@ const x11ConnectedPlugAppArmor = `
 
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+
+# Allow access to the user specific copy of the xauth file specified
+# in the XAUTHORITY environment variable, that "snap run" creates on
+# startup.
+owner /run/user/[0-9]*/.Xauthority r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
@@ -43,12 +44,11 @@ const x11ConnectedPlugSecComp = `
 shutdown
 `
 
-// NewX11Interface returns a new "x11" interface.
-func NewX11Interface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "x11",
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

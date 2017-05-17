@@ -44,10 +44,9 @@ void sc_reassociate_with_pid1_mount_ns();
  * used for storing preserved namespaces as bind-mounted files from the nsfs
  * filesystem (namespace filesystem).
  *
- * This function acquires a flock(2)-based lock to ensure that no other instance
- * of snap-confine attempts to do this concurrently. If a process dies for any
- * reason then the lock is released and other instances of snap-confine can
- * complete the initialization.
+ * This function should be called with a global lock (see sc_lock_global) held
+ * to ensure that no other instance of snap-confine attempts to do this
+ * concurrently.
  *
  * This function inspects /proc/self/mountinfo to determine if the directory
  * where namespaces are kept (/run/snapd/ns) is correctly prepared as described
@@ -69,13 +68,18 @@ enum {
 /**
  * Open a namespace group.
  *
- * This will open and keep file descriptors for /run/snapd/ns/ as well as for
- * /run/snapd/ns/${group_name}.lock. The lock file is created if necessary but
- * is not locked until sc_lock_ns_mutex() is called.
+ * This will open and keep file descriptors for /run/snapd/ns/.
  *
  * If the flags argument is SC_NS_FAIL_GRACEFULLY then the function returns
  * NULL if the /run/snapd/ns directory doesn't exist. In all other cases it
  * calls die() and exits the process.
+ *
+ * The following methods should be called only while holding a lock protecting
+ * that specific snap namespace:
+ * - sc_create_or_join_ns_group()
+ * - sc_should_populate_ns_group()
+ * - sc_preserve_populated_ns_group()
+ * - sc_discard_preserved_ns_group()
  */
 struct sc_ns_group *sc_open_ns_group(const char *group_name,
 				     const unsigned flags);
@@ -86,30 +90,6 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
  * This will close all of the open file descriptors and release allocated memory.
  */
 void sc_close_ns_group(struct sc_ns_group *group);
-
-/**
- * Acquire exclusive lock to the namespace group.
- *
- * This will attempt to acquire an flock-based exclusive lock on the file
- * descriptor associated with /run/snapd/ns/${group_name}.lock. If the process
- * is killed while the lock is held the lock is automatically released by the
- * kernel.
- *
- * The following methods should be called only while holding the lock:
- * - sc_create_or_join_ns_group()
- * - sc_should_populate_ns_group()
- * - sc_preserve_populated_ns_group()
- * - sc_discard_preserved_ns_group()
- **/
-void sc_lock_ns_mutex(struct sc_ns_group *group);
-
-/**
- * Release lock to the namespace group.
- *
- * This will attempt to release a flock-based lock on the file descriptor
- * associated with /run/snapd/ns/${group_name}.lock.
- **/
-void sc_unlock_ns_mutex(struct sc_ns_group *group);
 
 /**
  * Join the mount namespace associated with this group if one exists.

@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-observe
 const networkObserveConnectedPlugAppArmor = `
 # Description: Can query network status information. This is restricted because
@@ -64,6 +60,7 @@ const networkObserveConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 
@@ -100,14 +97,25 @@ const networkObserveConnectedPlugSecComp = `
 
 # for ping and ping6
 capset
+
+# for using socket(AF_NETLINK, ...)
+bind
+
+# for ss
+socket AF_NETLINK - NETLINK_INET_DIAG
+
+# arp
+socket AF_NETLINK - NETLINK_ROUTE
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkObserveInterface returns a new "network-observe" interface.
-func NewNetworkObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "network-observe",
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

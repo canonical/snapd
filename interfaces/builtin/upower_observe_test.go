@@ -39,7 +39,9 @@ type UPowerObserveInterfaceSuite struct {
 	plug        *interfaces.Plug
 }
 
-var _ = Suite(&UPowerObserveInterfaceSuite{})
+var _ = Suite(&UPowerObserveInterfaceSuite{
+	iface: builtin.MustInterface("upower-observe"),
+})
 
 func (s *UPowerObserveInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -65,7 +67,6 @@ apps:
   command: foo
   slots: [upower-observe]
 `
-	s.iface = &builtin.UpowerObserveInterface{}
 	// upower snap with upower-server slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, upowerMockSlotSnapInfoYaml, nil)
 	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["upower-observe"]}
@@ -123,7 +124,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.upower.*"),`)
@@ -148,7 +149,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.upower.{app1,app2}"),`)
@@ -171,7 +172,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.upower.app"),`)
@@ -180,7 +181,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.classicSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -193,7 +194,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabe
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -242,8 +243,12 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.coreSlot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.coreSlot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.upowerd.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.upowerd.app"), testutil.Contains, `peer=(label="snap.upower.app"),`)
+}
+
+func (s *UPowerObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -36,7 +36,9 @@ type TimezoneControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TimezoneControlInterfaceSuite{})
+var _ = Suite(&TimezoneControlInterfaceSuite{
+	iface: builtin.MustInterface("timezone-control"),
+})
 
 func (s *TimezoneControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [timezone-control]
 `
-	s.iface = builtin.NewTimezoneControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,8 +89,12 @@ func (s *TimezoneControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *TimezoneControlInterfaceSuite) TestConnectedPlug(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `timedate1`)
+}
+
+func (s *TimezoneControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

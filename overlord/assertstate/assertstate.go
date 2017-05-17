@@ -340,7 +340,7 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	res := make(map[string]string, len(oldAutoAliases))
 	for _, alias := range oldAutoAliases {
-		app := info.Aliases[alias]
+		app := info.LegacyAliases[alias]
 		if app == nil {
 			// not a known alias anymore or yet, skip
 			continue

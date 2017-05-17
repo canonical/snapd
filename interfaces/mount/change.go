@@ -20,19 +20,23 @@
 package mount
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
 type Action string
 
 const (
+	// Keep indicates that a given mount entry should be kept as-is.
+	Keep Action = "keep"
 	// Mount represents an action that results in mounting something somewhere.
 	Mount Action = "mount"
 	// Unmount represents an action that results in unmounting something from somewhere.
-	Unmount Action = "umount"
+	Unmount Action = "unmount"
 	// Remount when needed
 )
 
@@ -42,18 +46,41 @@ type Change struct {
 	Action Action
 }
 
+// String formats mount change to a human-readable line.
+func (c Change) String() string {
+	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
+}
+
+// Perform executes the desired mount or unmount change using system calls.
+// Filesystems that depend on helper programs or multiple independent calls to
+// the kernel (--make-shared, for example) are unsupported.
+func (c *Change) Perform() error {
+	switch c.Action {
+	case Mount:
+		flags, err := OptsToFlags(c.Entry.Options)
+		if err != nil {
+			return err
+		}
+		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+	case Unmount:
+		const UMOUNT_NOFOLLOW = 8
+		return syscall.Unmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+	}
+	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
+}
+
 // NeededChanges computes the changes required to change current to desired mount entries.
 //
 // The current and desired profiles is a fstab like list of mount entries. The
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
-	// Copy both as we will want to mutate them.
-	current := make([]Entry, len(currentProfile))
-	copy(current, currentProfile)
-	desired := make([]Entry, len(desiredProfile))
-	copy(desired, desiredProfile)
+func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
+	// Copy both profiles as we will want to mutate them.
+	current := make([]Entry, len(currentProfile.Entries))
+	copy(current, currentProfile.Entries)
+	desired := make([]Entry, len(desiredProfile.Entries))
+	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
 	// easily test if a given directory is a subdirectory with
@@ -100,7 +127,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 
 	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
-		if !reuse[current[i].Dir] {
+		if reuse[current[i].Dir] {
+			changes = append(changes, Change{Action: Keep, Entry: current[i]})
+		} else {
 			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
 		}
 	}

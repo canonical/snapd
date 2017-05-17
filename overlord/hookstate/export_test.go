@@ -48,6 +48,14 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 	}
 }
 
+func MockDefaultHookTimeout(timeout time.Duration) func() {
+	oldDefaultTimeout := defaultHookTimeout
+	defaultHookTimeout = timeout
+	return func() {
+		defaultHookTimeout = oldDefaultTimeout
+	}
+}
+
 func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
 	prev := errtrackerReport
 	errtrackerReport = mock

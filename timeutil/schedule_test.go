@@ -59,6 +59,18 @@ func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 	}
 }
 
+func (ts *timeutilSuite) TestScheduleString(c *C) {
+	for _, t := range []struct {
+		sched timeutil.Schedule
+		str   string
+	}{
+		{timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41}, End: timeutil.TimeOfDay{Hour: 14, Minute: 59}}, "13:41-14:59"},
+		{timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41}, End: timeutil.TimeOfDay{Hour: 14, Minute: 59}, Weekday: "mon"}, "mon@13:41-14:59"},
+	} {
+		c.Check(t.sched.String(), Equals, t.str)
+	}
+}
+
 func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	for _, t := range []struct {
 		in       string
@@ -213,6 +225,20 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2017-01-01 10:00",
 			now:      "2017-02-06 12:00",
 			next:     "0s-0s",
+		},
+		{
+			// daily schedule, very small window
+			schedule: "9:00-9:03",
+			last:     "2017-02-05 09:02",
+			now:      "2017-02-06 08:58",
+			next:     "2m-5m",
+		},
+		{
+			// daily schedule, zero window
+			schedule: "9:00-9:00",
+			last:     "2017-02-05 09:02",
+			now:      "2017-02-06 08:58",
+			next:     "2m-2m",
 		},
 	} {
 		last, err := time.ParseInLocation(shortForm, t.last, time.Local)

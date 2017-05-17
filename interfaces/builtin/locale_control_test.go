@@ -36,7 +36,9 @@ type LocaleControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocaleControlInterfaceSuite{})
+var _ = Suite(&LocaleControlInterfaceSuite{
+	iface: builtin.MustInterface("locale-control"),
+})
 
 func (s *LocaleControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [locale-control]
 `
-	s.iface = builtin.NewLocaleControlInterface()
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["locale-control"]}
 	s.slot = &interfaces.Slot{
@@ -88,10 +89,14 @@ func (s *LocaleControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *LocaleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	aasnippets := apparmorSpec.Snippets()
 	c.Assert(aasnippets, HasLen, 1)
 	c.Assert(aasnippets["snap.other.app"], HasLen, 1)
 	c.Assert(string(aasnippets["snap.other.app"][0]), testutil.Contains, "/etc/default/locale")
+}
+
+func (s *LocaleControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

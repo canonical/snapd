@@ -460,16 +460,6 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
 }
 
-// Disconnect works when just the slot is fully specified.
-func (s *interfaceManagerSuite) TestDisconnectSlot(c *C) {
-	s.testDisconnect(c, "", "", "producer", "slot")
-}
-
-// Disconnect works when just the plug is fully specified.
-func (s *interfaceManagerSuite) TestDisconnectPlug(c *C) {
-	s.testDisconnect(c, "consumer", "plug", "", "")
-}
-
 func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
 	// Put two snaps in place They consumer has an plug that can be connected
 	// to slot on the producer.

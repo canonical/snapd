@@ -82,17 +82,17 @@ const unity8ConnectedPlugSecComp = `
 shutdown
 `
 
-type Unity8Interface struct{}
+type unity8Interface struct{}
 
-func (iface *Unity8Interface) Name() string {
+func (iface *unity8Interface) Name() string {
 	return "unity8"
 }
 
-func (iface *Unity8Interface) String() string {
+func (iface *unity8Interface) String() string {
 	return iface.Name()
 }
 
-func (iface *Unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	oldTags := "###SLOT_SECURITY_TAGS###"
 	newTags := slotAppLabelExpr(slot)
 	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
@@ -100,26 +100,30 @@ func (iface *Unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *Unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(unity8ConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *Unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *Unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *Unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&unity8Interface{})
 }

@@ -195,3 +195,21 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }
+
+// Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo
+func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
+	pk := make([]string, len(at.PrimaryKey))
+	for i, k := range at.PrimaryKey {
+		pk[i] = headers[k]
+	}
+	as, err := tsto.sto.Assertion(at, pk, tsto.user)
+	if err != nil {
+		// convert store error to something that the asserts would
+		// return
+		if _, ok := err.(*store.AssertionNotFoundError); ok {
+			return nil, asserts.ErrNotFound
+		}
+		return nil, err
+	}
+	return as, nil
+}

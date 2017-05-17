@@ -94,6 +94,10 @@
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
 
+    # LP: #1668659
+    mount options=(rw rbind) /snap/ -> /snap/,
+    mount options=(rw rshared) -> /snap/,
+
     # boostrapping the mount namespace
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
@@ -156,9 +160,11 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
     # /etc/alternatives (core)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
     # the /snap directory
     mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
@@ -275,6 +281,10 @@
     /var/lib/lxd/ w,
     /var/lib/snapd/hostfs/var/lib/lxd r,
 
+    # support for locking
+    /run/snapd/lock/ rw,
+    /run/snapd/lock/*.lock rwk,
+
     # support for the mount namespace sharing
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
@@ -288,6 +298,7 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
+    /run/snapd/ns/*.fstab rw,
     ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,

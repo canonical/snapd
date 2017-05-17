@@ -36,7 +36,9 @@ type UbuntuDownloadManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{})
+var _ = Suite(&UbuntuDownloadManagerInterfaceSuite{
+	iface: builtin.MustInterface("ubuntu-download-manager"),
+})
 
 func (s *UbuntuDownloadManagerInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [ubuntu-download-manager]
 `
-	s.iface = &builtin.UbuntuDownloadManagerInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["ubuntu-download-manager"]}
 	s.slot = &interfaces.Slot{
@@ -88,8 +89,12 @@ func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizeIncorrectInterface(c *
 func (s *UbuntuDownloadManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/com/canonical/applications/download/**")
+}
+
+func (s *UbuntuDownloadManagerInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -124,6 +124,12 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/product r,
 /sys/devices/**/serial r,
 
+# Chromium content api tries to read these. It is an information disclosure
+# since these contain the names of snaps. Chromium operates fine without the
+# access so just block it.
+deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
+deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
+
 # networking
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,
@@ -230,17 +236,17 @@ unshare
 quotactl
 `
 
-type BrowserSupportInterface struct{}
+type browserSupportInterface struct{}
 
-func (iface *BrowserSupportInterface) Name() string {
+func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *BrowserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -256,7 +262,7 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
@@ -267,7 +273,7 @@ func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
@@ -277,6 +283,18 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
+}
+
+func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&browserSupportInterface{})
 }

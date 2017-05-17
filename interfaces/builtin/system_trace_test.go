@@ -36,7 +36,9 @@ type SystemTraceInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SystemTraceInterfaceSuite{})
+var _ = Suite(&SystemTraceInterfaceSuite{
+	iface: builtin.MustInterface("system-trace"),
+})
 
 func (s *SystemTraceInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [system-trace]
 `
-	s.iface = builtin.NewSystemTraceInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,8 +89,12 @@ func (s *SystemTraceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/kernel/debug/tracing/ r,")
+}
+
+func (s *SystemTraceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

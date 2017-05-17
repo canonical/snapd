@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
@@ -36,14 +34,19 @@ const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 bind
 shutdown
+
+# FIXME: some kernels require this with common functions in go's 'net' library.
+# While this should remain in network-bind, network-control and
+# network-observe, for series 16 also have it here to not break existing snaps.
+# Future snapd series may remove this in the future. LP: #1689536
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
-// NewNetworkInterface returns a new "network" interface.
-func NewNetworkInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "network",
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }
