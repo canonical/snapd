@@ -31,7 +31,9 @@ import (
 )
 
 type Env struct {
-	env  map[string]string
+	// Map with key-value strings
+	env map[string]string
+	// File for environment storage
 	path string
 }
 
@@ -55,13 +57,15 @@ func (a *Env) Load() error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		l := strings.SplitN(scanner.Text(), "=", 2)
 		// be liberal in what you accept
 		if len(l) < 2 {
-			logger.Noticef("WARNING: bad value while parsing %v", a.path)
+			logger.Noticef("WARNING: bad value while parsing %v (line: %q)",
+				a.path, scanner.Text())
 			continue
 		}
 		a.env[l[0]] = l[1]

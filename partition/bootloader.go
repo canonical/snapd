@@ -104,7 +104,7 @@ func FindBootloader() (Bootloader, error) {
 	}
 
 	// no, try androidboot
-	if androidboot := newAndroidboot(); androidboot != nil {
+	if androidboot := newAndroidBoot(); androidboot != nil {
 		return androidboot, nil
 	}
 

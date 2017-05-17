@@ -31,7 +31,7 @@ import (
 type androidboot struct{}
 
 // newAndroidboot creates a new Androidboot bootloader object
-func newAndroidboot() Bootloader {
+func newAndroidBoot() Bootloader {
 	a := &androidboot{}
 	if !osutil.FileExists(a.ConfigFile()) {
 		return nil
