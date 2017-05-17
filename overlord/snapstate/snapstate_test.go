@@ -1226,8 +1226,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/42",
+			op: "start-snap-services",
 		},
 		{
 			op:    "cleanup-trash",
@@ -1357,8 +1356,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1395,8 +1393,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/11",
+			op: "start-snap-services",
 		},
 		{
 			op:    "cleanup-trash",
@@ -1531,8 +1528,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1587,8 +1583,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			op: "start-snap-services",
 		},
 		{
 			op:    "undo-setup-snap",
@@ -1699,8 +1694,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1738,13 +1732,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/11",
+			op: "start-snap-services",
 		},
 		// undoing everything from here down...
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/11",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1772,8 +1764,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			op: "start-snap-services",
 		},
 		{
 			op:    "undo-setup-snap",
@@ -2493,7 +2484,6 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
 	c.Check(s.fakeBackend.ops[6].op, Equals, "setup-profiles:Doing") // core phase 2
 	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2567,7 +2557,6 @@ version: 1.0`)
 	})
 
 	c.Check(ops[2].op, Equals, "stop-snap-services")
-	c.Check(ops[2].name, Equals, "/snap/mock/x2")
 
 	c.Check(ops[4].op, Equals, "unlink-snap")
 	c.Check(ops[4].name, Equals, "/snap/mock/x2")
@@ -2589,7 +2578,6 @@ version: 1.0`)
 	c.Check(ops[8].name, Equals, "/snap/mock/x3")
 	c.Check(ops[9].op, Equals, "setup-profiles:Doing") // core phase 2
 	c.Check(ops[11].op, Equals, "start-snap-services")
-	c.Check(ops[11].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2716,7 +2704,6 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
 	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/some-snap/42")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2773,8 +2760,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -2883,8 +2869,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3474,8 +3459,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 		name: "/snap/some-snap/11",
 	})
 	c.Assert(ops[len(ops)-6], DeepEquals, fakeOp{
-		op:   "start-snap-services",
-		name: "/snap/some-snap/11",
+		op: "start-snap-services",
 	})
 	c.Assert(ops[len(ops)-5], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
@@ -3628,8 +3612,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3659,8 +3642,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			op: "start-snap-services",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3764,8 +3746,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3792,8 +3773,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			op: "start-snap-services",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3853,8 +3833,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3884,13 +3863,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/1",
+			op: "start-snap-services",
 		},
 		// undoing everything from here down...
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/1",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3913,8 +3890,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			op: "start-snap-services",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3965,8 +3941,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -4010,8 +3985,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			op: "start-snap-services",
 		},
 	}
 
@@ -4104,8 +4078,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			op: "start-snap-services",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -4151,8 +4124,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -5532,8 +5504,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	s.state.Lock()
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/11",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -5570,8 +5541,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			op: "start-snap-services",
 		},
 		{
 			op:    "cleanup-trash",
@@ -6050,16 +6020,14 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			name: "/snap/core/11",
+			op: "start-snap-services",
 		},
 		{
 			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/ubuntu-core/1",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -6149,8 +6117,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			name: "ubuntu-core",
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/ubuntu-core/1",
+			op: "stop-snap-services",
 		},
 		{
 			op:   "remove-snap-aliases",
