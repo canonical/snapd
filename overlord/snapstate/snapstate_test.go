@@ -5838,6 +5838,8 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
+	// SkipConfigure is consumed and consulted when creating the taskset
+	// but is not copied into SnapSetup
 	c.Check(snapsup.Flags.SkipConfigure, Equals, false)
 }
 
