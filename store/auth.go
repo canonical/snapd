@@ -51,10 +51,33 @@ var (
 	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
+// a stringList is something that can be deserialized from a JSON
+// []string or a string, like the values of the "extra" documents in
+// error responses
+type stringList []string
+
+func (sish *stringList) UnmarshalJSON(bs []byte) error {
+	var ss []string
+	e1 := json.Unmarshal(bs, &ss)
+	if e1 == nil {
+		*sish = stringList(ss)
+		return nil
+	}
+
+	var s string
+	e2 := json.Unmarshal(bs, &s)
+	if e2 == nil {
+		*sish = stringList([]string{s})
+		return nil
+	}
+
+	return e1
+}
+
 type ssoMsg struct {
-	Code    string              `json:"code"`
-	Message string              `json:"message"`
-	Extra   map[string][]string `json:"extra"`
+	Code    string                `json:"code"`
+	Message string                `json:"message"`
+	Extra   map[string]stringList `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
@@ -103,7 +126,8 @@ func retryPostRequest(endpoint string, headers map[string]string, data []byte, d
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		maybeLogRetryAttempt(endpoint, attempt, startTime)
 
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+		var req *http.Request
+		req, err = http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -220,6 +244,8 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 			return "", Err2faFailed
 		case "INVALID_DATA":
 			return "", ErrInvalidAuthData(msg.Extra)
+		case "PASSWORD_POLICY_ERROR":
+			return "", ErrPasswordPolicy(msg.Extra)
 		}
 
 		if msg.Message != "" {

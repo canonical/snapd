@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
 # 'ip netns' command (man ip-netns(8)). This interface is restricted because it
@@ -198,14 +194,23 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# For various network related netlink sockets
+socket AF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
+socket AF_NETLINK - NETLINK_ISCSI
+socket AF_NETLINK - NETLINK_RDMA
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkControlInterface returns a new "network-control" interface.
-func NewNetworkControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "network-control",
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

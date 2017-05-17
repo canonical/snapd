@@ -67,11 +67,15 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
 
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
 
@@ -154,8 +158,45 @@ func (s *servicesTestSuite) TestStartSnapServices(c *C) {
 	err := wrappers.StartSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(sysdLog, HasLen, 3)
-	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
-	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
-	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
+	c.Assert(sysdLog, DeepEquals, [][]string{{"start", filepath.Base(svcFile)}})
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	numStarts := 0
+
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if len(cmd) >= 2 && cmd[len(cmd)-2] == "start" {
+			numStarts++
+			if numStarts == 2 {
+				name := cmd[len(cmd)-1]
+				if name == svc1Name {
+					// order flipped
+					svc1Name, svc2Name = svc2Name, svc1Name
+				}
+				return nil, fmt.Errorf("failed")
+			}
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: simple
+`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.StartSnapServices(info, nil)
+	c.Assert(err, ErrorMatches, "failed")
+
+	c.Assert(sysdLog, HasLen, 4)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"start", svc1Name},
+		{"start", svc2Name}, // this one fails
+		{"stop", svc1Name},
+		{"show", "--property=ActiveState", svc1Name},
+	})
 }

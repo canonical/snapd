@@ -45,10 +45,11 @@ apps:
   plugs: [docker-support]
 `
 
-var _ = Suite(&DockerSupportInterfaceSuite{})
+var _ = Suite(&DockerSupportInterfaceSuite{
+	iface: builtin.MustInterface("docker-support"),
+})
 
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.DockerSupportInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
@@ -69,26 +70,26 @@ func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `pivot_root`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "pivot_root\n")
@@ -126,13 +127,13 @@ apps:
 	c.Assert(err, IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	err = apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile -> *,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
@@ -160,13 +161,13 @@ apps:
 	c.Assert(err, IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	err = apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile -> *,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
@@ -188,4 +189,8 @@ plugs:
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
+}
+
+func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

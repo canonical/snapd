@@ -36,7 +36,9 @@ type ScreenInhibitControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ScreenInhibitControlInterfaceSuite{})
+var _ = Suite(&ScreenInhibitControlInterfaceSuite{
+	iface: builtin.MustInterface("screen-inhibit-control"),
+})
 
 func (s *ScreenInhibitControlInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [screen-inhibit-control]
 `
-	s.iface = builtin.NewScreenInhibitControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,8 +89,12 @@ func (s *ScreenInhibitControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C
 func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/com/canonical/Unity/Screen")
+}
+
+func (s *ScreenInhibitControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

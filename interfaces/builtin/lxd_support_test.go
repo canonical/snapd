@@ -45,10 +45,11 @@ apps:
   plugs: [lxd-support]
 `
 
-var _ = Suite(&LxdSupportInterfaceSuite{})
+var _ = Suite(&LxdSupportInterfaceSuite{
+	iface: builtin.MustInterface("lxd-support"),
+})
 
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.LxdSupportInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -77,14 +78,14 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *LxdSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
 func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
@@ -92,7 +93,7 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "@unrestricted\n")
@@ -100,4 +101,8 @@ func (s *LxdSupportInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
+}
+
+func (s *LxdSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

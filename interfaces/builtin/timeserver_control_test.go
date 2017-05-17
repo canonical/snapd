@@ -36,7 +36,9 @@ type TimeserverControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TimeserverControlInterfaceSuite{})
+var _ = Suite(&TimeserverControlInterfaceSuite{
+	iface: builtin.MustInterface("timeserver-control"),
+})
 
 func (s *TimeserverControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [timeserver-control]
 `
-	s.iface = builtin.NewTimeserverControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -88,8 +89,12 @@ func (s *TimeserverControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *TimeserverControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timedate1")
+}
+
+func (s *TimeserverControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

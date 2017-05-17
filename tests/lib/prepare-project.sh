@@ -82,6 +82,7 @@ if [ "$SPREAD_BACKEND" = external ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
+   chown test.test -R $PROJECT_PATH
    exit 0
 fi
 

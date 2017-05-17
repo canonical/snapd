@@ -49,6 +49,7 @@ var (
 	SnapSocket                string
 	SnapRunDir                string
 	SnapRunNsDir              string
+	SnapRunLockDir            string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
@@ -76,6 +77,8 @@ var (
 
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
+
+	CompletionHelper string
 )
 
 const (
@@ -141,6 +144,7 @@ func SetRootDir(rootdir string) {
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
+	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -181,4 +185,6 @@ func SetRootDir(rootdir string) {
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
+
+	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 }

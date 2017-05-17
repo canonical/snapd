@@ -620,7 +620,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
-	c.Assert(err, ErrorMatches, "fsync:.*")
+	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
@@ -2943,6 +2943,27 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 	c.Assert(n, Equals, 1)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/updates/"`)
 }
+
+func (t *remoteRepoTestSuite) TestListRefreshFailOnDNS(c *C) {
+	bulkURI, err := url.Parse("http://nonexistingserver909123.com/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
+	// the error differs depending on whether a proxy is in use (e.g. on travis), so don't inspect error message
+	c.Assert(err, NotNil)
+}
+
 func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
@@ -35,6 +31,7 @@ const timezoneControlConnectedPlugAppArmor = `
 /usr/share/zoneinfo/      r,
 /usr/share/zoneinfo/**    r,
 /etc/{,writable/}timezone rw,
+/etc/{,writable/}localtime rw,
 
 # Introspection of org.freedesktop.timedate1
 dbus (send)
@@ -68,11 +65,10 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-// NewTimezoneControlInterface returns a new "timezone-control" interface.
-func NewTimezoneControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "timezone-control",
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

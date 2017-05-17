@@ -579,6 +579,11 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
+		"refresh": map[string]interface{}{
+			"schedule": "",
+			"last":     "n/a",
+			"next":     "n/a",
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1695,6 +1700,23 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	st.Unlock()
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "ubuntu-core"}
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
@@ -3400,7 +3422,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(plug.Connections, check.HasLen, 0)
 }
 
-func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
+func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
 	d := s.daemon(c)
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -3419,8 +3441,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: plugSnap, Name: plugName}},
+		Slots:  []slotJSON{{Snap: slotSnap, Name: slotName}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -3452,6 +3474,18 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, check.HasLen, 0)
 	c.Assert(slot.Connections, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
+	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccessWithEmptyPlug(c *check.C) {
+	s.testDisconnect(c, "", "", "producer", "slot")
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
+	s.testDisconnect(c, "consumer", "plug", "", "")
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
@@ -3476,30 +3510,18 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (snap "consumer" has no plug named "plug")`)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	slot := repo.Slot("producer", "slot")
-	c.Assert(slot.Connections, check.HasLen, 0)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "snap \"consumer\" has no plug named \"plug\"",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
@@ -3524,30 +3546,19 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+
+	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (snap "producer" has no slot named "slot")`)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "snap \"producer\" has no slot named \"slot\"",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
@@ -3572,32 +3583,19 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+
+	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect consumer:plug from producer:slot, it is not connected)`)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 0)
-	c.Assert(slot.Connections, check.HasLen, 0)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot disconnect consumer:plug from producer:slot, it is not connected",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {

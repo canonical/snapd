@@ -38,7 +38,9 @@ type BluezInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BluezInterfaceSuite{})
+var _ = Suite(&BluezInterfaceSuite{
+	iface: builtin.MustInterface("bluez"),
+})
 
 const bluezMockPlugSnapInfoYaml = `name: other
 version: 1.0
@@ -56,7 +58,6 @@ apps:
 `
 
 func (s *BluezInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.BluezInterface{}
 	slotSnap := snaptest.MockInfo(c, bluezMockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["bluez"]}
 	plugSnap := snaptest.MockInfo(c, bluezMockPlugSnapInfoYaml, nil)
@@ -84,7 +85,7 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.*"),`)
@@ -108,7 +109,7 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.{app1,app2}"),`)
@@ -130,7 +131,7 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.app"),`)
@@ -138,7 +139,7 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 
 func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.bluez.app1"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.bluez.app1"), testutil.Contains, `peer=(label="snap.other.app2")`)
@@ -146,7 +147,7 @@ func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 
 func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
@@ -163,4 +164,8 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.bluez.app1"})
 	c.Check(seccompSpec.SnippetForTag("snap.bluez.app1"), testutil.Contains, "listen\n")
+}
+
+func (s *BluezInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
