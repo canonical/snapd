@@ -273,6 +273,8 @@ var (
 	shutdownTimeout = 5 * time.Second
 )
 
+// shutdownServer supplements a http.Server with graceful shutdown.
+// TODO: with go1.8 http.Server itself grows a graceful Shutdown method
 type shutdownServer struct {
 	l       net.Listener
 	httpSrv *http.Server
@@ -302,6 +304,8 @@ func (srv *shutdownServer) Serve() error {
 func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	// we ignore hijacked connections, if we do things with websockets
+	// we'll need custom shutdown handling for them
 	if state == http.StateClosed || state == http.StateHijacked {
 		delete(srv.conns, conn)
 		return
