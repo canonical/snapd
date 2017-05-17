@@ -22,22 +22,19 @@ package partition
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 // creates a new Androidboot bootloader object
-func MockNewAndroidboot() Bootloader {
-	return newAndroidboot()
+func NewAndroidBoot() Bootloader {
+	return newAndroidBoot()
 }
 
-func MockAndroidbootFile(c *C, mode os.FileMode) {
+func MockAndroidBootFile(c *C, mode os.FileMode) {
 	f := &androidboot{}
-	newpath := filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
-	os.MkdirAll(newpath, os.ModePerm)
-	err := ioutil.WriteFile(f.ConfigFile(), nil, mode)
+	err := os.MkdirAll(f.Dir(), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
 	c.Assert(err, IsNil)
 }

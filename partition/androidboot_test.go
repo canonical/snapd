@@ -26,35 +26,35 @@ import (
 	"github.com/snapcore/snapd/partition"
 )
 
-type androidbootTestSuite struct {
+type androidBootTestSuite struct {
 }
 
-var _ = Suite(&androidbootTestSuite{})
+var _ = Suite(&androidBootTestSuite{})
 
-func (g *androidbootTestSuite) SetUpTest(c *C) {
+func (g *androidBootTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	// the file needs to exist
-	partition.MockAndroidbootFile(c, 0644)
+	// the file needs to exist for androidboot object to be created
+	partition.MockAndroidBootFile(c, 0644)
 }
 
-func (g *androidbootTestSuite) TearDownTest(c *C) {
+func (g *androidBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *androidbootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	dirs.SetRootDir("")
-	a := partition.MockNewAndroidboot()
+func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
+	dirs.GlobalRootDir = "/something/not/there"
+	a := partition.NewAndroidBoot()
 	c.Assert(a, IsNil)
 }
 
-func (s *androidbootTestSuite) TestNewAndroidboot(c *C) {
-	a := partition.MockNewAndroidboot()
+func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
+	a := partition.NewAndroidBoot()
 	c.Assert(a, NotNil)
 }
 
-func (s *androidbootTestSuite) TestSetGetBootVar(c *C) {
-	a := partition.MockNewAndroidboot()
+func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
+	a := partition.NewAndroidBoot()
 	bootVars := map[string]string{"snap_mode": "try"}
 	a.SetBootVars(bootVars)
 

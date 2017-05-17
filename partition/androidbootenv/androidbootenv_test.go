@@ -39,10 +39,10 @@ var _ = Suite(&androidbootenvTestSuite{})
 
 func (a *androidbootenvTestSuite) SetUpTest(c *C) {
 	a.envPath = filepath.Join(c.MkDir(), "androidbootenv")
+	env := androidbootenv.NewEnv(a.envPath)
 }
 
 func (a *androidbootenvTestSuite) TestSet(c *C) {
-	env := androidbootenv.NewEnv(a.envPath)
 	c.Assert(env, NotNil)
 
 	env.Set("key", "value")
@@ -50,7 +50,6 @@ func (a *androidbootenvTestSuite) TestSet(c *C) {
 }
 
 func (a *androidbootenvTestSuite) TestSaveAndLoad(c *C) {
-	env := androidbootenv.NewEnv(a.envPath)
 	c.Assert(env, NotNil)
 
 	env.Set("key1", "value1")
