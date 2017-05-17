@@ -118,14 +118,37 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
+func (m *HookManager) snapContext(contextID string) (context *Context, err error) {
+	var contexts map[string]string
+	err = m.state.Get("snap-contexts", &contexts)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, fmt.Errorf("failed to get snap contexts: %v", err)
+		}
+	}
+	if snapName, ok := contexts[contextID]; ok {
+		// create new ephemeral context
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, contextID)
+		return context, err
+	}
+	return nil, fmt.Errorf("unknown snap context requested")
+}
+
 // Context obtains the context for the given context ID.
 func (m *HookManager) Context(contextID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
+	var err error
 	context, ok := m.contexts[contextID]
 	if !ok {
-		return nil, fmt.Errorf("no context for ID: %q", contextID)
+		m.state.Lock()
+		context, err = m.snapContext(contextID)
+		m.state.Unlock()
+		if err != nil {
+			return nil, fmt.Errorf("request performed under an unknown context (%q)", contextID)
+		}
+		return context, nil
 	}
 
 	return context, nil
@@ -172,7 +195,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
-	context, err := NewContext(task, hooksup, nil)
+	context, err := NewContext(task, task.State(), hooksup, nil, "")
 	if err != nil {
 		return err
 	}

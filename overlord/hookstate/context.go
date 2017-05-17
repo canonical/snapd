@@ -20,8 +20,6 @@
 package hookstate
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -30,11 +28,13 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Context represents the context under which a given hook is running.
 type Context struct {
 	task    *state.Task
+	state   *state.State
 	setup   *HookSetup
 	id      string
 	handler Handler
@@ -47,18 +47,17 @@ type Context struct {
 }
 
 // NewContext returns a new Context.
-func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
-	// Generate a secure, random ID for this context
-	idBytes := make([]byte, 32)
-	_, err := rand.Read(idBytes)
-	if err != nil {
-		return nil, fmt.Errorf("cannot generate context ID: %s", err)
+// The task is optional, if nil then context becomes ephemeral. If contextID is empty, then a random ID will be generated.
+func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
+	if contextID == "" {
+		contextID = strutil.MakeRandomString(44)
 	}
 
 	return &Context{
 		task:    task,
+		state:   state,
 		setup:   setup,
-		id:      base64.URLEncoding.EncodeToString(idBytes),
+		id:      contextID,
 		handler: handler,
 		cache:   make(map[interface{}]interface{}),
 	}, nil
@@ -98,14 +97,14 @@ func (c *Context) Handler() Handler {
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
-	c.task.State().Lock()
+	c.State().Lock()
 	atomic.AddInt32(&c.mutexChecker, 1)
 }
 
 // Unlock releases the lock for this context.
 func (c *Context) Unlock() {
 	atomic.AddInt32(&c.mutexChecker, -1)
-	c.task.State().Unlock()
+	c.state.Unlock()
 	c.mutex.Unlock()
 }
 
@@ -128,8 +127,14 @@ func (c *Context) Set(key string, value interface{}) {
 	c.writing()
 
 	var data map[string]*json.RawMessage
-	if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
-		panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
+	if c.IsEphemeral() {
+		if val, ok := c.cache["ephemeral-context"]; ok {
+			data = val.(map[string]*json.RawMessage)
+		}
+	} else {
+		if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
+			panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
+		}
 	}
 	if data == nil {
 		data = make(map[string]*json.RawMessage)
@@ -142,7 +147,11 @@ func (c *Context) Set(key string, value interface{}) {
 	raw := json.RawMessage(marshalledValue)
 	data[key] = &raw
 
-	c.task.Set("hook-context", data)
+	if c.IsEphemeral() {
+		c.cache["ephemeral-context"] = data
+	} else {
+		c.task.Set("hook-context", data)
+	}
 }
 
 // Get unmarshals the stored value associated with the provided key into the
@@ -152,8 +161,17 @@ func (c *Context) Get(key string, value interface{}) error {
 	c.reading()
 
 	var data map[string]*json.RawMessage
-	if err := c.task.Get("hook-context", &data); err != nil {
-		return err
+	if c.IsEphemeral() {
+		if val, ok := c.cache["ephemeral-context"]; ok {
+			data = val.(map[string]*json.RawMessage)
+		}
+		if data == nil {
+			return state.ErrNoState
+		}
+	} else {
+		if err := c.task.Get("hook-context", &data); err != nil {
+			return err
+		}
 	}
 
 	raw, ok := data[key]
@@ -171,7 +189,7 @@ func (c *Context) Get(key string, value interface{}) error {
 
 // State returns the state contained within the context
 func (c *Context) State() *state.State {
-	return c.task.State()
+	return c.state
 }
 
 // Cached returns the cached value associated with the provided key. It returns
@@ -216,4 +234,9 @@ func (c *Context) Done() error {
 	}
 
 	return firstErr
+}
+
+// IsEphemeral returns true if the context is an ephemeral context (only snap contexts are at the moment).
+func (c *Context) IsEphemeral() bool {
+	return c.task == nil
 }

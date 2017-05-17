@@ -33,12 +33,13 @@
 #include "mount-support.h"
 #include "ns-support.h"
 #include "quirks.h"
+#include "udev-support.h"
+#include "user-support.h"
+#include "context-support.h"
+#include "snap-confine-args.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
-#include "udev-support.h"
-#include "user-support.h"
-#include "snap-confine-args.h"
 
 int main(int argc, char **argv)
 {
@@ -84,6 +85,20 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 #endif
+
+	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+  // Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
+  if (!sc_verify_hook_security_tag_name(security_tag)) {
+    struct sc_error *err
+      __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+    snap_context =
+      sc_nonfatal_context_get_from_snapd(snap_name, &err);
+    if (err != NULL) {
+      error("cannot get context: %s",
+            sc_error_msg(err));
+    }
+  }
+
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
 	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
@@ -201,8 +216,8 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
-
-	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
+  sc_maybe_set_context_environment(snap_context);
+  // https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
