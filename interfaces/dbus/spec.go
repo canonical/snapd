@@ -35,14 +35,19 @@ type Specification struct {
 	securityTags []string
 
 	// sessionServices map a security tag to the dbus-serivce file content
-	sessionServices map[string]string
+	sessionServices map[string]*SessionService
+}
+
+type SessionService struct {
+	DbusName string
+	Content  string
 }
 
 // AddService adds a new dbus service
 func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) {
 	if bus == "session" {
 		if spec.sessionServices == nil {
-			spec.sessionServices = make(map[string]string)
+			spec.sessionServices = make(map[string]*SessionService)
 		}
 		// We set only 'Name' and 'Exec' for now. We may add
 		// 'User' for 'system' services when we support
@@ -51,16 +56,20 @@ func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) {
 		// 'SystemdService' is only used by dbus-daemon to
 		// tell systemd to launch the service and systemd user
 		// sessions aren't available everywhere yet.
-		spec.sessionServices[appInfo.SecurityTag()] = fmt.Sprintf(`[D-BUS Service]
+		content := fmt.Sprintf(`[D-BUS Service]
 Name=%s
 Exec=%s
 `, name, appInfo.LauncherCommand())
+		spec.sessionServices[appInfo.SecurityTag()] = &SessionService{
+			DbusName: name,
+			Content:  content,
+		}
 	}
 }
 
 // SessionServices returns a deep copy of all services
-func (spec *Specification) SessionServices() map[string]string {
-	result := make(map[string]string, len(spec.sessionServices))
+func (spec *Specification) SessionServices() map[string]*SessionService {
+	result := make(map[string]*SessionService, len(spec.sessionServices))
 	for k, v := range spec.sessionServices {
 		result[k] = v
 	}

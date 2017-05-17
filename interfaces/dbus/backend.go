@@ -30,8 +30,10 @@ package dbus
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -123,10 +125,10 @@ func (b *Backend) setupBusConf(snapInfo *snap.Info, spec interfaces.Specificatio
 
 func (b *Backend) deriveContentSessionServ(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	content = map[string]*osutil.FileState{}
-	for securityTag, serviceContent := range spec.SessionServices() {
+	for securityTag, service := range spec.SessionServices() {
 		fname := fmt.Sprintf("%s.service", securityTag)
 		content[fname] = &osutil.FileState{
-			Content: []byte(serviceContent),
+			Content: []byte(service.Content),
 			Mode:    0644,
 		}
 	}
@@ -134,10 +136,49 @@ func (b *Backend) deriveContentSessionServ(spec *Specification, snapInfo *snap.I
 	return content, nil
 }
 
+// check for global conflicts over the dbus name
+func checkSessionServiceDbusNameConflicts(snapInfo *snap.Info, service *SessionService) error {
+	glob := filepath.Join(dirs.SnapDBusSessionServicesFilesDir, "*.service")
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		return err
+	}
+
+	needle := fmt.Sprintf("\nName=%s\n", service.DbusName)
+	self := interfaces.SecurityTagGlob(snapInfo.Name())
+	for _, match := range matches {
+		matched, err := filepath.Match(self, filepath.Base(match))
+		if err != nil {
+			return fmt.Errorf("internal error, cannot match session dbus names: %s", err)
+		}
+		if matched {
+			continue
+		}
+
+		content, err := ioutil.ReadFile(match)
+		if err != nil {
+			return fmt.Errorf("cannot check for session dbus name conflicts: %s", err)
+		}
+		if strings.Contains(string(content), needle) {
+			return fmt.Errorf("cannot add session dbus name %q, already taken by: %q", service.DbusName, match)
+		}
+	}
+
+	return nil
+}
+
 func (b *Backend) setupBusActivatedSessionServ(snapInfo *snap.Info, spec interfaces.Specification) error {
 	snapName := snapInfo.Name()
+	realSpec := spec.(*Specification)
 
-	content, err := b.deriveContentSessionServ(spec.(*Specification), snapInfo)
+	// check conflicts
+	for _, service := range realSpec.SessionServices() {
+		if err := checkSessionServiceDbusNameConflicts(snapInfo, service); err != nil {
+			return err
+		}
+	}
+
+	content, err := b.deriveContentSessionServ(realSpec, snapInfo)
 	if err != nil {
 		return err
 	}

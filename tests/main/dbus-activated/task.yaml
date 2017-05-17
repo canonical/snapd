@@ -25,3 +25,12 @@ execute: |
 
     echo "Then sending methods to it will wake it up"
     dbus-send --print-reply --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
+
+    . $TESTSLIB/snaps.sh
+    if install_local test-snapd-dbus-service-conflicting; then
+        echo "installing a conflicting dbus name should fail"
+        exit 1
+    fi
+
+    echo "But refreshing an existing snap dbus service should work"
+    snap install --dangerous /var/lib/snapd/snaps/test-snapd-dbus-service_*.snap
