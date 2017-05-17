@@ -46,6 +46,5 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
 bool verify_security_tag(const char *security_tag);
 
 bool sc_verify_hook_security_tag_name(const char *security_tag);
-bool verify_snap_name(const char *name);
 
 #endif
