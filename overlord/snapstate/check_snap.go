@@ -308,7 +308,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
 	// check if this is relevant
-	if snapInfo.Type != snap.TypeApp {
+	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
