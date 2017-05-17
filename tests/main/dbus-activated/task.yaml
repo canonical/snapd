@@ -4,20 +4,20 @@ systems: [-ubuntu-core-*]
 
 prepare: |
     apt install -y dbus-x11
-    mv /etc/dbus-1/session.d/snapd.conf /etc/dbus-1/session.d/snapd.conf.xxx
+    mv /usr/share/dbus-1/session.d/snapd.conf /usr/share/dbus-1/session.d/snapd.conf.xxx
 
 restore: |
     killall dbus-daemon
     apt-get autoremove -y dbus-x11
-    rm /etc/dbus-1/session.d/snapd-reexec.conf
-    mv /etc/dbus-1/session.d/snapd.conf.xxx /etc/dbus-1/session.d/snapd.conf
+    rm /etc/dbus-1/session.d/snapd.conf
+    mv /usr/share/dbus-1/session.d/snapd.conf.xxx /usr/share/dbus-1/session.d/snapd.conf
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
     snap install --edge test-snapd-dbus-service
 
-    if [ ! -e /etc/dbus-1/session.d/snapd-reexec.conf ]; then
-        echo "re-exec dbus snapd-reexec.conf not created, broken test"
+    if [ ! -e /etc/dbus-1/session.d/snapd.conf ]; then
+        echo "re-exec dbus snapd.conf not created, broken test"
         exit 1
     fi
 

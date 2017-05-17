@@ -18,7 +18,7 @@ data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
 data/info /usr/lib/snapd/
 # dbus session support
-data/dbus/snapd.conf /etc/dbus-1/session.d
+data/dbus/snapd.conf /usr/share/dbus-1/session.d
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real

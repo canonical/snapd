@@ -30,10 +30,8 @@ package dbus
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -55,22 +53,27 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // that re-exec snapd and do not have this configuration as part of the
 // packaged snapd.
 func setupHostDBusSessionConf() error {
-	dbusSessionConf := filepath.Join(dirs.SnapSessionBusPolicyDir, "snapd.conf")
+	dbusSessionConf := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d/snapd.conf")
 	if osutil.FileExists(dbusSessionConf) {
 		return nil
 	}
 
 	// using a different filename to ensure we not get into dpkg conffile
 	// prompt hell
-	reexecDbusSessionConf := strings.Replace(dbusSessionConf, ".conf", "-reexec.conf", -1)
-	if osutil.FileExists(reexecDbusSessionConf) {
-		return nil
-	}
+	reexecDbusSessionConf := filepath.Join(dirs.GlobalRootDir, "/etc/dbus-1/session.d/snapd.conf")
 	sessionBusConfig := []byte(`<busconfig>
  <servicedir>/var/lib/snapd/dbus/services/</servicedir>
 </busconfig>
 `)
-	return ioutil.WriteFile(reexecDbusSessionConf, sessionBusConfig, 0644)
+
+	content := map[string]*osutil.FileState{
+		filepath.Base(reexecDbusSessionConf): &osutil.FileState{
+			Content: sessionBusConfig,
+			Mode:    0644,
+		},
+	}
+	_, _, err := osutil.EnsureDirState(filepath.Dir(reexecDbusSessionConf), filepath.Base(reexecDbusSessionConf), content)
+	return err
 }
 
 // Setup creates dbus configuration files specific to a given snap.
@@ -118,11 +121,9 @@ func (b *Backend) setupBusConf(snapInfo *snap.Info, spec interfaces.Specificatio
 	return nil
 }
 
-func (b *Backend) setupBusActivatedSessionServ(snapInfo *snap.Info, spec interfaces.Specification) error {
-	snapName := snapInfo.Name()
-
-	content := map[string]*osutil.FileState{}
-	for securityTag, serviceContent := range spec.(*Specification).SessionServices() {
+func (b *Backend) deriveContentSessionServ(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+	content = map[string]*osutil.FileState{}
+	for securityTag, serviceContent := range spec.SessionServices() {
 		fname := fmt.Sprintf("%s.service", securityTag)
 		content[fname] = &osutil.FileState{
 			Content: []byte(serviceContent),
@@ -130,12 +131,23 @@ func (b *Backend) setupBusActivatedSessionServ(snapInfo *snap.Info, spec interfa
 		}
 	}
 
+	return content, nil
+}
+
+func (b *Backend) setupBusActivatedSessionServ(snapInfo *snap.Info, spec interfaces.Specification) error {
+	snapName := snapInfo.Name()
+
+	content, err := b.deriveContentSessionServ(spec.(*Specification), snapInfo)
+	if err != nil {
+		return err
+	}
+
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	dir := dirs.SnapDBusSessionServicesFilesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus service files: %s", err)
 	}
-	_, _, err := osutil.EnsureDirState(dir, glob, content)
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
 	}
