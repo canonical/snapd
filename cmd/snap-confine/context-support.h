@@ -23,20 +23,20 @@
 /**
  * Return snap context string for given snap.
  *
- * The context value is read from /var/lib/snapd/contexts/snap.<snapname>
+ * The context value is read from /var/lib/snapd/context/snap.<snapname>
  * file. The caller of the function takes the ownership of the returned context
  * string.
  * If the file cannot be read then an error is returned in errorp and
  * the function returns NULL.
  **/
-char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
-					 struct sc_error **errorp);
+char *sc_context_get_from_snapd (const char *snap_name,
+				 struct sc_error **errorp);
 
 /**
  * Set the snap context environment variable.
  *
  * Set the SNAP_CONTEXT environment variable with the value of context.
  **/
-void sc_maybe_set_context_environment(const char *context);
+void sc_maybe_set_context_environment (const char *context);
 
 #endif
