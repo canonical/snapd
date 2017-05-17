@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -292,4 +293,17 @@ func (s *AllSuite) TestNoInterfaceImplementsOldBackendMethods(c *C) {
 				Commentf("interface %q implements old/unused methods %s", iface.Name(), definer))
 		}
 	}
+}
+
+func (s *AllSuite) TestRegisterIface(c *C) {
+	restore := builtin.MockInterfaces(nil)
+	defer restore()
+
+	// Registering an interface works correctly.
+	iface := &ifacetest.TestInterface{InterfaceName: "foo"}
+	builtin.RegisterIface(iface)
+	c.Assert(builtin.Interface("foo"), DeepEquals, iface)
+
+	// Duplicates are detected.
+	c.Assert(func() { builtin.RegisterIface(iface) }, PanicMatches, `cannot register duplicate interface "foo"`)
 }

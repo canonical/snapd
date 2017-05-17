@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
 # This gives privileged access to the system.
@@ -39,15 +35,10 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
-// Transitional interface which allows access to all usb devices.
-func NewRawUsbInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "raw-usb",
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewRawUsbInterface())
+	})
 }

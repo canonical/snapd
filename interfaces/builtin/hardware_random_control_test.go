@@ -38,7 +38,7 @@ type HardwareRandomControlInterfaceSuite struct {
 }
 
 var _ = Suite(&HardwareRandomControlInterfaceSuite{
-	iface: &builtin.HardwareRandomControlInterface{},
+	iface: builtin.MustInterface("hardware-random-control"),
 })
 
 func (s *HardwareRandomControlInterfaceSuite) SetUpTest(c *C) {

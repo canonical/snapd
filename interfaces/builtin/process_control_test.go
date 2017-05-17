@@ -45,10 +45,11 @@ apps:
   plugs: [process-control]
 `
 
-var _ = Suite(&ProcessControlInterfaceSuite{})
+var _ = Suite(&ProcessControlInterfaceSuite{
+	iface: builtin.MustInterface("process-control"),
+})
 
 func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewProcessControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

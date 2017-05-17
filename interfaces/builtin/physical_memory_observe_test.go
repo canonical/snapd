@@ -39,7 +39,7 @@ type PhysicalMemoryObserveInterfaceSuite struct {
 }
 
 var _ = Suite(&PhysicalMemoryObserveInterfaceSuite{
-	iface: &builtin.PhysicalMemoryObserveInterface{},
+	iface: builtin.MustInterface("physical-memory-observe"),
 })
 
 func (s *PhysicalMemoryObserveInterfaceSuite) SetUpTest(c *C) {

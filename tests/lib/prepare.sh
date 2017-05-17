@@ -154,7 +154,7 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install rng-tools
