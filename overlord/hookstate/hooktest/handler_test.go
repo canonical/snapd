@@ -63,7 +63,6 @@ func (s *hooktestSuite) TestDone(c *C) {
 		callbackCalled = true
 	}
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
-	s.mockHandler.Executing = 1
 	c.Check(s.mockHandler.Done(), IsNil)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
 	c.Check(callbackCalled, Equals, true)
@@ -71,7 +70,6 @@ func (s *hooktestSuite) TestDone(c *C) {
 
 func (s *hooktestSuite) TestDoneError(c *C) {
 	s.mockHandler.DoneError = true
-	s.mockHandler.Executing = 1
 	c.Check(s.mockHandler.Done(), NotNil)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
 }
