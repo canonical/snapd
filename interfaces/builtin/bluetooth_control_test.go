@@ -45,10 +45,11 @@ apps:
   plugs: [bluetooth-control]
 `
 
-var _ = Suite(&BluetoothControlInterfaceSuite{})
+var _ = Suite(&BluetoothControlInterfaceSuite{
+	iface: builtin.MustInterface("bluetooth-control"),
+})
 
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewBluetoothControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

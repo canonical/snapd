@@ -42,9 +42,9 @@ type unity8InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&unity8InterfaceSuite{})
-
-var _ = Suite(&FirewallControlInterfaceSuite{})
+var _ = Suite(&unity8InterfaceSuite{
+	iface: builtin.MustInterface("unity8"),
+})
 
 func createMockFooPlug(c *C, content string) *interfaces.Plug {
 	info := snaptest.MockSnap(c, content, "", &snap.SideInfo{Revision: snap.R(3)})
@@ -76,7 +76,6 @@ apps:
   plugs: [unity8]
 `
 	dirs.SetRootDir(c.MkDir())
-	s.iface = &builtin.Unity8Interface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "unity8-session"},

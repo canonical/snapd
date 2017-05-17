@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -38,7 +39,7 @@ func mountNsPath(snapName string) string {
 func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
-		toolPath := filepath.Join(dirs.DistroLibExecDir, toolName)
+		toolPath := cmd.InternalToolPath(toolName)
 		cmd := exec.Command(toolPath, snapName)
 		output, err := cmd.CombinedOutput()
 		return output, err

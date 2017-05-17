@@ -897,6 +897,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 
 	snapsup := &SnapSetup{
 		SideInfo: snapst.CurrentSideInfo(),
+		Flags:    snapst.Flags.ForSnapSetup(),
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
