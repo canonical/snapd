@@ -38,7 +38,9 @@ type MediaHubInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MediaHubInterfaceSuite{})
+var _ = Suite(&MediaHubInterfaceSuite{
+	iface: builtin.MustInterface("media-hub"),
+})
 
 func (s *MediaHubInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -58,7 +60,6 @@ apps:
   command: foo
   slots: [media-hub]
 `
-	s.iface = &builtin.MediaHubInterface{}
 	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: snapInfo.Slots["media-hub"]}
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)

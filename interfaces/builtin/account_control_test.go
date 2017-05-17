@@ -37,7 +37,9 @@ type AccountControlSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AccountControlSuite{})
+var _ = Suite(&AccountControlSuite{
+	iface: builtin.MustInterface("account-control"),
+})
 
 const accountCtlMockPlugSnapInfo = `name: other
 version: 1.0
@@ -48,7 +50,6 @@ apps:
 `
 
 func (s *AccountControlSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewAccountControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

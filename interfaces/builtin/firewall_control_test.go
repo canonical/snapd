@@ -46,10 +46,11 @@ apps:
   plugs: [firewall-control]
 `
 
-var _ = Suite(&FirewallControlInterfaceSuite{})
+var _ = Suite(&FirewallControlInterfaceSuite{
+	iface: builtin.MustInterface("firewall-control"),
+})
 
 func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewFirewallControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

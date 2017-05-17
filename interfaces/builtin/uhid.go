@@ -35,18 +35,18 @@ const uhidConnectedPlugAppArmor = `
   /dev/uhid rw,
 `
 
-type UhidInterface struct{}
+type uhidInterface struct{}
 
-func (iface *UhidInterface) Name() string {
+func (iface *uhidInterface) Name() string {
 	return "uhid"
 }
 
-func (iface *UhidInterface) String() string {
+func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
 // Check the validity of the slot
-func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// First check the type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -56,7 +56,7 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Check and possibly modify a plug
-func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -64,12 +64,12 @@ func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *uhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="uhid", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -78,11 +78,11 @@ func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *in
 	return nil
 }
 
-func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *uhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declaration
 	return true
 }
 
 func init() {
-	registerIface(&UhidInterface{})
+	registerIface(&uhidInterface{})
 }

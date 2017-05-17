@@ -1,6 +1,7 @@
 [![Build Status][travis-image]][travis-url]
 [![Go Report Card][goreportcard-image]][goreportcard-url]
-
+[![codecov][codecov-image]][codecov-url]
+ 
 ## Snaps
 
 Package any app for every Linux desktop, server, cloud or device.
@@ -40,3 +41,6 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 
 [coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
 [coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
+
+[codecov-url]: https://codecov.io/gh/snapcore/snapd
+[codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg

@@ -55,10 +55,11 @@ apps:
   slots: [udisks2]
 `
 
-var _ = Suite(&UDisks2InterfaceSuite{})
+var _ = Suite(&UDisks2InterfaceSuite{
+	iface: builtin.MustInterface("udisks2"),
+})
 
 func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.UDisks2Interface{}
 	slotSnap := snaptest.MockInfo(c, udisks2mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, udisks2mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["udisks2"]}
