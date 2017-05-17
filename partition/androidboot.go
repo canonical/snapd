@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,13 +52,12 @@ func (a *androidboot) ConfigFile() string {
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
-	out := make(map[string]string)
-
 	env := androidbootenv.NewEnv(a.ConfigFile())
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
 
+	out := make(map[string]string, len(names))
 	for _, name := range names {
 		out[name] = env.Get(name)
 	}

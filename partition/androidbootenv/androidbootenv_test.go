@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,7 +43,7 @@ func (a *androidbootenvTestSuite) SetUpTest(c *C) {
 
 func (a *androidbootenvTestSuite) TestSet(c *C) {
 	env := androidbootenv.NewEnv(a.envPath)
-	c.Check(env, NotNil)
+	c.Assert(env, NotNil)
 
 	env.Set("key", "value")
 	c.Check(env.Get("key"), Equals, "value")
@@ -51,7 +51,7 @@ func (a *androidbootenvTestSuite) TestSet(c *C) {
 
 func (a *androidbootenvTestSuite) TestSaveAndLoad(c *C) {
 	env := androidbootenv.NewEnv(a.envPath)
-	c.Check(env, NotNil)
+	c.Assert(env, NotNil)
 
 	env.Set("key1", "value1")
 	env.Set("key2", "")
