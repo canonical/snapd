@@ -36,7 +36,9 @@ type TimezoneControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TimezoneControlInterfaceSuite{})
+var _ = Suite(&TimezoneControlInterfaceSuite{
+	iface: builtin.MustInterface("timezone-control"),
+})
 
 func (s *TimezoneControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [timezone-control]
 `
-	s.iface = builtin.NewTimezoneControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

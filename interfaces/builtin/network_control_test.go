@@ -45,10 +45,11 @@ apps:
   plugs: [network-control]
 `
 
-var _ = Suite(&NetworkControlInterfaceSuite{})
+var _ = Suite(&NetworkControlInterfaceSuite{
+	iface: builtin.MustInterface("network-control"),
+})
 
 func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

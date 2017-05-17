@@ -8,7 +8,7 @@ prepare: |
         exit
     fi
     echo "Ensure the testrootorg-store.account-key is not already added"
-    output=$(snap known account-key | grep "name: test-store"|wc -l)
+    output=$(snap known account-key | grep -c "name: test-store" || true)
     if [ "$output" != "0" ]; then
             echo " testrootorg-store.account-key is already added"
             exit 1
@@ -41,7 +41,7 @@ execute: |
 
     echo "`snap auto-import` reads from the auto-import dir"
     snap auto-import
-    snap known account-key | grep "name: test-store"
+    snap known account-key | MATCH "name: test-store"
 
     nr=$(ls /run/snapd/auto-import|wc -l)
     if [ "$nr" != "0" ]; then

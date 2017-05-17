@@ -37,7 +37,9 @@ type MprisInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MprisInterfaceSuite{})
+var _ = Suite(&MprisInterfaceSuite{
+	iface: builtin.MustInterface("mpris"),
+})
 
 func (s *MprisInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -55,7 +57,6 @@ apps:
   slots: [mpris]
 `
 
-	s.iface = &builtin.MprisInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["mpris"]}
 	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
@@ -76,8 +77,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 }
@@ -91,8 +91,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "@{SNAP_NAME}")
 }
@@ -106,8 +105,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid name element: \"foo.bar\"")
 	c.Assert(name, Equals, "")
@@ -124,8 +122,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, `name element \[foo\] is not a string`)
 	c.Assert(name, Equals, "")
@@ -141,8 +138,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "unknown attribute 'unknown'")
 	c.Assert(name, Equals, "")

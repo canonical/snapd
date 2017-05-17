@@ -86,13 +86,13 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type ThumbnailerServiceInterface struct{}
+type thumbnailerServiceInterface struct{}
 
-func (iface *ThumbnailerServiceInterface) Name() string {
+func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *ThumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -101,12 +101,12 @@ func (iface *ThumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.S
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(thumbnailerServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
 	new := plug.Snap.Name()
@@ -119,24 +119,24 @@ func (iface *ThumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *thumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *thumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ThumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *thumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
 
 func init() {
-	registerIface(&ThumbnailerServiceInterface{})
+	registerIface(&thumbnailerServiceInterface{})
 }

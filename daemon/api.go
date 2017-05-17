@@ -32,6 +32,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -823,7 +824,7 @@ var errNothingToInstall = errors.New("nothing to install")
 const oldDefaultSnapCoreName = "ubuntu-core"
 const defaultCoreSnapName = "core"
 
-func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
+func ensureCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
 	if targetSnap == defaultCoreSnapName || targetSnap == oldDefaultSnapCoreName {
 		return nil, errNothingToInstall
 	}
@@ -836,8 +837,8 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.Flags{})
 }
 
-func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
-	ubuCoreTs, err := ensureUbuntuCore(st, targetSnap, userID)
+func withEnsureCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
+	ubuCoreTs, err := ensureCore(st, targetSnap, userID)
 	if err != nil && err != errNothingToInstall {
 		return nil, err
 	}
@@ -910,6 +911,21 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	return msg, updated, tasksets, nil
 }
 
+func verifySnapInstructions(inst *snapInstruction) error {
+	switch inst.Action {
+	case "install":
+		for _, snapName := range inst.Snaps {
+			// FIXME: alternatively we could simply mutate *inst
+			//        and s/ubuntu-core/core/ ?
+			if snapName == "ubuntu-core" {
+				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
+			}
+		}
+	}
+
+	return nil
+}
+
 func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
 	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
@@ -938,7 +954,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 
-	tsets, err := withEnsureUbuntuCore(st, inst.Snaps[0], inst.userID,
+	tsets, err := withEnsureCore(st, inst.Snaps[0], inst.userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 		},
@@ -1127,6 +1143,10 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	inst.Snaps = []string{vars["name"]}
 
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%s", err)
+	}
+
 	impl := inst.dispatch()
 	if impl == nil {
 		return BadRequest("unknown action %s", inst.Action)
@@ -1189,7 +1209,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	if user != nil {
 		userID = user.ID
 	}
-	tsets, err := withEnsureUbuntuCore(st, info.Name(), userID,
+	tsets, err := withEnsureCore(st, info.Name(), userID,
 		func() (*state.TaskSet, error) {
 			return snapstateTryPath(st, info.Name(), trydir, flags)
 		},
@@ -1415,7 +1435,7 @@ out:
 		userID = user.ID
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
+	tsets, err := withEnsureCore(st, snapName, userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 		},
@@ -1565,6 +1585,20 @@ type interfaceAction struct {
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
+func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+	m := make(map[string]bool)
+	for _, conn := range conns {
+		m[conn.PlugRef.Snap] = true
+		m[conn.SlotRef.Snap] = true
+	}
+	l := make([]string, 0, len(m))
+	for name := range m {
+		l = append(l, name)
+	}
+	sort.Strings(l)
+	return l
+}
+
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
@@ -1592,12 +1626,14 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	var summary string
-	var taskset *state.TaskSet
 	var err error
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	var tasksets []*state.TaskSet
+	var affected []string
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	switch a.Action {
 	case "connect":
@@ -1605,22 +1641,37 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			var ts *state.TaskSet
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			taskset, err = ifacestate.Connect(state, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			tasksets = append(tasksets, ts)
+			affected = snapNamesFromConns([]interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
+		var conns []interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			for _, connRef := range conns {
+				var ts *state.TaskSet
+				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				if err != nil {
+					break
+				}
+				ts.JoinLane(st.NewLane())
+				tasksets = append(tasksets, ts)
+			}
+			affected = snapNamesFromConns(conns)
+		}
 	}
 	if err != nil {
 		return BadRequest("%v", err)
 	}
 
-	change := state.NewChange(a.Action+"-snap", summary)
-	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
-	change.AddAll(taskset)
+	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
 
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }

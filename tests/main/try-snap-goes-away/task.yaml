@@ -14,17 +14,17 @@ execute: |
 
     echo Trying a snap
     snap try $TRYDIR
-    snap list |grep $SNAP_NAME
+    snap list |MATCH $SNAP_NAME
 
     echo Removing a snap try dir does not break everything
     rm -rf $TRYDIR
-    snap list |grep core
+    snap list |MATCH core
 
     echo A snap in broken state can be removed
     snap remove $SNAP_NAME
 
     echo And is gone afterwards
-    snap list |grep -v $SNAP_NAME
+    snap list |MATCH -v $SNAP_NAME
 
     echo And all its binaries
     N="$(ls /snap/bin/$SNAP_NAME*|wc -l)"
