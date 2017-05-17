@@ -1,3 +1,11 @@
+snapd (2.26.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cherry pick d444728 to make the uboot.env file parsing more
+      robust
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 16 May 2017 18:37:07 +0200
+
 snapd (2.26.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
