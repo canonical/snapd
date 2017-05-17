@@ -289,6 +289,30 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms`)
 }
 
+func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
+	restore := hookstate.MockDefaultHookTimeout(150 * time.Millisecond)
+	defer restore()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 150ms.*`)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 150ms`)
+}
+
 func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	var hooksup hookstate.HookSetup
 

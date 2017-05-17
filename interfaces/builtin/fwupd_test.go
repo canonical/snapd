@@ -54,10 +54,11 @@ apps:
   slots: [fwupd]
 `
 
-var _ = Suite(&FwupdInterfaceSuite{})
+var _ = Suite(&FwupdInterfaceSuite{
+	iface: builtin.MustInterface("fwupd"),
+})
 
 func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.FwupdInterface{}
 	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}

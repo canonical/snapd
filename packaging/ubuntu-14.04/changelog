@@ -1,3 +1,31 @@
+snapd (2.26.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cherry pick test fixes f0103a6, 9de5c8a, d7725a7 to make
+      sure the image tests are updated for the changes in the
+      `snap info core` output and the removal of the rsyslog
+      package from core.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 17 May 2017 11:31:56 +0200
+
+snapd (2.26.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cherry pick d444728 to make the uboot.env file parsing more
+      robust
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 16 May 2017 18:37:07 +0200
+
+snapd (2.26.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - store: fix panic error in auth
+    - tests: the new ubuntu-image snap needs classic confinement, adjust
+      tests
+    - cmd/snap-confine: don't fail on pre 3.8 kernel
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 May 2017 21:44:27 +0200
+
 snapd (2.26~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
@@ -31,10 +59,7 @@ snapd (2.26~14.04) trusty; urgency=medium
     - cmd/snap: iterate interface tab completion
     - snap: move locale-control to only be present on classic
     - interfaces/browser-support: deny read on squashfs backing files
-      and LVM vg names (#3268)* interfaces/browser-support: deny r of
-      squashfs backing_file when sandbox: trueimplementation of udisks
-      should not either (especially not with 'allow-sandbox:* add one
-      denial more for virtual/block/dm-[0-9]*/dm/name with sandbox: true
+      and LVM vg names
     - tests: wait for the docker socket to be listening
     - snap: add `snap refresh --time` option
     - tests: re-enable and moderninze /media sharing test

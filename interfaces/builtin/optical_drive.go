@@ -19,24 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
 `
 
-// NewOpticalDriveInterface returns a new "optical-drive" interface.
-func NewOpticalDriveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "optical-drive",
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewOpticalDriveInterface())
+	})
 }

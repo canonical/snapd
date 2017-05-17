@@ -37,17 +37,27 @@ __attribute__((constructor)) static void init(void) {
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 	"unsafe"
 )
 
-// Error returns error (if any) encountered in pre-main C code.
+var (
+	// ErrNoNamespace is returned when a snap namespace does not exist.
+	ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
+)
+
+// BootstrapError returns error (if any) encountered in pre-main C code.
 func BootstrapError() error {
 	if C.bootstrap_msg == nil {
 		return nil
 	}
 	errno := syscall.Errno(C.bootstrap_errno)
+	// Translate EINVAL from setns or ENOENT from open into a dedicated error.
+	if errno == syscall.EINVAL || errno == syscall.ENOENT {
+		return ErrNoNamespace
+	}
 	if errno != 0 {
 		return fmt.Errorf("%s: %s", C.GoString(C.bootstrap_msg), errno)
 	}

@@ -19,8 +19,6 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
-
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -71,16 +69,11 @@ deny /etc/fuse.conf r,
 #/{,usr/}bin/fusermount ixr,
 `
 
-// NewFuseControlInterface returns a new "fuse-support" interface.
-func NewFuseSupportInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "fuse-support",
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewFuseSupportInterface())
+	})
 }
