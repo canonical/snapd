@@ -63,7 +63,7 @@ backends:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
-                workers: 4
+                workers: 1
     qemu:
         CPUs: 4
         environment:

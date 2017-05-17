@@ -33,7 +33,7 @@ execute: |
 
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         if [ "$LOCALHOST" = ip6-localhost ]; then
-            LOCALHOST=ip6-localhost
+            LOCALHOST=localhost6
         fi
     fi
 

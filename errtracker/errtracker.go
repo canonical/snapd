@@ -47,7 +47,7 @@ var (
 	// but we have /etc/machine-id. See
 	// https://www.freedesktop.org/software/systemd/man/machine-id.html for a
 	// few more details.
-	machineIDs       = []string{"/var/lib/dbus/machine-id", "/etc/machine-id"}
+	machineIDs = []string{"/var/lib/dbus/machine-id", "/etc/machine-id"}
 
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
