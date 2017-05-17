@@ -33,30 +33,28 @@ func Test(t *testing.T) { TestingT(t) }
 
 type androidbootenvTestSuite struct {
 	envPath string
+	env     *androidbootenv.Env
 }
 
 var _ = Suite(&androidbootenvTestSuite{})
 
 func (a *androidbootenvTestSuite) SetUpTest(c *C) {
 	a.envPath = filepath.Join(c.MkDir(), "androidbootenv")
-	env := androidbootenv.NewEnv(a.envPath)
+	a.env = androidbootenv.NewEnv(a.envPath)
+	c.Assert(a.env, NotNil)
 }
 
 func (a *androidbootenvTestSuite) TestSet(c *C) {
-	c.Assert(env, NotNil)
-
-	env.Set("key", "value")
-	c.Check(env.Get("key"), Equals, "value")
+	a.env.Set("key", "value")
+	c.Check(a.env.Get("key"), Equals, "value")
 }
 
 func (a *androidbootenvTestSuite) TestSaveAndLoad(c *C) {
-	c.Assert(env, NotNil)
+	a.env.Set("key1", "value1")
+	a.env.Set("key2", "")
+	a.env.Set("key3", "value3")
 
-	env.Set("key1", "value1")
-	env.Set("key2", "")
-	env.Set("key3", "value3")
-
-	err := env.Save()
+	err := a.env.Save()
 	c.Assert(err, IsNil)
 
 	env2 := androidbootenv.NewEnv(a.envPath)
