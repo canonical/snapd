@@ -36,19 +36,14 @@ const networkSetupControlConnectedPlugAppArmorClassic = `
 
 func init() {
 
+	var classicAppArmor string
 	if release.OnClassic {
-
-		registerIface(&commonInterface{
-			name: "network-setup-control",
-			connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor + networkSetupControlConnectedPlugAppArmorClassic,
-			reservedForOS:         true,
-		})
-	} else {
-
-		registerIface(&commonInterface{
-			name: "network-setup-control",
-			connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
-			reservedForOS:         true,
-		})
+		classicAppArmor = networkSetupControlConnectedPlugAppArmorClassic
 	}
+
+	registerIface(&commonInterface{
+		name: "network-setup-control",
+		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor + classicAppArmor,
+		reservedForOS:         true,
+	})
 }
