@@ -179,7 +179,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
-func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]string, revno int, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
+func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.Name()
@@ -208,7 +208,7 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapName + "-snap-id",
 		"developer-id":  developerID,
-		"snap-revision": fmt.Sprintf("%d", revno),
+		"snap-revision": revision.String(),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -226,7 +226,7 @@ func (s *FirstBootTestSuite) makeCoreSnaps(c *C, withConfigure bool) (coreFname,
 	snapYaml := `name: core
 version: 1.0
 type: os`
-	coreFname, coreDecl, coreRev := s.makeAssertedSnap(c, snapYaml, files, 1, "canonical")
+	coreFname, coreDecl, coreRev := s.makeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
 
 	writeAssertionsToFile("core.asserts", []asserts.Assertion{coreRev, coreDecl})
 
@@ -234,7 +234,7 @@ type: os`
 	snapYaml = `name: pc-kernel
 version: 1.0
 type: kernel`
-	kernelFname, kernelDecl, kernelRev := s.makeAssertedSnap(c, snapYaml, files, 1, "canonical")
+	kernelFname, kernelDecl, kernelRev := s.makeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
 
 	writeAssertionsToFile("kernel.asserts", []asserts.Assertion{kernelRev, kernelDecl})
 
@@ -263,7 +263,7 @@ defaults:
 	snapYaml = `name: pc
 version: 1.0
 type: gadget`
-	gadgetFname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, snapYaml, files, 1, "canonical")
+	gadgetFname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
 
 	writeAssertionsToFile("gadget.asserts", []asserts.Assertion{gadgetRev, gadgetDecl})
 
@@ -293,7 +293,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
 version: 1.0`
-	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, 128, "developerid")
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
 
 	// put a firstboot local snap into the SnapBlobDir
 	snapYaml = `name: local
@@ -460,14 +460,14 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
 version: 1.0`
-	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, 128, "developerid")
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
 
 	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, fooRev, fooDecl})
 
 	// put a 2nd firstboot snap into the SnapBlobDir
 	snapYaml = `name: bar
 version: 1.0`
-	barFname, barDecl, barRev := s.makeAssertedSnap(c, snapYaml, nil, 65, "developerid")
+	barFname, barDecl, barRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
 
 	writeAssertionsToFile("bar.asserts", []asserts.Assertion{devAcct, barDecl, barRev})
 
@@ -619,7 +619,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
 	files := [][]string{{"meta/hooks/configure", ""}}
 	snapYaml := `name: foo
 version: 1.0`
-	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, files, 128, "developerid")
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, files, snap.R(128), "developerid")
 
 	declFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-declaration")
 	err = ioutil.WriteFile(declFn, asserts.Encode(fooDecl), 0644)
