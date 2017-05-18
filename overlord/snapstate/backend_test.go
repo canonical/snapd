@@ -332,6 +332,8 @@ apps:
   cmd3:
   cmd4:
   cmd5:
+  cmddaemon:
+    daemon: simple
 `))
 		if err != nil {
 			panic(err)

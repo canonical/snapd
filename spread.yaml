@@ -242,6 +242,8 @@ repack: |
         tar c current.delta >&4
     fi
 
+kill-timeout: 20m
+
 prepare: |
     # check if running inside a container, the testsuite will not
     # work in such an environment
