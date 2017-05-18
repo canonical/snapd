@@ -284,7 +284,7 @@ func (s *Info) NeedsClassic() bool {
 func (s *Info) Services() []*AppInfo {
 	svcs := make([]*AppInfo, 0, len(s.Apps))
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		if !app.IsService() {
 			continue
 		}
 		svcs = append(svcs, app)
@@ -493,6 +493,11 @@ func (app *AppInfo) Env() []string {
 		env = append(env, fmt.Sprintf("%s=%s", k, appEnv.Get(k)))
 	}
 	return env
+}
+
+// IsService returns whether app represents a daemon/service.
+func (app *AppInfo) IsService() bool {
+	return app.Daemon != ""
 }
 
 // SecurityTag returns the hook-specific security tag.
