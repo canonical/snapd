@@ -71,7 +71,7 @@ func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Interfaces holds information about a list of plugs and slots, their connections and known interfaces.
+// Interfaces holds information about a list of plugs and slots, their connections and interface meta-data.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`

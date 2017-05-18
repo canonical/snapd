@@ -55,7 +55,7 @@ func (iface *commonInterface) Name() string {
 	return iface.name
 }
 
-// MetaData returns variou meta-data about this interface.
+// MetaData returns various meta-data about this interface.
 func (iface *commonInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
 		Description: iface.description,
