@@ -19,6 +19,8 @@
 
 package builtin
 
+import "github.com/snapcore/snapd/release"
+
 const networkSetupControlConnectedPlugAppArmor = `
 # Description: Can read/write netplan configuration files
 
@@ -26,10 +28,27 @@ const networkSetupControlConnectedPlugAppArmor = `
 /etc/network/{,**} rw,
 `
 
+const networkSetupControlConnectedPlugAppArmorClassic = `
+# Description: Can read/write NetworkManager's dispatcher (nm-dispatcher) scripts
+
+/etc/NetworkManager/dispatcher.d/{,**} rw,
+`
+
 func init() {
-	registerIface(&commonInterface{
-		name: "network-setup-control",
-		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
-		reservedForOS:         true,
-	})
+
+	if release.OnClassic {
+
+		registerIface(&commonInterface{
+			name: "network-setup-control",
+			connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor + networkSetupControlConnectedPlugAppArmorClassic,
+			reservedForOS:         true,
+		})
+	} else {
+
+		registerIface(&commonInterface{
+			name: "network-setup-control",
+			connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
+			reservedForOS:         true,
+		})
+	}
 }
