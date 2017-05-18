@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -47,7 +48,7 @@ var (
 	// but we have /etc/machine-id. See
 	// https://www.freedesktop.org/software/systemd/man/machine-id.html for a
 	// few more details.
-	machineIDs = []string{"/var/lib/dbus/machine-id", "/etc/machine-id"}
+	machineIDs = []string{"/etc/machine-id", "/var/lib/dbus/machine-id"}
 
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
@@ -65,25 +66,35 @@ func distroRelease() string {
 	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
 }
 
-func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
-	if CrashDbURLBase == "" {
-		return "", nil
-	}
-
+func readMachineID() ([]byte, error) {
 	var machineID []byte
 	var err error
 	for _, id := range machineIDs {
 		machineID, err = ioutil.ReadFile(id)
 		if err == nil {
 			break
+		} else if !os.IsNotExist(err) {
+			logger.Noticef("cannot find %s: %s", id, err)
 		}
 	}
 
 	if len(machineID) == 0 {
-		return "", fmt.Errorf("Can not report as no machine id found")
+		return nil, fmt.Errorf("cannot report: no suitable machine id file found")
 	}
 
-	machineID = bytes.TrimSpace(machineID)
+	return bytes.TrimSpace(machineID), nil
+}
+
+func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
+	if CrashDbURLBase == "" {
+		return "", nil
+	}
+
+	machineID, err := readMachineID()
+	if err != nil {
+		return "", err
+	}
+
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
