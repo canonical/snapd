@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 
@@ -39,10 +38,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	var buffer bytes.Buffer
-	for _, arg := range args[1:] {
-		buffer.WriteString(systemd.EscapeUnitNamePath(arg))
+	if !opts.Path {
+		panic("cannot use this systemd-escape without --path")
 	}
 
-	fmt.Fprintf(os.Stdout, buffer.String())
+	for i, arg := range args[1:] {
+		fmt.Printf(systemd.EscapeUnitNamePath(arg))
+		if i < len(args) {
+			fmt.Printf(" ")
+		}
+	}
+	fmt.Printf("\n")
 }
