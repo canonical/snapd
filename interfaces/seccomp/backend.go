@@ -134,6 +134,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 	}
 }
 
+// NewSpecification returns an empty seccomp specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }

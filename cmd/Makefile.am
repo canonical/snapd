@@ -103,6 +103,8 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
+	libsnap-confine-private/test-utils.c \
+	libsnap-confine-private/test-utils-test.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
@@ -288,6 +290,7 @@ snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_sn
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/unit-tests
 snap_confine_unit_tests_SOURCES = \
+	libsnap-confine-private/test-utils.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
