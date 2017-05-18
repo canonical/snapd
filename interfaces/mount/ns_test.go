@@ -28,24 +28,23 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type nsSuite struct {
-	oldDistroLibExecDir string
+	testutil.BaseTest
 }
 
 var _ = Suite(&nsSuite{})
 
 func (s *nsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	// Mock enough bits so that we can observe calls to snap-discard-ns
-	s.oldDistroLibExecDir = dirs.DistroLibExecDir
-}
-
-func (s *nsSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	dirs.DistroLibExecDir = s.oldDistroLibExecDir
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(release.MockOnClassic(true))
+	// Anything that just gives us no-reexec.
+	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "fedora"}))
 }
 
 func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {

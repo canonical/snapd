@@ -58,7 +58,7 @@ func (u *uboot) envFile() string {
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
-	env, err := uenv.Open(u.envFile())
+	env, err := uenv.OpenWithFlags(u.envFile(), uenv.OpenBestEffort)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
-	env, err := uenv.Open(u.envFile())
+	env, err := uenv.OpenWithFlags(u.envFile(), uenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
 	}

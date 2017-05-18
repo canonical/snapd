@@ -144,9 +144,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
 	s.restoreRelease = release.MockForcedDevmode(false)
 
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
-		return false, nil
-	}
+	snapstate.CanAutoRefresh = nil
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
@@ -1700,6 +1698,23 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	st.Unlock()
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "ubuntu-core"}
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
