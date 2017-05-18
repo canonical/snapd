@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -52,7 +53,10 @@ type repairSuite struct {
 var _ = Suite(&repairSuite{})
 
 var script = `#!/bin/sh
+
 echo "hello world"
+
+echo $MOCK_SNAP_REPAIR_ASSERTION_STATUS >&$SNAP_REPAIR_STATUS_FD
 `
 
 var mockRepair1 = fmt.Sprintf(`type: repair
@@ -122,6 +126,8 @@ func (s *repairSuite) TestRunSingleRepair(c *C) {
 	repair42, err := asserts.Decode([]byte(mockRepair42))
 	c.Assert(err, IsNil)
 
+	os.Setenv("MOCK_SNAP_REPAIR_ASSERTION_STATUS", "done-permanently")
+	defer os.Unsetenv("MOCK_SNAP_REPAIR_ASSERTION_STATUS")
 	s.repairs = []*asserts.Repair{
 		repair1.(*asserts.Repair),
 		repair42.(*asserts.Repair),

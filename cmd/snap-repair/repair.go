@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -49,8 +50,8 @@ func (r *repair) dir() string {
 	return filepath.Join(dirs.SnapRepairDir, r.ra.RepairID())
 }
 
-func (r *repair) ranStamp() string {
-	return filepath.Join(r.dir(), "ran")
+func (r *repair) doneStamp() string {
+	return filepath.Join(r.dir(), "done")
 }
 
 func (r *repair) script() string {
@@ -62,7 +63,7 @@ func (r *repair) log() string {
 }
 
 func (r *repair) wasRun() bool {
-	return osutil.FileExists(r.ranStamp())
+	return osutil.FileExists(r.doneStamp())
 }
 
 func (r *repair) run() error {
@@ -75,16 +76,51 @@ func (r *repair) run() error {
 	if err := ioutil.WriteFile(r.script(), r.ra.Body(), 0755); err != nil {
 		return err
 	}
-	output, err := execCommand(r.script()).CombinedOutput()
-	if err := ioutil.WriteFile(r.log(), output, 0644); err != nil {
+
+	// create the status pipe for the script
+	stR, stW, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer stR.Close()
+
+	// run the script
+	var buf bytes.Buffer
+	cmd := execCommand(r.script())
+	cmd.ExtraFiles = []*os.File{stW}
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "SNAP_REPAIR_STATUS_FD=3")
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err = cmd.Start()
+	stW.Close()
+	if err != nil {
+		return err
+	}
+
+	// check output
+	err = cmd.Wait()
+	// FIXME: what do we do about the log? append? overwrite?
+	if err := ioutil.WriteFile(r.log(), buf.Bytes(), 0644); err != nil {
 		logger.Noticef("cannot write log: %s", err)
 	}
-	if err := ioutil.WriteFile(r.ranStamp(), nil, 0644); err != nil {
-		logger.Noticef("cannot write stamp: %s", err)
+	if err != nil {
+		return fmt.Errorf("cannot run repair %s: %s", r.ra.RepairID(), err)
 	}
-	logger.Noticef("finished repair %s, logs in ", r.ra.RepairID(), r.log())
 
-	return err
+	// check status
+	status, err := ioutil.ReadAll(stR)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(status)) == "done-permanently" {
+		if err := ioutil.WriteFile(r.doneStamp(), nil, 0644); err != nil {
+			logger.Noticef("cannot write stamp: %s", err)
+		}
+	}
+
+	logger.Noticef("finished repair %s, logs in ", r.ra.RepairID(), r.log())
+	return nil
 }
 
 type byRepairID []*asserts.Repair
@@ -123,7 +159,7 @@ func (a byRepairID) Less(i, j int) bool {
 var findRepairAssertions = func() ([]*asserts.Repair, error) {
 	db, err := sysdb.Open()
 	if err != nil {
-		fmt.Errorf("cannot open system assertion database: %s", err)
+		return nil, fmt.Errorf("cannot open system assertion database: %s", err)
 	}
 
 	// FIXME: add appropriate headers for filtering etc
@@ -154,7 +190,7 @@ func runRepair() error {
 		return nil
 	}
 	if err != nil {
-		fmt.Errorf("cannot find repair assertion: %s", err)
+		return fmt.Errorf("cannot find repair assertion: %s", err)
 	}
 
 	// run repair assertions that not already ran
