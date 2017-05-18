@@ -109,3 +109,15 @@ distro_update_package_db() {
             ;;
     esac
 }
+
+distro_clean_package_cache() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            quiet apt-get clean
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
+}
