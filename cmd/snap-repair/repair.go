@@ -134,13 +134,12 @@ func (a byRepairID) Swap(i, j int) {
 
 // FIXME: move into the assertion itself?
 func splitID(id string) (string, int) {
-	l := strings.SplitN(id, "-", 2)
-	prefix := l[0]
-	seq, err := strconv.Atoi(l[1])
+	idx := strings.LastIndex(id, "-")
+	seq, err := strconv.Atoi(id[idx+1:])
 	if err != nil {
 		panic(err)
 	}
-	return prefix, seq
+	return id[:idx], seq
 }
 
 func (a byRepairID) Less(i, j int) bool {

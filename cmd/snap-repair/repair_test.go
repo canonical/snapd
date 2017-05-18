@@ -150,3 +150,20 @@ func (s *repairSuite) TestRunSingleRepair(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.cmds, HasLen, 2)
 }
+
+func (s *repairSuite) TestSplitID(c *C) {
+	for _, t := range []struct {
+		in string
+
+		prefix string
+		seq    int
+	}{
+		{"repair-42", "repair", 42},
+		{"acme-17", "acme", 17},
+		{"acme-model-12", "acme-model", 12},
+	} {
+		prefix, seq := splitID(t.in)
+		c.Check(prefix, Equals, t.prefix)
+		c.Check(seq, Equals, t.seq)
+	}
+}
