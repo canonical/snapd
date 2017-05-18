@@ -27,7 +27,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb $GOPATH
 }
