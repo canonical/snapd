@@ -70,6 +70,9 @@ func (a *Env) Load() error {
 		}
 		a.env[l[0]] = l[1]
 	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
 
 	return nil
 }
