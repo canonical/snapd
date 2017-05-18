@@ -293,6 +293,8 @@ snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/context-support.c \
+	snap-confine/context-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
