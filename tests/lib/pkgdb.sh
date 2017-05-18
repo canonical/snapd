@@ -1,28 +1,22 @@
 #!/bin/bash
 
-. $TESTSLIB/quiet.sh
+. "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
     case "$1" in
-        xdelta3)
-            ;&
-        curl)
-            ;&
-        python3-yaml)
-            echo $1
+        xdelta3|curl|python3-yaml)
+            echo "$1"
             ;;
     esac
 }
 
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
-        ubuntu-*)
-            ;&
-        debian-*)
-            debian_name_package $1
+        ubuntu-*|debian-*)
+            debian_name_package "$1"
             ;;
         *)
-            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
             ;;
     esac
@@ -42,9 +36,7 @@ distro_install_local_package() {
     done
 
     case "$SPREAD_SYSTEM" in
-        ubuntu-*)
-            ;&
-        debian-*)
+        ubuntu-*|debian-*)
             if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
                 # relying on dpkg as apt(-get) does not support installation from local files in trusty.
                 dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
@@ -54,11 +46,11 @@ distro_install_local_package() {
                 if [ "$allow_downgrades" = "true" ]; then
                     flags="$flags --allow-downgrades"
                 fi
-                apt install $flags "$@"
+                apt install "$flags" "$@"
             fi
             ;;
         *)
-            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
             ;;
     esac
@@ -66,7 +58,7 @@ distro_install_local_package() {
 
 distro_install_package() {
     for pkg in "$@" ; do
-        package_name=$(distro_name_package $pkg)
+        package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
         # we're running on we try the package name given as last attempt
         if [ -z "$package_name" ]; then
@@ -74,13 +66,11 @@ distro_install_package() {
         fi
 
         case "$SPREAD_SYSTEM" in
-            ubuntu-*)
-                ;&
-            debian-*)
-                apt-get install -y $package_name
+            ubuntu-*|debian-*)
+                apt-get install -y "$package_name"
                 ;;
             *)
-                echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
                 ;;
         esac
@@ -89,7 +79,7 @@ distro_install_package() {
 
 distro_purge_package() {
     for pkg in "$@" ; do
-        package_name=$(distro_name_package $pkg)
+        package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
         # we're running on we try the package name given as last attempt
         if [ -z "$package_name" ]; then
@@ -97,13 +87,11 @@ distro_purge_package() {
         fi
 
         case "$SPREAD_SYSTEM" in
-            ubuntu-*)
-                ;&
-            debian-*)
-                quiet apt-get remove -y --purge -y $package_name
+            ubuntu-*|debian-*)
+                quiet apt-get remove -y --purge -y "$package_name"
                 ;;
             *)
-                echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
                 ;;
         esac
@@ -112,13 +100,11 @@ distro_purge_package() {
 
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
-        ubuntu-*)
-            ;&
-        debian-*)
+        ubuntu-*|debian-*)
             quiet apt-get update
             ;;
         *)
-            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
             ;;
     esac
