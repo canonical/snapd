@@ -4,7 +4,7 @@
 
 debian_name_package() {
     case "$1" in
-        xdelta3|curl|python3-yaml)
+        xdelta3|curl|python3-yaml|kpartx|busybox-static)
             echo "$1"
             ;;
     esac
