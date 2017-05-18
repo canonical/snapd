@@ -67,10 +67,8 @@ func distroRelease() string {
 }
 
 func readMachineID() ([]byte, error) {
-	var machineID []byte
-	var err error
 	for _, id := range machineIDs {
-		machineID, err = ioutil.ReadFile(id)
+		machineID, err := ioutil.ReadFile(id)
 		if err == nil {
 			return bytes.TrimSpace(machineID), nil
 		} else if !os.IsNotExist(err) {
