@@ -81,7 +81,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
-		if app.Daemon == "" {
+		if !app.IsService() {
 			continue
 		}
 		if err := sysd.Start(app.ServiceName()); err != nil {
@@ -106,7 +106,7 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		if !app.IsService() {
 			continue
 		}
 		nservices++
@@ -141,7 +141,7 @@ func StopServices(apps []*snap.AppInfo, inter interacter) error {
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
-		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		if err := stopService(sysd, app, inter); err != nil {
@@ -159,7 +159,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++
