@@ -36,18 +36,17 @@ distro_install_local_package() {
     done
 
     case "$SPREAD_SYSTEM" in
-        ubuntu-*|debian-*)
-            if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-                # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-                dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-                apt-get -f install -y
-            else
-                flags="-y"
-                if [ "$allow_downgrades" = "true" ]; then
-                    flags="$flags --allow-downgrades"
-                fi
-                apt install $flags "$@"
+        ubuntu-14.04-*|debian-*)
+            # relying on dpkg as apt(-get) does not support installation from local files in trusty.
+            dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
+            apt-get -f install -y
+            ;;
+        ubuntu-*)
+            flags="-y"
+            if [ "$allow_downgrades" = "true" ]; then
+                flags="$flags --allow-downgrades"
             fi
+            apt install $flags "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
