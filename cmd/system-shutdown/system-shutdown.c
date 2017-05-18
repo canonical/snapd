@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,17 +22,23 @@
 #include <unistd.h>		// getpid, close
 #include <stdlib.h>		// exit
 #include <stdio.h>		// fprintf, stderr
+#include <string.h>		// strerror
 #include <sys/ioctl.h>		// ioctl
 #include <linux/loop.h>		// LOOP_CLR_FD
 #include <sys/reboot.h>		// reboot, RB_*
 #include <fcntl.h>		// open
 #include <errno.h>		// errno, sys_errlist
+#include <linux/reboot.h>	// LINUX_REBOOT_MAGIC*
+#include <sys/syscall.h>	// SYS_reboot
 
 #include "system-shutdown-utils.h"
 #include "../libsnap-confine-private/string-utils.h"
 
 int main(int argc, char *argv[])
 {
+	// 256 should be more than enough...
+	char reboot_arg[256] = { 0 };
+
 	errno = 0;
 	if (getpid() != 1) {
 		fprintf(stderr,
@@ -56,6 +62,8 @@ int main(int argc, char *argv[])
 	if (mkdir("/writable", 0755) < 0) {
 		die("cannot create directory /writable");
 	}
+	// We are reading a file from /run and need to do this before unmounting
+	sc_read_reboot_arg(reboot_arg, sizeof reboot_arg);
 
 	if (umount_all()) {
 		kmsg("- found no hard-to-unmount writable partition.");
@@ -93,7 +101,19 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	reboot(cmd);
+	// glibc reboot wrapper does not expose the optional reboot syscall
+	// parameter
+
+	long ret;
+	if (cmd == RB_AUTOBOOT && reboot_arg[0] != '\0')
+		ret = syscall(SYS_reboot,
+			      LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
+			      LINUX_REBOOT_CMD_RESTART2, reboot_arg);
+	else
+		ret = reboot(cmd);
+
+	if (ret == -1)
+		kmsg("Error calling reboot! : %s (%d)", strerror(errno), errno);
 
 	return 0;
 }
