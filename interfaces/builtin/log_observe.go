@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +25,19 @@ const logObserveConnectedPlugAppArmor = `
 
 /var/log/ r,
 /var/log/** r,
+
+# for accessing journald and journalctl
 /run/log/journal/ r,
 /run/log/journal/** r,
 /var/lib/systemd/catalog/database r,
 /{,usr/}bin/journalctl ixr,
+# allow using journalctl on the host to support new logs on classic systems
+/var/lib/snapd/hostfs/bin/journalctl ixr,
+/var/lib/snapd/hostfs/lib/systemd/*.so* mr,
+
+# journalctl wants this but it grants far more than 'observe' so don't enable
+# it. We could silence the denial, but let's avoid that for now.
+# capability sys_resource,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
 /{,usr/}sbin/sysctl ixr,
