@@ -24,4 +24,4 @@ execute: |
     execute_remote "sudo snap revert core"
     wait_for_ssh
     execute_remote "snap info core" | MATCH "tracking +${CORE_CHANNEL}"
-    execute_remote "ifconfig" | MATCH ens3
+    execute_remote "ifconfig" | MATCH eth0
