@@ -410,6 +410,7 @@ suites:
         summary: Tests for nested images
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
         halt-timeout: 2h
         kill-timeout: 2h
         manual: true

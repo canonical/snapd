@@ -1,0 +1,24 @@
+summary: core revert test
+
+systems: [ubuntu-16.04-64]
+
+prepare: |
+    . $TESTSLIB/nested.sh
+    create_nested_core_vm
+
+restore: |
+    . $TESTSLIB/nested.sh
+    destroy_nested_core_vm
+
+execute: |
+    . $TESTSLIB/nested.sh
+    wait_for_ssh
+    prepare_ssh
+
+    cd $SPREAD_PATH
+    execute_remote "sudo snap install network-manager"
+    execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core"
+    wait_for_ssh
+    execute_remote "sudo snap revert core"
+    wait_for_ssh
+    execute_remote "ifconfig" | MATCH ens3
