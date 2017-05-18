@@ -72,17 +72,13 @@ func readMachineID() ([]byte, error) {
 	for _, id := range machineIDs {
 		machineID, err = ioutil.ReadFile(id)
 		if err == nil {
-			break
+			return bytes.TrimSpace(machineID), nil
 		} else if !os.IsNotExist(err) {
-			logger.Noticef("cannot find %s: %s", id, err)
+			logger.Noticef("cannot read %s: %s", id, err)
 		}
 	}
 
-	if len(machineID) == 0 {
-		return nil, fmt.Errorf("cannot report: no suitable machine id file found")
-	}
-
-	return bytes.TrimSpace(machineID), nil
+	return nil, fmt.Errorf("cannot report: no suitable machine id file found")
 }
 
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
