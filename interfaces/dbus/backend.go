@@ -69,7 +69,7 @@ func setupHostDBusSessionConf() error {
 `)
 
 	content := map[string]*osutil.FileState{
-		filepath.Base(reexecDbusSessionConf): &osutil.FileState{
+		filepath.Base(reexecDbusSessionConf): {
 			Content: sessionBusConfig,
 			Mode:    0644,
 		},
