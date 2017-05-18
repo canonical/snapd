@@ -17,11 +17,12 @@ execute: |
 
     cd $SPREAD_PATH
     execute_remote "sudo snap install network-manager"
-    execute_remote "snap info core" | MATCH "tracking +${CORE_CHANNEL}"
-    execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core"
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
+    execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
     wait_for_ssh
-    execute_remote "snap info core" | MATCH "tracking +${CORE_REFRESH_CHANNEL}"
-    execute_remote "sudo snap revert core"
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
+    execute_remote "while ! snap changes | grep -q '^Done.*Revert \"core\" snap'; do sleep 1 ; done"
+    execute_remote "sudo snap revert core" || true
     wait_for_ssh
-    execute_remote "snap info core" | MATCH "tracking +${CORE_CHANNEL}"
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
