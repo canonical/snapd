@@ -46,7 +46,7 @@ distro_install_local_package() {
                 if [ "$allow_downgrades" = "true" ]; then
                     flags="$flags --allow-downgrades"
                 fi
-                apt install "$flags" "$@"
+                apt install $flags "$@"
             fi
             ;;
         *)
