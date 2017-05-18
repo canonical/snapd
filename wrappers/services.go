@@ -58,9 +58,27 @@ func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
 	return genServiceFile(app), nil
 }
 
+func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
+	serviceName := app.ServiceName()
+	tout := serviceStopTimeout(app)
+	if err := sysd.Stop(serviceName, tout); err != nil {
+		if !systemd.IsTimeout(err) {
+			return err
+		}
+		inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+		// ignore errors for kill; nothing we'd do differently at this point
+		sysd.Kill(serviceName, "TERM")
+		time.Sleep(killWait)
+		sysd.Kill(serviceName, "KILL")
+	}
+
+	return nil
+}
+
 // StartSnapServices starts service units for the applications from the snap which are services.
-func StartSnapServices(s *snap.Info, inter interacter) error {
+func StartSnapServices(s *snap.Info, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
+
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
@@ -68,6 +86,14 @@ func StartSnapServices(s *snap.Info, inter interacter) error {
 		if err := sysd.Start(app.ServiceName()); err != nil {
 			return err
 		}
+		defer func(app *snap.AppInfo) {
+			if err == nil {
+				return
+			}
+			if e := stopService(sysd, app, inter); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+			}
+		}(app)
 	}
 
 	return nil
@@ -117,17 +143,8 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		serviceName := filepath.Base(app.ServiceFile())
-		tout := serviceStopTimeout(app)
-		if err := sysd.Stop(serviceName, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL")
+		if err := stopService(sysd, app, inter); err != nil {
+			return err
 		}
 	}
 
