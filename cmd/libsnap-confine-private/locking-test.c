@@ -19,6 +19,7 @@
 #include "locking.c"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/test-utils.h"
 
 #include <errno.h>
 
@@ -29,57 +30,6 @@
 static void sc_set_lock_dir(const char *dir)
 {
 	sc_lock_dir = dir;
-}
-
-// Shell-out to "rm -rf -- $dir" as long as $dir is in /tmp.
-static void rm_rf_tmp(const char *dir)
-{
-	// Sanity check, don't remove anything that's not in the temporary
-	// directory. This is here to prevent unintended data loss.
-	if (!g_str_has_prefix(dir, "/tmp/"))
-		die("refusing to remove: %s", dir);
-	const gchar *working_directory = NULL;
-	gchar **argv = NULL;
-	gchar **envp = NULL;
-	GSpawnFlags flags = G_SPAWN_SEARCH_PATH;
-	GSpawnChildSetupFunc child_setup = NULL;
-	gpointer user_data = NULL;
-	gchar **standard_output = NULL;
-	gchar **standard_error = NULL;
-	gint exit_status = 0;
-	GError *error = NULL;
-
-	argv = calloc(5, sizeof *argv);
-	if (argv == NULL)
-		die("cannot allocate command argument array");
-	argv[0] = g_strdup("rm");
-	if (argv[0] == NULL)
-		die("cannot allocate memory");
-	argv[1] = g_strdup("-rf");
-	if (argv[1] == NULL)
-		die("cannot allocate memory");
-	argv[2] = g_strdup("--");
-	if (argv[2] == NULL)
-		die("cannot allocate memory");
-	argv[3] = g_strdup(dir);
-	if (argv[3] == NULL)
-		die("cannot allocate memory");
-	argv[4] = NULL;
-	g_assert_true(g_spawn_sync
-		      (working_directory, argv, envp, flags, child_setup,
-		       user_data, standard_output, standard_error, &exit_status,
-		       &error));
-	g_assert_true(g_spawn_check_exit_status(exit_status, NULL));
-	if (error != NULL) {
-		g_test_message("cannot remove temporary directory: %s\n",
-			       error->message);
-		g_error_free(error);
-	}
-	g_free(argv[0]);
-	g_free(argv[1]);
-	g_free(argv[2]);
-	g_free(argv[3]);
-	g_free(argv);
 }
 
 // Use temporary directory for locking.
