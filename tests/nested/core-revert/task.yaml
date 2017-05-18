@@ -21,7 +21,7 @@ execute: |
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
     wait_for_ssh
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
-    execute_remote "while ! snap changes | grep -q '^Done.*Revert.*core.*snap'; do sleep 1 ; done"
+    while ! execute_remote "snap changes" | MATCH "^Done.*Revert \"core\" snap"; do sleep 1 ; done
     execute_remote "sudo snap revert core" || true
     wait_for_ssh
     execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
