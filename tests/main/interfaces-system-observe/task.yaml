@@ -45,6 +45,4 @@ execute: |
             echo "Expected error with plug disconnected"
             exit 1
         fi
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi

@@ -48,8 +48,6 @@ execute: |
             echo "Expected confinement denial in try mode didn't work"
             exit 1
         fi
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
 
     echo "====================================="
