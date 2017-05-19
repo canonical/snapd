@@ -119,35 +119,37 @@ execute: |
 
     echo "============================================"
 
-    if ! snap forced-devmode ; then
-        echo "When the plug is disconnected"
-        snap disconnect home-consumer:home
-        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if snap forced-devmode ; then
+        exit 0
+    fi
 
-        echo "Then snap can't create home files"
-        if home-consumer.writer "$CREATABLE_FILE"; then
-            echo "It should be impossible to create home files" && exit 1
-        fi
+    echo "When the plug is disconnected"
+    snap disconnect home-consumer:home
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-        echo "============================================"
+    echo "Then snap can't create home files"
+    if home-consumer.writer "$CREATABLE_FILE"; then
+        echo "It should be impossible to create home files" && exit 1
+    fi
 
-        echo "When the plug is connected"
-        snap connect home-consumer:home
-        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    echo "============================================"
 
-        echo "Then the snap is not able to read hidden home files"
-        if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
-            echo "Hidden home files shouldn't be readable" && exit 1
-        fi
+    echo "When the plug is connected"
+    snap connect home-consumer:home
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-        echo "============================================"
+    echo "Then the snap is not able to read hidden home files"
+    if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
+        echo "Hidden home files shouldn't be readable" && exit 1
+    fi
 
-        echo "When the plug is connected"
-        snap connect home-consumer:home
-        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    echo "============================================"
 
-        echo "Then the snap is not able to write hidden home files"
-        if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
-            echo "It should be impossible to create hidden home files" && exit 1
-        fi
+    echo "When the plug is connected"
+    snap connect home-consumer:home
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap is not able to write hidden home files"
+    if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
+        echo "It should be impossible to create hidden home files" && exit 1
     fi
