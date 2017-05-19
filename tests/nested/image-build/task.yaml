@@ -11,10 +11,6 @@ restore: |
     destroy_nested_core_vm
 
 execute: |
-    . $TESTSLIB/nested.sh
-    wait_for_ssh
-    prepare_ssh
-
     cd $SPREAD_PATH
 
     tmp=$(mktemp -d)
