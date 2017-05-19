@@ -7,6 +7,29 @@ debian_name_package() {
         xdelta3|curl|python3-yaml|kpartx|busybox-static)
             echo "$1"
             ;;
+        *)
+            echo $1
+            ;;
+    esac
+}
+
+fedora_name_package() {
+    case "$1" in
+        xdelta3|jq|curl)
+            echo $1
+            ;;
+        python3-yaml)
+            echo "python3-yamlordereddictloader"
+            ;;
+        openvswitch-switch)
+            echo "openvswitch"
+            ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        *)
+            echo $1
+            ;;
     esac
 }
 
@@ -14,6 +37,9 @@ distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             debian_name_package "$1"
+            ;;
+        fedora-*)
+            fedora_name_package $1
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -48,6 +74,9 @@ distro_install_local_package() {
             fi
             apt install $flags "$@"
             ;;
+        fedora-*)
+            quiet dnf install -y "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -67,6 +96,9 @@ distro_install_package() {
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-get install -y "$package_name"
+                ;;
+            fedora-*)
+                dnf install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -89,6 +121,9 @@ distro_purge_package() {
             ubuntu-*|debian-*)
                 quiet apt-get remove -y --purge -y "$package_name"
                 ;;
+            fedora-*)
+                quiet dnf remove -y $package_name
+                ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
@@ -101,6 +136,9 @@ distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             quiet apt-get update
+            ;;
+        fedora-*)
+            quiet dnf update -y
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -125,6 +163,8 @@ distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             quiet apt-get -y autoremove
+            ;;
+        fedora-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
