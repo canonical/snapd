@@ -1,5 +1,7 @@
 summary: Check basic apparmor confinement rules.
 
+systems: [-fedora-*]
+
 prepare: |
     echo "Given a basic snap is installed"
     . $TESTSLIB/snaps.sh

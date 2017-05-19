@@ -1,5 +1,7 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
+systems: [-fedora-*]
+
 environment:
     SERVICE_NAME: snap.network-bind-consumer.network-consumer.service
 

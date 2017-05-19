@@ -1,7 +1,7 @@
 summary: Check refresh works with xdelta3 from the core snap
 
 # delta downloads are currently disabled by default on core
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-*, -fedora-*]
 
 environment:
     SNAP_NAME: test-snapd-delta-refresh

@@ -1,4 +1,5 @@
 summary: Check error handling in symlinks to /usr/bin/snap
+systems: [-fedora-*]
 restore: |
     . $TESTSLIB/dirs.sh
     rm -f $SNAPMOUNTDIR/bin/xxx

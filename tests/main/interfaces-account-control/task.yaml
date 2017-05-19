@@ -1,5 +1,7 @@
 summary: Check that is possible to handle user accounts
 
+systems: [-fedora-*]
+
 details: |
     This test makes sure that a snap using the account-control interface
     can handle the user accounts properly.

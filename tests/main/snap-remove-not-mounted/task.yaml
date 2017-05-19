@@ -1,5 +1,7 @@
 summary: Ensure remove with unmounted base dir works
 
+systems: [-fedora-*]
+
 execute: |
     cp -ar $TESTSLIB/snaps/test-snapd-tools /tmp
     snap try /tmp/test-snapd-tools

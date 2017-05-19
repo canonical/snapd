@@ -1,5 +1,7 @@
 summary: Check remove command errors
 
+systems: [-fedora-*]
+
 execute: |
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"

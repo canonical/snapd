@@ -1,4 +1,5 @@
 summary: Simple snap prefer test
+systems: [-fedora-*]
 execute: |
     . $TESTSLIB/dirs.sh
 

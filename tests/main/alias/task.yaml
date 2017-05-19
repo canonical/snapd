@@ -1,5 +1,7 @@
 summary: Check snap alias and snap unalias
 
+systems: [-fedora-*]
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local aliases

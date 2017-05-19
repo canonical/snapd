@@ -1,5 +1,5 @@
 summary: Checks for cli errors of the tasks / change command.
-
+systems: [-fedora-*]
 execute: |
     echo "When an invalid ID is given to the tasks command it shows an error"
     if snap tasks 10000000; then

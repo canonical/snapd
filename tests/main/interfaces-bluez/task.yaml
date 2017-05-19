@@ -1,5 +1,7 @@
 summary: Ensure bluez interface works.
 
+systems: [-fedora-*]
+
 details: |
     The bluez interface allows the bluez service to run and clients to
     communicate with it.

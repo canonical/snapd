@@ -1,5 +1,7 @@
 summary: Check that `snap set` runs configure hook.
 
+systems: [-fedora-*]
+
 prepare: |
     echo "Build basic test package (without hooks)"
     snapbuild $TESTSLIB/snaps/basic .

@@ -1,5 +1,7 @@
 summary: Ensure that classic confinement works
 
+systems: [-fedora-*]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 

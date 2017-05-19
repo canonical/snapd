@@ -1,4 +1,5 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
+systems: [-fedora-*]
 prepare: |
     snapbuild $TESTSLIB/snaps/test-snapd-tools .
     snap install --dangerous test-snapd-tools_1.0_all.snap

@@ -1,5 +1,7 @@
 summary: Check that the core snap can be refreshed
 
+systems: [-fedora-*]
+
 details: |
     This test checks that the core snap can be refreshed from an installed
     revision to a new one. It expects to find a new snap revision in the

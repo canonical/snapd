@@ -1,5 +1,7 @@
 summary: Check that snap connect works
 
+systems: [-fedora-*]
+
 prepare: |
     . $TESTSLIB/snaps.sh
 

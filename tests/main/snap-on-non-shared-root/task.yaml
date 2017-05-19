@@ -1,6 +1,6 @@
 summary: Ensure that snapd works on systems with a non rshared root
 # no need to run on ubuntu-core-16, we always have / shared here
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-*, -fedora-*]
 prepare: |
     . $TESTSLIB/dirs.sh
     # simulate a system with a non-shared /

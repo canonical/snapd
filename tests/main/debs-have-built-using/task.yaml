@@ -1,5 +1,5 @@
 summary: Ensure that our debs have the "built-using" header
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-*, -fedora-*]
 execute: |
     out=$(dpkg -I $GOPATH/snapd_*.deb)
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then

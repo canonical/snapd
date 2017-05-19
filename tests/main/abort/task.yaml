@@ -1,5 +1,7 @@
 summary: Check change abort
 
+systems: [-fedora-*]
+
 environment:
     SNAP_NAME: test-snapd-tools
 
