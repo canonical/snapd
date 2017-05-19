@@ -31,6 +31,8 @@ socket AF_NETLINK - NETLINK_CONNECTOR
 func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-connector",
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
 		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
 		reservedForOS:        true,
 	})

@@ -1162,6 +1162,12 @@ func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
+func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)

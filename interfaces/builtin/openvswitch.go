@@ -25,7 +25,8 @@ const openvswitchConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "openvswitch",
+		name:                  "openvswitch",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

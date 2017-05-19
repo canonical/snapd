@@ -47,7 +47,9 @@ delete_module
 
 func init() {
 	registerIface(&commonInterface{
-		name: "kernel-module-control",
+		name:                  "kernel-module-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,

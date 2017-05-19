@@ -88,7 +88,9 @@ const systemObserveConnectedPlugSecComp = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "system-observe",
+		name:                  "system-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,

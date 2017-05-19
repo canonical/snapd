@@ -113,7 +113,9 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-observe",
+		name:                  "network-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,

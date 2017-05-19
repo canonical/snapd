@@ -49,6 +49,13 @@ func (iface *joystickInterface) String() string {
 	return iface.Name()
 }
 
+func (iface *joystickInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // SanitizeSlot checks the validity of the defined slot.
 func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?

@@ -28,6 +28,8 @@ socket AF_NETLINK - NETLINK_AUDIT
 func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-audit",
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
 		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
 		reservedForOS:        true,
 	})

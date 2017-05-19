@@ -67,7 +67,9 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "timezone-control",
+		name:                  "timezone-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

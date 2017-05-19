@@ -48,7 +48,9 @@ sched_setscheduler
 
 func init() {
 	registerIface(&commonInterface{
-		name: "process-control",
+		name:                  "process-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,

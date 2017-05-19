@@ -28,7 +28,8 @@ const cupsControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "cups-control",
+		name:                  "cups-control",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -19,6 +19,16 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+)
+
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -69,11 +79,51 @@ deny /etc/fuse.conf r,
 #/{,usr/}bin/fusermount ixr,
 `
 
+type fuseSupportInterface struct{}
+
+func (iface *fuseSupportInterface) Name() string {
+	return "fuse-support"
+}
+
+func (iface *fuseSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore: true,
+		// Ubuntu 14.04 does not support the fuse-support interface.
+		ImplicitOnClassic: !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+	}
+}
+
+func (iface *fuseSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(fuseSupportConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *fuseSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(fuseSupportConnectedPlugSecComp)
+	return nil
+}
+
+func (iface *fuseSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+	}
+	return nil
+}
+
+func (iface *fuseSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
+	}
+	if slot.Snap.Type != snap.TypeOS {
+		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
+	}
+	return nil
+}
+
+func (iface *fuseSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	return true
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name: "fuse-support",
-		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
-		reservedForOS:         true,
-	})
+	registerIface(&fuseSupportInterface{})
 }

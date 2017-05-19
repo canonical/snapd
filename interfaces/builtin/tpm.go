@@ -27,7 +27,9 @@ const tpmConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "tpm",
+		name:                  "tpm",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

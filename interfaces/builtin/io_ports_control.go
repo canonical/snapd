@@ -59,6 +59,13 @@ func (iface *iioPortsControlInterface) String() string {
 	return iface.Name()
 }
 
+func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // Check validity of the defined slot
 func (iface *iioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?

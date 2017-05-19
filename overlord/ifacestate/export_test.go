@@ -25,6 +25,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+var (
+	AddImplicitSlots = addImplicitSlots
+)
+
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.
 func (m *InterfaceManager) AddForeignTaskHandlers() {

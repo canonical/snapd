@@ -28,7 +28,9 @@ const networkSetupObserveConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-setup-observe",
+		name:                  "network-setup-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkSetupObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -41,6 +41,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "alsa",
 		description:           alsaDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

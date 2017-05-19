@@ -37,7 +37,8 @@ dbus (receive, send)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "gsettings",
+		name:                  "gsettings",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

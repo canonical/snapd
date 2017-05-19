@@ -117,6 +117,12 @@ func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
+func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {

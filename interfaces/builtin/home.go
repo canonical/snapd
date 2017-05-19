@@ -46,7 +46,9 @@ owner /run/user/[0-9]*/gvfs/*/**  w,
 
 func init() {
 	registerIface(&commonInterface{
-		name: "home",
+		name:                  "home",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -53,7 +53,9 @@ capability dac_override,
 
 func init() {
 	registerIface(&commonInterface{
-		name: "log-observe",
+		name:                  "log-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

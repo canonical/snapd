@@ -526,6 +526,13 @@ func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
+func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)

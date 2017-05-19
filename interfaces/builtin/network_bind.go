@@ -67,7 +67,9 @@ socket AF_NETLINK - NETLINK_ROUTE
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-bind",
+		name:                  "network-bind",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,

@@ -32,7 +32,9 @@ const cameraConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "camera",
+		name:                  "camera",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

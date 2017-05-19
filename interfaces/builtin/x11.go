@@ -46,7 +46,8 @@ shutdown
 
 func init() {
 	registerIface(&commonInterface{
-		name: "x11",
+		name:                  "x11",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,

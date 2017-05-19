@@ -53,7 +53,9 @@ perf_event_open
 
 func init() {
 	registerIface(&commonInterface{
-		name: "system-trace",
+		name:                  "system-trace",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,

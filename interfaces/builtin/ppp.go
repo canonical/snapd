@@ -55,6 +55,13 @@ func (iface *pppInterface) Name() string {
 	return "ppp"
 }
 
+func (iface *pppInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(pppConnectedPlugAppArmor)
 	return nil

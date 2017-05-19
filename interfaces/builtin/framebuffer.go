@@ -43,6 +43,13 @@ func (iface *framebufferInterface) Name() string {
 	return "framebuffer"
 }
 
+func (iface *framebufferInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *framebufferInterface) String() string {
 	return iface.Name()
 }
