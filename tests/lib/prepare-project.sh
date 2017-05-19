@@ -7,8 +7,21 @@ create_test_user(){
         # the all-snap, which has its own user & group database.
         # Nothing special about 12345 beyond it being high enough it's
         # unlikely to ever clash with anything, and easy to remember.
-        addgroup --quiet --gid 12345 test
-        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+               addgroup --quiet --gid 12345 test
+               adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+               ;;
+            fedora-*)
+               # We don't have all options available on fedora so just take
+               # the minimal set.
+               groupadd --gid 12345 test
+               adduser --uid 12345 --gid 12345 test
+               ;;
+            *)
+               exit 1
+               ;;
+         esac
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
