@@ -102,7 +102,9 @@ umount2
 
 func init() {
 	registerIface(&commonInterface{
-		name: "classic-support",
+		name:                  "classic-support",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: classicSupportPlugAppArmor,
 		connectedPlugSecComp:  classicSupportPlugSecComp,
 	})

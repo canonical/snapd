@@ -69,6 +69,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "account-control",
 		description:           accountControlDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,

@@ -28,7 +28,9 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-setup-control",
+		name:                  "network-setup-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

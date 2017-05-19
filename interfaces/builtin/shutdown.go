@@ -56,7 +56,9 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "shutdown",
+		name:                  "shutdown",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

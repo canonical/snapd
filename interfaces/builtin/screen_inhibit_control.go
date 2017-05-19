@@ -65,7 +65,8 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "screen-inhibit-control",
+		name:                  "screen-inhibit-control",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

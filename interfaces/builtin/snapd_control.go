@@ -28,7 +28,9 @@ const snapdControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "snapd-control",
+		name:                  "snapd-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -45,6 +45,13 @@ func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
+func (iface *uhidInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // Check the validity of the slot
 func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// First check the type

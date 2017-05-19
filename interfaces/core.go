@@ -132,10 +132,15 @@ type Interface interface {
 // MetaData describes various meta-data of a given interface.
 type MetaData struct {
 	Description string `json:"description,omitempty"`
+
+	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
+	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
+	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
 }
 
-// ifaceMetaData returns the meta-data of the given interface.
-func ifaceMetaData(iface Interface) (md MetaData) {
+// IfaceMetaData returns the meta-data of the given interface.
+func IfaceMetaData(iface Interface) (md MetaData) {
 	type metaDataProvider interface {
 		MetaData() MetaData
 	}

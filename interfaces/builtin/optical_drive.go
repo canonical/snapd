@@ -26,7 +26,8 @@ const opticalDriveConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "optical-drive",
+		name:                  "optical-drive",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

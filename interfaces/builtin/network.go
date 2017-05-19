@@ -52,6 +52,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network",
 		description:           networkDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,

@@ -37,7 +37,9 @@ const rawusbConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "raw-usb",
+		name:                  "raw-usb",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -54,7 +54,9 @@ quotactl Q_XGETQSTAT - - -
 
 func init() {
 	registerIface(&commonInterface{
-		name: "mount-observe",
+		name:                  "mount-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,

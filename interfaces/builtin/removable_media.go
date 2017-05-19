@@ -29,7 +29,9 @@ const removableMediaConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "removable-media",
+		name:                  "removable-media",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

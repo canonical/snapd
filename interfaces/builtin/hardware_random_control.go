@@ -52,6 +52,13 @@ func (iface *hardwareRandomControlInterface) Name() string {
 	return "hardware-random-control"
 }
 
+func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // Check validity of the defined slot
 func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?

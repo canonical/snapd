@@ -70,7 +70,9 @@ var kubernetesSupportConnectedPlugKmod = []string{`llc`, `stp`}
 
 func init() {
 	registerIface(&commonInterface{
-		name: "kubernetes-support",
+		name:                     "kubernetes-support",
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
 		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
 		reservedForOS:            true,

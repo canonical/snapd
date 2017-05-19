@@ -209,6 +209,12 @@ func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
+func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)

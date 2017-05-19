@@ -263,6 +263,12 @@ func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
+func (iface *ofonoInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)

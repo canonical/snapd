@@ -47,6 +47,13 @@ func (iface *physicalMemoryObserveInterface) String() string {
 	return iface.Name()
 }
 
+func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // Check validity of the defined slot
 func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?

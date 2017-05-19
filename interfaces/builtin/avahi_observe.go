@@ -113,7 +113,8 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "avahi-observe",
+		name:                  "avahi-observe",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

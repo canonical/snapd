@@ -47,6 +47,13 @@ func (iface *hardwareRandomObserveInterface) Name() string {
 	return "hardware-random-observe"
 }
 
+func (iface *hardwareRandomObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 // Check validity of the defined slot
 func (iface *hardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {

@@ -242,6 +242,13 @@ func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
+func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
+	}
+}
+
 func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }

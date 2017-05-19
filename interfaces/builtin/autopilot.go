@@ -54,7 +54,9 @@ sendto
 
 func init() {
 	registerIface(&commonInterface{
-		name: "autopilot-introspection",
+		name:                  "autopilot-introspection",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
 		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
 		reservedForOS:         true,

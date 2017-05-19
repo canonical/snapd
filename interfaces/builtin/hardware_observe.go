@@ -81,7 +81,9 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name: "hardware-observe",
+		name:                  "hardware-observe",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,

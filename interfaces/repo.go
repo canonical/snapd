@@ -667,7 +667,7 @@ func (r *Repository) Interfaces() *Interfaces {
 	if len(seenIfaces) > 0 {
 		ifaces.MetaData = make(map[string]MetaData, len(seenIfaces))
 		for iface := range seenIfaces {
-			ifaces.MetaData[iface.Name()] = ifaceMetaData(iface)
+			ifaces.MetaData[iface.Name()] = IfaceMetaData(iface)
 		}
 	}
 	sort.Sort(byPlugSnapAndName(ifaces.Plugs))

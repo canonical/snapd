@@ -66,7 +66,9 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "timeserver-control",
+		name:                  "timeserver-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

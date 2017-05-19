@@ -121,7 +121,9 @@ var firewallControlConnectedPlugKmod = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name: "firewall-control",
+		name:                     "firewall-control",
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,

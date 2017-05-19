@@ -43,7 +43,9 @@ const dcdbasControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "dcdbas-control",
+		name:                  "dcdbas-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

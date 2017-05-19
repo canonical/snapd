@@ -29,7 +29,8 @@ const localeControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "locale-control",
+		name:                  "locale-control",
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

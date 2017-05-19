@@ -56,7 +56,9 @@ const openglConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "opengl",
+		name:                  "opengl",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

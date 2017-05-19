@@ -208,7 +208,9 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-control",
+		name:                  "network-control",
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,
