@@ -38,7 +38,7 @@ execute: |
     echo "Then the fuse plug is not connected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
         if test-snapd-fuse-consumer.create $MOUNT_POINT 2>${PWD}/fuse.error; then
             echo "Expected permission error creating fuse filesystem with disconnected plug"

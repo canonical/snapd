@@ -42,7 +42,7 @@ execute: |
     echo "When try is executed on that directory"
     snap try $TESTSLIB/snaps/test-snapd-tools
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap command is not able to access the protected resource"
         if test-snapd-tools.head -1 /dev/kmsg; then
             echo "Expected confinement denial in try mode didn't work"

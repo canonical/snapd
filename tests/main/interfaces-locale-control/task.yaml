@@ -44,7 +44,7 @@ execute: |
 
     echo "==================================="
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect locale-control-consumer:locale-control
 
@@ -65,7 +65,7 @@ execute: |
     locale-control-consumer.set LANG mylang
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "==================================="
 
         echo "When the plug is disconnected"

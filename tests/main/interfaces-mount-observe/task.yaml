@@ -36,7 +36,7 @@ execute: |
     expected="/snap/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "========================================="
 
         echo "When the plug is disconnected"
