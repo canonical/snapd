@@ -41,12 +41,18 @@ update_core_snap_for_classic_reexec() {
     cp -a $LIBEXECDIR/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
-    # and snap-confine's apparmor
-    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    else
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    fi
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # and snap-confine's apparmor
+            if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            else
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            fi
+            ;;
+        *)
+    esac
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
@@ -93,13 +99,25 @@ prepare_classic() {
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        apt-cache policy snapd
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-cache policy snapd
+                ;;
+            *)
+                ;;
+        esac
         exit 1
     fi
     if $LIBEXECDIR/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        apt-cache policy snap-confine
         $LIBEXECDIR/snapd/snap-confine --version
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-cache policy snapd
+                ;;
+            *)
+                ;;
+        esac
         exit 1
     fi
 
@@ -136,12 +154,14 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output is empty on classic"
-        output=$(grub-editenv list)
-        if [ -n "$output" ]; then
-            echo "Expected empty grub environment, got:"
-            echo "$output"
-            exit 1
+        if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+            echo "Ensure that the grub-editenv list output is empty on classic"
+            output=$(grub-editenv list)
+            if [ -n "$output" ]; then
+                echo "Expected empty grub environment, got:"
+                echo "$output"
+                exit 1
+            fi
         fi
 
         systemctl stop snapd.service snapd.socket

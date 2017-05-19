@@ -43,7 +43,11 @@ reset_classic() {
         systemctl start snapd.socket
 
         # wait for snapd listening
-        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
+        EXTRA_NC_ARGS="-q 1"
+        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+            EXTRA_NC_ARGS=""
+        fi
+        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
     fi
 }
 
