@@ -293,6 +293,7 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        systems: [-fedora-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -318,7 +319,7 @@ suites:
         summary: completion tests
 
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*]
 
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -348,6 +349,7 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
+        systems: [-fedora-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -366,7 +368,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-*]
+        systems: [-ubuntu-core-16-*, -fedora-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -382,7 +384,7 @@ suites:
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
-        systems: [-ubuntu-core-16-*]
+        systems: [-ubuntu-core-16-*, -fedora-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             prepare_classic
@@ -397,6 +399,7 @@ suites:
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
+        systems: [-fedora-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -415,6 +418,7 @@ suites:
 
     tests/nested/:
         summary: Tests for nested images
+        systems: [-fedora-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
         halt-timeout: 2h
