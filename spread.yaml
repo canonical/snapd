@@ -59,6 +59,8 @@ backends:
             - debian-unstable-64:
                 kernel: GRUB 2
                 workers: 4
+            - fedora-25-64:
+                workers: 4
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -91,6 +93,9 @@ backends:
             - debian-9-64:
                 username: debian
                 password: debian
+            - fedora-25-64:
+                username: fedora
+                password: fedora
     autopkgtest:
         type: adhoc
         allocate: |
