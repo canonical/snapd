@@ -50,16 +50,28 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
+	// HomeDirBase returns the user-specific home directory base of the snap.
+	HomeDirBase(home string) string
+
+	// UserDataDir returns the per user data directory of the snap.
+	UserDataDir(home string) string
+
 	// CommonDataDir returns the data directory common across revisions of the snap.
 	CommonDataDir() string
 
-	// DataHomeDir returns the per user data directory of the snap.
+	// UserCommonDataDir returns the per user data directory common across revisions of the snap.
+	UserCommonDataDir(home string) string
+
+	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
+	UserXdgRuntimeDir(userID int) string
+
+	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
 
-	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+	// CommonDataHomeDir returns a glob that matches all per user data directories common across revisions of the snap.
 	CommonDataHomeDir() string
 
-	// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR directories for all users of the snap.
 	XdgRuntimeDirs() string
 }
 
