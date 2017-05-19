@@ -39,7 +39,7 @@ execute: |
     process-control-consumer.signal "SIGTERM" $pid
     ! ps ax | grep -Pq "^ *$pid"
 
-    if snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         exit 0
     fi
 

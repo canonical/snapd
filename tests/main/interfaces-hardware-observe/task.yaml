@@ -32,7 +32,7 @@ execute: |
     echo "Then the snap is able to read hardware information"
     hardware-observe-consumer.consumer
 
-    if snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         exit 0
     fi
 

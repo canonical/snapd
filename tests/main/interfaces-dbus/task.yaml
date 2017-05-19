@@ -68,7 +68,7 @@ execute: |
     echo "And plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    if snap forced-devmode; then
+    if [ "$(snap debug confinement)" = strict ]; then
         exit 0
     fi
 

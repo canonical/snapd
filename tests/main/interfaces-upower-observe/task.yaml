@@ -39,7 +39,7 @@ execute: |
     snap disconnect test-snapd-upower-observe-consumer:upower-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    if ! snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = none ] ; then
         echo "Then the snap is not able to dump info about the upower devices"
         if su -l -c "test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error" test; then
             echo "Expected permission error accessing upower info with disconnected plug"

@@ -15,7 +15,7 @@ execute: |
     run_install --classic
     /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
-    if snap forced-devmode; then
+    if [ "$(snap debug confinement)" = strict ]; then
         exit 0
     fi
 
