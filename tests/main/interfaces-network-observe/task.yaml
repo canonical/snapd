@@ -63,6 +63,4 @@ execute: |
             echo "Expected error caling command with disconnected plug"
         fi
         cat net-query.output | grep -Pq "Permission denied"
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi

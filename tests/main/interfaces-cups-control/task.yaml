@@ -57,7 +57,6 @@ execute: |
     while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
 
     if snap forced-devmode ; then
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
         exit 0
     fi
 

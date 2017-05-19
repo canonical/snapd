@@ -56,8 +56,6 @@ execute: |
         grep -q "Permission denied" locale-read.error
 
         echo "==================================="
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
 
     echo "When the plug is connected"
@@ -79,6 +77,4 @@ execute: |
             exit 1
         fi
         grep -q "Permission denied" locale-write.error
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi

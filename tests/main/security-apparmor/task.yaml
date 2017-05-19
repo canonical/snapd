@@ -6,7 +6,6 @@ prepare: |
     install_local test-snapd-tools
 execute: |
     if snap forced-devmode ; then
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
         exit 0
     fi
     echo "Then an unconfined action should succeed"

@@ -9,8 +9,6 @@ prepare: |
         echo "Workaround complain-mode EPERM (LP: #1648903)"
         sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
-    else
-        echo "WARNING: Skipping confinement setup as snapd runs in forced devmode"
     fi
 execute: |
     export PATH=$PATH:/snap/bin

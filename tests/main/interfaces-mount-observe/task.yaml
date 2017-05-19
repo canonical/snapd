@@ -48,8 +48,6 @@ execute: |
             echo "Expected error accessing mount info with disconnected plug"
             exit 1
         fi
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
 
     echo "========================================="

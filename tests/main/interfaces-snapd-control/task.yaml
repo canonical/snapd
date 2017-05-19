@@ -41,8 +41,6 @@ execute: |
             exit 1
         fi
         grep -q "Permission denied" snapd.error
-    else
-        echo "WARNING: Skipping confinement checks as snapd runs in forced devmode"
     fi
 
     echo "================================================"
