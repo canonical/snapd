@@ -33,7 +33,7 @@ execute: |
     expected="(?s)/dev/tty.*?serial"
     su -l -c "system-observe-consumer" test | grep -Pq "$expected"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "==========================================="
 
         echo "When the plug is disconnected"

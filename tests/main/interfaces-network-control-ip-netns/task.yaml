@@ -5,7 +5,7 @@ details: |
     namespace.
 prepare: |
     snap install --devmode snapd-hacker-toolbelt
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "Workaround complain-mode EPERM (LP: #1648903)"
         sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
         apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox

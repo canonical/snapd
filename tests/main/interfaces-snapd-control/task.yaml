@@ -28,7 +28,7 @@ execute: |
     echo "Then it is connected by default"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         echo "================================================"
 
         echo "When the plug is disconnected"
