@@ -45,31 +45,17 @@ restore: |
     rm -rf /tmp/work-dir
 
 execute: |
-    execute_remote(){
-        sshpass -p ubuntu ssh -p 8022 -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
-    }
-
-    # wait_for_ssh
-    retry=300
-    while ! execute_remote true; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
-            exit 1
-        fi
-        sleep 1
-    done
-
-    # prepare_ssh
-    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
-    execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
+    . $TESTSLIB/nested.sh
+    wait_for_ssh
+    prepare_ssh
 
     cd $SPREAD_PATH
 
-    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread /tmp/work-dir
+    echo "Wait for first boot to be done"
+    while ! execute_remote "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
 
-    set +x
-    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    rm -f snapd-state.tar.gz npm-debug.log
-    /tmp/work-dir/spread -v external:ubuntu-core-16-64:tests/nested/prepare-image-check
+    echo "We have a model assertion"
+    execute_remote "snap known model" | MATCH "series: 16"
+
+    echo "Make sure core has an actual revision"
+    execute_remote "snap list" | MATCH "^core +[0-9]+\-[0-9]+ +[0-9]+ +canonical +\-"

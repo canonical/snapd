@@ -12,17 +12,16 @@ restore: |
 
 execute: |
     . $TESTSLIB/nested.sh
-    wait_for_ssh
-    prepare_ssh
 
     cd $SPREAD_PATH
     execute_remote "sudo snap install network-manager"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
     wait_for_ssh
+    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do sleep 1 ; done
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "sudo snap revert core" || true
-    while ! execute_remote "snap changes" | MATCH "^Done.*Revert \"core\" snap"; do sleep 1 ; done
     wait_for_ssh
+    while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
     execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0

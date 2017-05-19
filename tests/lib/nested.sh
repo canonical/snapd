@@ -1,6 +1,24 @@
 #!/bin/sh
 . $TESTSLIB/systemd.sh
 
+wait_for_ssh(){
+    retry=300
+    while ! execute_remote true; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for ssh. Aborting!"
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+prepare_ssh(){
+    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+    execute_remote "echo test:ubuntu | sudo chpasswd"
+    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
+}
+
 create_nested_core_vm(){
     # determine arch related vars
     case "$NESTED_ARCH" in
@@ -27,6 +45,9 @@ create_nested_core_vm(){
     genisoimage -volid cidata -joliet -rock -o assertions.disk $TESTSLIB/assertions/auto-import.assert
 
     systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
+
+    wait_for_ssh
+    prepare_ssh
 }
 
 destroy_nested_core_vm(){
@@ -36,22 +57,4 @@ destroy_nested_core_vm(){
 
 execute_remote(){
     sshpass -p ubuntu ssh -p 8022 -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
-}
-
-wait_for_ssh(){
-    retry=300
-    while ! execute_remote true; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
-            exit 1
-        fi
-        sleep 1
-    done
-}
-
-prepare_ssh(){
-    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
-    execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
 }
