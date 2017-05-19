@@ -56,7 +56,7 @@ type HidrawInterfaceSuite struct {
 }
 
 var _ = Suite(&HidrawInterfaceSuite{
-	iface: &builtin.HidrawInterface{},
+	iface: builtin.MustInterface("hidraw"),
 })
 
 func (s *HidrawInterfaceSuite) SetUpTest(c *C) {

@@ -44,7 +44,7 @@ execute: |
             echo "Expected permission error creating fuse filesystem with disconnected plug"
             exit 1
         fi
-        grep -q "Permission denied" fuse.error
+        MATCH "Permission denied" fuse.error
 
         echo "==================================="
     else
@@ -57,6 +57,7 @@ execute: |
 
     echo "Then the snap is able to create a fuse filesystem"
     test-snapd-fuse-consumer.create $MOUNT_POINT
-    PID=$(ps aux | grep test-snapd.*create | grep -v grep | awk '{print $2}')
-    grep -q "Hello World!" /proc/${PID}/root/$MOUNT_POINT/hello
+    # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
+    PID=$(ps aux | awk '/[t]est-snapd.*create/{print $2}')
+    MATCH "Hello World!" < /proc/${PID}/root/$MOUNT_POINT/hello
     kill -9 ${PID}

@@ -45,10 +45,11 @@ apps:
   plugs: [system-observe]
 `
 
-var _ = Suite(&SystemObserveInterfaceSuite{})
+var _ = Suite(&SystemObserveInterfaceSuite{
+	iface: builtin.MustInterface("system-observe"),
+})
 
 func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewSystemObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

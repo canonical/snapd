@@ -39,7 +39,7 @@ type IioPortsControlInterfaceSuite struct {
 }
 
 var _ = Suite(&IioPortsControlInterfaceSuite{
-	iface: &builtin.IioPortsControlInterface{},
+	iface: builtin.MustInterface("io-ports-control"),
 })
 
 func (s *IioPortsControlInterfaceSuite) SetUpTest(c *C) {

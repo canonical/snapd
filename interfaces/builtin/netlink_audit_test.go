@@ -44,10 +44,11 @@ apps:
   plugs: [netlink-audit]
 `
 
-var _ = Suite(&NetlinkAuditInterfaceSuite{})
+var _ = Suite(&NetlinkAuditInterfaceSuite{
+	iface: builtin.MustInterface("netlink-audit"),
+})
 
 func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetlinkAuditInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

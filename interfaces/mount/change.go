@@ -31,10 +31,12 @@ import (
 type Action string
 
 const (
+	// Keep indicates that a given mount entry should be kept as-is.
+	Keep Action = "keep"
 	// Mount represents an action that results in mounting something somewhere.
 	Mount Action = "mount"
 	// Unmount represents an action that results in unmounting something from somewhere.
-	Unmount Action = "umount"
+	Unmount Action = "unmount"
 	// Remount when needed
 )
 
@@ -47,16 +49,6 @@ type Change struct {
 // String formats mount change to a human-readable line.
 func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
-}
-
-// Needed returns true if the change needs to be performed in the context of mount table.
-func (c Change) Needed(mounted []*InfoEntry) bool {
-	// Look through what is mounted and see if we shold perform the change. If
-	// the entry is already mounted then we don't need to mount it, if the
-	// entry is already unmounted then we don't need to unmount it.
-
-	// TODO: implement this
-	return true
 }
 
 // Perform executes the desired mount or unmount change using system calls.
@@ -135,7 +127,9 @@ func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
 
 	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
-		if !reuse[current[i].Dir] {
+		if reuse[current[i].Dir] {
+			changes = append(changes, Change{Action: Keep, Entry: current[i]})
+		} else {
 			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
 		}
 	}

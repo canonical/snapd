@@ -84,6 +84,31 @@ type HookSetup struct {
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
+
+	// Make sure we only run 1 hook task for given snap at a time
+	runner.SetBlocked(func(thisTask *state.Task, running []*state.Task) bool {
+		// check if we're a hook task, probably not needed but let's take extra care
+		if thisTask.Kind() != "run-hook" {
+			return false
+		}
+		var hooksup HookSetup
+		if thisTask.Get("hook-setup", &hooksup) != nil {
+			return false
+		}
+		thisSnapName := hooksup.Snap
+		// examine all hook tasks, block thisTask if we find any other hook task affecting same snap
+		for _, t := range running {
+			if t.Kind() != "run-hook" || t.Get("hook-setup", &hooksup) != nil {
+				continue // ignore errors and continue checking remaining tasks
+			}
+			if hooksup.Snap == thisSnapName {
+				// found hook task affecting same snap, block thisTask.
+				return true
+			}
+		}
+		return false
+	})
+
 	manager := &HookManager{
 		state:      s,
 		runner:     runner,
@@ -280,6 +305,7 @@ func snapCmd() string {
 
 var syscallKill = syscall.Kill
 var cmdWaitTimeout = 5 * time.Second
+var defaultHookTimeout = 10 * time.Minute
 
 func killemAll(cmd *exec.Cmd) error {
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
@@ -316,6 +342,9 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// add timeout handling
 	var killTimerCh <-chan time.Time
+	if timeout == 0 {
+		timeout = defaultHookTimeout
+	}
 	if timeout > 0 {
 		killTimerCh = time.After(timeout)
 	}

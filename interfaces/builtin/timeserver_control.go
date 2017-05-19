@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
@@ -68,15 +64,10 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-// NewTimeserverControlInterface returns a new "timeserver-control" interface.
-func NewTimeserverControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "timeserver-control",
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewTimeserverControlInterface())
+	})
 }

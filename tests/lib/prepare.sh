@@ -154,7 +154,7 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install rng-tools
@@ -167,14 +167,14 @@ EOF
 
 setup_reflash_magic() {
         # install the stuff we need
-        apt-get install -y kpartx busybox-static
-        apt_install_local ${GOPATH}/snapd_*.deb
-        apt-get clean
+        distro_install_package kpartx busybox-static
+        distro_install_local_package ${GOPATH}/snapd_*.deb
+        distro_clean_package_cache
 
         snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
-        snap install --devmode --edge ubuntu-image
+        snap install --classic --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs

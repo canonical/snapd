@@ -36,7 +36,9 @@ type CoreSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&CoreSupportInterfaceSuite{})
+var _ = Suite(&CoreSupportInterfaceSuite{
+	iface: builtin.MustInterface("core-support"),
+})
 
 func (s *CoreSupportInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -45,7 +47,6 @@ hooks:
  prepare-device:
      plugs: [core-support]
 `
-	s.iface = builtin.NewCoreSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
