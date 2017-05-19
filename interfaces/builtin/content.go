@@ -117,12 +117,6 @@ func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string
 	return out
 }
 
-const (
-	SnapMountDir = iota
-	SnapDataDir
-	SnapCommonDir
-)
-
 // resolveSpecialVariable resolves one of the three $SNAP* variables at the
 // beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
