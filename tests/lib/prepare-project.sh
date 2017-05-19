@@ -45,6 +45,27 @@ build_deb(){
     cp ../*.deb $GOPATH
 }
 
+fedora_build_rpm() {
+    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    version="1337.$base_version"
+    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-25/snapd.spec
+
+    mkdir -p /tmp/pkg/snapd-$version
+    cp -rav * /tmp/pkg/snapd-$version/
+
+    mkdir -p $HOME/rpmbuild/SOURCES
+    (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
+
+    cp packaging/fedora-25/* $HOME/rpmbuild/SOURCES/
+
+    rpmbuild -bs packaging/fedora-25/snapd.spec
+    # FIXME 1.fc25 + arch needs to be dynamic as well
+    mock /root/rpmbuild/SRPMS/snapd-$version-1.fc25.src.rpm
+    cp /var/lib/mock/fedora-25-x86_64/result/snapd-$version-1.fc25.x86_64.rpm $GOPATH
+    cp /var/lib/mock/fedora-25-x86_64/result/snapd-selinux-$version-1.fc25.noarch.rpm $GOPATH
+    cp /var/lib/mock/fedora-25-x86_64/result/snap-confine-$version-1.fc25.x86_64.rpm $GOPATH
+}
+
 download_from_published(){
     local published_version="$1"
 
@@ -150,14 +171,23 @@ case "$SPREAD_SYSTEM" in
 esac
 
 # update vendoring
-if [ "$(which govendor)" = "" ]; then
+if [ -z "$(which govendor)" ]; then
     rm -rf $GOPATH/src/github.com/kardianos/govendor
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
 
 if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
-    build_deb
+    case "$SPREAD_SYSTEM" in
+      ubuntu-*|debian-*)
+         build_deb
+         ;;
+      fedora-*)
+         fedora_build_rpm
+         ;;
+      *)
+         ;;
+   esac
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
