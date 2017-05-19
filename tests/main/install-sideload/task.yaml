@@ -51,7 +51,7 @@ execute: |
     expected="^test-snapd-devmode +.* +devmode"
     snap list | grep -Pq  "$expected"
 
-    if ! snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = none ] ; then
         echo "Sideload devmode snap succeeds with --jailmode"
         expected="test-snapd-devmode 1.0 installed"
         snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"

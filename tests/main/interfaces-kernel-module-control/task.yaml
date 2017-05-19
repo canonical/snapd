@@ -79,7 +79,7 @@ execute: |
     test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
     lsmod | MATCH -v binfmt_misc
 
-    if snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         exit 0
     fi
 

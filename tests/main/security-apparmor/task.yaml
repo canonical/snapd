@@ -5,7 +5,7 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
 execute: |
-    if snap forced-devmode ; then
+    if [ "$(snap debug confinement)" = strict ] ; then
         exit 0
     fi
     echo "Then an unconfined action should succeed"
