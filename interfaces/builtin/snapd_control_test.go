@@ -36,7 +36,9 @@ type SnapdControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SnapdControlInterfaceSuite{})
+var _ = Suite(&SnapdControlInterfaceSuite{
+	iface: builtin.MustInterface("snapd-control"),
+})
 
 func (s *SnapdControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -46,7 +48,6 @@ apps:
     command: foo
     plugs: [snapd-control]
 `, nil)
-	s.iface = builtin.NewSnapdControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

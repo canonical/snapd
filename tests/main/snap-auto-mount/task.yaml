@@ -11,7 +11,7 @@ prepare: |
     snap install --devmode --edge dmsetup
 
     echo "Ensure the testrootorg-store.account-key is not already added"
-    output=$(snap known account-key | grep "name: test-store"|wc -l)
+    output=$(snap known account-key | grep -c "name: test-store" || true)
     if [ "$output" != "0" ]; then
             echo " testrootorg-store.account-key is already added"
             exit 1
@@ -41,4 +41,4 @@ execute: |
         exit
     fi
     echo "The auto-mount magic has given us the assertion"
-    snap known account-key | grep "name: test-store"
+    snap known account-key | MATCH "name: test-store"

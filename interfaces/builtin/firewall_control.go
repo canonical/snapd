@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
@@ -120,19 +116,15 @@ var firewallControlConnectedPlugKmod = []string{
 	"arp_tables",
 	"br_netfilter",
 	"ip6table_filter",
-	"iptable_filter"}
+	"iptable_filter",
+}
 
-// NewFirewallControlInterface returns a new "firewall-control" interface.
-func NewFirewallControlInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "firewall-control",
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
 		reservedForOS:            true,
-	}
-}
-
-func init() {
-	registerIface(NewFirewallControlInterface())
+	})
 }

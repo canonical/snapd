@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
@@ -90,16 +86,11 @@ const systemObserveConnectedPlugSecComp = `
 #@deny ptrace
 `
 
-// NewSystemObserveInterface returns a new "system-observe" interface.
-func NewSystemObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "system-observe",
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewSystemObserveInterface())
+	})
 }

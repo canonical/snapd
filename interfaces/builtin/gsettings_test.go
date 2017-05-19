@@ -45,10 +45,11 @@ apps:
   plugs: [gsettings]
 `
 
-var _ = Suite(&GsettingsInterfaceSuite{})
+var _ = Suite(&GsettingsInterfaceSuite{
+	iface: builtin.MustInterface("gsettings"),
+})
 
 func (s *GsettingsInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewGsettingsInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

@@ -18,15 +18,15 @@ execute: |
     echo "Network namespace created within a snap exists in global"
     snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns add canary'
     test -e /run/netns/canary
-    ip netns list | grep canary
+    ip netns list | MATCH canary
     echo "Network namespace deleted from global is removed from snap"
     ip netns delete canary
     test ! -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | grep canary && false
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | MATCH -v canary
     echo "Network namespace created from global exists in snap"
     ip netns add canary
     test -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | grep canary
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | MATCH canary
     echo "Network namespace deleted from snap is removed from global"
     snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns delete canary'
     test ! -e /run/netns/canary

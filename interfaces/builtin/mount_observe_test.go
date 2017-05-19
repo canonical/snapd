@@ -36,7 +36,9 @@ type MountObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MountObserveInterfaceSuite{})
+var _ = Suite(&MountObserveInterfaceSuite{
+	iface: builtin.MustInterface("mount-observe"),
+})
 
 func (s *MountObserveInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [mount-observe]
 `
-	s.iface = builtin.NewMountObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

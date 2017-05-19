@@ -39,7 +39,9 @@ type UPowerObserveInterfaceSuite struct {
 	plug        *interfaces.Plug
 }
 
-var _ = Suite(&UPowerObserveInterfaceSuite{})
+var _ = Suite(&UPowerObserveInterfaceSuite{
+	iface: builtin.MustInterface("upower-observe"),
+})
 
 func (s *UPowerObserveInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -65,7 +67,6 @@ apps:
   command: foo
   slots: [upower-observe]
 `
-	s.iface = &builtin.UpowerObserveInterface{}
 	// upower snap with upower-server slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, upowerMockSlotSnapInfoYaml, nil)
 	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["upower-observe"]}
