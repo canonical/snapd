@@ -4,6 +4,7 @@ details: |
     /run/snapd/ns/$SNAP_NAME.mnt file and removes the current mount profile
     /run/snapd/ns/snap.$SNAP_NAME.fstab. The profile removal is optional and it
     is not an error if it doesn't exist.
+systems: [-fedora-*]
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools

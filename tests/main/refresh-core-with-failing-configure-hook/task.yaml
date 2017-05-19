@@ -1,7 +1,7 @@
 summary: Check refresh with a broken configure hook on core still works
 
 # FIXME: for now only
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-*, -fedora-*]
 
 environment:
     BROKEN_CORE_SNAP: core_broken.snap

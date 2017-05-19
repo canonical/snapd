@@ -1,5 +1,7 @@
 summary: Check snap search
 
+systems: [-fedora-*]
+
 execute: |
     echo "List all featured snaps"
     expected="(?s)Name +Version +Developer +Notes +Summary *\n\

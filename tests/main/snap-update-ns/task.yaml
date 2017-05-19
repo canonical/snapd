@@ -7,6 +7,7 @@ details: |
     While the implementation matures this test checks that we call setns
     correctly (and it doesn't fail) enough that we reach the "not implemented"
     message that is currently in snap-updates-ns
+systems: [-fedora-*]
 environment:
     # I made far too many typos when those were literals in the code below.
     PLUG_SNAP: test-snapd-content-plug

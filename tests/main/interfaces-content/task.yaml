@@ -1,5 +1,7 @@
 summary: Ensure that the content sharing interface works.
 
+systems: [-fedora-*]
+
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap

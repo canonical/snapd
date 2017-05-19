@@ -8,6 +8,8 @@ details: |
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
 
+systems: [-fedora-*]
+
 environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1

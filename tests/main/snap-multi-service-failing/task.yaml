@@ -1,6 +1,8 @@
 summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
+systems: [-fedora-*]
+
 execute: |
   . $TESTSLIB/snaps.sh
   echo "when a snap install fails"

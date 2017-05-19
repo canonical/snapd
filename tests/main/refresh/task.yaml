@@ -8,6 +8,8 @@ details: |
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
 
+systems: [-fedora-*]
+
 environment:
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools
     SNAP_NAME/classic_fake,classic_remote: test-snapd-classic-confinement

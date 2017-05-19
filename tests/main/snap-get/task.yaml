@@ -1,5 +1,7 @@
 summary: Check that `snap get` works as expected
 
+systems: [-fedora-*]
+
 prepare: |
     echo "Build basic test package (without hooks)"
     snapbuild $TESTSLIB/snaps/basic .

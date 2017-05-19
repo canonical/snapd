@@ -1,5 +1,7 @@
 summary: Check that snap apps and services can write to writable areas.
 
+systems: [-fedora-*]
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly

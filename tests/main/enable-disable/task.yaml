@@ -1,5 +1,5 @@
 summary: Check that enable/disable works
-
+systems: [-fedora-*]
 execute: |
     . $TESTSLIB/dirs.sh
     echo "Install test-snapd-tools and ensure it runs"

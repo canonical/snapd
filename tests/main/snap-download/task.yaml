@@ -1,4 +1,5 @@
 summary: Check that snap download works
+systems: [-fedora-*]
 execute: |
     verify_asserts() {
         fn="$1"

@@ -1,5 +1,7 @@
 summary: Checks for snap sideload reverts
 
+systems: [-fedora-*]
+
 prepare: |
     snapbuild $TESTSLIB/snaps/basic .
 

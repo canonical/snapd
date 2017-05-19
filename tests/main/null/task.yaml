@@ -1,0 +1,6 @@
+summary: Dummy test case which does nothing
+
+systems: [fedora-*]
+
+execute: |
+    exit 0

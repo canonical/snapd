@@ -1,5 +1,7 @@
 summary: Ensure that the content sharing interface with defaults work.
 
+systems: [-fedora-*]
+
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
     snap install --edge test-snapd-content-slot-empty-content-attr

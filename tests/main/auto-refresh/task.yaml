@@ -1,5 +1,7 @@
 summary: Check that auto-refresh works
 
+systems: [-fedora-*]
+
 prepare: |
     snap install --devmode jq
 

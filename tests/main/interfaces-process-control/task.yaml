@@ -1,5 +1,7 @@
 summary: Ensure that the process-control interface works.
 
+systems: [-fedora-*]
+
 summary: |
     The process-control interface allows a snap to control other processes via signals
     and nice.

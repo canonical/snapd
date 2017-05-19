@@ -1,5 +1,7 @@
 summary: Ensure that the udev interface backend works.
 
+systems: [-fedora-*]
+
 details: |
     This test checks that the udev rules file is created when a snap declaring
     a dependency on an interface (being it a slot or a plug) and that concrete

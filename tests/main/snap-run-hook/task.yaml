@@ -1,5 +1,7 @@
 summary: Check that `snap run` can actually run hooks
 
+systems: [-fedora-*]
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly

@@ -1,4 +1,5 @@
 summary: Check auto-aliases mechanism
+systems: [-fedora-*]
 execute: |
     . $TESTSLIB/dirs.sh
 

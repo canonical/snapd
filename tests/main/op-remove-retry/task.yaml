@@ -1,5 +1,7 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
+systems: [-fedora-*]
+
 restore: |
     kill %1 || true
 
