@@ -83,7 +83,7 @@ static void test_maybe_set_context_environment__typical()
 	g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
 }
 
-static void test_context_get_from_snapd__succesful()
+static void test_context_get_from_snapd__successful()
 {
 	struct sc_error *err;
 	char *context;
@@ -124,7 +124,7 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/snap-context/set_context_environment_maybe/typical",
 			test_maybe_set_context_environment__typical);
 	g_test_add_func("/snap-context/context_get_from_snapd/successful",
-			test_context_get_from_snapd__succesful);
+			test_context_get_from_snapd__successful);
 	g_test_add_func("/snap-context/context_get_from_snapd/no_context_file",
 			test_context_get_from_snapd__nofile);
 }
