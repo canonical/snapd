@@ -691,10 +691,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	svcs := currentInfo.Services()
-	// TODO:
-	// if len(svcs) == 0 {
-	// 	return nil
-	// }
+	if len(svcs) == 0 {
+		return nil
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
@@ -718,10 +717,9 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	svcs := currentInfo.Services()
-	// TODO:
-	// if len(svcs) == 0 {
-	// 	return nil
-	// }
+	if len(svcs) == 0 {
+		return nil
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()

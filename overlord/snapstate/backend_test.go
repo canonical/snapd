@@ -175,6 +175,8 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 
 		var name string
 		switch snapID {
+		case "services-snap-id":
+			name = "services-snap"
 		case "some-snap-id":
 			name = "some-snap"
 		case "core-snap-id":
@@ -315,15 +317,30 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SuggestedName: name,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
-	}
-	info.Type = snap.TypeApp
-	if name == "gadget" {
-		info.Type = snap.TypeGadget
-	}
-	if name == "core" {
-		info.Type = snap.TypeOS
+		Type:          snap.TypeApp,
 	}
 	if strings.Contains(name, "alias-snap") {
+		name = "alias-snap"
+	}
+	switch name {
+	case "gadget":
+		info.Type = snap.TypeGadget
+	case "core":
+		info.Type = snap.TypeOS
+	case "services-snap":
+		var err error
+		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
+apps:
+  svc1:
+    daemon: simple
+  svc2:
+    daemon: simple
+`))
+		if err != nil {
+			panic(err)
+		}
+		info.SideInfo = *si
+	case "alias-snap":
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
@@ -340,6 +357,7 @@ apps:
 		}
 		info.SideInfo = *si
 	}
+
 	return info, nil
 }
 
