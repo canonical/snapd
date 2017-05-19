@@ -21,9 +21,11 @@ package hookstate_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -63,6 +65,21 @@ hooks:
     configure:
     prepare-device:
 `
+
+var snapYaml1 = `
+name: test-snap-1
+version: 1.0
+hooks:
+    prepare-device:
+`
+
+var snapYaml2 = `
+name: test-snap-2
+version: 1.0
+hooks:
+    prepare-device:
+`
+
 var snapContents = ""
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
@@ -118,6 +135,13 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 
 	s.manager.Stop()
 	dirs.SetRootDir("")
+}
+
+func (s *hookManagerSuite) settle() {
+	for i := 0; i < 50; i++ {
+		s.manager.Ensure()
+		s.manager.Wait()
+	}
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -675,4 +699,156 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(errtrackerCalled, Equals, true)
+}
+
+func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
+	var Executing int32
+	var TotalExecutions int32
+
+	s.mockHandler.BeforeCallback = func() {
+		executing := atomic.AddInt32(&Executing, 1)
+		if executing != 1 {
+			panic(fmt.Sprintf("More than one handler executed: %d", executing))
+		}
+	}
+
+	s.mockHandler.DoneCallback = func() {
+		executing := atomic.AddInt32(&Executing, -1)
+		if executing != 0 {
+			panic(fmt.Sprintf("More than one handler executed: %d", executing))
+		}
+		atomic.AddInt32(&TotalExecutions, 1)
+	}
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "configure",
+		Revision: snap.R(1),
+	}
+
+	s.state.Lock()
+
+	var tasks []*state.Task
+	for i := 0; i < 20; i++ {
+		task := hookstate.HookTask(s.state, "test summary", hooksup, nil)
+		c.Assert(s.task, NotNil)
+		change := s.state.NewChange("kind", "summary")
+		change.AddTask(task)
+		tasks = append(tasks, task)
+	}
+	s.state.Unlock()
+
+	s.settle()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	for i := 0; i < len(tasks); i++ {
+		c.Check(tasks[i].Kind(), Equals, "run-hook")
+		c.Check(tasks[i].Status(), Equals, state.DoneStatus)
+	}
+	c.Assert(atomic.LoadInt32(&TotalExecutions), Equals, int32(1+len(tasks)))
+	c.Assert(atomic.LoadInt32(&Executing), Equals, int32(0))
+}
+
+type MockConcurrentHandler struct {
+	onDone func()
+}
+
+func (h *MockConcurrentHandler) Before() error {
+	return nil
+}
+
+func (h *MockConcurrentHandler) Done() error {
+	h.onDone()
+	return nil
+}
+
+func (h *MockConcurrentHandler) Error(err error) error {
+	return nil
+}
+
+func NewMockConcurrentHandler(onDone func()) *MockConcurrentHandler {
+	return &MockConcurrentHandler{onDone: onDone}
+}
+
+func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
+	hooksup1 := &hookstate.HookSetup{
+		Snap:     "test-snap-1",
+		Hook:     "prepare-device",
+		Revision: snap.R(1),
+	}
+	hooksup2 := &hookstate.HookSetup{
+		Snap:     "test-snap-2",
+		Hook:     "prepare-device",
+		Revision: snap.R(1),
+	}
+
+	s.state.Lock()
+
+	sideInfo := &snap.SideInfo{RealName: "test-snap-1", SnapID: "some-snap-id1", Revision: snap.R(1)}
+	info := snaptest.MockSnap(c, snapYaml1, snapContents, sideInfo)
+	c.Assert(info.Hooks, HasLen, 1)
+	snapstate.Set(s.state, "test-snap-1", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  snap.R(1),
+	})
+
+	sideInfo = &snap.SideInfo{RealName: "test-snap-2", SnapID: "some-snap-id2", Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapYaml2, snapContents, sideInfo)
+	snapstate.Set(s.state, "test-snap-2", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  snap.R(1),
+	})
+
+	var testSnap1HookCalls, testSnap2HookCalls int
+	ch := make(chan struct{})
+	mockHandler1 := NewMockConcurrentHandler(func() {
+		ch <- struct{}{}
+		testSnap1HookCalls++
+	})
+	mockHandler2 := NewMockConcurrentHandler(func() {
+		<-ch
+		testSnap2HookCalls++
+	})
+	s.manager.Register(regexp.MustCompile("prepare-device"), func(context *hookstate.Context) hookstate.Handler {
+		if context.SnapName() == "test-snap-1" {
+			return mockHandler1
+		}
+		if context.SnapName() == "test-snap-2" {
+			return mockHandler2
+		}
+		c.Fatalf("unknown snap: %s", context.SnapName())
+		return nil
+	})
+
+	task1 := hookstate.HookTask(s.state, "test summary", hooksup1, nil)
+	c.Assert(task1, NotNil)
+	change1 := s.state.NewChange("kind", "summary")
+	change1.AddTask(task1)
+
+	task2 := hookstate.HookTask(s.state, "test summary", hooksup2, nil)
+	c.Assert(task2, NotNil)
+	change2 := s.state.NewChange("kind", "summary")
+	change2.AddTask(task2)
+
+	s.state.Unlock()
+
+	s.settle()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task1.Status(), Equals, state.DoneStatus)
+	c.Check(change1.Status(), Equals, state.DoneStatus)
+	c.Check(task2.Status(), Equals, state.DoneStatus)
+	c.Check(change2.Status(), Equals, state.DoneStatus)
+	c.Assert(testSnap1HookCalls, Equals, 1)
+	c.Assert(testSnap2HookCalls, Equals, 1)
 }

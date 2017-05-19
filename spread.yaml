@@ -242,6 +242,8 @@ repack: |
         tar c current.delta >&4
     fi
 
+kill-timeout: 20m
+
 prepare: |
     # check if running inside a container, the testsuite will not
     # work in such an environment
@@ -302,7 +304,9 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
+                distro_purge_package snap-confine
             fi
 
     tests/completion/:

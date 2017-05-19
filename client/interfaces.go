@@ -62,6 +62,13 @@ type SlotRef struct {
 type Interfaces struct {
 	Plugs []Plug `json:"plugs"`
 	Slots []Slot `json:"slots"`
+
+	MetaData map[string]InterfaceMetaData `json:"meta-data"`
+}
+
+// InterfaceMetaData contains meta-data about a given interface type.
+type InterfaceMetaData struct {
+	Description string `json:"description,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
