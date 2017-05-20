@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -29,13 +30,16 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -375,6 +379,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap context: %v", err)
+	}
+
 	snapst.Active = true
 	err = m.backend.LinkSnap(oldInfo)
 	if err != nil {
@@ -460,6 +468,52 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) createSnapContext(st *state.State, snapName string) error {
+	contextID := strutil.MakeRandomString(40)
+	path := filepath.Join(dirs.SnapContextDir, fmt.Sprintf("snap.%s", snapName))
+	fstate := osutil.FileState{
+		Content: []byte(contextID),
+		Mode:    0600,
+	}
+	if err := osutil.EnsureFileState(path, &fstate); err != nil {
+		return err
+	}
+
+	var contexts map[string]string
+	err := st.Get("snap-contexts", &contexts)
+	if err != nil {
+		if err != state.ErrNoState {
+			return fmt.Errorf("failed to get snap contexts: %v", err)
+		}
+		contexts = make(map[string]string)
+	}
+	contexts[contextID] = snapName
+	st.Set("snap-contexts", &contexts)
+	return nil
+}
+
+func (m *SnapManager) removeSnapContext(st *state.State, snapName string) error {
+	var contexts map[string]string
+	err := st.Get("snap-contexts", &contexts)
+	if err != nil {
+		if err != state.ErrNoState {
+			return fmt.Errorf("failed to get snap contexts: %v", err)
+		}
+		contexts = make(map[string]string)
+	}
+
+	for contextID, snap := range contexts {
+		if snapName == snap {
+			delete(contexts, contextID)
+			st.Set("snap-contexts", contexts)
+			// error on removing the context file is not fatal
+			_ = os.Remove(filepath.Join(dirs.SnapContextDir, fmt.Sprintf("snap.%s", snapName)))
+			break
+		}
+	}
+	return nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -468,6 +522,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
+	}
+
+	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap context: %v", err)
 	}
 
 	cand := snapsup.SideInfo
@@ -646,6 +704,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("cannot remove snap context: %v", err)
+	}
+
 	// mark as inactive
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -745,7 +807,11 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as inactive
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
-	return nil
+
+	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("cannot remove snap context: %v", err)
+	}
+	return err
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
