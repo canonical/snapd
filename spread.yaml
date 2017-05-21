@@ -265,9 +265,18 @@ prepare: |
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
         tf=$(mktemp)
-        # poor-man's "quiet"
-        apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-        apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+        # NOTE: We can't use tests/lib/pkgdb.sh here as it doesn't exist yet
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
+                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                ;;
+            fedora-*)
+                dnf install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            *)
+                ;;
+        esac
         rm -f "$tf"
         curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
         xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
