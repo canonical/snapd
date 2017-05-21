@@ -51,6 +51,7 @@ func (s *desktopSuite) SetUpTest(c *C) {
 }
 
 func (s *desktopSuite) TearDownTest(c *C) {
+	s.mockUpdateDesktopDatabase.Restore()
 	dirs.SetRootDir("")
 }
 

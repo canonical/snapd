@@ -64,6 +64,7 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.restorer()
 	s.mockAddUser.Restore()
+	s.mockUserMod.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
