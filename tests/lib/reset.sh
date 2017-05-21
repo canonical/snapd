@@ -11,7 +11,17 @@ reset_classic() {
 
     systemctl stop snapd.service snapd.socket
 
-    sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+            ;;
+        fedora-*)
+            sh -x ${SPREAD_PATH}/packaging/fedora-25/snap-mgmt.sh purge
+            ;;
+        *)
+            exit 1
+            ;;
+    esac
     # extra purge
     rm -rvf /var/snap $SNAPMOUNTDIR/bin
     mkdir -p $SNAPMOUNTDIR /var/snap /var/lib/snapd
