@@ -365,7 +365,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	defer func() {
 		// do kill the processes
 		if pgrp != 0 {
-			syscall.Kill(pgrp, 9)
+			syscall.Kill(pgrp, syscall.SIGKILL)
 		}
 	}()
 
