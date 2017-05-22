@@ -10,7 +10,7 @@ create_test_user(){
         # Nothing special about 12345 beyond it being high enough it's
         # unlikely to ever clash with anything, and easy to remember.
         EXTRA_ADDUSER_ARGS=""
-        if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
+        if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
             EXTRA_ADDUSER_ARGS="--disable-password --gecos=''"
         fi
         quiet groupadd --gid 12345 test
