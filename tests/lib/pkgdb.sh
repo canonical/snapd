@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
@@ -46,6 +47,7 @@ distro_install_local_package() {
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
+            # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
         *)

@@ -30,7 +30,7 @@ _die() {
     exit 1
 }
 
-if [[ "$BASH_SOURCE" != "$0" ]]; then
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
     _die "ERROR: this is meant to be run, not sourced."
 fi
 
