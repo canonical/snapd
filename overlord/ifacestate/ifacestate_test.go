@@ -233,6 +233,39 @@ func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer")
 }
 
+func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("other-connect", "...")
+	t := s.state.NewTask("connect", "other connect task")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	chg.AddTask(t)
+
+	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	// sanity check: verify that CheckChangeConflict would normally fail without extra-predicate passed by Connect/Disconnect internally.
+	reset := ifacestate.MockConflictPredicate(nil)
+	defer reset()
+
+	_, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+
+	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+}
+
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
