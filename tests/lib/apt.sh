@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. $TESTSLIB/pkgdb.sh
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB"/pkgdb.sh
 
 install_build_snapd(){
     if [ "$SRU_VALIDATION" = "1" ]; then
@@ -12,7 +13,6 @@ install_build_snapd(){
         mv sources.list.back /etc/apt/sources.list
         apt update
     else
-        packages="${GOPATH}/snapd_*.deb"
-        distro_install_local_package $packages
+        distro_install_local_package "${GOPATH%%:*}"/snapd_*.deb
     fi
 }
