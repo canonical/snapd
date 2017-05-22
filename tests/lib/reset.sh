@@ -2,17 +2,18 @@
 
 set -e -x
 
+. $TESTSLIB/dirs.sh
+
 reset_classic() {
     systemctl stop snapd.service snapd.socket
 
-    # purge all state
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
     # extra purge
-    rm -rvf /var/snap /snap/bin
-    mkdir -p /snap /var/snap /var/lib/snapd
-    if [ "$(find /snap /var/snap -mindepth 1 -print -quit)" ]; then
+    rm -rvf /var/snap $SNAPMOUNTDIR/bin
+    mkdir -p $SNAPMOUNTDIR /var/snap /var/lib/snapd
+    if [ "$(find $SNAPMOUNTDIR /var/snap -mindepth 1 -print -quit)" ]; then
         echo "postinst purge failed"
-        ls -lR /snap/ /var/snap/
+        ls -lR $SNAPMOUNTDIR/ /var/snap/
         exit 1
     fi
 
@@ -25,8 +26,9 @@ reset_classic() {
 
     if [ "$1" = "--reuse-core" ]; then
         $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
-        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        escaped_snap_mount_dir="$(systemd-escape --path $SNAPMOUNTDIR)"
+        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start $unit
@@ -45,7 +47,7 @@ reset_all_snap() {
     # remove all leftover snaps
     . "$TESTSLIB/names.sh"
 
-    for snap in /snap/*; do
+    for snap in $SNAPMOUNTDIR/*; do
         snap="${snap:6}"
         case "$snap" in
             "bin" | "$gadget_name" | "$kernel_name" | core )

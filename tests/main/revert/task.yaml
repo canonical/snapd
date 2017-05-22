@@ -58,6 +58,8 @@ execute: |
         exit 1
     fi
 
+    . $TESTSLIB/dirs.sh
+
     echo "When a refresh is made"
     snap refresh --edge test-snapd-tools
 
@@ -71,7 +73,7 @@ execute: |
     snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
 
     echo "And the data directories are present"
-    ls /snap/test-snapd-tools | MATCH current
+    ls $SNAPMOUNTDIR/test-snapd-tools | MATCH current
     ls /var/snap/test-snapd-tools | MATCH current
 
     echo "And the snap runs confined"
