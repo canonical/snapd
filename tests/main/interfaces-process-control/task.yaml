@@ -1,9 +1,5 @@
 summary: Ensure that the process-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 summary: |
     The process-control interface allows a snap to control other processes via signals
     and nice.
@@ -42,6 +38,10 @@ execute: |
     ps ax | grep -Pq "^ *$pid"
     process-control-consumer.signal "SIGTERM" $pid
     ! ps ax | grep -Pq "^ *$pid"
+
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
 
     echo "==================================="
 

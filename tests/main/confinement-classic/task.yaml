@@ -17,10 +17,7 @@ execute: |
     run_install --classic
     $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
-    # FIXME jailmode doesn't work on debian type systems due to missing
-    # confinement yet. This check will be replaced with proper detection
-    # if confinement is supported on the platform we're running.
-    if [[ "$SPREAD_SYSTEM" = debian-* ]]; then
+    if [ "$(snap debug confinement)" = none ]; then
         exit 0
     fi
 
