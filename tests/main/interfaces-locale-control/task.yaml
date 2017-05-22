@@ -2,8 +2,6 @@ summary: Ensure that the locale-control interface works.
 
 systems:
     - -ubuntu-core-16-*
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
@@ -46,17 +44,19 @@ execute: |
 
     echo "==================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "When the plug is disconnected"
+        snap disconnect locale-control-consumer:locale-control
 
-    echo "Then the snap is not able to read the locale configuration"
-    if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
-        echo "Expected permission error accessing locale configuration with disconnected plug"
-        exit 1
+        echo "Then the snap is not able to read the locale configuration"
+        if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
+            echo "Expected permission error accessing locale configuration with disconnected plug"
+            exit 1
+        fi
+        grep -q "Permission denied" locale-read.error
+
+        echo "==================================="
     fi
-    grep -q "Permission denied" locale-read.error
-
-    echo "==================================="
 
     echo "When the plug is connected"
     snap connect locale-control-consumer:locale-control
@@ -65,14 +65,16 @@ execute: |
     locale-control-consumer.set LANG mylang
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
-    echo "==================================="
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "==================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control
+        echo "When the plug is disconnected"
+        snap disconnect locale-control-consumer:locale-control
 
-    echo "Then the snap is not able to read the locale configuration"
-    if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
-        echo "Expected permission error accessing locale configuration with disconnected plug"
-        exit 1
+        echo "Then the snap is not able to read the locale configuration"
+        if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
+            echo "Expected permission error accessing locale configuration with disconnected plug"
+            exit 1
+        fi
+        grep -q "Permission denied" locale-write.error
     fi
-    grep -q "Permission denied" locale-write.error
