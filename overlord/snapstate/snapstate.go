@@ -40,12 +40,14 @@ import (
 // control flags for doInstall
 const (
 	maybeCore = 1 << iota
+	skipConfigure
 )
 
 // control flags for "Configure()"
 const (
 	IgnoreHookError = 1 << iota
 	TrackHookError
+	UseConfigDefaults
 )
 
 func needsMaybeCore(typ snap.Type) int {
@@ -217,38 +219,36 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.Name(), revisionStr)))
 	}
 
-	var defaults map[string]interface{}
-
-	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
-		// FIXME: this doesn't work during seeding itself
-		gadget, err := GadgetInfo(st)
-		if err != nil && err != state.ErrNoState {
-			return nil, err
-		}
-		if err == nil {
-			gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
-			if err != nil {
-				return nil, err
-			}
-			defaults = gadgetInfo.Defaults[snapsup.SideInfo.SnapID]
-		}
-	}
-
 	installSet := state.NewTaskSet(tasks...)
 
-	var confFlags int
-	// This is slightly ugly, ideally we would check the type instead
-	// of hardcoding the name here. Unfortunately we do not have the
-	// type until we actually run the change.
-	if snapsup.Name() == "core" {
-		confFlags |= IgnoreHookError
-		confFlags |= TrackHookError
+	if flags&skipConfigure != 0 {
+		return installSet, nil
 	}
-	configSet := Configure(st, snapsup.Name(), defaults, confFlags)
+
+	var confFlags int
+	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+		// installation, run configure using the gadget defaults
+		// if available
+		confFlags |= UseConfigDefaults
+	}
+
+	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 	configSet.WaitAll(installSet)
 	installSet.AddAll(configSet)
 
 	return installSet, nil
+}
+
+// ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
+func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskSet {
+	// This is slightly ugly, ideally we would check the type instead
+	// of hardcoding the name here. Unfortunately we do not have the
+	// type until we actually run the change.
+	if snapName == "core" {
+		confFlags |= IgnoreHookError
+		confFlags |= TrackHookError
+	}
+	return Configure(st, snapName, nil, confFlags)
 }
 
 var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
@@ -340,6 +340,13 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
+	instFlags := maybeCore
+	if flags.SkipConfigure {
+		// extract it as a doInstall flag, this is not passed
+		// into SnapSetup
+		instFlags |= skipConfigure
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: si,
 		SnapPath: path,
@@ -347,7 +354,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		Flags:    flags.ForSnapSetup(),
 	}
 
-	return doInstall(st, &snapst, snapsup, maybeCore)
+	return doInstall(st, &snapst, snapsup, instFlags)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -1504,4 +1511,34 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	}
 
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
+}
+
+// ConfigDefaults returns the configuration defaults for the snap specified in the gadget. If gadget is absent or the snap has no snap-id it returns ErrNoState.
+func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
+	gadget, err := GadgetInfo(st)
+	if err != nil {
+		return nil, err
+	}
+
+	var snapst SnapState
+	if err := Get(st, snapName, &snapst); err != nil {
+		return nil, err
+	}
+
+	si := snapst.CurrentSideInfo()
+	if si.SnapID == "" {
+		return nil, state.ErrNoState
+	}
+
+	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	if err != nil {
+		return nil, err
+	}
+
+	defaults, ok := gadgetInfo.Defaults[si.SnapID]
+	if !ok {
+		return nil, state.ErrNoState
+	}
+
+	return defaults, nil
 }

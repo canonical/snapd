@@ -20,8 +20,12 @@
 package configstate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // configureHandler is the handler for the configure hook.
@@ -66,13 +70,41 @@ func (h *configureHandler) Before() error {
 	tr := ContextTransaction(h.context)
 
 	// Initialize the transaction if there's a patch provided in the
-	// context.
+	// context or useDefaults is set in which case gadget defaults are used.
+
 	var patch map[string]interface{}
-	if err := h.context.Get("patch", &patch); err == nil {
-		for key, value := range patch {
-			if err := tr.Set(h.context.SnapName(), key, value); err != nil {
+	var useDefaults bool
+	if err := h.context.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	snapName := h.context.SnapName()
+	st := h.context.State()
+	if useDefaults {
+		var err error
+		patch, err = snapstate.ConfigDefaults(st, snapName)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		if len(patch) != 0 {
+			// TODO: helper on context?
+			info, err := snapstate.CurrentInfo(st, snapName)
+			if err != nil {
 				return err
 			}
+			if info.Hooks["configure"] == nil {
+				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", snapName)
+			}
+		}
+	} else {
+		if err := h.context.Get("patch", &patch); err != nil && err != state.ErrNoState {
+			return err
+		}
+	}
+
+	for key, value := range patch {
+		if err := tr.Set(snapName, key, value); err != nil {
+			return err
 		}
 	}
 
