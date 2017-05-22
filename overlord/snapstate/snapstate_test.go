@@ -1354,7 +1354,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "stop-snap-services",
+			op:   "stop-snap-services",
+			name: "/snap/services-snap/7",
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1391,7 +1392,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op: "start-snap-services",
+			op:   "start-snap-services",
+			name: "/snap/services-snap/11",
 		},
 		{
 			op:    "cleanup-trash",

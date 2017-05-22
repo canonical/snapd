@@ -415,16 +415,28 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
+func svcSnapMountDir(svcs []*snap.AppInfo) string {
+	if len(svcs) == 0 {
+		return "<no services>"
+	}
+	if svcs[0].Snap == nil {
+		return "<snapless service>"
+	}
+	return svcs[0].Snap.MountDir()
+}
+
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op: "start-snap-services",
+		op:   "start-snap-services",
+		name: svcSnapMountDir(svcs),
 	})
 	return nil
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op: "stop-snap-services",
+		op:   "stop-snap-services",
+		name: svcSnapMountDir(svcs),
 	})
 	return nil
 }
