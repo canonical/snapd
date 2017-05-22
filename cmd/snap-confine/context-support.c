@@ -36,6 +36,8 @@
  **/
 static const char *sc_context_dir = SC_CONTEXT_DIR;
 
+typedef char sc_context_cookie[45];
+
 char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 {
 	char context_path[PATH_MAX];
@@ -54,11 +56,11 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		goto out;
 	}
 	// context is a 32 bytes, base64-encoding makes it 44.
-	context_val = calloc(1, 45);
+	context_val = calloc(1, sizeof(sc_context_cookie));
 	if (context_val == NULL) {
 		die("failed to allocate memory for snap context");
 	}
-	if (read(fd, context_val, 44) < 0) {
+	if (read(fd, context_val, sizeof(sc_context_cookie) - 1) < 0) {
 		free(context_val);
 		context_val = NULL;
 		err =
