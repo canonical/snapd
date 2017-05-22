@@ -17,10 +17,12 @@ prepare: |
         ;;
     esac
 
+    . $TESTSLIB/dirs.sh
+
     # create ubuntu-core image
     mkdir -p /tmp/work-dir
     snap install --devmode --beta ubuntu-image
-    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
+    $SNAPMOUNTDIR/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
     # create assertion block device

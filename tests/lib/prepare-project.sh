@@ -68,17 +68,18 @@ fi
 
 # declare the "quiet" wrapper
 . "$TESTSLIB/quiet.sh"
+. "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
        snap install --edge test-snapd-snapbuild
-       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       cp $SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e /snap/core/current/meta/hooks/configure ]; then
+   if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
@@ -160,5 +161,7 @@ if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
 go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
-# Build fakedevicesvc.
+
+# Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
+go get ./tests/lib/systemd-escape
