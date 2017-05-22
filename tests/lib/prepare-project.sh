@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. "$TESTSLIB/quiet.sh"
+
 create_test_user(){
    if ! id test >& /dev/null; then
         # manually setting the UID and GID to 12345 because we need to
@@ -7,21 +9,12 @@ create_test_user(){
         # the all-snap, which has its own user & group database.
         # Nothing special about 12345 beyond it being high enough it's
         # unlikely to ever clash with anything, and easy to remember.
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-               addgroup --quiet --gid 12345 test
-               adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
-               ;;
-            fedora-*)
-               # We don't have all options available on fedora so just take
-               # the minimal set.
-               groupadd --gid 12345 test
-               adduser --uid 12345 --gid 12345 test
-               ;;
-            *)
-               exit 1
-               ;;
-         esac
+        EXTRA_ADDUSER_ARGS=""
+        if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
+            EXTRA_ADDUSER_ARGS="--disable-password --gecos=''"
+        fi
+        quiet groupadd --gid 12345 test
+        quiet adduser --quiet --uid 12345 --gid 12345 $EXTRA_ADDUSER_ARGS test
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -100,8 +93,6 @@ if [ "$(bootenv snap_mode)" = "try" ]; then
    exit 1
 fi
 
-# declare the "quiet" wrapper
-. "$TESTSLIB/quiet.sh"
 . "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
