@@ -5,6 +5,10 @@ set -e -x
 . $TESTSLIB/dirs.sh
 
 reset_classic() {
+    # Reload all service units as in some situations the unit might
+    # have changed on the disk.
+    systemctl daemon-reload
+
     systemctl stop snapd.service snapd.socket
 
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
