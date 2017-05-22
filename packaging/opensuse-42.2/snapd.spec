@@ -30,10 +30,6 @@ Group:          System/Packages
 Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
-Patch0:         0001-cmd-use-libtool-for-the-internal-library.patch
-Patch1:         0002-cmd-disable-c-style-checks-as-intent-works-different.patch
-Patch2:         0003-cmd-snap-confine-do-not-share-etc-ssl-with-the-host.patch
-Patch3:         0004-interfaces-seccomp-allow-bind-for-Fedora.patch
 # TODO: make this enabled only on Leap 42.2+
 # BuildRequires:  ShellCheck
 BuildRequires:  autoconf
@@ -96,10 +92,6 @@ the system:snappy repository.
 
 %prep
 %setup -q -n %{name}-%{version}
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
 
 # Set the version that is compiled into the various executables
 ./mkversion.sh %{version}-%{release}
