@@ -1,0 +1,34 @@
+summary: Ensure that lxd works
+
+execute: |
+    wait_for_lxd(){
+        while ! printf "GET / HTTP/1.0\n\n" | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH "200 OK"; do sleep 1; done
+    }
+
+    echo "Install lxd"
+    snap install lxd
+
+    echo "Create a trivial container using the lxd snap"
+    wait_for_lxd
+    lxd init --auto
+    lxd.lxc launch ubuntu:16.04 my-ubuntu
+
+    echo "Ensure we can run things inside"
+    lxd.lxc exec my-ubuntu echo hello | MATCH hello
+
+    echo "Ensure we can get network"
+    lxd.lxc network create testbr0
+    lxd.lxc network attach testbr0 my-ubuntu eth0
+    lxd.lxc exec my-ubuntu dhclient eth0
+
+    # FIXME: workaround for missing squashfuse
+    lxd.lxc exec my-ubuntu apt update
+    lxd.lxc exec my-ubuntu apt install squashfuse
+
+    # FIXME: ensure that the kernel running is recent enough, this
+    #        will only work with an up-to-date xenial kernel (4.4.0-78+)
+    
+    echo "Ensure we can use snapd inside lxd"
+    lxd.lxc exec my-ubuntu snap install test-snapd-tools
+    lxd.lxc exec my-ubuntu test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+
