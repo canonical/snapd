@@ -15,7 +15,7 @@ create_test_user(){
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos='' test
                 ;;
             debian-*|fedora-*)
-                quiet useradd --uid 12345 --gid 12345 test
+                quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
                 echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
