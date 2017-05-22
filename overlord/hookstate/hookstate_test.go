@@ -118,6 +118,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 
 	s.command = testutil.MockCommand(c, "snap", "")
+	s.AddCleanup(s.command.Restore)
 
 	s.context = nil
 	s.mockHandler = hooktest.NewMockHandler()
@@ -228,8 +229,9 @@ func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	// Force the snap command to exit 1, and print something to stderr
-	s.command = testutil.MockCommand(
+	cmd := testutil.MockCommand(
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -256,8 +258,9 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 	s.state.Unlock()
 
 	// Force the snap command to exit 1, and print something to stderr
-	s.command = testutil.MockCommand(
+	cmd := testutil.MockCommand(
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -285,7 +288,8 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	s.state.Unlock()
 
 	// Force the snap command to hang
-	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	completed := make(chan struct{})
@@ -318,7 +322,8 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 	defer restore()
 
 	// Force the snap command to hang
-	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -347,13 +352,22 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	s.state.Unlock()
 
 	// Force the snap command to hang
-	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
 
+	pgrp := 0
 	// simulate a process that can not be killed
-	restore := hookstate.MockSyscallKill(func(int, syscall.Signal) error {
+	restore := hookstate.MockSyscallKill(func(pid int, _ syscall.Signal) error {
+		pgrp = pid
 		return nil
 	})
 	defer restore()
+	defer func() {
+		// do kill the processes
+		if pgrp != 0 {
+			syscall.Kill(pgrp, syscall.SIGKILL)
+		}
+	}()
 
 	restore = hookstate.MockCmdWaitTimeout(100 * time.Millisecond)
 	defer restore()
@@ -395,7 +409,8 @@ func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 	s.state.Unlock()
 
 	// Force the snap command to hang
-	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	completed := make(chan struct{})
@@ -425,7 +440,8 @@ func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	// Force the snap command to hang
-	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	completed := make(chan struct{})
@@ -459,8 +475,9 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
 	// Force the snap command to exit with a failure and print to stderr so we
 	// can catch and verify it.
-	s.command = testutil.MockCommand(
+	cmd := testutil.MockCommand(
 		c, "snap", ">&2 echo \"SNAP_CONTEXT=$SNAP_CONTEXT\"; exit 1")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -520,7 +537,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	s.mockHandler.ErrorError = true
 
 	// Force the snap command to simply exit 1, so the handler Error() runs
-	s.command = testutil.MockCommand(c, "snap", "exit 1")
+	cmd := testutil.MockCommand(c, "snap", "exit 1")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -649,7 +667,8 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 	coreSnapCmdPath := filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap")
 	err := os.MkdirAll(filepath.Dir(coreSnapCmdPath), 0755)
 	c.Assert(err, IsNil)
-	s.command = testutil.MockCommand(c, coreSnapCmdPath, "")
+	cmd := testutil.MockCommand(c, coreSnapCmdPath, "")
+	defer cmd.Restore()
 
 	r := hookstate.MockReadlink(func(p string) (string, error) {
 		c.Assert(p, Equals, "/proc/self/exe")
@@ -664,7 +683,7 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 	defer s.state.Unlock()
 
 	c.Assert(s.context, NotNil, Commentf("Expected handler generator to be called with a valid context"))
-	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
 
@@ -689,8 +708,9 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	})
 
 	// Force the snap command to exit 1, and print something to stderr
-	s.command = testutil.MockCommand(
+	cmd := testutil.MockCommand(
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+	defer cmd.Restore()
 
 	s.manager.Ensure()
 	s.manager.Wait()
