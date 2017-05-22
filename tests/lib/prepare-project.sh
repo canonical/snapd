@@ -12,7 +12,7 @@ create_test_user(){
                 # the all-snap, which has its own user & group database.
                 # Nothing special about 12345 beyond it being high enough it's
                 # unlikely to ever clash with anything, and easy to remember.
-                quiet adduser --uid 12345 --gid 12345 --disable-password --gecos='' test
+                quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos='' test
                 ;;
             debian-*|fedora-*)
                 quiet useradd --uid 12345 --gid 12345 test
