@@ -58,7 +58,12 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 						{"snap": "canonical-pi2", "plug": "pin-13"}
 					]
 				}
-			]
+			],
+			"meta-data": {
+				"bool-file": {
+					"description": "The bool-file interface allows access to a specific file that contains values 0 or 1"
+				}
+			}
 		}
 	}`
 	interfaces, err := cs.cli.Interfaces()
@@ -90,6 +95,11 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 						Name: "pin-13",
 					},
 				},
+			},
+		},
+		MetaData: map[string]client.InterfaceMetaData{
+			"bool-file": {
+				Description: "The bool-file interface allows access to a specific file that contains values 0 or 1",
 			},
 		},
 	})
