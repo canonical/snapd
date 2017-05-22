@@ -67,8 +67,10 @@ if [[ ! -f "$_compscript" ]]; then
 fi
 
 # Source the bash-completion library functions and common completion setup
+# shellcheck disable=SC1091
 . /usr/share/bash-completion/bash_completion
 # Now source the snap's 'completer' script itself
+# shellcheck disable=SC1090
 . "$_compscript"
 
 # _compopts is an associative array, which keys are options. The options are

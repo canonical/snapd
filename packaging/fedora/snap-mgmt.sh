@@ -52,7 +52,7 @@ if [ "$1" = "purge" ]; then
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
             # snap mount dir
             umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR}/$snap/$rev"
+            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
             rm -f "${SNAP_MOUNT_DIR}/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
@@ -61,7 +61,7 @@ if [ "$1" = "purge" ]; then
             # opportunistic remove (may fail if there are still revisions left)
             for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
                 if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty $d
+                    rmdir --ignore-fail-on-non-empty "$d"
                 fi
             done
         fi
@@ -83,7 +83,7 @@ if [ "$1" = "purge" ]; then
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf ${SNAP_MOUNT_DIR}/*
+    rm -rf "${SNAP_MOUNT_DIR:?}"/*
     rm -rf /var/snap/*
 
     echo "Removing leftover snap shared state data"
