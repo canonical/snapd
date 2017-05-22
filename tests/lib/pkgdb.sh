@@ -121,6 +121,18 @@ distro_clean_package_cache() {
     esac
 }
 
+distro_auto_remove_packages() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            quiet apt-get -y autoremove
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.
 DISTRO_BUILD_DEPS=""
