@@ -26,8 +26,10 @@ execute: |
     echo And is gone afterwards
     snap list |MATCH -v $SNAP_NAME
 
+    . $TESTSLIB/dirs.sh
+
     echo And all its binaries
-    N="$(ls /snap/bin/$SNAP_NAME*|wc -l)"
+    N="$(ls $SNAPMOUNTDIR/bin/$SNAP_NAME*|wc -l)"
     if [ "$N" -ne 0 ]; then
        echo "Some binaries are not cleaned"
        exit 1

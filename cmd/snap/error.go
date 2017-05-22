@@ -61,7 +61,7 @@ func termSize() (width, height int) {
 	return width, height
 }
 
-func fill(para string) string {
+func fill(para string, indent int) string {
 	width, _ := termSize()
 
 	if width > 100 {
@@ -74,20 +74,10 @@ func fill(para string) string {
 	// work just for this.
 	width--
 
-	// 3 is the %v\n, which will be present in any locale
-	indent := len(errorPrefix) - 3
 	var buf bytes.Buffer
 	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width-indent)
 
 	return strings.TrimSpace(buf.String())
-}
-
-type filledError struct {
-	error
-}
-
-func (e filledError) Error() string {
-	return fill(e.error.Error())
 }
 
 func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {
@@ -142,7 +132,8 @@ If you understand and want to proceed repeat the command including --classic.
 	if usesSnapName {
 		msg = fmt.Sprintf(msg, snapName)
 	}
-	msg = fill(msg)
+	// 3 is the %v\n, which will be present in any locale
+	msg = fill(msg, len(errorPrefix)-3)
 	if isError {
 		return "", errors.New(msg)
 	}

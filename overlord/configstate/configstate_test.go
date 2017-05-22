@@ -45,6 +45,7 @@ var configureTests = []struct {
 	patch       map[string]interface{}
 	optional    bool
 	ignoreError bool
+	useDefaults bool
 }{{
 	patch:       nil,
 	optional:    true,
@@ -61,6 +62,11 @@ var configureTests = []struct {
 	patch:       nil,
 	optional:    true,
 	ignoreError: true,
+}, {
+	patch:       nil,
+	optional:    true,
+	ignoreError: true,
+	useDefaults: true,
 }}
 
 func (s *tasksetsSuite) TestConfigure(c *C) {
@@ -68,6 +74,9 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		var flags int
 		if test.ignoreError {
 			flags |= snapstate.IgnoreHookError
+		}
+		if test.useDefaults {
+			flags |= snapstate.UseConfigDefaults
 		}
 
 		s.state.Lock()
@@ -105,7 +114,9 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Check(context.HookName(), Equals, "configure")
 
 		var patch map[string]interface{}
+		var useDefaults bool
 		context.Lock()
+		context.Get("use-defaults", &useDefaults)
 		err = context.Get("patch", &patch)
 		context.Unlock()
 		if len(test.patch) > 0 {
@@ -115,5 +126,6 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 			c.Check(err, Equals, state.ErrNoState)
 			c.Check(patch, IsNil)
 		}
+		c.Check(useDefaults, Equals, test.useDefaults)
 	}
 }

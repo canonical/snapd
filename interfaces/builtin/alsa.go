@@ -19,6 +19,12 @@
 
 package builtin
 
+const alsaDescription = `
+The alsa interface allows connected plugs to access raw ALSA devices.
+
+The core snap provides the slot that is shared by all the snaps.
+`
+
 const alsaConnectedPlugAppArmor = `
 # Description: Allow access to raw ALSA devices.
 
@@ -33,7 +39,8 @@ const alsaConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "alsa",
+		name:                  "alsa",
+		description:           alsaDescription,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
