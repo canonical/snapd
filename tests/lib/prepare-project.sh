@@ -4,17 +4,23 @@
 
 create_test_user(){
    if ! id test >& /dev/null; then
-        # manually setting the UID and GID to 12345 because we need to
-        # know the numbers match for when we set up the user inside
-        # the all-snap, which has its own user & group database.
-        # Nothing special about 12345 beyond it being high enough it's
-        # unlikely to ever clash with anything, and easy to remember.
-        EXTRA_ADDUSER_ARGS=""
-        if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-            EXTRA_ADDUSER_ARGS="--disable-password --gecos=''"
-        fi
         quiet groupadd --gid 12345 test
-        quiet adduser --uid 12345 --gid 12345 $EXTRA_ADDUSER_ARGS test
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*)
+                # manually setting the UID and GID to 12345 because we need to
+                # know the numbers match for when we set up the user inside
+                # the all-snap, which has its own user & group database.
+                # Nothing special about 12345 beyond it being high enough it's
+                # unlikely to ever clash with anything, and easy to remember.
+                quiet adduser --uid 12345 --gid 12345 --disable-password --gecos='' test
+                ;;
+            debian-*|fedora-*)
+                quiet useradd --uid 12345 --gid 12345 test
+                ;;
+            *)
+                echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
+                exit 1
+        esac
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
