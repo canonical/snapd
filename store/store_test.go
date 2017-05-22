@@ -226,7 +226,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.AddCleanup(func() { os.Setenv("SNAPD_DEBUG", oldSnapdDebug) })
 
 	t.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
+	l, err := logger.New(t.logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 

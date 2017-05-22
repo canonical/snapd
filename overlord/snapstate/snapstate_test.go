@@ -4384,7 +4384,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	logbuf := bytes.NewBuffer(nil)
-	l, err := logger.NewConsoleLog(logbuf, logger.DefaultFlags)
+	l, err := logger.New(logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 	defer logger.SetLogger(logger.NullLogger)
