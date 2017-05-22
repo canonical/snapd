@@ -88,7 +88,7 @@ int main(int argc, char **argv)
 
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
-	if (!sc_verify_hook_security_tag_name(security_tag)) {
+	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
 		snap_context = sc_context_get_from_snapd(snap_name, &err);
@@ -211,13 +211,12 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
-	sc_maybe_set_context_environment(snap_context);
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
-
+	sc_maybe_set_context_environment(snap_context);
 	// Permanently drop if not root
 	if (geteuid() == 0) {
 		// Note that we do not call setgroups() here because its ok
