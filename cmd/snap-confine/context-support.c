@@ -23,7 +23,6 @@
 
 #include "config.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/types.h>
@@ -34,7 +33,6 @@
 
 /**
  * Effective value of CONTEXT_DIR
- *
  **/
 static const char *sc_context_dir = SC_CONTEXT_DIR;
 
@@ -51,8 +49,8 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 	if (fd < 0) {
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "cannot open context file %s, SNAP_CONTEXT will not be set: %s",
-				  context_path, strerror(errno));
+				  "cannot open context file %s, SNAP_CONTEXT will not be set",
+				  context_path);
 		goto out;
 	}
 	// context is a 32 bytes, base64-encoding makes it 44.
@@ -65,8 +63,8 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		context_val = NULL;
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "failed to read context file %s: %s",
-				  context_path, strerror(errno));
+				  "failed to read context file %s",
+				  context_path);
 		goto out;
 	}
 

@@ -48,7 +48,7 @@ bool verify_security_tag(const char *security_tag)
 	return (status == 0);
 }
 
-bool sc_verify_hook_security_tag_name(const char *security_tag)
+bool sc_is_hook_security_tag(const char *security_tag)
 {
 	const char *whitelist_re =
 	    "^snap\\.[a-z](-?[a-z0-9])*\\.(hook\\.[a-z](-?[a-z])*)$";
