@@ -333,6 +333,13 @@ popd
 
 # Build snap-confine
 pushd ./cmd
+# FIXME This is a hack to get rid of a patch we have to ship for the
+# Fedora package at the moment as /usr/lib/rpm/redhat/redhat-hardened-ld
+# accidentially adds -pie for static executables. See
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892 for a few more
+# details. To prevent this from happening we drop the linker
+# script and define our LDFLAGS manually for now.
+export LDFLAGS="-Wl,-z,relro -z now"
 autoreconf --force --install --verbose
 # selinux support is not yet available, for now just disable apparmor
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
