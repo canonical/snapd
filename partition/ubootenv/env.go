@@ -28,6 +28,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -224,6 +225,13 @@ func (env *Env) Save() error {
 	// checksum
 	crc := crc32.ChecksumIEEE(w.Bytes())
 
+	// ensure dir sync
+	dir, err := os.Open(filepath.Dir(env.fname))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
 	// Note that we overwrite the existing file and do not do
 	// the usual write-rename. The rationale is that we want to
 	// minimize the amount of writes happening on a potential
@@ -254,7 +262,11 @@ func (env *Env) Save() error {
 		return err
 	}
 
-	return f.Sync()
+	if err := f.Sync(); err != nil {
+		return err
+	}
+
+	return dir.Sync()
 }
 
 // Import is a helper that imports a given text file that contains
