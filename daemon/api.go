@@ -783,6 +783,7 @@ type snapInstruction struct {
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
+	Unaliased        bool          `json:"unaliased"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -795,6 +796,17 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
 	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
+func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
+	flags, err := inst.modeFlags()
+	if err != nil {
+		return snapstate.Flags{}, err
+	}
+	if inst.Unaliased {
+		flags.Unaliased = true
+	}
+	return flags, nil
 }
 
 var (
@@ -947,7 +959,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := inst.modeFlags()
+	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err
 	}
