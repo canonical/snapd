@@ -14,7 +14,7 @@ create_test_user(){
             EXTRA_ADDUSER_ARGS="--disable-password --gecos=''"
         fi
         quiet groupadd --gid 12345 test
-        quiet adduser --quiet --uid 12345 --gid 12345 $EXTRA_ADDUSER_ARGS test
+        quiet adduser --uid 12345 --gid 12345 $EXTRA_ADDUSER_ARGS test
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
