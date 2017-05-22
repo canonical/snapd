@@ -72,10 +72,10 @@ distro_install_local_package() {
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
-            apt install $flags "$@"
+            quiet apt install $flags "$@"
             ;;
         fedora-*)
-            quiet dnf install -y "$@"
+            dnf -q -y install "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -95,10 +95,10 @@ distro_install_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                apt-get install -y "$package_name"
+                quiet apt-get install -y "$package_name"
                 ;;
             fedora-*)
-                dnf install -y $package_name
+                dnf -q -y install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -122,7 +122,7 @@ distro_purge_package() {
                 quiet apt-get remove -y --purge -y "$package_name"
                 ;;
             fedora-*)
-                quiet dnf remove -y $package_name
+                dnf -y -q remove $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -138,7 +138,7 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            quiet dnf update -y
+            dnf -y -q upgrade
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -165,6 +165,7 @@ distro_auto_remove_packages() {
             quiet apt-get -y autoremove
             ;;
         fedora-*)
+            dnf -q -y autoremove
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
