@@ -5375,6 +5375,37 @@ func (s *apiSuite) TestAliases(c *check.C) {
 
 }
 
+func (s *apiSuite) TestInstallUnaliased(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
+	}
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap without enabled automatic aliases
+		Unaliased: true,
+		Snaps:     []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags.Unaliased, check.Equals, true)
+}
+
 var _ = check.Suite(&postDebugSuite{})
 
 type postDebugSuite struct {
