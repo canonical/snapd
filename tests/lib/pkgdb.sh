@@ -120,3 +120,14 @@ distro_clean_package_cache() {
             ;;
     esac
 }
+
+# Specify necessary packages which need to be installed on a
+# system to provide a basic build environment for snapd.
+DISTRO_BUILD_DEPS=""
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        DISTRO_BUILD_DEPS="build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd"
+        ;;
+    *)
+        ;;
+esac

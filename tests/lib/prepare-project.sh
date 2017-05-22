@@ -122,8 +122,6 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-. "$TESTSLIB/distro.sh"
-
 distro_purge_package snapd || true
 distro_install_package $DISTRO_BUILD_DEPS
 
