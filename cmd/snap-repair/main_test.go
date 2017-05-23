@@ -67,7 +67,7 @@ var _ = Suite(&repairSuite{})
 
 func (r *repairSuite) TestUnknownArg(c *C) {
 	err := repair.ParseArgs([]string{})
-	c.Check(err, ErrorMatches, "Please specify one command of: fetch or run")
+	c.Check(err, ErrorMatches, "Please specify the run command")
 }
 
 func (r *repairSuite) TestRunOnClassic(c *C) {
