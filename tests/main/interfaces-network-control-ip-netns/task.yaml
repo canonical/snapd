@@ -1,16 +1,15 @@
 summary: The /run/netns directory propagates events outwards
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 details: |
     The /run/netns directory is special in that mount events propagate outward
     from the mount namespace used by snap applications into the main mount
     namespace.
 prepare: |
     snap install --devmode snapd-hacker-toolbelt
-    echo "Workaround complain-mode EPERM (LP: #1648903)"
-    sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
-    apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Workaround complain-mode EPERM (LP: #1648903)"
+        sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+        apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+    fi
 execute: |
     export PATH=$PATH:/snap/bin
     test ! -e /run/netns/canary
