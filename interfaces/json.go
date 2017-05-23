@@ -27,10 +27,10 @@ import (
 type plugJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
+	Interface   string                 `json:"interface,omitempty"`
 	Attrs       map[string]interface{} `json:"attrs,omitempty"`
 	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
+	Label       string                 `json:"label,omitempty"`
 	Connections []SlotRef              `json:"connections,omitempty"`
 }
 
@@ -55,10 +55,10 @@ func (plug *Plug) MarshalJSON() ([]byte, error) {
 type slotJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
+	Interface   string                 `json:"interface,omitempty"`
 	Attrs       map[string]interface{} `json:"attrs,omitempty"`
 	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
+	Label       string                 `json:"label,omitempty"`
 	Connections []PlugRef              `json:"connections,omitempty"`
 }
 
