@@ -139,8 +139,8 @@ type MetaData struct {
 	DocumentationURL string `json:"documentation-url,omitempty"`
 }
 
-// ifaceMetaData returns the meta-data of the given interface.
-func ifaceMetaData(iface Interface) (md MetaData) {
+// MetaDataOf returns the meta-data of the given interface.
+func MetaDataOf(iface Interface) (md MetaData) {
 	type metaDataProvider interface {
 		MetaData() MetaData
 	}
