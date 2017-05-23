@@ -176,6 +176,19 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	}
 }
 
+func (s *backendSuite) TestRealCanResolveS(c *C) {
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	restore := seccomp.MockTemplate([]byte("quotactl Q_GETQUOTA - - -\n"))
+	defer restore()
+
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, "quotactl 8388615 - - -\n")
+}
+
 type combineSnippetsScenario struct {
 	opts    interfaces.ConfinementOptions
 	snippet string
