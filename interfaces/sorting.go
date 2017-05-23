@@ -111,3 +111,14 @@ func sortedSlotNames(m map[string]*Slot) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+type byInterfaceName []Interface
+
+func (c byInterfaceName) Len() int      { return len(c) }
+func (c byInterfaceName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byInterfaceName) Less(i, j int) bool {
+	if c[i].Name() != c[j].Name() {
+		return c[i].Name() < c[j].Name()
+	}
+	return c[i].Name() < c[j].Name()
+}
