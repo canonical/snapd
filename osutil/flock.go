@@ -27,7 +27,6 @@ import (
 // FileLock describes a file system lock
 type FileLock struct {
 	file *os.File
-	path string
 }
 
 // NewFileLock creates and opens the lock file given by "path"
@@ -37,13 +36,13 @@ func NewFileLock(path string) (*FileLock, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := &FileLock{path: path, file: file}
+	l := &FileLock{file: file}
 	return l, nil
 }
 
 // Path returns the path of the lock file.
 func (l *FileLock) Path() string {
-	return l.path
+	return l.file.Name()
 }
 
 // Close closes the lock, unlocking it automatically if needed.
