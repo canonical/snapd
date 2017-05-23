@@ -4868,7 +4868,7 @@ func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
+func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
