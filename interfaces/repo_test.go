@@ -180,6 +180,21 @@ func (s *RepositorySuite) TestInterfaceSearch(c *C) {
 	c.Assert(s.emptyRepo.Interface("c"), Equals, ifaceC)
 }
 
+// Tests for Repository.InterfaceInfos
+
+func (s *RepositorySuite) TestInterfaceInfo(c *C) {
+	c.Assert(s.emptyRepo.AddInterface(s.iface), IsNil)
+	c.Assert(s.emptyRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.emptyRepo.AddSlot(s.slot), IsNil)
+	c.Assert(s.emptyRepo.InterfaceInfos(), DeepEquals, map[string]*InterfaceInfo{
+		s.iface.Name(): {
+			MetaData: MetaDataOf(s.iface),
+			Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
+			Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
+		},
+	})
+}
+
 // Tests for Repository.AddPlug()
 
 func (s *RepositorySuite) TestAddPlug(c *C) {
