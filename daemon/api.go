@@ -75,6 +75,7 @@ var api = []*Command{
 	snapCmd,
 	snapConfCmd,
 	interfacesCmd,
+	interfaceCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	stateChangeCmd,
@@ -150,6 +151,12 @@ var (
 		UserOK: true,
 		GET:    getInterfaces,
 		POST:   changeInterfaces,
+	}
+
+	interfaceCmd = &Command{
+		Path:   "/v2/interface",
+		UserOK: true,
+		GET:    getInterface,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -1561,6 +1568,12 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
+}
+
+// getInterface returns the known interfaces and their meta-data.
+func getInterface(c *Command, r *http.Request, user *auth.UserState) Response {
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.InterfaceInfos(), nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
