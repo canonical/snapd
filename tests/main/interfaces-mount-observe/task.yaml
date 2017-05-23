@@ -1,9 +1,5 @@
 summary: Ensures that the mount-observe interface works
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     A snap declaring the mount-observe plug is defined, its command
     just read the /proc/<pid>/mounts file.
@@ -42,16 +38,18 @@ execute: |
     expected="$SNAPMOUNTDIR/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
-    echo "========================================="
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "========================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect mount-observe-consumer:mount-observe
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect mount-observe-consumer:mount-observe
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the mount info is not reachable"
-    if su -l -c "mount-observe-consumer" test; then
-        echo "Expected error accessing mount info with disconnected plug"
-        exit 1
+        echo "Then the mount info is not reachable"
+        if su -l -c "mount-observe-consumer" test; then
+            echo "Expected error accessing mount info with disconnected plug"
+            exit 1
+        fi
     fi
 
     echo "========================================="
