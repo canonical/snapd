@@ -164,6 +164,11 @@ EOF
     fi
 
     if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+            apt install -y pollinate
+            pollinate
+        fi
+
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install rng-tools
