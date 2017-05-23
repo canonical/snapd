@@ -109,3 +109,44 @@ func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 		},
 	})
 }
+
+func (s *JSONSuite) TestInterfaceInfoMarshalJSON(c *C) {
+	md := MetaData{
+		Description:      "interface description",
+		Summary:          "interface summary",
+		DocumentationURL: "http://example.org/",
+	}
+	ifaceInfo := &InterfaceInfo{
+		MetaData: md,
+		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
+		Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
+	}
+	data, err := json.Marshal(ifaceInfo)
+	c.Assert(err, IsNil)
+	var repr map[string]interface{}
+	err = json.Unmarshal(data, &repr)
+	c.Assert(err, IsNil)
+	c.Check(repr, DeepEquals, map[string]interface{}{
+		"meta-data": map[string]interface{}{
+			"description":       "interface description",
+			"summary":           "interface summary",
+			"documentation-url": "http://example.org/",
+		},
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap":  "snap-name",
+				"plug":  "plug-name",
+				"attrs": map[string]interface{}{"key": "value"},
+				"label": "label",
+			},
+		},
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap":  "snap-name",
+				"slot":  "slot-name",
+				"attrs": map[string]interface{}{"key": "value"},
+				"label": "label",
+			},
+		},
+	})
+}

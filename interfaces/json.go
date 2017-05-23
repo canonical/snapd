@@ -78,3 +78,37 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 		Connections: slot.Connections,
 	})
 }
+
+// interfaceInfoJSON aids in marshaling InterfaceInfo into JSON.
+type interfaceInfoJSON struct {
+	MetaData MetaData    `json:"meta-data,omitempty"`
+	Plugs    []*plugJSON `json:"plugs,omitempty"`
+	Slots    []*slotJSON `json:"slots,omitempty"`
+}
+
+// MarshalJSON returns the JSON encoding of InterfaceInfo.
+func (info *InterfaceInfo) MarshalJSON() ([]byte, error) {
+	plugs := make([]*plugJSON, 0, len(info.Plugs))
+	for _, plug := range info.Plugs {
+		plugs = append(plugs, &plugJSON{
+			Snap:  plug.Snap.Name(),
+			Name:  plug.Name,
+			Attrs: plug.Attrs,
+			Label: plug.Label,
+		})
+	}
+	slots := make([]*slotJSON, 0, len(info.Slots))
+	for _, slot := range info.Slots {
+		slots = append(slots, &slotJSON{
+			Snap:  slot.Snap.Name(),
+			Name:  slot.Name,
+			Attrs: slot.Attrs,
+			Label: slot.Label,
+		})
+	}
+	return json.Marshal(&interfaceInfoJSON{
+		MetaData: info.MetaData,
+		Plugs:    plugs,
+		Slots:    slots,
+	})
+}
