@@ -77,7 +77,7 @@ func run() error {
 		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
 	}
 	defer lock.Close()
-	if err := lock.Lock(0); err != nil {
+	if err := lock.Lock(); err != nil {
 		return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
 	}
 
