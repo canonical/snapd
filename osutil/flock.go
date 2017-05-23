@@ -30,6 +30,11 @@ type FLock struct {
 	fname string
 }
 
+const (
+	_ = iota
+	FLockNonBlocking
+)
+
 // OpenLock creates and opens a lock file associated with a particular snap.
 func OpenLock(fname string) (*FLock, error) {
 	mode := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
@@ -52,8 +57,12 @@ func (l *FLock) Close() error {
 }
 
 // Lock acquires an exclusive lock.
-func (l *FLock) Lock() error {
-	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
+func (l *FLock) Lock(flags int) error {
+	flockFlags := syscall.LOCK_EX
+	if flags&FLockNonBlocking != 0 {
+		flockFlags |= syscall.LOCK_NB
+	}
+	return syscall.Flock(int(l.file.Fd()), flockFlags)
 }
 
 // Unlock releases an acquired lock.

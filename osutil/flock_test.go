@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -60,7 +61,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 	c.Assert(cmd.Run(), IsNil)
 
 	// Lock the lock.
-	c.Assert(lock.Lock(), IsNil)
+	c.Assert(lock.Lock(0), IsNil)
 
 	// Run a flock command in another process, it should fail with the distinct
 	// error code because we hold the lock already and we asked it not to block.
@@ -84,8 +85,8 @@ func (s *flockSuite) TestLockLocked(c *C) {
 	defer lock.Close()
 
 	// NOTE: technically this replaces the lock type but we only use LOCK_EX.
-	c.Assert(lock.Lock(), IsNil)
-	c.Assert(lock.Lock(), IsNil)
+	c.Assert(lock.Lock(0), IsNil)
+	c.Assert(lock.Lock(0), IsNil)
 }
 
 // Test that unlocking an unlocked lock does nothing.
@@ -103,6 +104,32 @@ func (s *flockSuite) TestUsingClosedLock(c *C) {
 	c.Assert(err, IsNil)
 	lock.Close()
 
-	c.Assert(lock.Lock(), ErrorMatches, "bad file descriptor")
+	c.Assert(lock.Lock(0), ErrorMatches, "bad file descriptor")
 	c.Assert(lock.Unlock(), ErrorMatches, "bad file descriptor")
+}
+
+// Test that non-blocking
+func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
+	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
+		c.Skip("Cannot use this under travis")
+		return
+	}
+
+	lockPath := filepath.Join(c.MkDir(), "lock")
+	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	c.Assert(cmd.Start(), IsNil)
+	defer cmd.Process.Kill()
+
+	for i := 0; i < 10; i++ {
+		if osutil.FileExists(lockPath) {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	lock, err := osutil.OpenLock(lockPath)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	c.Assert(lock.Lock(osutil.FLockNonBlocking), ErrorMatches, "resource temporarily unavailable")
 }
