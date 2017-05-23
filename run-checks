@@ -108,8 +108,7 @@ if [ "$STATIC" = 1 ]; then
 
     # go vet
     echo Running vet
-    # shellcheck disable=SC2046
-    go vet $(go list ./... | grep -v '/vendor/' )
+    go list ./... | grep -v '/vendor/' | xargs go vet
 
     if which shellcheck >/dev/null; then
         echo Checking shell scripts...
@@ -118,6 +117,13 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
             xargs shellcheck
+        regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
+        if grep -qPr --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"; then
+            echo "Using GOPATH as if it were a single entry and not a list:"
+            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"
+            exit 1
+        fi
+        unset regexp
     fi
 
     echo Checking spelling errors

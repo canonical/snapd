@@ -181,7 +181,7 @@ EOF
 setup_reflash_magic() {
         # install the stuff we need
         distro_install_package kpartx busybox-static
-        distro_install_local_package "${GOPATH%%:*}"/snapd_*.deb
+        distro_install_local_package "$GOHOME"/snapd_*.deb
         distro_clean_package_cache
 
         snap install "--${CORE_CHANNEL}" core
