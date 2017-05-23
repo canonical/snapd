@@ -80,6 +80,36 @@ func (r *Repository) AddInterface(i Interface) error {
 	return nil
 }
 
+func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	infos := make(map[string]*InterfaceInfo)
+
+	// Collect meta-data of each interface
+	for _, iface := range r.ifaces {
+		infos[iface.Name()] = &InterfaceInfo{MetaData: MetaDataOf(iface)}
+	}
+
+	// Collect infos of all plugs and slots.
+	for _, snapName := range sortedSnapNamesWithPlugs(r.plugs) {
+		for _, plugName := range sortedPlugNames(r.plugs[snapName]) {
+			plug := r.plugs[snapName][plugName]
+			ifaceName := plug.Interface
+			infos[ifaceName].Plugs = append(infos[ifaceName].Plugs, plug.PlugInfo)
+		}
+	}
+	for _, snapName := range sortedSnapNamesWithSlots(r.slots) {
+		for _, slotName := range sortedSlotNames(r.slots[snapName]) {
+			slot := r.slots[snapName][slotName]
+			ifaceName := slot.Interface
+			infos[ifaceName].Slots = append(infos[ifaceName].Slots, slot.SlotInfo)
+		}
+	}
+
+	return infos
+}
+
 // AddBackend adds the provided security backend to the repository.
 func (r *Repository) AddBackend(backend SecurityBackend) error {
 	r.m.Lock()

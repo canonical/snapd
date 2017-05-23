@@ -19,6 +19,8 @@
 
 package interfaces
 
+import "sort"
+
 type bySlotRef []SlotRef
 
 func (c bySlotRef) Len() int      { return len(c) }
@@ -72,4 +74,40 @@ func (c byBackendName) Less(i, j int) bool {
 		return c[i].Name() < c[j].Name()
 	}
 	return c[i].Name() < c[j].Name()
+}
+
+func sortedSnapNamesWithPlugs(m map[string]map[string]*Plug) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedPlugNames(m map[string]*Plug) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedSnapNamesWithSlots(m map[string]map[string]*Slot) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedSlotNames(m map[string]*Slot) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
