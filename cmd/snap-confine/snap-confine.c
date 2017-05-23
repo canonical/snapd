@@ -175,9 +175,12 @@ int main(int argc, char **argv)
 			debug
 			    ("resetting PATH to values in sync with core snap");
 			setenv("PATH",
-			       "/usr/local/sbin:" "/usr/local/bin:" "/usr/sbin:"
-			       "/usr/bin:" "/sbin:" "/bin:" "/usr/games:"
-			       "/usr/local/games", 1);
+			       "/usr/local/sbin:"
+			       "/usr/local/bin:"
+			       "/usr/sbin:"
+			       "/usr/bin:"
+			       "/sbin:"
+			       "/bin:" "/usr/games:" "/usr/local/games", 1);
 			// Ensure we set the various TMPDIRs to /tmp.
 			// One of the parts of setting up the mount namespace is to create a private /tmp
 			// directory (this is done in sc_populate_mount_ns() above). The host environment
