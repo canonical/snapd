@@ -64,8 +64,10 @@ HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 var repairExample = fmt.Sprintf("type: repair\n"+
 	"authority-id: acme\n"+
 	"brand-id: acme\n"+
-	"arch: all\n"+
-	"repair-id: repair-42\n"+
+	"architectures:\n"+
+	"  - amd64\n"+
+	"  - arm64\n"+
+	"repair-id: 42\n"+
 	"series:\n"+
 	"  - 16\n"+
 	"MODELSLINE\n"+
@@ -75,21 +77,21 @@ var repairExample = fmt.Sprintf("type: repair\n"+
 	script+"\n\n"+
 	"AXNpZw==", len(script))
 
-func (em *repairSuite) SetUpTest(c *C) {
-	em.modelsLine = "models:\n  - acme/frobinator\n"
-	em.repairStr = strings.Replace(repairExample, "MODELSLINE\n", em.modelsLine, 1)
-	em.repairStr = strings.Replace(em.repairStr, "SCRIPT\n", script, 1)
+func (s *repairSuite) SetUpTest(c *C) {
+	s.modelsLine = "models:\n  - acme/frobinator\n"
+	s.repairStr = strings.Replace(repairExample, "MODELSLINE\n", s.modelsLine, 1)
+	s.repairStr = strings.Replace(s.repairStr, "SCRIPT\n", script, 1)
 }
 
-func (em *repairSuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(em.repairStr))
+func (s *repairSuite) TestDecodeOK(c *C) {
+	a, err := asserts.Decode([]byte(s.repairStr))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
 	c.Check(repair.BrandID(), Equals, "acme")
-	c.Check(repair.RepairID(), Equals, "repair-42")
-	c.Check(repair.Arch(), Equals, "all")
+	c.Check(repair.RepairID(), Equals, "42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
+	c.Check(repair.Architectures(), DeepEquals, []string{"amd64", "arm64"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(string(repair.Body()), Equals, script)
 }
@@ -98,26 +100,29 @@ const (
 	repairErrPrefix = "assertion repair: "
 )
 
-func (em *repairSuite) TestDecodeInvalid(c *C) {
+func (s *repairSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series:\n  - 16\n", "series: \n", `"series" header must be a list of strings`},
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
+		{"architectures:\n  - amd64\n  - arm64\n", "architectures: foo\n", `"architectures" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
-		{"repair-id: repair-42\n", "repair-id: no-suffix-number\n", `"repair-id" header contains invalid characters: "no-suffix-number"`},
+		{"repair-id: 42\n", "repair-id: no-number\n", `"repair-id" header contains invalid characters: "no-number"`},
+		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" header contains invalid characters: "0"`},
+		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header contains invalid characters: "01"`},
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 	}
 
 	for _, test := range invalidTests {
-		invalid := strings.Replace(em.repairStr, test.original, test.invalid, 1)
+		invalid := strings.Replace(s.repairStr, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
 	}
 }
 
 // FIXME: move to a different layer later
-func (em *repairSuite) TestRepairCanEmbeddScripts(c *C) {
-	a, err := asserts.Decode([]byte(em.repairStr))
+func (s *repairSuite) TestRepairCanEmbeddScripts(c *C) {
+	a, err := asserts.Decode([]byte(s.repairStr))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
