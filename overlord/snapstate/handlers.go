@@ -690,10 +690,14 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	svcs := currentInfo.Services()
+	if len(svcs) == 0 {
+		return nil
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StartSnapServices(currentInfo, pb)
+	err = m.backend.StartServices(svcs, pb)
 	st.Lock()
 	return err
 }
@@ -712,10 +716,14 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	svcs := currentInfo.Services()
+	if len(svcs) == 0 {
+		return nil
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StopSnapServices(currentInfo, pb)
+	err = m.backend.StopServices(svcs, pb)
 	st.Lock()
 	return err
 }
