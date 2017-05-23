@@ -108,6 +108,8 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
 		{"repair-id: 42\n", "repair-id: no-number\n", `"repair-id" header contains invalid characters: "no-number"`},
+		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" header contains invalid characters: "0"`},
+		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header contains invalid characters: "01"`},
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 	}
 
