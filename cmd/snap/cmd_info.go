@@ -107,7 +107,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 
 	var sha3_384 string
-	if verbose {
+	if verbose && !osutil.IsDirectory(path) {
 		var err error
 		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
 		if err != nil {
