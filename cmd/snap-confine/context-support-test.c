@@ -64,23 +64,41 @@ static void create_dumy_context_file(const char *snap_name,
 
 static void test_maybe_set_context_environment__null()
 {
-	setenv("SNAP_CONTEXT", "bar", 1);
-	sc_maybe_set_context_environment(NULL);
-	g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "bar");
+	if (g_test_subprocess()) {
+		setenv("SNAP_CONTEXT", "bar", 1);
+		sc_maybe_set_context_environment(NULL);
+		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "bar");
+		return;
+	}
+
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_passed();
 }
 
 static void test_maybe_set_context_environment__overwrite()
 {
-	setenv("SNAP_CONTEXT", "bar", 1);
-	sc_maybe_set_context_environment("foo");
-	g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
+	if (g_test_subprocess()) {
+		setenv("SNAP_CONTEXT", "bar", 1);
+		sc_maybe_set_context_environment("foo");
+		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
+		return;
+	}
+
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_passed();
 }
 
 static void test_maybe_set_context_environment__typical()
 {
-	setenv("SNAP_CONTEXT", "bar", 1);
-	sc_maybe_set_context_environment("foo");
-	g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
+	if (g_test_subprocess()) {
+    setenv("SNAP_CONTEXT", "bar", 1);
+    sc_maybe_set_context_environment("foo");
+    g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
+    return;
+  }
+
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_passed();
 }
 
 static void test_context_get_from_snapd__successful()
