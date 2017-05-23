@@ -4064,11 +4064,13 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		Required: true,
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
-		Current:  si.Revision,
-		Active:   false,
-		Channel:  "edge",
-		Flags:    flags,
+		Sequence:            []*snap.SideInfo{&si},
+		Current:             si.Revision,
+		Active:              false,
+		Channel:             "edge",
+		Flags:               flags,
+		AliasesPending:      true,
+		AutoAliasesDisabled: true,
 	})
 
 	chg := s.state.NewChange("enable", "enable a snap")
@@ -4109,6 +4111,9 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	c.Check(snapst.Flags, DeepEquals, flags)
 
 	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.AliasesPending, Equals, false)
+	c.Assert(snapst.AutoAliasesDisabled, Equals, true)
+
 	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 	c.Assert(info.Channel, Equals, "edge")
@@ -4164,6 +4169,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, false)
+	c.Assert(snapst.AliasesPending, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
