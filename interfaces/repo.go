@@ -80,6 +80,19 @@ func (r *Repository) AddInterface(i Interface) error {
 	return nil
 }
 
+// AllInterfaces returns all interfaces.
+func (r *Repository) AllInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.ifaces))
+	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
+}
+
 func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
