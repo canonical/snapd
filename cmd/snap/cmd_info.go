@@ -91,6 +91,12 @@ func maybePrintType(w io.Writer, t string) {
 	fmt.Fprintf(w, "type:\t%s\n", t)
 }
 
+func maybePrintID(w io.Writer, snap *client.Snap) {
+	if snap.ID != "" {
+		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
+	}
+}
+
 func tryDirect(w io.Writer, path string, verbose bool) bool {
 	path = norm(path)
 
@@ -258,6 +264,7 @@ func (x *infoCmd) Execute([]string) error {
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
+		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 
 		if x.Verbose {
