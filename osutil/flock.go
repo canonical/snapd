@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
@@ -28,6 +29,8 @@ import (
 type FileLock struct {
 	file *os.File
 }
+
+var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
 
 // NewFileLock creates and opens the lock file given by "path"
 func NewFileLock(path string) (*FileLock, error) {
@@ -57,7 +60,11 @@ func (l *FileLock) Lock() error {
 
 // TryLock acquires an exclusive lock and errors if the lock cannot be acquired.
 func (l *FileLock) TryLock() error {
-	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	err := syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err == syscall.EWOULDBLOCK {
+		return ErrAlreadyLocked
+	}
+	return err
 }
 
 // Unlock releases an acquired lock.
