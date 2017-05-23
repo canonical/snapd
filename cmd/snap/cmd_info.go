@@ -29,6 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -105,6 +106,15 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 		return false
 	}
 
+	var sha3_384 string
+	if verbose && !osutil.IsDirectory(path) {
+		var err error
+		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
+		if err != nil {
+			return false
+		}
+	}
+
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	if err != nil {
 		return false
@@ -128,6 +138,9 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
 	maybePrintType(w, string(info.Type))
+	if sha3_384 != "" {
+		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
+	}
 
 	return true
 }
