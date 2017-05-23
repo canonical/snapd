@@ -4494,6 +4494,36 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.verifyRefreshLast(c)
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	// lastRefresh is unset/zero => immediate refresh try
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify we have an auto-refresh change scheduled now
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.IsReady(), Equals, false)
+	s.verifyRefreshLast(c)
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
