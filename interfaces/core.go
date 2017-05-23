@@ -130,8 +130,15 @@ type Interface interface {
 }
 
 // MetaData describes various meta-data of a given interface.
+//
+// The Summary must be a one-line string of length suitable for listing views.
+// The Description must describe the purpose of the interface in non-technical
+// terms. The DocumentationURL can point to website (e.g. a forum thread) that
+// goes into more depth and documents the interface in detail.
 type MetaData struct {
-	Description string `json:"description,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	DocumentationURL string `json:"documentation-url,omitempty"`
 }
 
 // ifaceMetaData returns the meta-data of the given interface.
