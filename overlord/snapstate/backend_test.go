@@ -175,6 +175,8 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 
 		var name string
 		switch snapID {
+		case "services-snap-id":
+			name = "services-snap"
 		case "some-snap-id":
 			name = "some-snap"
 		case "core-snap-id":
@@ -315,15 +317,30 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SuggestedName: name,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
-	}
-	info.Type = snap.TypeApp
-	if name == "gadget" {
-		info.Type = snap.TypeGadget
-	}
-	if name == "core" {
-		info.Type = snap.TypeOS
+		Type:          snap.TypeApp,
 	}
 	if strings.Contains(name, "alias-snap") {
+		name = "alias-snap"
+	}
+	switch name {
+	case "gadget":
+		info.Type = snap.TypeGadget
+	case "core":
+		info.Type = snap.TypeOS
+	case "services-snap":
+		var err error
+		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
+apps:
+  svc1:
+    daemon: simple
+  svc2:
+    daemon: simple
+`))
+		if err != nil {
+			panic(err)
+		}
+		info.SideInfo = *si
+	case "alias-snap":
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
@@ -340,6 +357,7 @@ apps:
 		}
 		info.SideInfo = *si
 	}
+
 	return info, nil
 }
 
@@ -397,18 +415,28 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+func svcSnapMountDir(svcs []*snap.AppInfo) string {
+	if len(svcs) == 0 {
+		return "<no services>"
+	}
+	if svcs[0].Snap == nil {
+		return "<snapless service>"
+	}
+	return svcs[0].Snap.MountDir()
+}
+
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "start-snap-services",
-		name: info.MountDir(),
+		name: svcSnapMountDir(svcs),
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "stop-snap-services",
-		name: info.MountDir(),
+		name: svcSnapMountDir(svcs),
 	})
 	return nil
 }
