@@ -22,6 +22,7 @@ package main_test
 import (
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -90,4 +91,10 @@ func (notesSuite) TestNotesTwo(c *check.C) {
 		DevMode: true,
 		Broken:  true,
 	}).String(), check.Matches, "(devmode,broken|broken,devmode)")
+}
+
+func (notesSuite) TestNotesFromLocal(c *check.C) {
+	// Check that DevMode note is derived from DevMode flag, not DevModeConfinement type.
+	c.Check(snap.NotesFromLocal(&client.Snap{DevMode: true}).DevMode, check.Equals, true)
+	c.Check(snap.NotesFromLocal(&client.Snap{Confinement: client.DevModeConfinement}).DevMode, check.Equals, false)
 }

@@ -10,3 +10,6 @@ apps:
   write:
     command: bin/write
     plugs: [time-control]
+  timedatectl:
+    command: bin/timedatectl
+    plugs: [time-control]

@@ -1,11 +1,13 @@
 summary: Check auto-aliases mechanism
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases
 
     echo "Test the auto-aliases"
-    test -h /snap/bin/test_snapd_wellknown1
-    test -h /snap/bin/test_snapd_wellknown2
+    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown1
+    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown2
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"
 
@@ -15,7 +17,7 @@ execute: |
 
     echo "Removing the snap should remove the aliases"
     snap remove test-snapd-auto-aliases
-    test ! -e /snap/bin/test_snapd_wellknown1
-    test ! -e /snap/bin/test_snapd_wellknown2
+    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown1
+    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown2
     ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1"
     ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2"
