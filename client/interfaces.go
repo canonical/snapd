@@ -73,7 +73,9 @@ type InterfaceInfo struct {
 
 // InterfaceMetaData contains meta-data about a given interface type.
 type InterfaceMetaData struct {
-	Description string `json:"description,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	DocumentationURL string `json:"documentation-url,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
