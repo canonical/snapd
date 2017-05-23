@@ -1,9 +1,5 @@
 summary: Ensure that the snapd-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The snapd-control interface allows a snap to access the locale configuration.
 
@@ -32,18 +28,20 @@ execute: |
     echo "Then it is connected by default"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    echo "================================================"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "================================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect test-snapd-control-consumer:snapd-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect test-snapd-control-consumer:snapd-control
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap command is not able to control snapd"
-    if test-snapd-control-consumer.list 2>snapd.error; then
-        echo "Expected error with plug disconnected"
-        exit 1
+        echo "Then the snap command is not able to control snapd"
+        if test-snapd-control-consumer.list 2>snapd.error; then
+            echo "Expected error with plug disconnected"
+            exit 1
+        fi
+        grep -q "Permission denied" snapd.error
     fi
-    grep -q "Permission denied" snapd.error
 
     echo "================================================"
 

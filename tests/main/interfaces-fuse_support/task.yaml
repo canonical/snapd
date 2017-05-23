@@ -5,8 +5,6 @@ systems:
     # no support for fuse on 14.04
     - -ubuntu-14.04-64
     - -ubuntu-14.04-32
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
@@ -40,14 +38,16 @@ execute: |
     echo "Then the fuse plug is not connected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap is not able to create a fuse file system"
-    if test-snapd-fuse-consumer.create $MOUNT_POINT 2>fuse.error; then
-        echo "Expected permission error creating fuse filesystem with disconnected plug"
-        exit 1
-    fi
-    MATCH "Permission denied" < fuse.error
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Then the snap is not able to create a fuse file system"
+        if test-snapd-fuse-consumer.create $MOUNT_POINT 2>${PWD}/fuse.error; then
+            echo "Expected permission error creating fuse filesystem with disconnected plug"
+            exit 1
+        fi
+        MATCH "Permission denied" fuse.error
 
-    echo "==================================="
+        echo "==================================="
+    fi
 
     echo "When the plug is connected"
     snap connect test-snapd-fuse-consumer:fuse-support
