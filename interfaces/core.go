@@ -77,6 +77,13 @@ type Interfaces struct {
 	Slots []*Slot `json:"slots"`
 }
 
+// InterfaceInfo holds information about a given interface and its instances.
+type InterfaceInfo struct {
+	MetaData MetaData
+	Plugs    []*snap.PlugInfo
+	Slots    []*snap.SlotInfo
+}
+
 // ConnRef holds information about plug and slot reference that form a particular connection.
 type ConnRef struct {
 	PlugRef PlugRef
