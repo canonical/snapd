@@ -3235,6 +3235,9 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 					},
 				},
 			},
+			"meta-data": map[string]interface{}{
+				"test": map[string]interface{}{},
+			},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -4865,7 +4868,7 @@ func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
+func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})

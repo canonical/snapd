@@ -41,6 +41,35 @@ import (
 
 var errNothingToDo = errors.New("nothing to do")
 
+func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, error) {
+	if sn.Classic {
+		flags.Classic = true
+	}
+	if sn.DevMode {
+		flags.DevMode = true
+	}
+
+	path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
+
+	var sideInfo snap.SideInfo
+	if sn.Unasserted {
+		sideInfo.RealName = sn.Name
+	} else {
+		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+		if err == asserts.ErrNotFound {
+			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+		}
+		if err != nil {
+			return nil, err
+		}
+		sideInfo = *si
+		sideInfo.Private = sn.Private
+		sideInfo.Contact = sn.Contact
+	}
+
+	return snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
+}
+
 func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
@@ -83,48 +112,93 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		}
 	}
 
+	seeding := make(map[string]*snap.SeedSnap, len(seed.Snaps))
+	for _, sn := range seed.Snaps {
+		seeding[sn.Name] = sn
+	}
+	alreadySeeded := make(map[string]bool, 3)
+
 	tsAll := []*state.TaskSet{}
-	for i, sn := range seed.Snaps {
+	configTss := []*state.TaskSet{}
+
+	// if there are snaps to seed, core needs to be seeded too
+	if len(seed.Snaps) != 0 {
+		coreSeed := seeding["core"]
+		if coreSeed == nil {
+			return nil, fmt.Errorf("cannot proceed without seeding core")
+		}
+		ts, err := installSeedSnap(st, coreSeed, snapstate.Flags{SkipConfigure: true})
+		if err != nil {
+			return nil, err
+		}
+		tsAll = append(tsAll, ts)
+		alreadySeeded["core"] = true
+		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
+	}
+
+	last := 0
+	if kernelName := model.Kernel(); kernelName != "" {
+		kernelSeed := seeding[kernelName]
+		if kernelSeed == nil {
+			return nil, fmt.Errorf("cannot find seed information for kernel snap %q", kernelName)
+		}
+		ts, err := installSeedSnap(st, kernelSeed, snapstate.Flags{SkipConfigure: true})
+		if err != nil {
+			return nil, err
+		}
+		ts.WaitAll(tsAll[last])
+		tsAll = append(tsAll, ts)
+		alreadySeeded[kernelName] = true
+		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
+		configTs.WaitAll(configTss[last])
+		configTss = append(configTss, configTs)
+		last++
+	}
+
+	if gadgetName := model.Gadget(); gadgetName != "" {
+		gadgetSeed := seeding[gadgetName]
+		if gadgetSeed == nil {
+			return nil, fmt.Errorf("cannot find seed information for gadget snap %q", gadgetName)
+		}
+		ts, err := installSeedSnap(st, gadgetSeed, snapstate.Flags{SkipConfigure: true})
+		if err != nil {
+			return nil, err
+		}
+		ts.WaitAll(tsAll[last])
+		tsAll = append(tsAll, ts)
+		alreadySeeded[gadgetName] = true
+		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
+		configTs.WaitAll(configTss[last])
+		configTss = append(configTss, configTs)
+		last++
+	}
+
+	// chain together configuring core, kernel, and gadget after
+	// installing them so that defaults are availabble from gadget
+	configTss[0].WaitAll(tsAll[last])
+	tsAll = append(tsAll, configTss...)
+	last += len(configTss)
+
+	for _, sn := range seed.Snaps {
+		if alreadySeeded[sn.Name] {
+			continue
+		}
+
 		var flags snapstate.Flags
-		if sn.Classic {
-			flags.Classic = true
-		}
-		if sn.DevMode {
-			flags.DevMode = true
-		}
 		if required[sn.Name] {
 			flags.Required = true
 		}
 
-		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-
-		var sideInfo snap.SideInfo
-		if sn.Unasserted {
-			sideInfo.RealName = sn.Name
-		} else {
-			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
-			if err == asserts.ErrNotFound {
-				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
-			}
-			if err != nil {
-				return nil, err
-			}
-			sideInfo = *si
-			sideInfo.Private = sn.Private
-			sideInfo.Contact = sn.Contact
-		}
-
-		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
-		if i > 0 {
-			ts.WaitAll(tsAll[i-1])
-		}
-
+		ts, err := installSeedSnap(st, sn, flags)
 		if err != nil {
 			return nil, err
 		}
 
+		ts.WaitAll(tsAll[last])
 		tsAll = append(tsAll, ts)
+		last++
 	}
+
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
