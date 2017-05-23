@@ -56,6 +56,7 @@ price:     1.99GBP
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
+snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

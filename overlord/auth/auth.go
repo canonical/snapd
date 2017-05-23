@@ -421,22 +421,27 @@ func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (
 	return cur, nil
 }
 
+// StoreID returns the store set in the model assertion, if mod != nil,
+// or the override from the UBUNTU_STORE_ID envvar.
+func StoreID(mod *asserts.Model) string {
+	if mod != nil {
+		return mod.Store()
+	}
+	return os.Getenv("UBUNTU_STORE_ID")
+}
+
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
 func (ac *authContext) StoreID(fallback string) (string, error) {
-	storeID := os.Getenv("UBUNTU_STORE_ID")
-	if storeID != "" {
-		return storeID, nil
-	}
+	var mod *asserts.Model
 	if ac.deviceAsserts != nil {
-		mod, err := ac.deviceAsserts.Model()
+		var err error
+		mod, err = ac.deviceAsserts.Model()
 		if err != nil && err != state.ErrNoState {
 			return "", err
 		}
-		if err == nil {
-			storeID = mod.Store()
-		}
 	}
+	storeID := StoreID(mod)
 	if storeID != "" {
 		return storeID, nil
 	}
