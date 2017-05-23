@@ -11,6 +11,9 @@ install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+        if [ "$SPREAD_REBOOT" = 0 ]; then
+            REBOOT
+        fi
     else
         packages="${GOPATH}/snapd_*.deb"
         distro_install_local_package $packages
