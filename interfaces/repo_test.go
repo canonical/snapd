@@ -195,6 +195,14 @@ func (s *RepositorySuite) TestInterfaceInfo(c *C) {
 	})
 }
 
+// Tests for Repository.AllInterfaces
+
+func (s *RepositorySuite) TestAllInterfaces(c *C) {
+	c.Assert(s.emptyRepo.AllInterfaces(), HasLen, 0)
+	c.Assert(s.emptyRepo.AddInterface(s.iface), IsNil)
+	c.Assert(s.emptyRepo.AllInterfaces(), DeepEquals, []Interface{s.iface})
+}
+
 // Tests for Repository.AddPlug()
 
 func (s *RepositorySuite) TestAddPlug(c *C) {
