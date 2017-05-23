@@ -16,8 +16,10 @@ execute: |
     fi
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
 
+    . $TESTSLIB/dirs.sh
+
     echo "Nothing is left"
-    for d in /snap /var/snap; do
+    for d in $SNAPMOUNTDIR /var/snap; do
         if [ -d "$d" ]; then
             echo "$d is not removed"
             ls -lR $d
