@@ -91,11 +91,11 @@ static void test_maybe_set_context_environment__overwrite()
 static void test_maybe_set_context_environment__typical()
 {
 	if (g_test_subprocess()) {
-    setenv("SNAP_CONTEXT", "bar", 1);
-    sc_maybe_set_context_environment("foo");
-    g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
-    return;
-  }
+		setenv("SNAP_CONTEXT", "bar", 1);
+		sc_maybe_set_context_environment("foo");
+		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
+		return;
+	}
 
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_passed();
