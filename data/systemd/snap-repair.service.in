@@ -5,5 +5,5 @@ Documentation=man:snap(1)
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c "@libexecdir@/snapd/snap-repair fetch ; @libexecdir@/snapd/snap-repair run"
+ExecStart=@libexecdir@/snapd/snap-repair run
 Environment=SNAP_REAPIR_FROM_TIMER=1
