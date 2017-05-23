@@ -66,6 +66,12 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus methods for setting the time via timedatectl's set-time and
+# set-local-rtc commands.
+/usr/bin/timedatectl{,.real} ixr,
+
 # Allow write access to system real-time clock
 # See 'man 4 rtc' for details.
 
