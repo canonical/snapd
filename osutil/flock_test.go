@@ -131,5 +131,5 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
-	c.Assert(lock.TryLock(), ErrorMatches, "resource temporarily unavailable")
+	c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked)
 }
