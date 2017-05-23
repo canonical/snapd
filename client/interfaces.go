@@ -64,6 +64,13 @@ type Interfaces struct {
 	Slots []Slot `json:"slots"`
 }
 
+// InterfaceInfo holds information about a given interface and its instances.
+type InterfaceInfo struct {
+	MetaData InterfaceMetaData `json:"meta-data"`
+	Plugs    []Plug            `json:"plugs,omitempty"`
+	Slots    []Slot            `json:"slots,omitempty"`
+}
+
 // InterfaceMetaData contains meta-data about a given interface type.
 type InterfaceMetaData struct {
 	Description string `json:"description,omitempty"`
@@ -79,6 +86,12 @@ type InterfaceAction struct {
 // Interfaces returns all plugs, slots and their connections.
 func (client *Client) Interfaces() (interfaces Interfaces, err error) {
 	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
+	return
+}
+
+// InterfaceInfos returns all interfaces, their meta-data, plugs and slots.
+func (client *Client) InterfaceInfos() (infos map[string]InterfaceInfo, err error) {
+	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &infos)
 	return
 }
 
