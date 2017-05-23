@@ -29,7 +29,7 @@ build_deb(){
 
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
-    cp ../*.deb "${GOPATH%%:*}"
+    cp ../*.deb "$GOHOME"
 }
 
 download_from_published(){
@@ -43,7 +43,7 @@ download_from_published(){
     # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
     for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${published_version}_${arch}.deb"
-        curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+        curl -L -o "$GOHOME/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
     done
 }
 
@@ -51,7 +51,7 @@ install_dependencies_from_published(){
     local published_version="$1"
 
     for dep in snap-confine ubuntu-core-launcher; do
-        dpkg -i "${GOPATH%%:*}/${dep}_${published_version}_$(dpkg --print-architecture).deb"
+        dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
     done
 }
 
@@ -75,10 +75,10 @@ fi
 
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
-   if [ ! -f "${GOPATH%%:*}/bin/snapbuild" ]; then
-       mkdir -p "${GOPATH%%:*}/bin"
+   if [ ! -f "$GOHOME/bin/snapbuild" ]; then
+       mkdir -p "$GOHOME/bin"
        snap install --edge test-snapd-snapbuild
-       cp "$SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild" "${GOPATH%%:*}/bin/snapbuild"
+       cp "$SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
@@ -137,7 +137,7 @@ gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
-    rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
+    rm -rf "$GOHOME/src/github.com/kardianos/govendor"
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync

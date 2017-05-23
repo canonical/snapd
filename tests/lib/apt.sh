@@ -13,6 +13,6 @@ install_build_snapd(){
         mv sources.list.back /etc/apt/sources.list
         apt update
     else
-        distro_install_local_package "${GOPATH%%:*}"/snapd_*.deb
+        distro_install_local_package "$GOHOME"/snapd_*.deb
     fi
 }
