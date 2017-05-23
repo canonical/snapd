@@ -74,12 +74,12 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 	return updateCurrentSymlinks(info)
 }
 
-func (b Backend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
-	return wrappers.StartSnapServices(info, meter)
+func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {
+	return wrappers.StartServices(apps, meter)
 }
 
-func (b Backend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
-	return wrappers.StopSnapServices(info, meter)
+func (b Backend) StopServices(apps []*snap.AppInfo, meter progress.Meter) error {
+	return wrappers.StopServices(apps, meter)
 }
 
 func generateWrappers(s *snap.Info) error {

@@ -56,12 +56,13 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		if len(info.Apps) == 0 {
-			logger.Debugf("patch 5: skipping for %q: no apps", snapName)
+		svcs := info.Services()
+		if len(svcs) == 0 {
+			logger.Debugf("patch 5: skipping for %q: no services", snapName)
 			continue
 		}
 
-		err = wrappers.StopSnapServices(info, log)
+		err = wrappers.StopServices(svcs, log)
 		if err != nil {
 			return err
 		}
@@ -71,7 +72,7 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		err = wrappers.StartSnapServices(info, log)
+		err = wrappers.StartServices(svcs, log)
 		if err != nil {
 			return err
 		}
