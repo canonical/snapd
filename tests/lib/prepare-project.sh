@@ -45,9 +45,12 @@ build_deb(){
 }
 
 fedora_build_rpm() {
+    release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    arch=x86_64
+
     base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
     version="1337.$base_version"
-    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-25/snapd.spec
+    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-$release/snapd.spec
 
     mkdir -p /tmp/pkg/snapd-$version
     cp -rav * /tmp/pkg/snapd-$version/
@@ -55,14 +58,12 @@ fedora_build_rpm() {
     mkdir -p $HOME/rpmbuild/SOURCES
     (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
 
-    cp packaging/fedora-25/* $HOME/rpmbuild/SOURCES/
+    cp packaging/fedora-$release/* $HOME/rpmbuild/SOURCES/
 
-    rpmbuild -bs packaging/fedora-25/snapd.spec
-    # FIXME 1.fc25 + arch needs to be dynamic as well
-    mock /root/rpmbuild/SRPMS/snapd-$version-1.fc25.src.rpm
-    cp /var/lib/mock/fedora-25-x86_64/result/snapd-$version-1.fc25.x86_64.rpm $GOPATH
-    cp /var/lib/mock/fedora-25-x86_64/result/snapd-selinux-$version-1.fc25.noarch.rpm $GOPATH
-    cp /var/lib/mock/fedora-25-x86_64/result/snap-confine-$version-1.fc25.x86_64.rpm $GOPATH
+    rpmbuild -bs packaging/fedora-$release/snapd.spec
+    mock /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
+    cp /var/lib/mock/fedora-$release-$arch/result/*.rpm $GOPATH
+    rm $GOPATH/*.src.rpm
 }
 
 download_from_published(){
