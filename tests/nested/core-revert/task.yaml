@@ -14,6 +14,9 @@ execute: |
     . $TESTSLIB/nested.sh
 
     cd $SPREAD_PATH
+    execute_remote "sudo snap install bluez"
+    execute_remote "sudo snap connect bluez:bluetooth-control"
+    execute_remote "sudo snap connect bluez:network-control"
     execute_remote "sudo snap install network-manager --devmode"
 
     # configure network-manager to take over the connection control on next reboot
