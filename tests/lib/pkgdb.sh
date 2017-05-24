@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
@@ -46,6 +47,7 @@ distro_install_local_package() {
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
+            # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
         *)
@@ -135,10 +137,10 @@ distro_auto_remove_packages() {
 
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.
-DISTRO_BUILD_DEPS=""
+export DISTRO_BUILD_DEPS=()
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
-        DISTRO_BUILD_DEPS="build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd"
+        DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
         ;;
     *)
         ;;
