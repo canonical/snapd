@@ -19,6 +19,8 @@
 
 package builtin
 
+const netlinkAuditSummary = `allows access to kernel audit system through netlink`
+
 const netlinkAuditConnectedPlugSecComp = `
 # Description: Can use netlink to read/write to kernel audit system.
 bind
@@ -28,6 +30,7 @@ socket AF_NETLINK - NETLINK_AUDIT
 func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-audit",
+		summary:              netlinkAuditSummary,
 		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
 		reservedForOS:        true,
 	})
