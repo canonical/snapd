@@ -21,11 +21,9 @@ package builtin
 
 const networkSummary = `allows access to the network`
 
-const networkDescription = `
-The network interface allows connected plugs to access the network as a client.
-
-The core snap provides the slot that is shared by all the snaps.
-`
+const networkDescription = "" +
+	"The network interface allows connected plugs to access the network as a\n" +
+	"client. The core snap provides the slot that is used by all the snaps."
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
