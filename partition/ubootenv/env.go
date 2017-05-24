@@ -105,7 +105,7 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 	payload := contentWithHeader[headerSize:]
 	actualCRC := crc32.ChecksumIEEE(payload)
 	if crc != actualCRC {
-		return nil, fmt.Errorf("bad CRC: %v != %v", crc, actualCRC)
+		return nil, fmt.Errorf("cannot open %q: bad CRC %v != %v", fname, crc, actualCRC)
 	}
 	eof := bytes.Index(payload, []byte{0, 0})
 
@@ -131,7 +131,7 @@ func parseData(data []byte, flags OpenFlags) (map[string]string, error) {
 			continue
 		}
 		l := strings.SplitN(string(envStr), "=", 2)
-		if len(l) != 2 {
+		if len(l) != 2 || l[0] == "" {
 			if flags&OpenBestEffort == OpenBestEffort {
 				continue
 			}

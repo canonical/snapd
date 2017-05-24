@@ -67,6 +67,17 @@ func (u *uenvTestSuite) TestOpenEnv(c *C) {
 	c.Assert(env2.String(), Equals, "foo=bar\n")
 }
 
+func (u *uenvTestSuite) TestOpenEnvBadCRC(c *C) {
+	corrupted := filepath.Join(c.MkDir(), "corrupted.env")
+
+	buf := make([]byte, 4096)
+	err := ioutil.WriteFile(corrupted, buf, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = ubootenv.Open(corrupted)
+	c.Assert(err, ErrorMatches, `cannot open ".*": bad CRC 0 != .*`)
+}
+
 func (u *uenvTestSuite) TestGetSimple(c *C) {
 	env, err := ubootenv.Create(u.envFile, 4096)
 	c.Assert(err, IsNil)
@@ -176,6 +187,20 @@ func (u *uenvTestSuite) TestOpenBestEffort(c *C) {
 	env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.OpenBestEffort)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "key1=value1\nkey2=value2\n")
+}
+
+func (u *uenvTestSuite) TestErrorOnMissingKeyInKeyValuePair(c *C) {
+	mockData := []byte{
+		// =foo
+		0x3d, 0x66, 0x6f, 0x6f,
+		// eof
+		0x00, 0x00,
+	}
+	u.makeUbootEnvFromData(c, mockData)
+
+	env, err := ubootenv.Open(u.envFile)
+	c.Assert(err, ErrorMatches, `cannot parse line "=foo" as key=value pair`)
+	c.Assert(env, IsNil)
 }
 
 func (u *uenvTestSuite) TestReadEmptyFile(c *C) {
