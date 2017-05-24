@@ -315,7 +315,7 @@ func killemAll(cmd *exec.Cmd) error {
 	if pgid == 1 {
 		return fmt.Errorf("cannot kill pgid 1")
 	}
-	return syscallKill(-pgid, 9)
+	return syscallKill(-pgid, syscall.SIGKILL)
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {

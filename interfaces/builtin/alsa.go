@@ -19,6 +19,8 @@
 
 package builtin
 
+const alsaSummary = `allows access to raw ALSA devices`
+
 const alsaDescription = `
 The alsa interface allows connected plugs to access raw ALSA devices.
 
@@ -40,6 +42,7 @@ const alsaConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "alsa",
+		summary:               alsaSummary,
 		description:           alsaDescription,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
