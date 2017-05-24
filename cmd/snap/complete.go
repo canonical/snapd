@@ -290,3 +290,22 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 
 	return ret
 }
+
+type interfaceName string
+
+func (s interfaceName) Complete(match string) []flags.Completion {
+	cli := Client()
+	infos, err := cli.InterfaceInfos()
+	if err != nil {
+		return nil
+	}
+
+	ret := make([]flags.Completion, 0, len(infos))
+	for name, ii := range infos {
+		if shouldShowInterface(&ii) && strings.HasPrefix(name, match) {
+			ret = append(ret, flags.Completion{Item: name, Description: ii.MetaData.Summary})
+		}
+	}
+
+	return ret
+}
