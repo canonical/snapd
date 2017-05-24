@@ -75,8 +75,6 @@ func (ref SlotRef) String() string {
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
-
-	MetaData map[string]MetaData `json:"meta-data"`
 }
 
 // ConnRef holds information about plug and slot reference that form a particular connection.
