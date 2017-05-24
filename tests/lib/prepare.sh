@@ -103,6 +103,9 @@ prepare_classic() {
             ubuntu-*|debian-*)
                 apt-cache policy snapd
                 ;;
+            fedora-*)
+                dnf info snapd
+                ;;
             *)
                 ;;
         esac
@@ -114,6 +117,9 @@ prepare_classic() {
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
+                ;;
+            fedora-*)
+                dnf info snapd
                 ;;
             *)
                 ;;
