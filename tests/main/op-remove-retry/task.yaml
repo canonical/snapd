@@ -1,5 +1,6 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 restore: |

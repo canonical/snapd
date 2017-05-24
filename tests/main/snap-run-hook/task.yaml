@@ -1,5 +1,6 @@
 summary: Check that `snap run` can actually run hooks
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 environment:

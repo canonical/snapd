@@ -8,6 +8,7 @@ details: |
 systems:
     # This test only applies to classic systems
     - -ubuntu-core-16-*
+    # Disabled for Fedora until test case is properly ported
     - -fedora-*
 prepare: |
     echo "Having installed the test snap"

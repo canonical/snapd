@@ -2,6 +2,7 @@ summary: Ensure that the openvswitch interface works.
 
 systems:
     - -ubuntu-core-*
+    # Disabled for Fedora until test case is properly ported
     - -fedora-*
 
 details: |

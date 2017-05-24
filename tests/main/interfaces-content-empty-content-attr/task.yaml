@@ -1,5 +1,6 @@
 summary: Ensure that the content sharing interface with defaults work.
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 prepare: |

@@ -4,6 +4,7 @@ systems:
     - -ubuntu-core-16-*
     # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
     - -ubuntu-*-ppc64el
+    # Disabled for Fedora until test case is properly ported
     - -fedora-*
 
 summary: |

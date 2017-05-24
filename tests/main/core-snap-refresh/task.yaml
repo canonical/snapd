@@ -1,5 +1,6 @@
 summary: Check that the core snap can be refreshed
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 details: |

@@ -1,5 +1,6 @@
 summary: Ensure remove with unmounted base dir works
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 execute: |

@@ -1,5 +1,6 @@
 summary: Check basic apparmor confinement rules.
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 prepare: |

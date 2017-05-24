@@ -1,5 +1,6 @@
 summary: Checks for snap sideload install
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 prepare: |

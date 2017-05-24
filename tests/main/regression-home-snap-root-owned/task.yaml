@@ -1,5 +1,6 @@
 summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 prepare: |

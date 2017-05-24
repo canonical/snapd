@@ -1,5 +1,6 @@
 summary: snap install a large snap from the store (bigger than tmpfs)
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 prepare: |

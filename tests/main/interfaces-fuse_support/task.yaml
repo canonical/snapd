@@ -4,6 +4,7 @@ systems:
     # no support for fuse on 14.04
     - -ubuntu-14.04-64
     - -ubuntu-14.04-32
+    # Disabled for Fedora until test case is properly ported
     - -fedora-*
 
 details: |
