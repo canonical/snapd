@@ -284,7 +284,7 @@ restore: |
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
-    rm -rf $GOPATH/*
+    rm -rf ${GOPATH%%:*}/*
 
 suites:
     tests/main/:
