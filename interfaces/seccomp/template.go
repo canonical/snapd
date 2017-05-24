@@ -549,3 +549,15 @@ pwritev
 # of socket(), bind(), connect(), etc individually.
 socketcall
 `)
+
+// bindSyscallWorkaround specifies the bind() syscall for systems which
+// don't use AppArmor but only seccomp. In those cases the net package
+// from go uses bind for IPv4/IPv6 support detection when loaded. This
+// gets a problem for all hooks when they use snapctl. On systems which
+// use AppArmor the bind() call is properly mediated and the caller gets
+// an error back.
+const bindSyscallWorkaround = `
+# Add bind() for systems with only Seccomp enabled to workaround
+# LP #1644573
+bind
+`
