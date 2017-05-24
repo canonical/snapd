@@ -577,7 +577,7 @@ fi
 
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
-   %{_libexecdir}/snapd/snap-mgmt purge || :
+   %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 
