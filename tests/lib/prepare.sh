@@ -154,14 +154,21 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
-            echo "Ensure that the grub-editenv list output is empty on classic"
-            output=$(grub-editenv list)
-            if [ -n "$output" ]; then
-                echo "Expected empty grub environment, got:"
-                echo "$output"
-                exit 1
-            fi
+        GRUB_EDITENV=grub-editenv
+        case "$SPREAD_SYSTEM" in
+            fedora-*)
+                GRUB_EDITENV=grub2-editenv
+                ;;
+            *)
+                ;;
+        esac
+
+        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
+        output=$($GRUB_EDITENV list | grep snap_)
+        if [ -n "$output" ]; then
+            echo "Expected grub environment without snap_*, got:"
+            echo "$output"
+            exit 1
         fi
 
         systemctl stop snapd.service snapd.socket
