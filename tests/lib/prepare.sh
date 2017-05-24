@@ -170,8 +170,8 @@ EOF
         esac
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
-        output=$($GRUB_EDITENV list | grep snap_)
-        if [ -n "$output" ]; then
+        output=$($GRUB_EDITENV list)
+        if echo $output | grep -q snap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
