@@ -19,6 +19,8 @@
 
 package builtin
 
+const logObserveSummary = `allows read access to system logs`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const logObserveConnectedPlugAppArmor = `
 # Description: Can read system logs and set kernel log rate-limiting
@@ -53,7 +55,8 @@ capability dac_override,
 
 func init() {
 	registerIface(&commonInterface{
-		name: "log-observe",
+		name:                  "log-observe",
+		summary:               logObserveSummary,
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

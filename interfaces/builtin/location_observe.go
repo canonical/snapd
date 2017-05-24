@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
+const locationObserveSummary = `allows access to the current physical location`
+
 const locationObservePermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -248,6 +250,12 @@ type locationObserveInterface struct{}
 
 func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
+}
+
+func (iface *locationObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: locationObserveSummary,
+	}
 }
 
 func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
