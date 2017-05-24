@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -34,8 +35,8 @@ type flockSuite struct{}
 var _ = Suite(&flockSuite{})
 
 // Test that opening and closing a lock works as expected.
-func (s *flockSuite) TestOpenLock(c *C) {
-	lock, err := osutil.OpenLock(filepath.Join(c.MkDir(), "name"))
+func (s *flockSuite) TestNewFileLock(c *C) {
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
@@ -50,7 +51,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 		return
 	}
 
-	lock, err := osutil.OpenLock(filepath.Join(c.MkDir(), "name"))
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
@@ -79,7 +80,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 // Test that locking a locked lock does nothing.
 func (s *flockSuite) TestLockLocked(c *C) {
-	lock, err := osutil.OpenLock(filepath.Join(c.MkDir(), "name"))
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
@@ -90,7 +91,7 @@ func (s *flockSuite) TestLockLocked(c *C) {
 
 // Test that unlocking an unlocked lock does nothing.
 func (s *flockSuite) TestUnlockUnlocked(c *C) {
-	lock, err := osutil.OpenLock(filepath.Join(c.MkDir(), "name"))
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
@@ -99,10 +100,36 @@ func (s *flockSuite) TestUnlockUnlocked(c *C) {
 
 // Test that locking or unlocking a closed lock fails.
 func (s *flockSuite) TestUsingClosedLock(c *C) {
-	lock, err := osutil.OpenLock(filepath.Join(c.MkDir(), "name"))
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	lock.Close()
 
 	c.Assert(lock.Lock(), ErrorMatches, "bad file descriptor")
 	c.Assert(lock.Unlock(), ErrorMatches, "bad file descriptor")
+}
+
+// Test that non-blocking
+func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
+	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
+		c.Skip("Cannot use this under travis")
+		return
+	}
+
+	lockPath := filepath.Join(c.MkDir(), "lock")
+	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	c.Assert(cmd.Start(), IsNil)
+	defer cmd.Process.Kill()
+
+	for i := 0; i < 10; i++ {
+		if osutil.FileExists(lockPath) {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	lock, err := osutil.NewFileLock(lockPath)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked)
 }
