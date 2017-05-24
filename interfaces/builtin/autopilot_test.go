@@ -45,10 +45,11 @@ apps:
   plugs: [autopilot-introspection]
 `
 
-var _ = Suite(&AutopilotInterfaceSuite{})
+var _ = Suite(&AutopilotInterfaceSuite{
+	iface: builtin.MustInterface("autopilot-introspection"),
+})
 
 func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewAutopilotIntrospectionInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "recvmsg\n")
+}
+
+func (s *AutopilotInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

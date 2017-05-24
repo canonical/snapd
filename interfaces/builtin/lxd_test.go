@@ -37,7 +37,7 @@ type LxdInterfaceSuite struct {
 }
 
 var _ = Suite(&LxdInterfaceSuite{
-	iface: &builtin.LxdInterface{},
+	iface: builtin.MustInterface("lxd"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -96,4 +96,8 @@ func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
 	// allow what declarations allowed
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
+}
+
+func (s *LxdInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

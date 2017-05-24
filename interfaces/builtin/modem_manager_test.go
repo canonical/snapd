@@ -60,10 +60,11 @@ apps:
    - modem-manager
 `
 
-var _ = Suite(&ModemManagerInterfaceSuite{})
+var _ = Suite(&ModemManagerInterfaceSuite{
+	iface: builtin.MustInterface("modem-manager"),
+})
 
 func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.ModemManagerInterface{}
 	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "modem-manager"},
@@ -239,4 +240,8 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
 	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mmcli")
 	c.Assert(snippet, testutil.Contains, "deny own=\"org.freedesktop.ModemManager1\"")
 	c.Assert(snippet, testutil.Contains, "deny send_destination=\"org.freedesktop.ModemManager1\"")
+}
+
+func (s *ModemManagerInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -38,7 +38,9 @@ type OfonoInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OfonoInterfaceSuite{})
+var _ = Suite(&OfonoInterfaceSuite{
+	iface: builtin.MustInterface("ofono"),
+})
 
 func (s *OfonoInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -58,7 +60,6 @@ apps:
   command: foo
   slots: [ofono]
 `
-	s.iface = &builtin.OfonoInterface{}
 	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: snapInfo.Slots["ofono"]}
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -193,4 +194,8 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
 	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
+}
+
+func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

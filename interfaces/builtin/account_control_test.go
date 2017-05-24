@@ -37,7 +37,9 @@ type AccountControlSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AccountControlSuite{})
+var _ = Suite(&AccountControlSuite{
+	iface: builtin.MustInterface("account-control"),
+})
 
 const accountCtlMockPlugSnapInfo = `name: other
 version: 1.0
@@ -48,7 +50,6 @@ apps:
 `
 
 func (s *AccountControlSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewAccountControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -107,4 +108,8 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - 0 42\n")
+}
+
+func (s *AccountControlSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

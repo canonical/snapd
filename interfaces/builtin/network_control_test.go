@@ -45,10 +45,11 @@ apps:
   plugs: [network-control]
 `
 
-var _ = Suite(&NetworkControlInterfaceSuite{})
+var _ = Suite(&NetworkControlInterfaceSuite{
+	iface: builtin.MustInterface("network-control"),
+})
 
 func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *NetworkControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "setns - CLONE_NEWNET\n")
+}
+
+func (s *NetworkControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

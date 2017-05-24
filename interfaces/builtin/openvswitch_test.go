@@ -36,7 +36,9 @@ type OpenvSwitchInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OpenvSwitchInterfaceSuite{})
+var _ = Suite(&OpenvSwitchInterfaceSuite{
+	iface: builtin.MustInterface("openvswitch"),
+})
 
 func (s *OpenvSwitchInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [openvswitch]
 `
-	s.iface = builtin.NewOpenvSwitchInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -91,4 +92,8 @@ func (s *OpenvSwitchInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "run/openvswitch/db.sock rw")
+}
+
+func (s *OpenvSwitchInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

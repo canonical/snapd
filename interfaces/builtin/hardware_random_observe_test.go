@@ -38,7 +38,7 @@ type HardwareRandomObserveInterfaceSuite struct {
 }
 
 var _ = Suite(&HardwareRandomObserveInterfaceSuite{
-	iface: &builtin.HardwareRandomObserveInterface{},
+	iface: builtin.MustInterface("hardware-random-observe"),
 })
 
 func (s *HardwareRandomObserveInterfaceSuite) SetUpTest(c *C) {
@@ -101,4 +101,8 @@ func (s *HardwareRandomObserveInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	expected := []string{`KERNEL=="hwrng", TAG+="snap_snap_app"`}
 	c.Assert(spec.Snippets(), DeepEquals, expected)
+}
+
+func (s *HardwareRandomObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

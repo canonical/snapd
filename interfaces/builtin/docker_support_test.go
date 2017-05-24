@@ -45,10 +45,11 @@ apps:
   plugs: [docker-support]
 `
 
-var _ = Suite(&DockerSupportInterfaceSuite{})
+var _ = Suite(&DockerSupportInterfaceSuite{
+	iface: builtin.MustInterface("docker-support"),
+})
 
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.DockerSupportInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
@@ -188,4 +189,8 @@ plugs:
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
+}
+
+func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

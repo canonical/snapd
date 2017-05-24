@@ -45,10 +45,11 @@ apps:
   plugs: [docker]
 `
 
-var _ = Suite(&DockerInterfaceSuite{})
+var _ = Suite(&DockerInterfaceSuite{
+	iface: builtin.MustInterface("docker"),
+})
 
 func (s *DockerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.DockerInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
@@ -88,4 +89,8 @@ func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {
 func (s *DockerInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

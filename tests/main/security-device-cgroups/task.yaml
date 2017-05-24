@@ -1,9 +1,5 @@
 summary: Ensure that the security rules related to device cgroups work.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg
@@ -19,6 +15,11 @@ environment:
     OTHER_UDEVADM_PATH/uinput: /sys/devices/virtual/mem/kmsg
     OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
 
+prepare: |
+    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
+        modprobe uinput
+    fi
+
 restore: |
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
@@ -30,10 +31,13 @@ execute: |
     install_local test-snapd-tools
 
     echo "Then the device is not assigned to that snap"
-    ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+    ! udevadm info $UDEVADM_PATH | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And the device is not shown in the snap device list"
-    ! grep -q "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
+    if [ -e /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list ]; then
+        MATCH -v "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    fi
 
     echo "================================================="
 
@@ -46,10 +50,10 @@ execute: |
     udevadm settle
 
     echo "Then the device is shown as assigned to the snap"
-    udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+    udevadm info $UDEVADM_PATH | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And other devices are not shown as assigned to the snap"
-    ! udevadm info $OTHER_UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+    udevadm info $OTHER_UDEVADM_PATH | MATCH -v "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "================================================="
 
@@ -57,9 +61,9 @@ execute: |
     test-snapd-tools.env
 
     echo "Then the device is shown in the snap device list"
-    grep -q "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     echo "And other devices are not shown in the snap device list"
-    ! grep -q "$OTHER_DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH -v "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     # TODO: check device unassociated after removing the udev file and rebooting

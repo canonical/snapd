@@ -37,7 +37,9 @@ type MirInterfaceSuite struct {
 	plug        *interfaces.Plug
 }
 
-var _ = Suite(&MirInterfaceSuite{})
+var _ = Suite(&MirInterfaceSuite{
+	iface: builtin.MustInterface("mir"),
+})
 
 func (s *MirInterfaceSuite) SetUpTest(c *C) {
 	// a pulseaudio slot on the core snap (as automatically added on classic)
@@ -64,7 +66,6 @@ apps:
   command: foo
   plugs: [mir]
 `
-	s.iface = &builtin.MirInterface{}
 	// mir snap with mir-server slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
 	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["mir"]}
@@ -132,4 +133,8 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 	snippets := seccompSpec.Snippets()
 	// no permanent seccomp snippet for the slot
 	c.Assert(len(snippets), Equals, 0)
+}
+
+func (s *MirInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -38,7 +38,9 @@ type MaliitInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MaliitInterfaceSuite{})
+var _ = Suite(&MaliitInterfaceSuite{
+	iface: builtin.MustInterface("maliit"),
+})
 
 func (s *MaliitInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -55,7 +57,6 @@ apps:
   command: foo
   slots: [maliit]
 `
-	s.iface = &builtin.MaliitInterface{}
 	slotSnap := snaptest.MockInfo(c, mockCoreSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["maliit"]}
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -256,4 +257,8 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "peer=(label=\"snap.other.app\"")
+}
+
+func (s *MaliitInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -45,10 +45,11 @@ apps:
   plugs: [fuse-support]
 `
 
-var _ = Suite(&FuseSupportInterfaceSuite{})
+var _ = Suite(&FuseSupportInterfaceSuite{
+	iface: builtin.MustInterface("fuse-support"),
+})
 
 func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewFuseSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *FuseSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount\n")
+}
+
+func (s *FuseSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

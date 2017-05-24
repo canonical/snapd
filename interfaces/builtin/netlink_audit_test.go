@@ -44,10 +44,11 @@ apps:
   plugs: [netlink-audit]
 `
 
-var _ = Suite(&NetlinkAuditInterfaceSuite{})
+var _ = Suite(&NetlinkAuditInterfaceSuite{
+	iface: builtin.MustInterface("netlink-audit"),
+})
 
 func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetlinkAuditInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -92,4 +93,8 @@ func (s *NetlinkAuditInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
+}
+
+func (s *NetlinkAuditInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

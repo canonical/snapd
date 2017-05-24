@@ -45,10 +45,11 @@ apps:
   plugs: [hardware-observe]
 `
 
-var _ = Suite(&HardwareObserveInterfaceSuite{})
+var _ = Suite(&HardwareObserveInterfaceSuite{
+	iface: builtin.MustInterface("hardware-observe"),
+})
 
 func (s *HardwareObserveInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewHardwareObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "iopl\n")
+}
+
+func (s *HardwareObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

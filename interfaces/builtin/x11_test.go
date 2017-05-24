@@ -45,10 +45,11 @@ apps:
   plugs: [x11]
 `
 
-var _ = Suite(&X11InterfaceSuite{})
+var _ = Suite(&X11InterfaceSuite{
+	iface: builtin.MustInterface("x11"),
+})
 
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewX11Interface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -103,4 +104,8 @@ func (s *X11InterfaceSuite) TestLP1574526(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shutdown\n")
+}
+
+func (s *X11InterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

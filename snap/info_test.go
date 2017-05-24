@@ -123,6 +123,9 @@ apps:
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
 	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/snap run foo.bar")
+	c.Check(info.Apps["bar"].LauncherStopCommand(), Equals, "/usr/bin/snap run --command=stop foo.bar")
+	c.Check(info.Apps["bar"].LauncherReloadCommand(), Equals, "/usr/bin/snap run --command=reload foo.bar")
+	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo.bar")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
 }
 
@@ -155,6 +158,47 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
+func (s *infoSuite) TestReadInfoNotFound(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	info, err := snap.ReadInfo("sample", si)
+	c.Check(info, IsNil)
+	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42`)
+}
+
+func (s *infoSuite) TestReadInfoUnreadable(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml"), 0755), IsNil)
+
+	info, err := snap.ReadInfo("sample", si)
+	c.Check(info, IsNil)
+	// TODO: maybe improve this error message
+	c.Check(err, ErrorMatches, ".* is a directory")
+}
+
+func (s *infoSuite) TestReadInfoUnparsable(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(p, []byte(`- :`), 0644), IsNil)
+
+	info, err := snap.ReadInfo("sample", si)
+	c.Check(info, IsNil)
+	// TODO: maybe improve this error message
+	c.Check(err, ErrorMatches, ".* failed to parse.*")
+}
+
+func (s *infoSuite) TestReadInfoUnfindable(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
+
+	info, err := snap.ReadInfo("sample", si)
+	c.Check(info, IsNil)
+	// TODO: maybe improve this error message
+	c.Check(err, ErrorMatches, ".* no such file or directory")
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
@@ -204,6 +248,29 @@ confinement: devmode`
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch, Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
+	c.Check(info.NeedsDevMode(), Equals, true)
+	c.Check(info.NeedsClassic(), Equals, false)
+}
+
+func (s *infoSuite) TestReadInfoFromClassicSnapFile(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+confinement: classic`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, snap.R(0))
+	c.Check(info.Confinement, Equals, snap.ClassicConfinement)
+	c.Check(info.NeedsDevMode(), Equals, false)
+	c.Check(info.NeedsClassic(), Equals, true)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
@@ -222,6 +289,8 @@ type: app`
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch, Equals, "0") // Defaults to 0
+	c.Check(info.Confinement, Equals, snap.StrictConfinement)
+	c.Check(info.NeedsDevMode(), Equals, false)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
@@ -505,14 +574,25 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 	}
 }
 
+func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalPlaceInfo("name", snap.R("1"))
+	s.testDirAndFileMethods(c, info)
+}
+
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
+	s.testDirAndFileMethods(c, info)
+}
+
+func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
 	c.Check(info.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
 	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(info.DataDir(), Equals, "/var/snap/name/1")
 	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
+	c.Check(info.HomeDirBase("/home/bob"), Equals, "/home/bob/snap/name")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
@@ -583,4 +663,50 @@ func (s *infoSuite) TestInfoFromSnapYamlRenamesCorePlugs(c *C) {
 	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
 	c.Check(info.Plugs["core-support-plug"], NotNil)
+}
+
+func (s *infoSuite) TestInfoServices(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  svc1:
+    daemon: potato
+  svc2:
+    daemon: no
+  app1:
+  app2:
+`))
+	c.Assert(err, IsNil)
+	svcNames := []string{}
+	svcs := info.Services()
+	for i := range svcs {
+		svcNames = append(svcNames, svcs[i].ServiceName())
+	}
+	sort.Strings(svcNames)
+	c.Check(svcNames, DeepEquals, []string{
+		"snap.pans.svc1.service",
+		"snap.pans.svc2.service",
+	})
+}
+
+func (s *infoSuite) TestAppInfoIsService(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  svc1:
+    daemon: potato
+  svc2:
+    daemon: no
+  app1:
+  app2:
+`))
+	c.Assert(err, IsNil)
+
+	svc := info.Apps["svc1"]
+	c.Check(svc.IsService(), Equals, true)
+	c.Check(svc.ServiceName(), Equals, "snap.pans.svc1.service")
+	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.service")
+	c.Check(svc.ServiceSocketFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.socket")
+
+	c.Check(info.Apps["svc2"].IsService(), Equals, true)
+	c.Check(info.Apps["app1"].IsService(), Equals, false)
+	c.Check(info.Apps["app1"].IsService(), Equals, false)
 }

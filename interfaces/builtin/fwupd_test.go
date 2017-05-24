@@ -54,10 +54,11 @@ apps:
   slots: [fwupd]
 `
 
-var _ = Suite(&FwupdInterfaceSuite{})
+var _ = Suite(&FwupdInterfaceSuite{
+	iface: builtin.MustInterface("fwupd"),
+})
 
 func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.FwupdInterface{}
 	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}
@@ -164,4 +165,8 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, "bind\n")
+}
+
+func (s *FwupdInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

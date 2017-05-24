@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	unix "syscall"
 	"time"
 
@@ -49,7 +50,9 @@ type Daemon struct {
 	Version       string
 	overlord      *overlord.Overlord
 	snapdListener net.Listener
+	snapdServe    *shutdownServer
 	snapListener  net.Listener
+	snapServe     *shutdownServer
 	tomb          tomb.Tomb
 	router        *mux.Router
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
@@ -266,6 +269,85 @@ func (d *Daemon) addRoutes() {
 	d.router.NotFoundHandler = NotFound("not found")
 }
 
+var (
+	shutdownTimeout = 5 * time.Second
+)
+
+// shutdownServer supplements a http.Server with graceful shutdown.
+// TODO: with go1.8 http.Server itself grows a graceful Shutdown method
+type shutdownServer struct {
+	l       net.Listener
+	httpSrv *http.Server
+
+	mu           sync.Mutex
+	conns        map[net.Conn]http.ConnState
+	shuttingDown bool
+}
+
+func newShutdownServer(l net.Listener, h http.Handler) *shutdownServer {
+	srv := &http.Server{
+		Handler: h,
+	}
+	ssrv := &shutdownServer{
+		l:       l,
+		httpSrv: srv,
+		conns:   make(map[net.Conn]http.ConnState),
+	}
+	srv.ConnState = ssrv.trackConn
+	return ssrv
+}
+
+func (srv *shutdownServer) Serve() error {
+	return srv.httpSrv.Serve(srv.l)
+}
+
+func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	// we ignore hijacked connections, if we do things with websockets
+	// we'll need custom shutdown handling for them
+	if state == http.StateClosed || state == http.StateHijacked {
+		delete(srv.conns, conn)
+		return
+	}
+	if srv.shuttingDown && state == http.StateIdle {
+		conn.Close()
+		delete(srv.conns, conn)
+		return
+	}
+	srv.conns[conn] = state
+}
+
+func (srv *shutdownServer) finishShutdown() error {
+	toutC := time.After(shutdownTimeout)
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	srv.shuttingDown = true
+	for conn, state := range srv.conns {
+		if state == http.StateIdle {
+			conn.Close()
+			delete(srv.conns, conn)
+		}
+	}
+
+	doWait := true
+	for doWait {
+		if len(srv.conns) == 0 {
+			return nil
+		}
+		srv.mu.Unlock()
+		select {
+		case <-time.After(200 * time.Millisecond):
+		case <-toutC:
+			doWait = false
+		}
+		srv.mu.Lock()
+	}
+	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
+}
+
 var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
 
 // Start the Daemon
@@ -286,13 +368,18 @@ func (d *Daemon) Start() {
 		}
 	})
 
+	if d.snapListener != nil {
+		d.snapServe = newShutdownServer(d.snapListener, logit(d.router))
+	}
+	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
+
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+				if err := d.snapServe.Serve(); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -300,7 +387,7 @@ func (d *Daemon) Start() {
 			})
 		}
 
-		if err := http.Serve(d.snapdListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := d.snapdServe.Serve(); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -315,6 +402,12 @@ func (d *Daemon) Stop() error {
 	if d.snapListener != nil {
 		d.snapListener.Close()
 	}
+
+	d.tomb.Kill(d.snapdServe.finishShutdown())
+	if d.snapListener != nil {
+		d.tomb.Kill(d.snapServe.finishShutdown())
+	}
+
 	d.overlord.Stop()
 
 	return d.tomb.Wait()

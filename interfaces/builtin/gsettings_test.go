@@ -45,10 +45,11 @@ apps:
   plugs: [gsettings]
 `
 
-var _ = Suite(&GsettingsInterfaceSuite{})
+var _ = Suite(&GsettingsInterfaceSuite{
+	iface: builtin.MustInterface("gsettings"),
+})
 
 func (s *GsettingsInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewGsettingsInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -109,4 +110,8 @@ func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 0)
+}
+
+func (s *GsettingsInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -55,10 +55,11 @@ apps:
   slots: [udisks2]
 `
 
-var _ = Suite(&UDisks2InterfaceSuite{})
+var _ = Suite(&UDisks2InterfaceSuite{
+	iface: builtin.MustInterface("udisks2"),
+})
 
 func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.UDisks2Interface{}
 	slotSnap := snaptest.MockInfo(c, udisks2mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, udisks2mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["udisks2"]}
@@ -253,4 +254,8 @@ func (s *UDisks2InterfaceSuite) TestDBusPermanentSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `<policy user="root">`)
+}
+
+func (s *UDisks2InterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

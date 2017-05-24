@@ -45,10 +45,11 @@ apps:
   plugs: [bluetooth-control]
 `
 
-var _ = Suite(&BluetoothControlInterfaceSuite{})
+var _ = Suite(&BluetoothControlInterfaceSuite{
+	iface: builtin.MustInterface("bluetooth-control"),
+})
 
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewBluetoothControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -107,4 +108,8 @@ func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nbind\n")
+}
+
+func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

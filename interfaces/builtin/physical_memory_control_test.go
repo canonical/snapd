@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type PhysicalMemoryControlInterfaceSuite struct {
@@ -37,7 +38,7 @@ type PhysicalMemoryControlInterfaceSuite struct {
 }
 
 var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
-	iface: &builtin.PhysicalMemoryControlInterface{},
+	iface: builtin.MustInterface("physical-memory-control"),
 })
 
 func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
@@ -116,4 +117,8 @@ capability sys_rawio,
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	snippet := udevSpec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedSnippet2)
+}
+
+func (s *PhysicalMemoryControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

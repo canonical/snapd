@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
@@ -69,12 +65,11 @@ shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 `
 
-// NewNetworkBindInterface returns a new "network-bind" interface.
-func NewNetworkBindInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "network-bind",
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

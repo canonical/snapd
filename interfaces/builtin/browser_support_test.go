@@ -45,10 +45,11 @@ apps:
   plugs: [browser-support]
 `
 
-var _ = Suite(&BrowserSupportInterfaceSuite{})
+var _ = Suite(&BrowserSupportInterfaceSuite{
+	iface: builtin.MustInterface("browser-support"),
+})
 
 func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.BrowserSupportInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -204,4 +205,8 @@ func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
+}
+
+func (s *BrowserSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

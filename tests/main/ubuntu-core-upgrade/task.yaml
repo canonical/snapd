@@ -76,9 +76,8 @@ execute: |
         /org/freedesktop/login1 \
         org.freedesktop.DBus.Properties.Get \
         string:org.freedesktop.login1.Manager string:ScheduledShutdown)
-    if ! echo $output | grep 'string "reboot"'; then
-        echo "Failed to detect scheduled reboot in logind output:"
-        echo "$output"
+    if ! echo $output | MATCH 'string "reboot"'; then
+        echo "Failed to detect scheduled reboot in logind output"
         exit 1
     fi
 

@@ -45,10 +45,11 @@ apps:
   plugs: [system-observe]
 `
 
-var _ = Suite(&SystemObserveInterfaceSuite{})
+var _ = Suite(&SystemObserveInterfaceSuite{
+	iface: builtin.MustInterface("system-observe"),
+})
 
 func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewSystemObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace\n")
+}
+
+func (s *SystemObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

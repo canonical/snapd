@@ -36,7 +36,9 @@ type ShutdownInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ShutdownInterfaceSuite{})
+var _ = Suite(&ShutdownInterfaceSuite{
+	iface: builtin.MustInterface("shutdown"),
+})
 
 func (s *ShutdownInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -47,7 +49,6 @@ apps:
     plugs: [shutdown]
 `, nil)
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["shutdown"]}
-	s.iface = builtin.NewShutdownInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -90,4 +91,8 @@ func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `org.freedesktop.systemd1`)
+}
+
+func (s *ShutdownInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

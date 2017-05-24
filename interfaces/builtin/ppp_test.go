@@ -38,7 +38,9 @@ type PppInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&PppInterfaceSuite{})
+var _ = Suite(&PppInterfaceSuite{
+	iface: builtin.MustInterface("ppp"),
+})
 
 func (s *PppInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
@@ -56,8 +58,6 @@ apps:
   command: foo
   slots: [ppp]
 `
-
-	s.iface = &builtin.PppInterface{}
 	slotSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["ppp"]}
 
@@ -100,4 +100,8 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,
 	})
+}
+
+func (s *PppInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

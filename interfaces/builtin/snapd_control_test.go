@@ -36,7 +36,9 @@ type SnapdControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SnapdControlInterfaceSuite{})
+var _ = Suite(&SnapdControlInterfaceSuite{
+	iface: builtin.MustInterface("snapd-control"),
+})
 
 func (s *SnapdControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -46,7 +48,6 @@ apps:
     command: foo
     plugs: [snapd-control]
 `, nil)
-	s.iface = builtin.NewSnapdControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -91,4 +92,8 @@ func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/run/snapd.socket rw,`)
+}
+
+func (s *SnapdControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

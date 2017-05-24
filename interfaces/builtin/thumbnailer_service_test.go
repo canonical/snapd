@@ -37,7 +37,9 @@ type ThumbnailerServiceInterfaceSuite struct {
 	plug        *interfaces.Plug
 }
 
-var _ = Suite(&ThumbnailerServiceInterfaceSuite{})
+var _ = Suite(&ThumbnailerServiceInterfaceSuite{
+	iface: builtin.MustInterface("thumbnailer-service"),
+})
 
 func (s *ThumbnailerServiceInterfaceSuite) SetUpTest(c *C) {
 	// a thumbnailer slot on a thumbnailer snap
@@ -62,7 +64,6 @@ apps:
   command: foo
   plugs: [thumbnailer-service]
 `
-	s.iface = &builtin.ThumbnailerServiceInterface{}
 	// thumbnailer-service snap with thumbnailer-service slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, thumbnailerServiceMockCoreSlotSnapInfoYaml, nil)
 	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["thumbnailer-service"]}
@@ -116,4 +117,8 @@ func (s *ThumbnailerServiceInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C
 	c.Check(snippet, testutil.Contains, `@{INSTALL_DIR}/client/**`)
 	c.Check(snippet, testutil.Contains, `@{HOME}/snap/client/**`)
 	c.Check(snippet, testutil.Contains, `/var/snap/client/**`)
+}
+
+func (s *ThumbnailerServiceInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

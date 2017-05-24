@@ -56,7 +56,7 @@ type HidrawInterfaceSuite struct {
 }
 
 var _ = Suite(&HidrawInterfaceSuite{
-	iface: &builtin.HidrawInterface{},
+	iface: builtin.MustInterface("hidraw"),
 })
 
 func (s *HidrawInterfaceSuite) SetUpTest(c *C) {
@@ -259,4 +259,8 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
 	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+}
+
+func (s *HidrawInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

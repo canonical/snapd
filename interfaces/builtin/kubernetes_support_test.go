@@ -45,10 +45,11 @@ apps:
   plugs: [kubernetes-support]
 `
 
-var _ = Suite(&KubernetesSupportInterfaceSuite{})
+var _ = Suite(&KubernetesSupportInterfaceSuite{
+	iface: builtin.MustInterface("kubernetes-support"),
+})
 
 func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewKubernetesSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *KubernetesSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "# Allow reading the state of modules kubernetes needs\n")
+}
+
+func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

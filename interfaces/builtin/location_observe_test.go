@@ -36,7 +36,9 @@ type LocationObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocationObserveInterfaceSuite{})
+var _ = Suite(&LocationObserveInterfaceSuite{
+	iface: builtin.MustInterface("location-observe"),
+})
 
 func (s *LocationObserveInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -53,7 +55,6 @@ apps:
   command: foo
   slots: [location-observe]
 `
-	s.iface = &builtin.LocationObserveInterface{}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["location-observe"]}
 	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
@@ -200,4 +201,8 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.location.app2"), testutil.Contains, `peer=(label="snap.location.app"),`)
+}
+
+func (s *LocationObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -39,7 +39,9 @@ type Unity8CalendarInterfaceSuite struct {
 	plug     *interfaces.Plug
 }
 
-var _ = Suite(&Unity8CalendarInterfaceSuite{})
+var _ = Suite(&Unity8CalendarInterfaceSuite{
+	iface: builtin.MustInterface("unity8-calendar"),
+})
 
 func (s *Unity8CalendarInterfaceSuite) SetUpTest(c *C) {
 	const mockCoreSlotInfoYaml = `name: unity8-calendar
@@ -56,7 +58,6 @@ apps:
   command: foo
   plugs: [unity8-calendar]
 `
-	s.iface = builtin.NewUnity8CalendarInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -217,4 +218,8 @@ func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.unity8-calendar.app"), testutil.Contains, "listen\n")
+}
+
+func (s *Unity8CalendarInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

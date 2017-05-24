@@ -36,7 +36,9 @@ type RemovableMediaInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&RemovableMediaInterfaceSuite{})
+var _ = Suite(&RemovableMediaInterfaceSuite{
+	iface: builtin.MustInterface("removable-media"),
+})
 
 func (s *RemovableMediaInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -46,7 +48,6 @@ apps:
     command: foo
     plugs: [removable-media]
 `, nil)
-	s.iface = builtin.NewRemovableMediaInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -91,4 +92,8 @@ func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
 	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")
+}
+
+func (s *RemovableMediaInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

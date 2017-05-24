@@ -58,10 +58,11 @@ apps:
   slots: [network-manager]
 `
 
-var _ = Suite(&NetworkManagerInterfaceSuite{})
+var _ = Suite(&NetworkManagerInterfaceSuite{
+	iface: builtin.MustInterface("network-manager"),
+})
 
 func (s *NetworkManagerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.NetworkManagerInterface{}
 	plugSnap := snaptest.MockInfo(c, netmgrMockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-manager"]}
 
@@ -188,4 +189,8 @@ func (s *NetworkManagerInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager.nm"})
 	c.Check(seccompSpec.SnippetForTag("snap.network-manager.nm"), testutil.Contains, "listen\n")
+}
+
+func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

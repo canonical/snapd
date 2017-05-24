@@ -58,7 +58,9 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Timeout: configureHookTimeout(),
 	}
 	var contextData map[string]interface{}
-	if len(patch) > 0 {
+	if flags&snapstate.UseConfigDefaults != 0 {
+		contextData = map[string]interface{}{"use-defaults": true}
+	} else if len(patch) > 0 {
 		contextData = map[string]interface{}{"patch": patch}
 	}
 	var summary string

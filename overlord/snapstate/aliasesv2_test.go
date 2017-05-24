@@ -610,6 +610,32 @@ func (s *snapmgrTestSuite) TestAliasNoTarget(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "some-snap", target application "cmdno" does not exist.*`)
 }
 
+func (s *snapmgrTestSuite) TestAliasTargetIsDaemon(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	chg := s.state.NewChange("alias", "manual alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", "cmddaemon", "alias1")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "alias-snap", target application "cmddaemon" is a daemon.*`)
+}
+
 func (s *snapmgrTestSuite) TestAliasInvalidAlias(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

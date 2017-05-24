@@ -36,7 +36,9 @@ type DcdbasControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&DcdbasControlInterfaceSuite{})
+var _ = Suite(&DcdbasControlInterfaceSuite{
+	iface: builtin.MustInterface("dcdbas-control"),
+})
 
 func (s *DcdbasControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -46,7 +48,6 @@ apps:
     command: foo
     plugs: [dcdbas-control]
 `, nil)
-	s.iface = builtin.NewDcdbasControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -91,4 +92,8 @@ func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/dcdbas/smi_data`)
+}
+
+func (s *DcdbasControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

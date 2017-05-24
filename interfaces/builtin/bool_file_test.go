@@ -54,7 +54,7 @@ type BoolFileInterfaceSuite struct {
 }
 
 var _ = Suite(&BoolFileInterfaceSuite{
-	iface: &builtin.BoolFileInterface{},
+	iface: builtin.MustInterface("bool-file"),
 })
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
@@ -209,4 +209,8 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
+}
+
+func (s *BoolFileInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

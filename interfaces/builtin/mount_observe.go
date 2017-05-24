@@ -19,10 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
 # Description: Can query system mount and disk quota information. This is
@@ -56,12 +52,11 @@ quotactl Q_XGETQUOTA - - -
 quotactl Q_XGETQSTAT - - -
 `
 
-// NewMountObserveInterface returns a new "mount-observe" interface.
-func NewMountObserveInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name: "mount-observe",
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

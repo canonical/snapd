@@ -364,7 +364,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
-			task.Logf("cannot auto connect %s to %s: (plug auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
+			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
 		// TODO: hooks, attributes
@@ -398,7 +398,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
-			task.Logf("cannot auto connect %s to %s: (slot auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
+			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
 		// TODO: hooks, attributes

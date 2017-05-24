@@ -27,7 +27,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb $GOPATH
 }
@@ -68,17 +68,18 @@ fi
 
 # declare the "quiet" wrapper
 . "$TESTSLIB/quiet.sh"
+. "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
        snap install --edge test-snapd-snapbuild
-       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       cp $SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e /snap/core/current/meta/hooks/configure ]; then
+   if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
@@ -97,7 +98,9 @@ fi
 
 create_test_user
 
-quiet apt-get update
+. "$TESTSLIB/pkgdb.sh"
+
+distro_update_package_db
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     if [ ! -d packaging/ubuntu-14.04 ]; then
@@ -119,17 +122,19 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd
-# utilities
-# XXX: build-essential seems to be required. Otherwise package build
-# fails with unmet dependency on "build-essential:native"
-quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git
+distro_purge_package snapd || true
+distro_install_package $DISTRO_BUILD_DEPS
 
-# in 16.04: apt build-dep -y ./
-quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
-
-# Necessary tools for our test setup
-quiet apt-get install -y netcat-openbsd
+# We take a special case for Debian/Ubuntu where we install additional build deps
+# base on the packaging. In Fedora/Suse this is handled via mock/osc
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        # in 16.04: apt build-dep -y ./
+        quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+        ;;
+    *)
+        ;;
+esac
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
@@ -154,5 +159,7 @@ if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
 go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
-# Build fakedevicesvc.
+
+# Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
+go get ./tests/lib/systemd-escape

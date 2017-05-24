@@ -38,7 +38,7 @@ type HardwareRandomControlInterfaceSuite struct {
 }
 
 var _ = Suite(&HardwareRandomControlInterfaceSuite{
-	iface: &builtin.HardwareRandomControlInterface{},
+	iface: builtin.MustInterface("hardware-random-control"),
 })
 
 func (s *HardwareRandomControlInterfaceSuite) SetUpTest(c *C) {
@@ -101,4 +101,8 @@ func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	expected := []string{`KERNEL=="hwrng", TAG+="snap_snap_app"`}
 	c.Assert(spec.Snippets(), DeepEquals, expected)
+}
+
+func (s *HardwareRandomControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -38,7 +38,7 @@ type TimeControlTestInterfaceSuite struct {
 }
 
 var _ = Suite(&TimeControlTestInterfaceSuite{
-	iface: &builtin.TimeControlInterface{},
+	iface: builtin.MustInterface("time-control"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -104,4 +104,8 @@ func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedUDevSnippet)
+}
+
+func (s *TimeControlTestInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

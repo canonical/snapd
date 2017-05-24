@@ -45,10 +45,11 @@ apps:
   plugs: [network]
 `
 
-var _ = Suite(&NetworkInterfaceSuite{})
+var _ = Suite(&NetworkInterfaceSuite{
+	iface: builtin.MustInterface("network"),
+})
 
 func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetworkInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -101,4 +102,8 @@ func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "bind\n")
+}
+
+func (s *NetworkInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

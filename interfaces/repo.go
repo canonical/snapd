@@ -684,6 +684,7 @@ func (r *Repository) Interfaces() *Interfaces {
 
 	ifaces := &Interfaces{}
 	// Copy and flatten plugs and slots
+	seenIfaces := make(map[Interface]bool)
 	for _, plugs := range r.plugs {
 		for _, plug := range plugs {
 			p := &Plug{
@@ -692,6 +693,7 @@ func (r *Repository) Interfaces() *Interfaces {
 			}
 			sort.Sort(bySlotRef(p.Connections))
 			ifaces.Plugs = append(ifaces.Plugs, p)
+			seenIfaces[r.ifaces[plug.Interface]] = true
 		}
 	}
 	for _, slots := range r.slots {
@@ -702,6 +704,13 @@ func (r *Repository) Interfaces() *Interfaces {
 			}
 			sort.Sort(byPlugRef(s.Connections))
 			ifaces.Slots = append(ifaces.Slots, s)
+			seenIfaces[r.ifaces[slot.Interface]] = true
+		}
+	}
+	if len(seenIfaces) > 0 {
+		ifaces.MetaData = make(map[string]MetaData, len(seenIfaces))
+		for iface := range seenIfaces {
+			ifaces.MetaData[iface.Name()] = ifaceMetaData(iface)
 		}
 	}
 	sort.Sort(byPlugSnapAndName(ifaces.Plugs))
