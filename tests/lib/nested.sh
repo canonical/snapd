@@ -19,6 +19,16 @@ prepare_ssh(){
     execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
 }
 
+create_assertions_disk(){
+    dd if=/dev/null of=assertions.disk bs=1M seek=1
+    mkfs.ext4 -F assertions.disk
+    mkdir /mnt/assertions
+    mount -t ext4 -o loop assertions.disk /mnt/assertions
+    cp $TESTSLIB/assertions/auto-import.assert /mnt/assertions
+    umount /mnt/assertions && rm -rf /mnt/assertions
+    echo ${PWD}/assertions.disk
+}
+
 create_nested_core_vm(){
     # determine arch related vars
     case "$NESTED_ARCH" in
@@ -41,10 +51,9 @@ create_nested_core_vm(){
     /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
-    # create assertion block device
-    genisoimage -volid cidata -joliet -rock -o assertions.disk $TESTSLIB/assertions/auto-import.assert
+    assertions_disk=$(create_assertions_disk)
 
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
+    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${assertions_disk},if=virtio,cache=none"
 
     wait_for_ssh
     prepare_ssh
