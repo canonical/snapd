@@ -43,26 +43,22 @@ type Repository struct {
 	// Indexed by [snapName][plugName]
 	plugs map[string]map[string]*Plug
 	slots map[string]map[string]*Slot
-	// given a slot and a plug, are they connected?
-	slotPlugs map[*Slot]map[*Plug]bool
-	// given a plug and a slot, are they connected?
-	plugSlots map[*Plug]map[*Slot]bool
+	// given a slot and a plug, are they connected?	ConnectionAttrs include attribute values from the yaml and provided at runtime via interface hooks.
+	slotPlugs map[*Slot]map[*Plug]*ConnectionAttrs
+	// given a plug and a slot, are they connected? ConnectionAttrs include attribute values from the yaml and provided at runtime via interface hooks.
+	plugSlots map[*Plug]map[*Slot]*ConnectionAttrs
 	backends  map[SecuritySystem]SecurityBackend
-	// attributes of plugs and slots; the attributes include attribute values from
-	// the yaml and provided at runtime via interface hooks.
-	attributes map[*Plug]map[*Slot]*ConnectionAttrs
 }
 
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	return &Repository{
-		ifaces:     make(map[string]Interface),
-		plugs:      make(map[string]map[string]*Plug),
-		slots:      make(map[string]map[string]*Slot),
-		slotPlugs:  make(map[*Slot]map[*Plug]bool),
-		plugSlots:  make(map[*Plug]map[*Slot]bool),
-		backends:   make(map[SecuritySystem]SecurityBackend),
-		attributes: make(map[*Plug]map[*Slot]*ConnectionAttrs),
+		ifaces:    make(map[string]Interface),
+		plugs:     make(map[string]map[string]*Plug),
+		slots:     make(map[string]map[string]*Slot),
+		slotPlugs: make(map[*Slot]map[*Plug]*ConnectionAttrs),
+		plugSlots: make(map[*Plug]map[*Slot]*ConnectionAttrs),
+		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
 
@@ -420,7 +416,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 			return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 		}
 		// Ensure that slot and plug are connected
-		if !r.slotPlugs[slot][plug] {
+		if _, ok := r.slotPlugs[slot][plug]; !ok {
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
@@ -473,28 +469,23 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
 	// Ensure that slot and plug are not connected yet
-	if r.slotPlugs[slot][plug] {
+	if _, ok := r.slotPlugs[slot][plug]; ok {
 		// But if they are don't treat this as an error.
 		return nil
 	}
 	// Connect the plug
 	if r.slotPlugs[slot] == nil {
-		r.slotPlugs[slot] = make(map[*Plug]bool)
+		r.slotPlugs[slot] = make(map[*Plug]*ConnectionAttrs)
 	}
 	if r.plugSlots[plug] == nil {
-		r.plugSlots[plug] = make(map[*Slot]bool)
+		r.plugSlots[plug] = make(map[*Slot]*ConnectionAttrs)
 	}
-	r.slotPlugs[slot][plug] = true
-	r.plugSlots[plug][slot] = true
+	connAttrs := ConnectionAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
+	r.slotPlugs[slot][plug] = &connAttrs
+	r.plugSlots[plug][slot] = &connAttrs
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
 
-	// Store interface attributes
-	if r.attributes[plug] == nil {
-		r.attributes[plug] = make(map[*Slot]*ConnectionAttrs)
-	}
-
-	r.attributes[plug][slot] = &ConnectionAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
 	return nil
 }
 
@@ -532,7 +523,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 		return fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that slot and plug are connected
-	if !r.slotPlugs[slot][plug] {
+	if _, ok := r.slotPlugs[slot][plug]; !ok {
 		return fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 			plugSnapName, plugName, slotSnapName, slotName)
 	}
@@ -554,12 +545,11 @@ func (r *Repository) ConnectionAttributes(plugRef PlugRef, slotRef SlotRef) (*Co
 		return nil, fmt.Errorf("snap %q has no slot named %q", slotRef.Snap, slotRef.Name)
 	}
 
-	attrs := r.attributes[plug][slot]
-	if attrs == nil {
-		return nil, fmt.Errorf("cannot get attributes of %s:%s %s:%s connection",
-			plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if attrs, ok := r.plugSlots[plug][slot]; ok {
+		return attrs, nil
 	}
-	return attrs, nil
+	return nil, fmt.Errorf("cannot get attributes of %s:%s %s:%s connection",
+		plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
 // Connected returns references for all connections that are currently
@@ -637,10 +627,6 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	delete(r.plugSlots[plug], slot)
 	if len(r.plugSlots[plug]) == 0 {
 		delete(r.plugSlots, plug)
-	}
-	delete(r.attributes[plug], slot)
-	if len(r.attributes[plug]) == 0 {
-		delete(r.attributes, plug)
 	}
 	for i, plugRef := range slot.Connections {
 		if plugRef.Snap == plug.Snap.Name() && plugRef.Name == plug.Name {
@@ -737,7 +723,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
-			attrs := r.attributes[plug][slot]
+			attrs := r.slotPlugs[slot][plug]
 			if err := spec.AddConnectedSlot(iface, plug, attrs.PlugAttrs, slot, attrs.SlotAttrs); err != nil {
 				return nil, err
 			}
@@ -750,7 +736,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
-			attrs := r.attributes[plug][slot]
+			attrs := r.plugSlots[plug][slot]
 			if err := spec.AddConnectedPlug(iface, plug, attrs.PlugAttrs, slot, attrs.SlotAttrs); err != nil {
 				return nil, err
 			}
