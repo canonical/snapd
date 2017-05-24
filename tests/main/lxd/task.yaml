@@ -1,7 +1,7 @@
 summary: Ensure that lxd works
 
 # only run this on ubuntu, we need a reasonable new kernel
-systems: [+ubuntu-*]
+systems: [-debian*]
 
 execute: |
     wait_for_lxd(){
