@@ -1,4 +1,5 @@
 summary: Ensure that ECONNRESET is handled
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 restore: |
     echo "Remove the firewall rule again"

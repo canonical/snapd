@@ -1,5 +1,6 @@
 summary: Check snap web servers
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 environment:

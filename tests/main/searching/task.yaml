@@ -1,6 +1,8 @@
 summary: Check snap search
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
+
 
 execute: |
     echo "List all featured snaps"

@@ -1,5 +1,6 @@
 summary: Check the interfaces command
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 environment:

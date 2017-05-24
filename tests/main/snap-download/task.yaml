@@ -1,4 +1,5 @@
 summary: Check that snap download works
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 execute: |
     verify_asserts() {

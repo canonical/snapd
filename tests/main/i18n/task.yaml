@@ -1,4 +1,5 @@
 summary: Test that i18n works
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 execute: |
     # The snapd deb from the archive does not contain .mo files, those

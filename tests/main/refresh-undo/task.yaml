@@ -3,6 +3,7 @@ details: |
     When a snap is refreshed and the refresh fails, the undo code had
     a bug that removed the security confinement (LP: #1637981)
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 environment:

@@ -1,5 +1,6 @@
 summary: Check that revert of a snap in devmode restores devmode
 
+# Disabled for Fedora until test case is properly ported
 systems: [-fedora-*]
 
 environment:

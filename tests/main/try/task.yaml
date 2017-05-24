@@ -1,6 +1,7 @@
 summary: Check that try command works
 systems:
     - -ubuntu-core-16-*
+    # Disabled for Fedora until test case is properly ported
     - -fedora-*
 environment:
     PORT: 8081
