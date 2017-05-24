@@ -16,7 +16,9 @@ reset_classic() {
             sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
             ;;
         fedora-*)
-            sh -x ${SPREAD_PATH}/packaging/fedora-25/snap-mgmt.sh purge
+            sh -x ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
+                --snap-mount-dir=$SNAPMOUNTDIR \
+                --purge
             # The script above doesn't remove the snapd directory as this
             # is normally done by the rpm packaging system.
             rm -rf /var/lib/snapd
