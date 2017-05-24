@@ -284,9 +284,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
-	var repoAttrs *interfaces.InterfaceAttrs
+	var repoAttrs *interfaces.ConnectionAttrs
 	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-		repoAttrs, _ = repo.InterfaceAttributes(interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+		repoAttrs, _ = repo.ConnectionAttributes(interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 		return nil
 	}
 

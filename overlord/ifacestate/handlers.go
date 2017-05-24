@@ -332,7 +332,7 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func getTaskHookAttributes(task *state.Task) (attrs interfaces.InterfaceAttrs, err error) {
+func getTaskHookAttributes(task *state.Task) (attrs interfaces.ConnectionAttrs, err error) {
 	attrs.PlugAttrs = make(map[string]interface{})
 	attrs.SlotAttrs = make(map[string]interface{})
 	if err = task.Get("plug-attrs", &attrs.PlugAttrs); err == nil {
@@ -392,7 +392,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	var attributes interfaces.InterfaceAttrs
+	var attributes interfaces.ConnectionAttrs
 	// get attributes set by interface hooks and validate plug/slot
 	if attributes, err = getTaskHookAttributes(task); err == nil {
 		if slot.Interface != plug.Interface {

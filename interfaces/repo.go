@@ -29,8 +29,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// InterfaceAttrs is a container for plug and slot attributes of given connection
-type InterfaceAttrs struct {
+// ConnectionAttrs is a container for plug and slot attributes of given connection
+type ConnectionAttrs struct {
 	PlugAttrs map[string]interface{}
 	SlotAttrs map[string]interface{}
 }
@@ -50,7 +50,7 @@ type Repository struct {
 	backends  map[SecuritySystem]SecurityBackend
 	// attributes of plugs and slots; the attributes include attribute values from
 	// the yaml and provided at runtime via interface hooks.
-	attributes map[*Plug]map[*Slot]*InterfaceAttrs
+	attributes map[*Plug]map[*Slot]*ConnectionAttrs
 }
 
 // NewRepository creates an empty plug repository.
@@ -62,7 +62,7 @@ func NewRepository() *Repository {
 		slotPlugs:  make(map[*Slot]map[*Plug]bool),
 		plugSlots:  make(map[*Plug]map[*Slot]bool),
 		backends:   make(map[SecuritySystem]SecurityBackend),
-		attributes: make(map[*Plug]map[*Slot]*InterfaceAttrs),
+		attributes: make(map[*Plug]map[*Slot]*ConnectionAttrs),
 	}
 }
 
@@ -491,10 +491,10 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 
 	// Store interface attributes
 	if r.attributes[plug] == nil {
-		r.attributes[plug] = make(map[*Slot]*InterfaceAttrs)
+		r.attributes[plug] = make(map[*Slot]*ConnectionAttrs)
 	}
 
-	r.attributes[plug][slot] = &InterfaceAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
+	r.attributes[plug][slot] = &ConnectionAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
 	return nil
 }
 
@@ -540,8 +540,8 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return nil
 }
 
-// InterfaceAttributes returns interface attributes of given connection.
-func (r *Repository) InterfaceAttributes(plugRef PlugRef, slotRef SlotRef) (*InterfaceAttrs, error) {
+// ConnectionAttributes returns interface attributes of given connection.
+func (r *Repository) ConnectionAttributes(plugRef PlugRef, slotRef SlotRef) (*ConnectionAttrs, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
