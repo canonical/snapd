@@ -1,4 +1,4 @@
-summary: >
+summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
 execute: |
