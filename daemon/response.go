@@ -128,6 +128,8 @@ const (
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
@@ -179,8 +181,11 @@ func makeErrorResponder(status int) errorResponder {
 		res := &errorResult{
 			Message: fmt.Sprintf(format, v...),
 		}
-		if status == http.StatusUnauthorized {
+		switch status {
+		case http.StatusUnauthorized:
 			res.Kind = errorKindLoginRequired
+		case http.StatusNotFound:
+			res.Kind = errorKindSnapNotFound
 		}
 		return &resp{
 			Type:   ResponseTypeError,

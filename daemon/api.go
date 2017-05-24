@@ -1101,28 +1101,35 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	result := &errorResult{Message: err.Error()}
+	var kind errorKind
 
-	switch err := err.(type) {
-	case *snap.AlreadyInstalledError:
-		result.Kind = errorKindSnapAlreadyInstalled
-	case *snap.NotInstalledError:
-		result.Kind = errorKindSnapNotInstalled
-	case *snap.NoUpdateAvailableError:
-		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.SnapNeedsDevModeError:
-		result.Kind = errorKindSnapNeedsDevMode
-	case *snapstate.SnapNeedsClassicError:
-		result.Kind = errorKindSnapNeedsClassic
-	case *snapstate.SnapNeedsClassicSystemError:
-		result.Kind = errorKindSnapNeedsClassicSystem
+	switch err {
+	case store.ErrSnapNotFound:
+		return NotFound(err.Error())
+	case store.ErrNoUpdateAvailable:
+		kind = errorKindSnapNoUpdateAvailable
+	case store.ErrLocalSnap:
+		kind = errorKindSnapLocal
 	default:
-		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		switch err := err.(type) {
+		case *snap.AlreadyInstalledError:
+			kind = errorKindSnapAlreadyInstalled
+		case *snap.NotInstalledError:
+			kind = errorKindSnapNotInstalled
+		case *snapstate.SnapNeedsDevModeError:
+			kind = errorKindSnapNeedsDevMode
+		case *snapstate.SnapNeedsClassicError:
+			kind = errorKindSnapNeedsClassic
+		case *snapstate.SnapNeedsClassicSystemError:
+			kind = errorKindSnapNeedsClassicSystem
+		default:
+			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		}
 	}
 
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
-		Result: result,
+		Result: &errorResult{Message: err.Error(), Kind: kind},
 		Status: http.StatusBadRequest,
 	}, nil)
 }
