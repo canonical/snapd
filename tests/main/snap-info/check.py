@@ -73,6 +73,7 @@ check("test-snapd-tools", res[2],
     ("beta", equals, "↑"),
     ("edge", matches, verRevNotesRx("-")),
    ),
+   ("snap-id", equals, "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"),
 )
 
 check("test-snapd-devmode", res[3],
@@ -90,6 +91,7 @@ check("test-snapd-devmode", res[3],
     ("beta", matches, verRevNotesRx("devmode")),
     ("edge", matches, verRevNotesRx("devmode")),
    ),
+   ("snap-id", equals, "821MII7GAzoRnPvTEb8R51Z1s9e0XmK5"),
 )
 
 check("core", res[4],
@@ -105,6 +107,7 @@ check("core", res[4],
       # contacts is set on classic but not on Ubuntu Core where we
       # sideload "core"
       ("contact", maybe),
+      ("snap-id", maybe),
 )
 
 check("error", res[5],
@@ -120,4 +123,6 @@ check("test-snapd-python-webserver", res[6],
    ("summary", exists),
    ("description", exists),
    ("channels", exists),
+   ("snap-id", equals, "Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb"),
+
 )
