@@ -51,7 +51,7 @@ var (
 	// selfExe is the path to a symlink pointing to the current executable
 	selfExe = "/proc/self/exe"
 
-	exec = syscall.Exec
+	syscallExec = syscall.Exec
 )
 
 // distroSupportsReExec returns true if the distribution we are running on can use re-exec.
@@ -184,5 +184,5 @@ func ExecInCoreSnap() {
 
 	logger.Debugf("restarting into %q", full)
 	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(exec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, env))
 }

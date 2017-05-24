@@ -43,10 +43,10 @@ func MockSelfExe(newSelfExe string) func() {
 	}
 }
 
-func MockExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
-	oldExec := exec
-	exec = f
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	oldSyscallExec := syscallExec
+	syscallExec = f
 	return func() {
-		exec = oldExec
+		syscallExec = oldSyscallExec
 	}
 }
