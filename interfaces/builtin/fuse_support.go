@@ -19,6 +19,8 @@
 
 package builtin
 
+const fuseSupportSummary = `allows access to the FUSE file system`
+
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -71,7 +73,8 @@ deny /etc/fuse.conf r,
 
 func init() {
 	registerIface(&commonInterface{
-		name: "fuse-support",
+		name:                  "fuse-support",
+		summary:               fuseSupportSummary,
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
 		reservedForOS:         true,

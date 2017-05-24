@@ -19,6 +19,8 @@
 
 package builtin
 
+const mountObserveSummary = `allows reading mount table and quota information`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
 # Description: Can query system mount and disk quota information. This is
@@ -54,7 +56,8 @@ quotactl Q_XGETQSTAT - - -
 
 func init() {
 	registerIface(&commonInterface{
-		name: "mount-observe",
+		name:                  "mount-observe",
+		summary:               mountObserveSummary,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,
