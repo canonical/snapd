@@ -32,21 +32,23 @@
 // This directory is hard-coded in ubuntu-core-launcher.
 package seccomp
 
-// #include<linux/quota.h>
-// #include<linux/dqblk_xfs.h>
-// #include<asm-generic/ioctls.h>
-import "C"
+import "syscall"
 
+// we could use cgo here to get the flags, but because we try to avoid cgo
+// this table is added manually
 var seccompSymbolTable = map[string]int{
 	// from linux/quota.h:72
-	"Q_SYNC":      C.Q_SYNC,
-	"Q_GETFMT":    C.Q_GETFMT,
-	"Q_GETINFO":   C.Q_GETINFO,
-	"Q_SETINFO":   C.Q_SETINFO,
-	"Q_GETQUOTA":  C.Q_GETQUOTA,
-	"Q_SETQUOTA":  C.Q_SETQUOTA,
-	"Q_XGETQUOTA": C.Q_XGETQUOTA,
-	"Q_XGETQSTAT": C.Q_XGETQSTAT,
+	"Q_SYNC":     0x800001,
+	"Q_GETFMT":   0x800004,
+	"Q_GETINFO":  0x800005,
+	"Q_SETINFO":  0x800006,
+	"Q_GETQUOTA": 0x800007,
+	"Q_SETQUOTA": 0x800008,
+	// from linux/dqblk_xfs.h
+	"Q_XGETQUOTA": 0x5803,
+	"Q_XGETQSTAT": 0x5805,
 
-	"TIOCSTI": C.TIOCSTI,
+	"TIOCSTI": syscall.TIOCSTI,
+
+	"quotactl": syscall.SYS_QUOTACTL,
 }

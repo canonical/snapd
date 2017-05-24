@@ -28,3 +28,5 @@ func MockTemplate(fakeTemplate []byte) (restore func()) {
 	defaultTemplate = fakeTemplate
 	return func() { defaultTemplate = orig }
 }
+
+var SeccompSymbolTable = seccompSymbolTable

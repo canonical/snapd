@@ -20,6 +20,7 @@
 package seccomp_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -186,7 +187,7 @@ func (s *backendSuite) TestRealCanResolveS(c *C) {
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, "quotactl 8388615 - - -\n")
+	c.Check(string(data), Equals, fmt.Sprintf("%d 8388615 - - -\n", seccomp.SeccompSymbolTable["quotactl"]))
 }
 
 type combineSnippetsScenario struct {
