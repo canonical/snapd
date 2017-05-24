@@ -1138,41 +1138,36 @@ type currentSnapJson struct {
 }
 
 type metadataWrapper struct {
-	Snaps  []currentSnapJson `json:"snaps"`
-	Fields []string          `json:"fields"`
+	Snaps  []*currentSnapJson `json:"snaps"`
+	Fields []string           `json:"fields"`
 }
 
-// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
-
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]currentSnapJson, 0, len(installed))
-	for _, cs := range installed {
-		revision := cs.Revision.N
-		if !cs.Revision.Store() {
-			revision = 0
-		}
-		// the store gets confused if we send snaps without a snapid
-		// (like local ones)
-		if cs.SnapID == "" {
-			continue
-		}
-
-		channel := cs.Channel
-		if channel == "" {
-			channel = "stable"
-		}
-
-		currentSnaps = append(currentSnaps, currentSnapJson{
-			SnapID:   cs.SnapID,
-			Channel:  channel,
-			Epoch:    cs.Epoch,
-			Revision: revision,
-			// confinement purposely left empty
-		})
-		candidateMap[cs.SnapID] = cs
+func currentSnap(cs *RefreshCandidate) *currentSnapJson {
+	revision := cs.Revision.N
+	if !cs.Revision.Store() {
+		revision = 0
+	}
+	// the store gets confused if we send snaps without a snapid
+	// (like local ones)
+	if cs.SnapID == "" {
+		return nil
 	}
 
+	channel := cs.Channel
+	if channel == "" {
+		channel = "stable"
+	}
+
+	return &currentSnapJson{
+		SnapID:   cs.SnapID,
+		Channel:  channel,
+		Epoch:    cs.Epoch,
+		Revision: revision,
+		// confinement purposely left empty
+	}
+}
+
+func (s *Store) checkCandidates(currentSnaps []*currentSnapJson, user *auth.UserState) ([]snapDetails, error) {
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
@@ -1199,7 +1194,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 	var updateData searchResults
 	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1208,8 +1202,56 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, respToError(resp, "query the store for updates")
 	}
 
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
+	s.extractSuggestedCurrency(resp)
+
+	return updateData.Payload.Packages, nil
+}
+
+func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	cur := currentSnap(installed)
+	if cur == nil {
+		return nil, ErrLocalSnap
+	}
+
+	latest, err := s.checkCandidates([]*currentSnapJson{cur}, user)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(latest) != 1 {
+		return nil, ErrSnapNotFound
+	}
+
+	rsnap := latest[0]
+	rrev := snap.R(rsnap.Revision)
+	if rrev == installed.Revision || findRev(rrev, installed.Block) {
+		return nil, &snap.NoUpdateAvailableError{Snap: rsnap.Name}
+	}
+
+	return infoFromRemote(rsnap), nil
+}
+
+// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
+
+	candidateMap := map[string]*RefreshCandidate{}
+	currentSnaps := make([]*currentSnapJson, 0, len(installed))
+	for _, cs := range installed {
+		cur := currentSnap(cs)
+		if cur == nil {
+			continue
+		}
+		currentSnaps = append(currentSnaps, cur)
+		candidateMap[cs.SnapID] = cs
+	}
+
+	latest, err := s.checkCandidates(currentSnaps, user)
+	if err != nil {
+		return nil, err
+	}
+
+	toRefresh := make([]*snap.Info, 0, len(latest))
+	for _, rsnap := range latest {
 		rrev := snap.R(rsnap.Revision)
 		cand := candidateMap[rsnap.SnapID]
 
@@ -1222,12 +1264,10 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		if findRev(rrev, cand.Block) {
 			continue
 		}
-		res = append(res, infoFromRemote(rsnap))
+		toRefresh = append(toRefresh, infoFromRemote(rsnap))
 	}
 
-	s.extractSuggestedCurrency(resp)
-
-	return res, nil
+	return toRefresh, nil
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {

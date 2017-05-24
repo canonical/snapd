@@ -58,6 +58,9 @@ var (
 
 	// ErrPaymentDeclined is returned when the user's payment method was declined by the upstream payment provider.
 	ErrPaymentDeclined = errors.New("payment declined")
+
+	// ErrLocalSnap is returned when an operation that only applies to snaps that come from a store was attempted on a local snap.
+	ErrLocalSnap = errors.New("the given snap does not come from the store")
 )
 
 // ErrDownload represents a download error
