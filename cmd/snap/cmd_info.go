@@ -29,6 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -91,12 +92,27 @@ func maybePrintType(w io.Writer, t string) {
 	fmt.Fprintf(w, "type:\t%s\n", t)
 }
 
+func maybePrintID(w io.Writer, snap *client.Snap) {
+	if snap.ID != "" {
+		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
+	}
+}
+
 func tryDirect(w io.Writer, path string, verbose bool) bool {
 	path = norm(path)
 
 	snapf, err := snap.Open(path)
 	if err != nil {
 		return false
+	}
+
+	var sha3_384 string
+	if verbose && !osutil.IsDirectory(path) {
+		var err error
+		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
+		if err != nil {
+			return false
+		}
 	}
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -122,6 +138,9 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
 	maybePrintType(w, string(info.Type))
+	if sha3_384 != "" {
+		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
+	}
 
 	return true
 }
@@ -258,6 +277,7 @@ func (x *infoCmd) Execute([]string) error {
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
+		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 
 		if x.Verbose {

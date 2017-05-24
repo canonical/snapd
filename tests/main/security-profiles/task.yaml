@@ -1,15 +1,15 @@
 summary: Check security profile generation for apps and hooks.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 prepare: |
     snapbuild $TESTSLIB/snaps/basic-hooks .
 restore: |
     rm basic-hooks_1.0_all.snap
 
 execute: |
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
+
     seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
 
     echo "Security profiles are generated and loaded for apps"

@@ -27,11 +27,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// IsService returns whether app represents a daemon/service.
-func IsService(app *snap.AppInfo) bool {
-	return app.Daemon != ""
-}
-
 // AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
 func AddSnapBinaries(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
@@ -39,7 +34,7 @@ func AddSnapBinaries(s *snap.Info) error {
 	}
 
 	for _, app := range s.Apps {
-		if IsService(app) {
+		if app.IsService() {
 			continue
 		}
 
