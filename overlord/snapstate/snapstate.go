@@ -781,7 +781,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	var updates []*snap.Info
 	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
 	if infoErr != nil {
-		if _, ok := infoErr.(*snap.NoUpdateAvailableError); !ok {
+		if !snap.IsNoUpdateAvailableError(infoErr) {
 			return nil, infoErr
 		}
 		// there may be some new auto-aliases
