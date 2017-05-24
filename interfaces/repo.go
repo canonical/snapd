@@ -531,6 +531,34 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return nil
 }
 
+func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *ConnectionAttrs) error {
+	if slot.Interface != plug.Interface {
+		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+			plug.Snap.Name(), plug.Name, plug.Interface, slot.Snap.Name(), slot.Name, slot.Interface)
+	}
+	iface := r.Interface(slot.Interface)
+	if iface == nil {
+		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
+	}
+	type validatePlug interface {
+		ValidatePlug(plug *Plug, plugAttrs map[string]interface{}) error
+	}
+	type validateSlot interface {
+		ValidateSlot(slot *Slot, slotAttrs map[string]interface{}) error
+	}
+	if validate, ok := iface.(validatePlug); ok {
+		if err := validate.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
+			return err
+		}
+	}
+	if validate, ok := iface.(validateSlot); ok {
+		if err := validate.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ConnectionAttributes returns interface attributes of given connection.
 func (r *Repository) ConnectionAttributes(plugRef PlugRef, slotRef SlotRef) (*ConnectionAttrs, error) {
 	r.m.Lock()

@@ -395,31 +395,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	var attributes interfaces.ConnectionAttrs
 	// get attributes set by interface hooks and validate plug/slot
 	if attributes, err = getTaskHookAttributes(task); err == nil {
-		if slot.Interface != plug.Interface {
-			return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
-				plug.Snap.Name(), plug.Name, plug.Interface, slot.Snap.Name(), slot.Name, slot.Interface)
-		}
-		iface := m.repo.Interface(slot.Interface)
-		if iface == nil {
-			return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
-		}
-		type validatePlug interface {
-			ValidatePlug(plug *interfaces.Plug, plugAttrs map[string]interface{}) error
-		}
-		type validateSlot interface {
-			ValidateSlot(slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-		}
-		if validate, ok := iface.(validatePlug); ok {
-			if err := validate.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
-				return err
-			}
-		}
-		if validate, ok := iface.(validateSlot); ok {
-			if err := validate.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
-				return err
-			}
-		}
-	} else {
+		err = m.repo.ValidateConnection(plug, slot, &attributes)
+	}
+	if err != nil {
 		return err
 	}
 
