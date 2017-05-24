@@ -169,6 +169,7 @@ all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args_quotactl \
     snap-confine/tests/test_bad_seccomp_filter_args_socket \
     snap-confine/tests/test_bad_seccomp_filter_args_termios \
+    snap-confine/tests/test_bad_seccomp_filter_args_users_groups \
     snap-confine/tests/test_bad_seccomp_filter_length \
     snap-confine/tests/test_bad_seccomp_filter_missing_trailing_newline \
     snap-confine/tests/test_complain \
@@ -184,6 +185,7 @@ all_tests = \
     snap-confine/tests/test_restrictions_working_args_quotactl \
     snap-confine/tests/test_restrictions_working_args_socket \
     snap-confine/tests/test_restrictions_working_args_termios \
+    snap-confine/tests/test_restrictions_working_args_users_groups \
     snap-confine/tests/test_unrestricted \
     snap-confine/tests/test_unrestricted_missed \
     snap-confine/tests/test_whitelist

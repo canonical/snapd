@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -e
+
+. "${srcdir:-.}/snap-confine/tests/common.sh"
+
+get_common_syscalls >"$TMP"/tmpl
+cat >>"$TMP"/tmpl <<EOF
+# what we are testing
+EOF
+
+for i in 'u:daemo' 'u:daemonn' 'u:d@emon' 'g:daemo' 'g:daemonn' 'g:d@emon' ; do
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+
+    t=`echo "$i" | cut -d ':' -f 1`
+    id=`echo "$i" | cut -d ':' -f 2`
+    if [ "$t" = "u" ]; then
+        printf "Test bad seccomp arg filtering (chown - %s -)" "$i"
+        echo "chown - $i -" >>"$TMP"/snap.name.app
+    else
+        printf "Test bad seccomp arg filtering (chown - - %s)" "$i"
+        echo "chown - - $i" >>"$TMP"/snap.name.app
+    fi
+
+    err=`$L snap.name.app /bin/true 2>&1 | grep "Warning: could not find ${t}id for '$id'. Skipping."`
+    if [ -z "$err" ]; then
+        # No error output
+        cat "$TMP"/snap.name.app
+        FAIL
+    fi
+
+    # all good
+    PASS
+done
