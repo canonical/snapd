@@ -19,6 +19,8 @@
 
 package builtin
 
+const opticalDriveSummary = `allows read access to optical drives`
+
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
@@ -26,7 +28,8 @@ const opticalDriveConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "optical-drive",
+		name:                  "optical-drive",
+		summary:               opticalDriveSummary,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
