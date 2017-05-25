@@ -44,12 +44,12 @@ var (
 	findBootloader = partition.FindBootloader
 )
 
-// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
-type ErrNoInstallYaml struct {
+// NoInstallYamlError is emitted when InstallYamlFile does not exist.
+type NoInstallYamlError struct {
 	origErr error
 }
 
-func (e *ErrNoInstallYaml) Error() string {
+func (e *NoInstallYamlError) Error() string {
 	return fmt.Sprintf("failed to read provisioning data: %s", e.origErr)
 }
 
@@ -91,7 +91,7 @@ type InstallYaml struct {
 func parseInstallYaml(path string) (*InstallYaml, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, &ErrNoInstallYaml{origErr: err}
+		return nil, &NoInstallYamlError{origErr: err}
 	}
 
 	return parseInstallYamlData(data)
