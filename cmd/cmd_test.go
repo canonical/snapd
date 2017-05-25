@@ -42,6 +42,7 @@ type cmdSuite struct {
 	lastExecArgv0 string
 	lastExecArgv  []string
 	lastExecEnvv  []string
+	fakeroot      string
 	newCore       string
 	oldCore       string
 }
@@ -54,9 +55,10 @@ func (s *cmdSuite) SetUpTest(c *C) {
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
 	s.lastExecEnvv = nil
-	d := c.MkDir()
-	s.newCore = filepath.Join(d, "new")
-	s.oldCore = filepath.Join(d, "old")
+	s.fakeroot = c.MkDir()
+	s.newCore = filepath.Join(s.fakeroot, "new")
+	s.oldCore = filepath.Join(s.fakeroot, "old")
+	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
 func (s *cmdSuite) TearDownTest(c *C) {
@@ -101,7 +103,7 @@ func (s *cmdSuite) mockReExecingEnv() func() {
 }
 
 func (s *cmdSuite) mockReExecFor(c *C, coreDir, toolName string) func() {
-	selfExe := filepath.Join(coreDir, "proc-self-exe")
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	restore := []func(){
 		s.mockReExecingEnv(),
 		cmd.MockSelfExe(selfExe),
@@ -301,7 +303,7 @@ func (s *cmdSuite) TestExecInCoreSnapBadSelfExe(c *C) {
 	defer s.mockReExecFor(c, s.newCore, "potato")()
 
 	// missing self/exe:
-	c.Assert(os.Remove(filepath.Join(s.newCore, "proc-self-exe")), IsNil)
+	c.Assert(os.Remove(filepath.Join(s.fakeroot, "proc/self/exe")), IsNil)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
