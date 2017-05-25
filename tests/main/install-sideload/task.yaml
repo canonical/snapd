@@ -1,9 +1,5 @@
 summary: Checks for snap sideload install
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
@@ -57,11 +53,13 @@ execute: |
     expected="^test-snapd-devmode +.* +devmode"
     snap list | grep -Pq  "$expected"
 
-    echo "Sideload devmode snap succeeds with --jailmode"
-    expected="test-snapd-devmode 1.0 installed"
-    snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
-    expected="^test-snapd-devmode +.* +jailmode"
-    snap list | grep -Pq  "$expected"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Sideload devmode snap succeeds with --jailmode"
+        expected="test-snapd-devmode 1.0 installed"
+        snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+        expected="^test-snapd-devmode +.* +jailmode"
+        snap list | grep -Pq  "$expected"
+    fi
 
     echo "Sideload devmode snap fails with both --devmode and --jailmode"
     expected="cannot use devmode and jailmode flags together"
