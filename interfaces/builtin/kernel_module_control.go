@@ -19,6 +19,8 @@
 
 package builtin
 
+const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
+
 const kernelModuleControlConnectedPlugAppArmor = `
 # Description: Allow insertion, removal and querying of modules.
 
@@ -47,7 +49,8 @@ delete_module
 
 func init() {
 	registerIface(&commonInterface{
-		name: "kernel-module-control",
+		name:                  "kernel-module-control",
+		summary:               kernelModuleControlSummary,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,

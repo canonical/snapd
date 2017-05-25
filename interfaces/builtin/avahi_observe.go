@@ -19,6 +19,8 @@
 
 package builtin
 
+const avahiObserveSummary = `allows discovering local domains, hostnames and services`
+
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain browsing, service browsing and service resolving
 
@@ -113,7 +115,8 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "avahi-observe",
+		name:                  "avahi-observe",
+		summary:               avahiObserveSummary,
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const dockerSummary = `allows access to Docker socket`
+
 const dockerConnectedPlugAppArmor = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
@@ -47,6 +49,12 @@ type dockerInterface struct{}
 
 func (iface *dockerInterface) Name() string {
 	return "docker"
+}
+
+func (iface *dockerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: dockerSummary,
+	}
 }
 
 func (iface *dockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

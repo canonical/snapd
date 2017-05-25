@@ -19,6 +19,8 @@
 
 package builtin
 
+const tpmSummary = `allows access to the Trusted Platform Module device`
+
 const tpmConnectedPlugAppArmor = `
 # Description: for those who need to talk to the system TPM chip over /dev/tpm0
 
@@ -27,7 +29,8 @@ const tpmConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "tpm",
+		name:                  "tpm",
+		summary:               tpmSummary,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
