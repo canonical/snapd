@@ -26,7 +26,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -36,19 +35,21 @@ var (
 
 	opts   struct{}
 	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-
-	shortHelp = i18n.G("Repair an Ubuntu Core system")
-	longHelp  = i18n.G(`
-snap-repair is a tool to fetch and run repair-assertions
-which are used to do emergency repairs on Ubuntu Core systems.
-`)
-
-	errOnClassic = fmt.Errorf("cannot use snap-repair on a classic system")
 )
+
+const (
+	shortHelp = "Repair an Ubuntu Core system"
+	longHelp  = `
+snap-repair is a tool to fetch and run repair assertions
+which are used to do emergency repairs on the device.
+`
+)
+
+var errOnClassic = fmt.Errorf("cannot use snap-repair on a classic system")
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, "cannot snap-repair: %s\n", err)
+		fmt.Fprintf(Stderr, "error: %v\n", err)
 		if err != errOnClassic {
 			os.Exit(1)
 		}

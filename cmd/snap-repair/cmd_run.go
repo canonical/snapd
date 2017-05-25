@@ -21,13 +21,13 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/snapcore/snapd/i18n"
 )
 
 func init() {
-	short := i18n.G("Run repair-assertions that need to run")
-	long := i18n.G("")
+	const (
+		short = "Fetch and run repair assertions as necessary for the device"
+		long  = ""
+	)
 
 	if _, err := parser.AddCommand("run", short, long, &cmdRun{}); err != nil {
 		panic(err)
