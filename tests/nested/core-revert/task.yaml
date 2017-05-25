@@ -14,10 +14,8 @@ execute: |
     . $TESTSLIB/nested.sh
 
     cd $SPREAD_PATH
-    execute_remote "sudo snap install bluez"
-    execute_remote "sudo snap connect bluez:bluetooth-control"
-    execute_remote "sudo snap connect bluez:network-control"
-    execute_remote "sudo snap install network-manager --devmode"
+    execute_remote "sudo snap install network-manager"
+    execute_remote "snap aliases" | MATCH "nmcli"
 
     # configure network-manager to take over the connection control on next reboot
     execute_remote "sudo mv /etc/netplan/00-snapd-config.yaml /etc/netplan/00-snapd-config.yaml.back"
@@ -35,11 +33,15 @@ execute: |
     execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
     # sanity check, no refresh should be done here but the command shouldn't fail
     execute_remote "sudo snap refresh"
+
+    execute_remote "snap aliases" | MATCH "nmcli"
+
     execute_remote "sudo snap revert core" || true
 
     wait_for_ssh
 
     while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+    execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
     # this currently fails, refresh from the old version conflicts with aliases
