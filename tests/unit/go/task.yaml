@@ -24,5 +24,7 @@ execute: |
                                                                          TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG \
                                                                          TRAVIS_TAG=$TRAVIS_TAG \
                                                                          COVERMODE=$COVERMODE \
+                                                                         TRAVIS=true \
+                                                                         CI=true \
                                                                          GOPATH=/tmp/static-unit-tests \
                                                                          ./run-checks --unit" test
