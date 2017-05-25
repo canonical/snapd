@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const hardwareRandomObserveSummary = `allows reading from hardware random number generator`
+
 const hardwareRandomObserveConnectedPlugAppArmor = `
 # Description: allow direct read-only access to the hardware random number
 # generator device. In addition allow observing the available and
@@ -45,6 +47,12 @@ type hardwareRandomObserveInterface struct{}
 // Getter for the name of the physical-memory-control interface
 func (iface *hardwareRandomObserveInterface) Name() string {
 	return "hardware-random-observe"
+}
+
+func (iface *hardwareRandomObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: hardwareRandomObserveSummary,
+	}
 }
 
 // Check validity of the defined slot

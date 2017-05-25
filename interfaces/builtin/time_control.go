@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const timeControlSummary = `allows setting system date and time`
+
 const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
@@ -96,6 +98,12 @@ type timeControlInterface struct{}
 // Getter for the name of the rtc interface
 func (iface *timeControlInterface) Name() string {
 	return "time-control"
+}
+
+func (iface *timeControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: timeControlSummary,
+	}
 }
 
 func (iface *timeControlInterface) String() string {
