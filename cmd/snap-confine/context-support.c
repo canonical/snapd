@@ -36,12 +36,9 @@
  **/
 static const char *sc_context_dir = SC_CONTEXT_DIR;
 
-typedef char sc_context_cookie[45];
-
 char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 {
 	char context_path[PATH_MAX];
-	char *context_val = NULL;
 	struct sc_error *err = NULL;
 
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
@@ -53,32 +50,23 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "cannot open context file %s, SNAP_CONTEXT will not be set",
 				  context_path);
-		goto out;
+    sc_error_forward(errorp, err);
+    return NULL;
 	}
-	// context is a 32 bytes, base64-encoding makes it 44.
-	context_val = calloc(1, sizeof(sc_context_cookie));
+
+	char context_val[255];
 	if (context_val == NULL) {
 		die("failed to allocate memory for snap context");
 	}
-	if (read(fd, context_val, sizeof(sc_context_cookie) - 1) < 0) {
-		free(context_val);
-		context_val = NULL;
+  int n = read(fd, context_val, sizeof(context_val) - 1);
+  if (n < 0) {
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "failed to read context file %s",
 				  context_path);
-		goto out;
+    sc_error_forward(errorp, err);
+    return NULL;
 	}
-
- out:
-	sc_error_forward(errorp, err);
-	return context_val;
-}
-
-void sc_maybe_set_context_environment(const char *context)
-{
-	if (context != NULL) {
-		// Overwrite context env value.
-		setenv("SNAP_CONTEXT", context, 1);
-	}
+  context_val[n] = 0;
+	return strdup(context_val);
 }

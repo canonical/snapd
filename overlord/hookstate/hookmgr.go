@@ -143,12 +143,14 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *HookManager) snapContext(contextID string) (context *Context, err error) {
+func (m *HookManager) ephemeralContext(contextID string) (context *Context, err error) {
 	var contexts map[string]string
+	m.state.Lock()
+	defer m.state.Unlock()
 	err = m.state.Get("snap-contexts", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return nil, fmt.Errorf("failed to get snap contexts: %v", err)
+			return nil, fmt.Errorf("cannot get snap contexts: %v", err)
 		}
 	}
 	if snapName, ok := contexts[contextID]; ok {
@@ -167,13 +169,10 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 	var err error
 	context, ok := m.contexts[contextID]
 	if !ok {
-		m.state.Lock()
-		context, err = m.snapContext(contextID)
-		m.state.Unlock()
+		context, err = m.ephemeralContext(contextID)
 		if err != nil {
-			return nil, fmt.Errorf("request performed under an unknown context (%q)", contextID)
+			return nil, err
 		}
-		return context, nil
 	}
 
 	return context, nil

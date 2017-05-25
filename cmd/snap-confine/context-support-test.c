@@ -62,45 +62,6 @@ static void create_dumy_context_file(const char *snap_name,
 	fclose(f);
 }
 
-static void test_maybe_set_context_environment__null()
-{
-	if (g_test_subprocess()) {
-		setenv("SNAP_CONTEXT", "bar", 1);
-		sc_maybe_set_context_environment(NULL);
-		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "bar");
-		return;
-	}
-
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_passed();
-}
-
-static void test_maybe_set_context_environment__overwrite()
-{
-	if (g_test_subprocess()) {
-		setenv("SNAP_CONTEXT", "bar", 1);
-		sc_maybe_set_context_environment("foo");
-		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
-		return;
-	}
-
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_passed();
-}
-
-static void test_maybe_set_context_environment__typical()
-{
-	if (g_test_subprocess()) {
-		setenv("SNAP_CONTEXT", "bar", 1);
-		sc_maybe_set_context_environment("foo");
-		g_assert_cmpstr(getenv("SNAP_CONTEXT"), ==, "foo");
-		return;
-	}
-
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_passed();
-}
-
 static void test_context_get_from_snapd__successful()
 {
 	struct sc_error *err;
@@ -134,13 +95,6 @@ static void test_context_get_from_snapd__nofile()
 
 static void __attribute__ ((constructor)) init()
 {
-	g_test_add_func
-	    ("/snap-context/set_context_environment_maybe/null_context",
-	     test_maybe_set_context_environment__null);
-	g_test_add_func("/snap-context/set_context_environment_maybe/overwrite",
-			test_maybe_set_context_environment__overwrite);
-	g_test_add_func("/snap-context/set_context_environment_maybe/typical",
-			test_maybe_set_context_environment__typical);
 	g_test_add_func("/snap-context/context_get_from_snapd/successful",
 			test_context_get_from_snapd__successful);
 	g_test_add_func("/snap-context/context_get_from_snapd/no_context_file",
