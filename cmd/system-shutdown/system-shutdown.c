@@ -63,7 +63,8 @@ int main(int argc, char *argv[])
 		die("cannot create directory /writable");
 	}
 	// We are reading a file from /run and need to do this before unmounting
-	sc_read_reboot_arg(reboot_arg, sizeof reboot_arg);
+	if (sc_read_reboot_arg(reboot_arg, sizeof reboot_arg) < 0)
+		kmsg("no reboot parameter");
 
 	if (umount_all()) {
 		kmsg("- found no hard-to-unmount writable partition.");
@@ -113,7 +114,7 @@ int main(int argc, char *argv[])
 		ret = reboot(cmd);
 
 	if (ret == -1)
-		kmsg("Error calling reboot! : %s (%d)", strerror(errno), errno);
+		kmsg("cannot reboot the system: %s", strerror(errno));
 
 	return 0;
 }
