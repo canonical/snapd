@@ -3236,9 +3236,6 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 					},
 				},
 			},
-			"meta-data": map[string]interface{}{
-				"test": map[string]interface{}{},
-			},
 		},
 		"status":      "OK",
 		"status-code": 200.0,

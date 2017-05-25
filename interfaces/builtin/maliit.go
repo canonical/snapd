@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const maliitSummary = `allows operating as the Maliit service`
+
 const maliitPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
 # Communication with maliit happens in the following stages:
@@ -117,6 +119,12 @@ type maliitInterface struct{}
 
 func (iface *maliitInterface) Name() string {
 	return "maliit"
+}
+
+func (iface *maliitInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: maliitSummary,
+	}
 }
 
 func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

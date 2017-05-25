@@ -33,6 +33,10 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
     PATH="$PATH:$GOPATH/bin"
 
+(note `$GOPATH` can actually point to multiple locations, like `$PATH`, so if
+your `$GOPATH` is more complex than a single entry you'll need to adjust the
+above).
+
 ### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to use the `go get` command.

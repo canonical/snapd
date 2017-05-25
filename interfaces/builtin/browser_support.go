@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
+
 const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
@@ -240,6 +242,12 @@ type browserSupportInterface struct{}
 
 func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
+}
+
+func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: browserSupportSummary,
+	}
 }
 
 func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {

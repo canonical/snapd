@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const dockerSupportSummary = `allows operating as the Docker daemon`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -524,6 +526,12 @@ type dockerSupportInterface struct{}
 
 func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
+}
+
+func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: dockerSupportSummary,
+	}
 }
 
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
