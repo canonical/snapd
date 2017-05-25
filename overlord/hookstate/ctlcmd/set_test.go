@@ -237,41 +237,6 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 	c.Check(attrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
 }
 
-func (s *setAttrSuite) TestSetProtectedAttributesCannotBeSet(c *C) {
-	_, _, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "lorem=z"})
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `cannot set attribute: attribute "lorem" cannot be overwritten`)
-
-	_, _, err = ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested=z"})
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `cannot set attribute: attribute "nested" cannot be overwritten`)
-
-	_, _, err = ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested.x=123"})
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `cannot set attribute: attribute "nested.x" cannot be overwritten`)
-}
-
-func (s *setAttrSuite) TestSetNewAttributeInProtectedMapCanBeSet(c *C) {
-	_, _, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested.new=w"})
-	c.Assert(err, IsNil)
-
-	// doing it again should work too
-	_, _, err = ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested.new=w"})
-	c.Assert(err, IsNil)
-
-	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
-	c.Assert(err, IsNil)
-
-	st := s.mockPlugHookContext.State()
-	st.Lock()
-	defer st.Unlock()
-
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-attrs", &attrs)
-	c.Assert(err, IsNil)
-	c.Check(attrs["nested"], DeepEquals, map[string]interface{}{"x": "y", "new": "w"})
-}
-
 func (s *setAttrSuite) TestSetSlotAttributesInSlotHook(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"set", ":bslot", "foo=bar"})
 	c.Check(err, IsNil)
