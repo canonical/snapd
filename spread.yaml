@@ -379,6 +379,11 @@ suites:
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
         systems: [-ubuntu-core-16-*]
+        environment:
+            # env vars required for coverage reporting from a spread task
+            TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
+            COVERMODE: "$(HOST: echo $COVERMODE)"
+
         prepare: |
             . $TESTSLIB/prepare.sh
             prepare_classic
