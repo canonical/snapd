@@ -87,6 +87,9 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
+	// to modify them but all attributes will be check against assertions after the hooks are run.
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}

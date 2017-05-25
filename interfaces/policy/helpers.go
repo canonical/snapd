@@ -81,15 +81,26 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 }
 
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.plugInitialAttrs(), connc); err != nil {
 		return err
 	}
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
+
+	if err := cstrs.PlugAttributes.Check(connc.plugHookAttrs(), connc); err != nil {
 		return err
 	}
+
+	if err := cstrs.SlotAttributes.Check(connc.slotInitialAttrs(), connc); err != nil {
+		return err
+	}
+
+	if err := cstrs.SlotAttributes.Check(connc.slotHookAttrs(), connc); err != nil {
+		return err
+	}
+
 	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
+
 	if err := checkID("snap id", connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
 		return err
 	}
@@ -121,11 +132,19 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Pl
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.SlotConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.plugInitialAttrs(), connc); err != nil {
 		return err
 	}
 
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.plugHookAttrs(), connc); err != nil {
+		return err
+	}
+
+	if err := cstrs.SlotAttributes.Check(connc.slotInitialAttrs(), connc); err != nil {
+		return err
+	}
+
+	if err := cstrs.SlotAttributes.Check(connc.slotHookAttrs(), connc); err != nil {
 		return err
 	}
 

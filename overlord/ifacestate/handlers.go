@@ -405,10 +405,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	ic := policy.ConnectCandidate{
 		Plug:                plug.PlugInfo,
 		PlugSnapDeclaration: plugDecl,
-		PlugAttrs:           attributes.PlugAttrs,
+		PlugHookAttrs:       attributes.PlugAttrs,
 		Slot:                slot.SlotInfo,
 		SlotSnapDeclaration: slotDecl,
-		SlotAttrs:           attributes.SlotAttrs,
+		SlotHookAttrs:       attributes.SlotAttrs,
 		BaseDeclaration:     baseDecl,
 	}
 

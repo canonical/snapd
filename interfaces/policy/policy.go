@@ -118,27 +118,37 @@ func (ic *InstallCandidate) Check() error {
 type ConnectCandidate struct {
 	Plug                *snap.PlugInfo
 	PlugSnapDeclaration *asserts.SnapDeclaration
-	PlugAttrs           map[string]interface{}
+	// attributes modified by interface hooks; this is a superset of attributes provided by snap yaml
+	PlugHookAttrs map[string]interface{}
 
 	Slot                *snap.SlotInfo
 	SlotSnapDeclaration *asserts.SnapDeclaration
-	SlotAttrs           map[string]interface{}
+	// attributes modified by interface hooks; this is a superset of attributes provided by snap yaml
+	SlotHookAttrs map[string]interface{}
 
 	BaseDeclaration *asserts.BaseDeclaration
 }
 
-func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	if connc.PlugAttrs != nil {
-		return connc.PlugAttrs
-	}
+func (connc *ConnectCandidate) plugInitialAttrs() map[string]interface{} {
 	return connc.Plug.Attrs
 }
 
-func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	if connc.SlotAttrs != nil {
-		return connc.SlotAttrs
+func (connc *ConnectCandidate) plugHookAttrs() map[string]interface{} {
+	if connc.PlugHookAttrs == nil {
+		return connc.plugInitialAttrs()
 	}
+	return connc.PlugHookAttrs
+}
+
+func (connc *ConnectCandidate) slotInitialAttrs() map[string]interface{} {
 	return connc.Slot.Attrs
+}
+
+func (connc *ConnectCandidate) slotHookAttrs() map[string]interface{} {
+	if connc.SlotHookAttrs == nil {
+		return connc.slotInitialAttrs()
+	}
+	return connc.SlotHookAttrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
