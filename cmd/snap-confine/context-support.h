@@ -32,11 +32,4 @@
 char *sc_context_get_from_snapd(const char *snap_name,
 				struct sc_error **errorp);
 
-/**
- * Set the snap context environment variable.
- *
- * Set the SNAP_CONTEXT environment variable with the value of context.
- **/
-void sc_maybe_set_context_environment(const char *context);
-
 #endif

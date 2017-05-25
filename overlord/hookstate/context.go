@@ -31,7 +31,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// Context represents the context under which a given hook is running.
+// Context represents the context under which the snap is calling back into snapd.
+// It is associated with a task when the callback is happening from within a hook,
+// or otherwise considered an ephemeral context in that its associated data will
+// be discarded once that individual call is finished.
 type Context struct {
 	task    *state.Task
 	state   *state.State
@@ -46,8 +49,10 @@ type Context struct {
 	mutexChecker int32
 }
 
-// NewContext returns a new Context.
-// The task is optional, if nil then context becomes ephemeral. If contextID is empty, then a random ID will be generated.
+// NewContext returns a new context associated with the provided task or
+// an ephemeral context if task is nil.
+//
+// A random ID is generated if contextID is empty.
 func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
 	if contextID == "" {
 		contextID = strutil.MakeRandomString(44)
@@ -97,7 +102,7 @@ func (c *Context) Handler() Handler {
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
-	c.State().Lock()
+	c.state.Lock()
 	atomic.AddInt32(&c.mutexChecker, 1)
 }
 
@@ -128,9 +133,7 @@ func (c *Context) Set(key string, value interface{}) {
 
 	var data map[string]*json.RawMessage
 	if c.IsEphemeral() {
-		if val, ok := c.cache["ephemeral-context"]; ok {
-			data = val.(map[string]*json.RawMessage)
-		}
+		data, _ = c.cache["ephemeral-context"].(map[string]*json.RawMessage)
 	} else {
 		if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
 			panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
@@ -162,9 +165,7 @@ func (c *Context) Get(key string, value interface{}) error {
 
 	var data map[string]*json.RawMessage
 	if c.IsEphemeral() {
-		if val, ok := c.cache["ephemeral-context"]; ok {
-			data = val.(map[string]*json.RawMessage)
-		}
+		data, _ = c.cache["ephemeral-context"].(map[string]*json.RawMessage)
 		if data == nil {
 			return state.ErrNoState
 		}
@@ -236,7 +237,6 @@ func (c *Context) Done() error {
 	return firstErr
 }
 
-// IsEphemeral returns true if the context is an ephemeral context (only snap contexts are at the moment).
 func (c *Context) IsEphemeral() bool {
 	return c.task == nil
 }

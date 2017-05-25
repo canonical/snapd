@@ -219,7 +219,7 @@ int main(int argc, char **argv)
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
-	sc_maybe_set_context_environment(snap_context);
+  setenv("SNAP_CONTEXT", snap_context, 1);
 	// Permanently drop if not root
 	if (geteuid() == 0) {
 		// Note that we do not call setgroups() here because its ok
