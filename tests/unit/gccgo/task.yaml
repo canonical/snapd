@@ -12,7 +12,7 @@ execute: |
     echo Ensure we really build with gccgo
     go version|MATCH gccgo
     echo Build the deb with gccgo and run the tests as part of the build
-    su - -c "cd $GOPATH/src/github.com/snapcore/snapd && dpkg-buildpackage -tc -Zgzip" test
+    su - -c "cd $GOHOME/src/github.com/snapcore/snapd && dpkg-buildpackage -tc -Zgzip" test
 
 # Tests run during package build take a while.
 warn-timeout: 8m

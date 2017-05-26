@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const lxdSupportSummary = `allows operating as the LXD service`
+
 const lxdSupportConnectedPlugAppArmor = `
 # Description: Can change to any apparmor profile (including unconfined) thus
 # giving access to all resources of the system so LXD may manage what to give
@@ -43,6 +45,12 @@ type lxdSupportInterface struct{}
 
 func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
+}
+
+func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: lxdSupportSummary,
+	}
 }
 
 func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

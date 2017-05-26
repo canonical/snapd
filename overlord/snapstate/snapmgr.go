@@ -506,8 +506,13 @@ func (m *SnapManager) ensureRefreshes() error {
 	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
-		delta := timeutil.Next(refreshSchedule, lastRefresh)
-		m.nextRefresh = time.Now().Add(delta)
+		if !lastRefresh.IsZero() {
+			delta := timeutil.Next(refreshSchedule, lastRefresh)
+			m.nextRefresh = time.Now().Add(delta)
+		} else {
+			// immediate
+			m.nextRefresh = time.Now()
+		}
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
 
@@ -519,7 +524,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// do refresh attempt (if needed)
-	if m.nextRefresh.Before(time.Now()) {
+	if !m.nextRefresh.After(time.Now()) {
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will

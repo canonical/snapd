@@ -21,7 +21,7 @@ package mount_test
 
 import (
 	"os"
-	"os/exec"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -41,7 +41,6 @@ func (s *lockSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// Test that opening and closing a lock works as expected.
 func (s *lockSuite) TestOpenLock(c *C) {
 	lock, err := mount.OpenLock("name")
 	c.Assert(err, IsNil)
@@ -49,68 +48,6 @@ func (s *lockSuite) TestOpenLock(c *C) {
 
 	_, err = os.Stat(lock.Path())
 	c.Assert(err, IsNil)
-}
 
-// Test that Lock and Unlock work as expected.
-func (s *lockSuite) TestLockUnlockWorks(c *C) {
-	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
-		c.Skip("Cannot use this under travis")
-		return
-	}
-
-	lock, err := mount.OpenLock("name")
-	c.Assert(err, IsNil)
-	defer lock.Close()
-
-	// Run a flock command in another process, it should succeed because it can
-	// lock the lock as we didn't do it yet.
-	cmd := exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
-	c.Assert(cmd.Run(), IsNil)
-
-	// Lock the lock.
-	c.Assert(lock.Lock(), IsNil)
-
-	// Run a flock command in another process, it should fail with the distinct
-	// error code because we hold the lock already and we asked it not to block.
-	cmd = exec.Command("flock", "--exclusive", "--nonblock",
-		"--conflict-exit-code", "2", lock.Path(), "true")
-	c.Assert(cmd.Run(), ErrorMatches, "exit status 2")
-
-	// Unlock the lock.
-	c.Assert(lock.Unlock(), IsNil)
-
-	// Run a flock command in another process, it should succeed because it can
-	// grab the lock again now.
-	cmd = exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
-	c.Assert(cmd.Run(), IsNil)
-}
-
-// Test that locking a locked lock does nothing.
-func (s *lockSuite) TestLockLocked(c *C) {
-	lock, err := mount.OpenLock("name")
-	c.Assert(err, IsNil)
-	defer lock.Close()
-
-	// NOTE: technically this replaces the lock type but we only use LOCK_EX.
-	c.Assert(lock.Lock(), IsNil)
-	c.Assert(lock.Lock(), IsNil)
-}
-
-// Test that unlocking an unlocked lock does nothing.
-func (s *lockSuite) TestUnlockUnlocked(c *C) {
-	lock, err := mount.OpenLock("name")
-	c.Assert(err, IsNil)
-	defer lock.Close()
-
-	c.Assert(lock.Unlock(), IsNil)
-}
-
-// Test that locking or unlocking a closed lock fails.
-func (s *lockSuite) TestUsingClosedLock(c *C) {
-	lock, err := mount.OpenLock("name")
-	c.Assert(err, IsNil)
-	lock.Close()
-
-	c.Assert(lock.Lock(), ErrorMatches, "bad file descriptor")
-	c.Assert(lock.Unlock(), ErrorMatches, "bad file descriptor")
+	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir))
 }

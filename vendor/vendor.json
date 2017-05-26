@@ -43,18 +43,6 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
-			"checksumSHA1": "c1zgLuM2b+2vguxwz+XVMXPnXOY=",
-			"path": "github.com/mvo5/uboot-go",
-			"revision": "256976a42706934b027729183e3a5af2ae646502",
-			"revisionTime": "2017-05-16T08:01:36Z"
-		},
-		{
-			"checksumSHA1": "tZT9rWgTJ61Y5VdqSCF9B3404mU=",
-			"path": "github.com/mvo5/uboot-go/uenv",
-			"revision": "256976a42706934b027729183e3a5af2ae646502",
-			"revisionTime": "2017-05-16T08:01:36Z"
-		},
-		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
 			"path": "github.com/ojii/gettext.go",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",

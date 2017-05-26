@@ -19,6 +19,8 @@
 
 package builtin
 
+const libvirtSummary = `allows access to libvirt service`
+
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
@@ -32,7 +34,8 @@ accept4
 
 func init() {
 	registerIface(&commonInterface{
-		name: "libvirt",
+		name:                  "libvirt",
+		summary:               libvirtSummary,
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
