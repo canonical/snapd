@@ -235,7 +235,6 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACKD"
-dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
         # ensure any new timer units are available
         cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACKD/etc/systemd/system/timers.target.wants"
 
