@@ -1129,7 +1129,7 @@ type RefreshCandidate struct {
 }
 
 // the exact bits that we need to send to the store
-type currentSnapJson struct {
+type currentSnapJSON struct {
 	SnapID      string `json:"snap_id"`
 	Channel     string `json:"channel"`
 	Revision    int    `json:"revision,omitempty"`
@@ -1138,11 +1138,11 @@ type currentSnapJson struct {
 }
 
 type metadataWrapper struct {
-	Snaps  []*currentSnapJson `json:"snaps"`
+	Snaps  []*currentSnapJSON `json:"snaps"`
 	Fields []string           `json:"fields"`
 }
 
-func currentSnap(cs *RefreshCandidate) *currentSnapJson {
+func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	revision := cs.Revision.N
 	if !cs.Revision.Store() {
 		revision = 0
@@ -1158,7 +1158,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJson {
 		channel = "stable"
 	}
 
-	return &currentSnapJson{
+	return &currentSnapJSON{
 		SnapID:   cs.SnapID,
 		Channel:  channel,
 		Epoch:    cs.Epoch,
@@ -1167,7 +1167,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJson {
 	}
 }
 
-func (s *Store) checkCandidates(currentSnaps []*currentSnapJson, user *auth.UserState) ([]snapDetails, error) {
+func (s *Store) checkCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]snapDetails, error) {
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
@@ -1213,7 +1213,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 		return nil, ErrLocalSnap
 	}
 
-	latest, err := s.checkCandidates([]*currentSnapJson{cur}, user)
+	latest, err := s.checkCandidates([]*currentSnapJSON{cur}, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1235,7 +1235,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
 
 	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]*currentSnapJson, 0, len(installed))
+	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
 	for _, cs := range installed {
 		cur := currentSnap(cs)
 		if cur == nil {
