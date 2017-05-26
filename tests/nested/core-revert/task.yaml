@@ -3,12 +3,33 @@ summary: core revert test
 systems: [ubuntu-16.04-64]
 
 prepare: |
+    apt install -y --no-install-recommends kpartx
+
     . $TESTSLIB/nested.sh
     create_nested_core_vm
 
 restore: |
+    apt autoremove -y --purge kpartx
+
     . $TESTSLIB/nested.sh
     destroy_nested_core_vm
+
+debug: |
+    systemctl stop nested-vm || true
+    if [ -f /tmp/workdir/ubuntu-core.img ]; then
+        loops=$(kpartx -avs /tmp/work-dir/ubuntu-core.img | cut -d' ' -f 3)
+
+        part=$(echo "$loops" | tail -1)
+
+        tmp=$(mktemp -d)
+        mount /dev/mapper/$part $tmp
+
+        grep "hsearch_r failed for.* No such process"
+
+        umount $tmp
+        rm -rf $tmp
+        kpartx -ds /tmp/workdir/ubuntu-core.img
+    fi
 
 execute: |
     . $TESTSLIB/nested.sh
