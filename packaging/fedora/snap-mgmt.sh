@@ -8,7 +8,7 @@
 set -e
 
 SNAP_MOUNT_DIR="/var/lib/snapd/snap"
-SNAP_UNIT_PREFIX="var-lib-snapd-snap"
+SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
@@ -21,7 +21,7 @@ systemctl_stop() {
 if [ "$1" = "purge" ]; then
     # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
     if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-        umount -l ${SNAP_MOUNT_DIR} || true
+        umount -l "${SNAP_MOUNT_DIR}" || true
     fi
 
     mounts=$(systemctl list-unit-files --full | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
@@ -43,16 +43,16 @@ if [ "$1" = "purge" ]; then
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # aliases
-            if [ -d ${SNAP_MOUNT_DIR}/bin ]; then
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap" -delete
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap.*" -delete
+            if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
             fi
             # generated binaries
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
             # snap mount dir
             umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
+            rm -rf "${SNAP_MOUNT_DIR}/$snap/$rev"
             rm -f "${SNAP_MOUNT_DIR}/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
@@ -83,10 +83,11 @@ if [ "$1" = "purge" ]; then
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf "${SNAP_MOUNT_DIR:?}"/*
+    rm -rf "${SNAP_MOUNT_DIR}"/*
     rm -rf /var/snap/*
 
     echo "Removing leftover snap shared state data"
+    rm -rf /var/lib/snapd/desktop/applications/*
     rm -rf /var/lib/snapd/seccomp/profiles/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
