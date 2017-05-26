@@ -1103,7 +1103,6 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 			SlotInfo:    s.slot.SlotInfo,
 			Connections: []PlugRef{{Snap: s.plug.Snap.Name(), Name: s.plug.Name}},
 		}},
-		MetaData: map[string]MetaData{"interface": {}},
 	})
 }
 
@@ -1183,9 +1182,8 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 	err := s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
-		Plugs:    []*Plug{{PlugInfo: s.plug.PlugInfo}},
-		Slots:    []*Slot{{SlotInfo: s.slot.SlotInfo}},
-		MetaData: map[string]MetaData{"interface": {}},
+		Plugs: []*Plug{{PlugInfo: s.plug.PlugInfo}},
+		Slots: []*Slot{{SlotInfo: s.slot.SlotInfo}},
 	})
 }
 
@@ -1260,9 +1258,8 @@ func (s *RepositorySuite) TestDisconnectAll(c *C) {
 	conns := []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}}
 	s.testRepo.DisconnectAll(conns)
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
-		Plugs:    []*Plug{{PlugInfo: s.plug.PlugInfo}},
-		Slots:    []*Slot{{SlotInfo: s.slot.SlotInfo}},
-		MetaData: map[string]MetaData{"interface": {}},
+		Plugs: []*Plug{{PlugInfo: s.plug.PlugInfo}},
+		Slots: []*Slot{{SlotInfo: s.slot.SlotInfo}},
 	})
 }
 
@@ -1287,16 +1284,14 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 			SlotInfo:    s.slot.SlotInfo,
 			Connections: []PlugRef{{Snap: s.plug.Snap.Name(), Name: s.plug.Name}},
 		}},
-		MetaData: map[string]MetaData{"interface": {}},
 	})
 	// After disconnecting the connections become empty
 	err = s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
 	ifaces = s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
-		Plugs:    []*Plug{{PlugInfo: s.plug.PlugInfo}},
-		Slots:    []*Slot{{SlotInfo: s.slot.SlotInfo}},
-		MetaData: map[string]MetaData{"interface": {}},
+		Plugs: []*Plug{{PlugInfo: s.plug.PlugInfo}},
+		Slots: []*Slot{{SlotInfo: s.slot.SlotInfo}},
 	})
 }
 

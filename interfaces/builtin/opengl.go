@@ -19,6 +19,8 @@
 
 package builtin
 
+const openglSummary = `allows access to OpenGL stack`
+
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
 
@@ -56,7 +58,8 @@ const openglConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "opengl",
+		name:                  "opengl",
+		summary:               openglSummary,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
