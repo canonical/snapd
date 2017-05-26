@@ -221,9 +221,8 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
-	oldSnapdDebug := os.Getenv("SNAPD_DEBUG")
 	os.Setenv("SNAPD_DEBUG", "1")
-	t.AddCleanup(func() { os.Setenv("SNAPD_DEBUG", oldSnapdDebug) })
+	t.AddCleanup(func() { os.Unsetenv("SNAPD_DEBUG") })
 
 	t.logbuf = bytes.NewBuffer(nil)
 	l, err := logger.New(t.logbuf, logger.DefaultFlags)
