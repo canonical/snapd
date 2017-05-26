@@ -69,6 +69,15 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+	retry.Exponential{
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
@@ -632,64 +641,29 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
-		result := success
-		if !ok {
-			result = failure
-		}
-		if result != nil {
-			return json.NewDecoder(resp.Body).Decode(result)
-		}
+func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
+	ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+	// always decode on success; decode failures only if body is not empty
+	if !ok && resp.ContentLength == 0 {
 		return nil
-	})
+	}
+	result := success
+	if !ok {
+		result = failure
+	}
+	if result != nil {
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	return nil
 }
 
-// retryRequest calls doRequest and decodes the response in a retry loop.
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
-	var attempt *retry.Attempt
-	startTime := time.Now()
-	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
-		if cancelled(ctx) {
-			return nil, ctx.Err()
-		}
-
-		resp, err = s.doRequest(ctx, client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		} else {
-			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
-			// always decode on success; decode failures only if body is not empty
-			if !ok && resp.ContentLength == 0 {
-				resp.Body.Close()
-				break
-			}
-			err = decode(ok, resp)
-			resp.Body.Close()
-			if err != nil {
-				if shouldRetryError(attempt, err) {
-					continue
-				} else {
-					return nil, err
-				}
-			}
-		}
-		// break out from retry loop
-		break
-	}
-	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
-
-	return resp, err
+// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
+func (s *Store) retryRequestDecodeJSON(reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, success, failure)
+	}, defaultRetryStrategy)
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -877,7 +851,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &result, nil)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
@@ -959,7 +933,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote snapDetails
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1052,7 +1026,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,7 +1069,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1198,7 +1172,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &updateData, nil)
 
 	if err != nil {
 		return nil, err
@@ -1337,7 +1311,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			Method: "GET",
 			URL:    storeURL,
 		}
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
+		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
@@ -1368,13 +1342,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				continue
 			}
 			break
 		}
 
-		if shouldRetryHttpResponse(attempt, resp) {
+		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
 		}
@@ -1398,7 +1372,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1562,9 +1536,12 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	}
 
 	var asrt asserts.Assertion
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
+
+	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
 		var e error
-		if ok {
+		if resp.StatusCode == 200 {
 			// decode assertion
 			dec := asserts.NewDecoder(resp.Body)
 			asrt, e = dec.Decode()
@@ -1583,7 +1560,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 		}
 		return e
-	})
+	}, defaultRetryStrategy)
 
 	if err != nil {
 		return nil, err
@@ -1693,7 +1670,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -1746,7 +1723,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &customer, &errors)
+	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
