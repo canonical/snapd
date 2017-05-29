@@ -342,7 +342,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	default:
 		switch err := err.(type) {
-		case store.ErrInvalidAuthData:
+		case store.InvalidAuthDataError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -352,7 +352,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				},
 				Status: http.StatusBadRequest,
 			}, nil)
-		case store.ErrPasswordPolicy:
+		case store.PasswordPolicyError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -1110,11 +1110,11 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsDevMode:
+	case *snapstate.SnapNeedsDevModeError:
 		result.Kind = errorKindSnapNeedsDevMode
-	case *snapstate.ErrSnapNeedsClassic:
+	case *snapstate.SnapNeedsClassicError:
 		result.Kind = errorKindSnapNeedsClassic
-	case *snapstate.ErrSnapNeedsClassicSystem:
+	case *snapstate.SnapNeedsClassicSystemError:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
 		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
