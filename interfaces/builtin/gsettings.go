@@ -19,6 +19,8 @@
 
 package builtin
 
+const gsettingsSummary = `allows access to any gsettings item of current user`
+
 const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
@@ -37,7 +39,8 @@ dbus (receive, send)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "gsettings",
+		name:                  "gsettings",
+		summary:               gsettingsSummary,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
