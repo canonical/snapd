@@ -40,6 +40,7 @@ var implicitSlots = []string{
 	"docker-support",
 	"firewall-control",
 	"framebuffer",
+	"greengrass-support",
 	"hardware-observe",
 	"hardware-random-control",
 	"hardware-random-observe",
