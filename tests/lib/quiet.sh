@@ -10,7 +10,7 @@ quiet() (
     # not strictly needed because it's a subshell, but good practice
     local tf retval
 
-    tf="$(tempfile)"
+    tf="$(mktemp)"
 
     set +e
     "$@" >& "$tf"

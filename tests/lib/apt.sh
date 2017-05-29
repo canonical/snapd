@@ -1,14 +1,7 @@
 #!/bin/bash
 
-apt_install_local() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-        dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-        apt-get -f install -y
-    else
-        apt install -y "$@"
-    fi
-}
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB"/pkgdb.sh
 
 install_build_snapd(){
     if [ "$SRU_VALIDATION" = "1" ]; then
@@ -20,6 +13,6 @@ install_build_snapd(){
         mv sources.list.back /etc/apt/sources.list
         apt update
     else
-        apt_install_local ${GOPATH}/snapd_*.deb
+        distro_install_local_package "$GOHOME"/snapd_*.deb
     fi
 }

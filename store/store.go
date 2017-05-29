@@ -1387,7 +1387,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
-			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
 
 		if pbar == nil {

@@ -268,11 +268,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 	}
 
-	// TODO: set the store-id here from the model information
-	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
-		m["store"] = storeID
-	}
-
 	return SyncResponse(m, nil)
 }
 
@@ -347,7 +342,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	default:
 		switch err := err.(type) {
-		case store.ErrInvalidAuthData:
+		case store.InvalidAuthDataError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -357,7 +352,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				},
 				Status: http.StatusBadRequest,
 			}, nil)
-		case store.ErrPasswordPolicy:
+		case store.PasswordPolicyError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -783,6 +778,7 @@ type snapInstruction struct {
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
+	Unaliased        bool          `json:"unaliased"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -795,6 +791,17 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
 	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
+func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
+	flags, err := inst.modeFlags()
+	if err != nil {
+		return snapstate.Flags{}, err
+	}
+	if inst.Unaliased {
+		flags.Unaliased = true
+	}
+	return flags, nil
 }
 
 var (
@@ -947,7 +954,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := inst.modeFlags()
+	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -1103,11 +1110,11 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsDevMode:
+	case *snapstate.SnapNeedsDevModeError:
 		result.Kind = errorKindSnapNeedsDevMode
-	case *snapstate.ErrSnapNeedsClassic:
+	case *snapstate.SnapNeedsClassicError:
 		result.Kind = errorKindSnapNeedsClassic
-	case *snapstate.ErrSnapNeedsClassicSystem:
+	case *snapstate.SnapNeedsClassicSystemError:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
 		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)

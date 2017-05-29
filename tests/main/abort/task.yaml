@@ -4,6 +4,8 @@ environment:
     SNAP_NAME: test-snapd-tools
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "Abort with invalid id"
     if snap abort 10000000; then
         echo "abort with invalid id should fail"
@@ -13,7 +15,7 @@ execute: |
     echo "===================================="
 
     echo "Abort with valid id - error"
-    subdirPath="/snap/$SNAP_NAME/current/foo"
+    subdirPath="$SNAPMOUNTDIR/$SNAP_NAME/current/foo"
     mkdir -p $subdirPath
     . $TESTSLIB/snaps.sh
     if install_local $SNAP_NAME; then

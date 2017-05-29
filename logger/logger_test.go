@@ -17,18 +17,17 @@
  *
  */
 
-package logger
+package logger_test
 
 import (
 	"bytes"
-	"fmt"
-	"log"
 	"os"
 	"testing"
 
-	"github.com/snapcore/snapd/testutil"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -37,116 +36,79 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&LogSuite{})
 
 type LogSuite struct {
-	sysbuf *bytes.Buffer
+	oldLogger logger.Logger
 }
 
 func (s *LogSuite) SetUpTest(c *C) {
-	c.Assert(logger, Equals, NullLogger)
-
-	// we do not want to pollute syslog in our tests (and sbuild
-	// will also not let us do that)
-	newSyslog = func() (*log.Logger, error) {
-		s.sysbuf = bytes.NewBuffer(nil)
-		return log.New(s.sysbuf, "", SyslogFlags), nil
-	}
+	s.oldLogger = logger.GetLogger()
+	logger.SetLogger(logger.NullLogger)
 }
 
 func (s *LogSuite) TearDownTest(c *C) {
-	SetLogger(NullLogger)
-	newSyslog = newSyslogImpl
+	logger.SetLogger(s.oldLogger)
 }
 
 func (s *LogSuite) TestDefault(c *C) {
-	if logger != nil {
-		SetLogger(nil)
+	if logger.GetLogger() != nil {
+		logger.SetLogger(nil)
 	}
-	c.Check(logger, IsNil)
+	c.Check(logger.GetLogger(), IsNil)
 
-	err := SimpleSetup()
+	err := logger.SimpleSetup()
 	c.Check(err, IsNil)
-	c.Check(logger, NotNil)
-	SetLogger(nil)
+	c.Check(logger.GetLogger(), NotNil)
 }
 
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
-	l, err := NewConsoleLog(&buf, DefaultFlags)
+	l, err := logger.New(&buf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
-	c.Check(l.sys, NotNil)
-	c.Check(l.log, NotNil)
 }
 
 func (s *LogSuite) TestDebugf(c *C) {
 	var logbuf bytes.Buffer
-	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	l, err := logger.New(&logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 
-	SetLogger(l)
+	logger.SetLogger(l)
 
-	Debugf("xyzzy")
-	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
+	logger.Debugf("xyzzy")
 	c.Check(logbuf.String(), Equals, "")
 }
 
 func (s *LogSuite) TestDebugfEnv(c *C) {
 	var logbuf bytes.Buffer
-	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	l, err := logger.New(&logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 
-	SetLogger(l)
+	logger.SetLogger(l)
 
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 
-	Debugf("xyzzy")
-	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
+	logger.Debugf("xyzzy")
 	c.Check(logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
 
 func (s *LogSuite) TestNoticef(c *C) {
 	var logbuf bytes.Buffer
-	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	l, err := logger.New(&logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 
-	SetLogger(l)
+	logger.SetLogger(l)
 
-	Noticef("xyzzy")
-	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
+	logger.Noticef("xyzzy")
 	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 }
 
 func (s *LogSuite) TestPanicf(c *C) {
 	var logbuf bytes.Buffer
-	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	l, err := logger.New(&logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 
-	SetLogger(l)
+	logger.SetLogger(l)
 
-	c.Check(func() { Panicf("xyzzy") }, Panics, "xyzzy")
-	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
+	c.Check(func() { logger.Panicf("xyzzy") }, Panics, "xyzzy")
 	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
-}
-
-func (s *LogSuite) TestSyslogFails(c *C) {
-	var logbuf bytes.Buffer
-
-	// pretend syslog is not available (e.g. because of no /dev/log in
-	// a chroot or something)
-	newSyslog = func() (*log.Logger, error) {
-		return nil, fmt.Errorf("nih nih")
-	}
-
-	// ensure a warning is displayed
-	l, err := NewConsoleLog(&logbuf, DefaultFlags)
-	c.Assert(err, IsNil)
-	c.Check(logbuf.String(), Matches, `(?m).*:\d+: WARNING: cannot create syslog logger`)
-
-	// ensure that even without a syslog the console log works and we
-	// do not crash
-	logbuf.Reset()
-	SetLogger(l)
-	Noticef("I do not want to crash")
-	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: I do not want to crash`)
-
 }
