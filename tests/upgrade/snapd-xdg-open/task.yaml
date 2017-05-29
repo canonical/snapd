@@ -5,7 +5,7 @@ description: |
     the snapd-xdg-open package from the archive is properly replaced.
 # Test case only applies to Ubuntu as that is the only distribution where
 # we had a snapd-xdg-open package ever.
-systems: [ubuntu-*, -ubuntu-core-*]
+systems: [-ubuntu-core-*, -debian-*]
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
