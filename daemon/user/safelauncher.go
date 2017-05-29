@@ -28,20 +28,18 @@ import (
 	"github.com/godbus/dbus"
 )
 
-const (
-	safeLauncherIntrospectionXML = `
-	<interface name='com.canonical.SafeLauncher'>
-		<method name='OpenURL'>
-			<arg type='s' name='url' direction='in'/>
-		</method>
-	</interface>`
-)
+const safeLauncherIntrospectionXML = `
+<interface name='com.canonical.SafeLauncher'>
+	<method name='OpenURL'>
+		<arg type='s' name='url' direction='in'/>
+	</method>
+</interface>`
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto"}
 )
 
-// SafeLauncher implements the 'com.canonical.SafeLauncher' interface
+// SafeLauncher implements the 'com.canonical.SafeLauncher' DBus interface
 type SafeLauncher struct{}
 
 // Name returns the name of the interface this object implements
@@ -67,7 +65,7 @@ func runXdgOpen(args ...string) error {
 var XdgOpenCommand = runXdgOpen
 
 // OpenURL implements the 'OpenURL' method of the 'com.canonical.SafeLauncher'
-// interface. Before the provided url is passed to xdg-open the scheme is
+// DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 	u, err := url.Parse(addr)
@@ -86,7 +84,7 @@ func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 	if !validScheme {
 		return &dbus.Error{
 			Name: "org.freedesktop.DBus.Error.AccessDenied",
-			Body: []interface{}{fmt.Sprintf("Supplied URL scheme '%s' is not allowed", u.Scheme)},
+			Body: []interface{}{fmt.Sprintf("Supplied URL scheme %q is not allowed", u.Scheme)},
 		}
 	}
 

@@ -19,8 +19,16 @@
 
 package user
 
-func MockSessionBus(conn DBusConnection, err error) {
+func MockSessionBus(conn DBusConnection, err error) func() {
+	old := connectSessionBus
 	connectSessionBus = func() (DBusConnection, error) {
 		return conn, err
 	}
+	return func() {
+		connectSessionBus = old
+	}
+}
+
+func (d *Daemon) NotifyOnReady(ch chan<- error) {
+	d.ready = ch
 }

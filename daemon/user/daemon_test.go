@@ -20,8 +20,6 @@
 package user_test
 
 import (
-	"time"
-
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/daemon/user"
 
@@ -40,9 +38,14 @@ type daemonSuite struct {
 var _ = Suite(&daemonSuite{})
 
 type exportData struct {
-	iface interface{}
+	ifaceAvailable bool
+	name           string
+	path           dbus.ObjectPath
+}
+
+type requestNameData struct {
 	name  string
-	path  dbus.ObjectPath
+	flags dbus.RequestNameFlags
 }
 
 type mockDBusConn struct {
@@ -50,17 +53,14 @@ type mockDBusConn struct {
 	exportData       []*exportData
 	requestNameReply dbus.RequestNameReply
 	requestNameError error
-	requestNameData  struct {
-		name  string
-		flags dbus.RequestNameFlags
-	}
-	signalData struct {
+	requestNameData  requestNameData
+	signalData       struct {
 		signals []chan<- *dbus.Signal
 	}
 }
 
 func (c *mockDBusConn) Export(v interface{}, path dbus.ObjectPath, iface string) error {
-	c.exportData = append(c.exportData, &exportData{iface: v, path: path, name: iface})
+	c.exportData = append(c.exportData, &exportData{ifaceAvailable: v != nil, path: path, name: iface})
 	return c.exportError
 }
 
@@ -89,38 +89,48 @@ func (s *daemonSuite) TestStartsAndRequestsName(c *C) {
 		requestNameReply: dbus.RequestNameReplyPrimaryOwner,
 	}
 
-	user.MockSessionBus(conn, nil)
+	restore := user.MockSessionBus(conn, nil)
+	defer restore()
 
 	d, err := user.NewDaemon()
 	c.Assert(err, IsNil)
 	c.Assert(d, NotNil)
 
+	ch := make(chan error)
+	d.NotifyOnReady(ch)
+
 	d.Start()
-	time.Sleep(time.Second * 1)
+
+	err = <-ch
+	c.Assert(err, IsNil)
+
 	conn.sendTerminateSignal()
 	d.Stop()
 
-	c.Assert(conn.requestNameData.name, Equals, "com.canonical.SafeLauncher")
-	c.Assert(conn.requestNameData.flags, Equals, dbus.NameFlagDoNotQueue)
+	c.Assert(conn.requestNameData, DeepEquals, requestNameData{name: "com.canonical.SafeLauncher", flags: dbus.NameFlagDoNotQueue})
 
-	c.Assert(len(conn.exportData), Equals, 2)
-	c.Assert(conn.exportData[0].name, Equals, "com.canonical.SafeLauncher")
-	c.Assert(conn.exportData[0].path, Equals, dbus.ObjectPath("/"))
-	c.Assert(conn.exportData[0].iface, NotNil)
-	c.Assert(conn.exportData[1].name, Equals, "org.freedesktop.DBus.Introspectable")
-	c.Assert(conn.exportData[1].path, Equals, dbus.ObjectPath("/"))
-	c.Assert(conn.exportData[1].iface, NotNil)
+	c.Assert(conn.exportData, DeepEquals, []*exportData{
+		{name: "com.canonical.SafeLauncher", path: dbus.ObjectPath("/"), ifaceAvailable: true},
+		{name: "org.freedesktop.DBus.Introspectable", path: dbus.ObjectPath("/"), ifaceAvailable: true},
+	})
 }
 
 func (s *daemonSuite) TestStartupFailsWhenSessionBusIsNotAvailable(c *C) {
-	user.MockSessionBus(nil, fmt.Errorf("Session bus is not available"))
+	restore := user.MockSessionBus(nil, fmt.Errorf("Session bus is not available"))
+	defer restore()
 
 	d, err := user.NewDaemon()
 	c.Assert(err, IsNil)
 	c.Assert(d, NotNil)
 
+	ch := make(chan error)
+	d.NotifyOnReady(ch)
+
 	d.Start()
-	time.Sleep(time.Second * 1)
+
+	err = <-ch
+	c.Assert(err, ErrorMatches, "Session bus is not available")
+
 	err = d.Stop()
 	c.Assert(err, ErrorMatches, "Session bus is not available")
 }
@@ -130,19 +140,24 @@ func (s *daemonSuite) TestStartupFailsWhenNameRequestFails(c *C) {
 		requestNameError: fmt.Errorf("Failed to request name"),
 	}
 
-	user.MockSessionBus(conn, nil)
+	restore := user.MockSessionBus(conn, nil)
+	defer restore()
 
 	d, err := user.NewDaemon()
 	c.Assert(err, IsNil)
 	c.Assert(d, NotNil)
 
+	ch := make(chan error)
+	d.NotifyOnReady(ch)
+
 	d.Start()
-	time.Sleep(time.Second * 1)
+	err = <-ch
+	c.Assert(err, ErrorMatches, "Failed to request name")
+
 	d.Stop()
 
-	c.Assert(conn.requestNameData.name, Equals, "com.canonical.SafeLauncher")
-	c.Assert(conn.requestNameData.flags, Equals, dbus.NameFlagDoNotQueue)
-	c.Assert(len(conn.exportData), Equals, 0)
+	c.Assert(conn.requestNameData, DeepEquals, requestNameData{name: "com.canonical.SafeLauncher", flags: dbus.NameFlagDoNotQueue})
+	c.Assert(conn.exportData, DeepEquals, []*exportData(nil))
 }
 
 func (s *daemonSuite) TestStartupFailsWhenNameIsAlreadyOwned(c *C) {
@@ -150,17 +165,23 @@ func (s *daemonSuite) TestStartupFailsWhenNameIsAlreadyOwned(c *C) {
 		requestNameReply: dbus.RequestNameReplyExists,
 	}
 
-	user.MockSessionBus(conn, nil)
+	restore := user.MockSessionBus(conn, nil)
+	defer restore()
 
 	d, err := user.NewDaemon()
 	c.Assert(err, IsNil)
 	c.Assert(d, NotNil)
 
+	ch := make(chan error)
+	d.NotifyOnReady(ch)
+
 	d.Start()
-	time.Sleep(time.Second * 1)
+
+	err = <-ch
+	c.Assert(err, ErrorMatches, "Failed to request bus name 'com.canonical.SafeLauncher'")
+
 	d.Stop()
 
-	c.Assert(conn.requestNameData.name, Equals, "com.canonical.SafeLauncher")
-	c.Assert(conn.requestNameData.flags, Equals, dbus.NameFlagDoNotQueue)
-	c.Assert(len(conn.exportData), Equals, 0)
+	c.Assert(conn.requestNameData, DeepEquals, requestNameData{name: "com.canonical.SafeLauncher", flags: dbus.NameFlagDoNotQueue})
+	c.Assert(conn.exportData, DeepEquals, []*exportData(nil))
 }

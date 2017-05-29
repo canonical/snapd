@@ -27,7 +27,7 @@ import (
 	"fmt"
 
 	"github.com/godbus/dbus/introspect"
-	tomb "gopkg.in/tomb.v2"
+	"gopkg.in/tomb.v2"
 )
 
 const (
@@ -58,6 +58,7 @@ type Daemon struct {
 	tomb   tomb.Tomb
 	conn   DBusConnection
 	ifaces []registeredInterface
+	ready  chan<- error
 }
 
 // NewDaemon creates a new daemon instance
@@ -96,22 +97,30 @@ func (d *Daemon) createAndExportInterfaces() {
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
+
 		var err error
 		d.conn, err = connectSessionBus()
 		if err != nil {
+			d.ready <- err
 			return err
 		}
 
 		reply, err := d.conn.RequestName(busName, dbus.NameFlagDoNotQueue)
 		if err != nil {
+			d.ready <- err
 			return err
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
-			return fmt.Errorf("Failed to request bus name '%s'", busName)
+			err = fmt.Errorf("Failed to request bus name '%s'", busName)
+			d.ready <- err
+			return err
 		}
 
 		d.createAndExportInterfaces()
+
+		// Notify our listener that we're ready
+		d.ready <- nil
 
 		// Listen for any signals to keep our thread up and running
 		ch := make(chan *dbus.Signal)

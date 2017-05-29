@@ -63,13 +63,13 @@ func main() {
 	cmd.ExecInCoreSnap()
 
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	_, err := parser.ParseArgs(os.Args[1:])
-	if err != nil {
+	if _, err := parser.ParseArgs(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
 	var d Daemon
+	var err error
 	if opts.User {
 		d, err = user.NewDaemon()
 	} else {

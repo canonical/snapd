@@ -13,15 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-LIBEXECDIR := /usr/lib
-UPSTARTSESSIONSDIR := /usr/share/upstart/sessions
+LIBEXECDIR ?= /usr/lib
+UPSTARTSESSIONSDIR ?= /usr/share/upstart/sessions
 
 UPSTART_SERVICES := $(patsubst %.conf.in,%.conf,$(wildcard *.conf.in))
 
 %.conf: %.conf.in
-	cat $< | \
-		sed s:@libexecdir@:${LIBEXECDIR}:g | \
-		cat > $@
+	cat $< | sed "s:@libexecdir@:${LIBEXECDIR}:g" | cat > $@
 
 all: ${UPSTART_SERVICES}
 

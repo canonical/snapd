@@ -62,12 +62,12 @@ func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	launcher := &user.SafeLauncher{}
 	err := launcher.OpenURL("tel://049112233445566")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "Supplied URL scheme 'tel' is not allowed")
+	c.Assert(err, ErrorMatches, "Supplied URL scheme \"tel\" is not allowed")
 	c.Assert(s.args, IsNil)
 
 	err = launcher.OpenURL("aabbccdd0011")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "Supplied URL scheme '' is not allowed")
+	c.Assert(err, ErrorMatches, "Supplied URL scheme \"\" is not allowed")
 	c.Assert(s.args, IsNil)
 }
 
