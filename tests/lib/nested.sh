@@ -45,12 +45,10 @@ create_nested_core_vm(){
 
     # create ubuntu-core image
     mkdir -p /tmp/work-dir
-    snap install --devmode --beta ubuntu-image
-    trap 'snap remove ubuntu-image' EXIT
     /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
-    assertions_disk=$(create_assertions_disk)
+    create_assertions_disk
 
     systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
 
