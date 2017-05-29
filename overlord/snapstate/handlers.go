@@ -471,16 +471,13 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 	cookieID := strutil.MakeRandomString(44)
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
-	fstate := osutil.FileState{
-		Content: []byte(cookieID),
-		Mode:    0600,
-	}
-	if err := osutil.EnsureFileState(path, &fstate); err != nil {
+	err := osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
+	if err != nil {
 		return err
 	}
 
 	var contexts map[string]string
-	err := st.Get("snap-cookies", &contexts)
+	err = st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
 			return fmt.Errorf("failed to get snap contexts: %v", err)
@@ -522,10 +519,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
-	}
-
-	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("Failed to create snap cookie: %v", err)
 	}
 
 	cand := snapsup.SideInfo
@@ -585,6 +578,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Revert {
 		if err = config.RestoreRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {
 			return err
+		}
+	}
+
+	if len(snapst.Sequence) == 1 {
+		if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
+			return fmt.Errorf("Failed to create snap cookie: %v", err)
 		}
 	}
 
@@ -667,6 +666,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if len(snapst.Sequence) == 1 {
+		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
+			return fmt.Errorf("cannot remove snap context: %v", err)
+		}
+	}
+
 	isRevert := snapsup.Revert
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
@@ -695,17 +700,15 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = config.RestoreRevisionConfig(st, snapsup.Name(), oldCurrent); err != nil {
-		return err
+	if len(snapst.Sequence) == 1 {
+		if err = config.RestoreRevisionConfig(st, snapsup.Name(), oldCurrent); err != nil {
+			return err
+		}
 	}
 	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(newInfo, pb)
 	if err != nil {
 		return err
-	}
-
-	if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("cannot remove snap context: %v", err)
 	}
 
 	// mark as inactive
@@ -816,9 +819,6 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
 
-	if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("cannot remove snap context: %v", err)
-	}
 	return err
 }
 
@@ -903,6 +903,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.Name(), err)
 			return &state.Retry{After: 3 * time.Minute}
+		}
+		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
+			return fmt.Errorf("cannot remove snap context: %v", err)
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {
