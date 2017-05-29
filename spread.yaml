@@ -278,6 +278,9 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
+            opensuse-*)
+                zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
             *)
                 ;;
         esac
@@ -325,7 +328,10 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 . $TESTSLIB/pkgdb.sh
                 distro_purge_package snapd
-                distro_purge_package snap-confine
+                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
+                    # A snap-confine package never existed on openSUSE
+                    distro_purge_package snap-confine
+                fi
             fi
 
     tests/completion/:
