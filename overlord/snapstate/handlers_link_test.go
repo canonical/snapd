@@ -60,7 +60,7 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
-	dirs.SnapContextDir = c.MkDir()
+	dirs.SnapCookieDir = c.MkDir()
 
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
@@ -84,9 +84,9 @@ func (s *linkSnapSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func checkHasContextForSnap(c *C, st *state.State, snapName string) {
+func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
 	var contexts map[string]interface{}
-	err := st.Get("snap-contexts", &contexts)
+	err := st.Get("snap-cookies", &contexts)
 	c.Assert(err, IsNil)
 	c.Check(contexts, HasLen, 1)
 
@@ -95,7 +95,7 @@ func checkHasContextForSnap(c *C, st *state.State, snapName string) {
 			return
 		}
 	}
-	panic(fmt.Sprintf("Context missing for snap %q", snapName))
+	panic(fmt.Sprintf("Cookie missing for snap %q", snapName))
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
@@ -121,7 +121,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 
-	checkHasContextForSnap(c, s.state, "foo")
+	checkHasCookieForSnap(c, s.state, "foo")
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)

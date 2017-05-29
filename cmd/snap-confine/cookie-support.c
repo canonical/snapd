@@ -48,7 +48,7 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 	if (fd < 0) {
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "cannot open context file %s, SNAP_CONTEXT will not be set",
+				  "cannot open cookie file %s, SNAP_COOKIE will not be set",
 				  context_path);
     sc_error_forward(errorp, err);
     return NULL;
@@ -62,7 +62,7 @@ char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
   if (n < 0) {
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "failed to read context file %s",
+				  "failed to read cookie file %s",
 				  context_path);
     sc_error_forward(errorp, err);
     return NULL;

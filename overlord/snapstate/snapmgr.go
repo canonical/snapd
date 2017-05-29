@@ -304,8 +304,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}
 
 	// create snap context directory
-	if err := os.MkdirAll(dirs.SnapContextDir, 0700); err != nil {
-		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapContextDir, err)
+	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 
 	// this handler does nothing
