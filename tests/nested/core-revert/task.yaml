@@ -24,11 +24,11 @@ debug: |
         tmp=$(mktemp -d)
         mount /dev/mapper/$part $tmp
 
-        cat $tmp/system-data/var/log/syslog | grep "hsearch_r failed for.* No such process"
+        grep "hsearch_r failed for.* No such process" $tmp/system-data/var/log/syslog
 
         umount $tmp
         rm -rf $tmp
-        kpartx -ds /tmp/work-dirdir/ubuntu-core.img
+        kpartx -ds /tmp/work-dir/ubuntu-core.img
     fi
 
 kill-timeout: 40m
