@@ -1,14 +1,14 @@
 #!/bin/sh
 
 # Default applies for: Ubuntu, Debian
-SNAPMOUNTDIR=/snap
-LIBEXECDIR=/usr/lib
+export SNAPMOUNTDIR=/snap
+export LIBEXECDIR=/usr/lib
 
 # For all other systems we need to change some directory paths
 case "$SPREAD_SYSTEM" in
     fedora-*)
-        SNAPMOUNTDIR=/var/lib/snapd/snap
-        LIBEXECDIR=/usr/libexec
+        export SNAPMOUNTDIR=/var/lib/snapd/snap
+        export LIBEXECDIR=/usr/libexec
         ;;
     *)
         ;;

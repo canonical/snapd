@@ -19,6 +19,8 @@
 
 package builtin
 
+const coreSupportSummary = `special permissions for the core snap`
+
 const coreSupportConnectedPlugAppArmor = `
 # Description: Can control all aspects of systemd via the systemctl command,
 # update rsyslog configuration, update systemd-timesyncd configuration and
@@ -76,7 +78,8 @@ owner /boot/uboot/config.txt.tmp rwk,
 
 func init() {
 	registerIface(&commonInterface{
-		name: "core-support",
+		name:    "core-support",
+		summary: coreSupportSummary,
 		// NOTE: core-support implicitly contains the rules from network-bind.
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,

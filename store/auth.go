@@ -243,9 +243,9 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		case "TWOFACTOR_FAILURE":
 			return "", Err2faFailed
 		case "INVALID_DATA":
-			return "", ErrInvalidAuthData(msg.Extra)
+			return "", InvalidAuthDataError(msg.Extra)
 		case "PASSWORD_POLICY_ERROR":
-			return "", ErrPasswordPolicy(msg.Extra)
+			return "", PasswordPolicyError(msg.Extra)
 		}
 
 		if msg.Message != "" {
