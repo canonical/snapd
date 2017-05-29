@@ -62,6 +62,9 @@ backends:
                 workers: 4
             - fedora-25-64:
                 workers: 4
+            - opensuse-42.2-64:
+                workers: 1
+                image: openSUSE Leap 42.2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
