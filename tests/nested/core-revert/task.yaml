@@ -16,7 +16,7 @@ restore: |
 
 debug: |
     systemctl stop nested-vm || true
-    if [ -f /tmp/workdir/ubuntu-core.img ]; then
+    if [ -f /tmp/work-dir/ubuntu-core.img ]; then
         loops=$(kpartx -avs /tmp/work-dir/ubuntu-core.img | cut -d' ' -f 3)
 
         part=$(echo "$loops" | tail -1)
@@ -24,12 +24,14 @@ debug: |
         tmp=$(mktemp -d)
         mount /dev/mapper/$part $tmp
 
-        grep "hsearch_r failed for.* No such process"
+        cat $tmp/system-data/var/log/syslog | grep "hsearch_r failed for.* No such process"
 
         umount $tmp
         rm -rf $tmp
-        kpartx -ds /tmp/workdir/ubuntu-core.img
+        kpartx -ds /tmp/work-dirdir/ubuntu-core.img
     fi
+
+kill-timeout: 40m
 
 execute: |
     . $TESTSLIB/nested.sh
