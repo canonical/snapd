@@ -23,7 +23,7 @@
  * Prepare seccomp profile associated with the security tag.
  *
  * This function loads the seccomp profile from
- * /var/lib/snapd/seccomp/profiles/$SECURITY_TAG and stores it into
+ * /var/lib/snapd/seccomp/profiles-v2/$SECURITY_TAG and stores it into
  * scmp_filter_ctx object.
  *
  * The object is returned to the caller and can be made effective with a call
