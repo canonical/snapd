@@ -1,6 +1,6 @@
 summary: Check snap known
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 execute: |
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"

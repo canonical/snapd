@@ -3,8 +3,8 @@ details: |
     When a snap is refreshed and the refresh fails, the undo code had
     a bug that removed the security confinement (LP: #1637981)
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 environment:
     SNAP_NAME: test-snapd-service

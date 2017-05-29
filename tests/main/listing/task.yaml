@@ -1,6 +1,6 @@
 summary: Check snap listings
 
-systems: [-fedora-*]
+systems: [-fedora-*, -opensuse-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh

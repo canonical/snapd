@@ -1,7 +1,7 @@
 summary: Ensure that the home interface works.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 details: |
     The home interface allows a snap to access non-hidden files in $HOME

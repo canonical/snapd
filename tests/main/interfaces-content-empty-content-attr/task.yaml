@@ -1,7 +1,7 @@
 summary: Ensure that the content sharing interface with defaults work.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"

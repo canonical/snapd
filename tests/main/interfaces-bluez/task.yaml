@@ -1,7 +1,7 @@
 summary: Ensure bluez interface works.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 details: |
     The bluez interface allows the bluez service to run and clients to

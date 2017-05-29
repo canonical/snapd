@@ -4,6 +4,7 @@ systems:
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
     - -fedora-*
+    - -opensuse-*
     # unity7 implicit classic slot needed (used to access dbus-send) not
     # available on core
     - -ubuntu-core-*

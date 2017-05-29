@@ -1,6 +1,6 @@
 summary: Test that i18n works
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 execute: |
     # The snapd deb from the archive does not contain .mo files, those
     # are stripped out by the langpack buildd stuff and put into the

@@ -1,7 +1,7 @@
 summary: Check that snap apps and services can write to writable areas.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 environment:
     # Ensure that running purely from the deb (without re-exec) works
