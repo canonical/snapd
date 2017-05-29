@@ -119,6 +119,7 @@ export CXXFLAGS
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snapd
+%gobuild cmd/snap-update-ns
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -133,10 +134,11 @@ make %{?_smp_mflags} -C cmd check
 rm -rf %{buildroot}/usr/lib64/go
 rm -rf %{buildroot}/usr/lib/go
 find %{buildroot}
-# Move snapd and snap-exec into /usr/lib/snapd
+# Move snapd, snap-exec and snap-update-ns into /usr/lib/snapd
 install -m 755 -d %{buildroot}/usr/lib/snapd
 mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
+mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -241,6 +243,7 @@ esac
 /usr/sbin/rcsnapd.refresh
 /usr/lib/snapd/info
 /usr/lib/snapd/snap-discard-ns
+/usr/lib/snapd/snap-update-ns
 /usr/lib/snapd/snap-exec
 /usr/lib/snapd/snapd
 /usr/lib/udev/snappy-app-dev
