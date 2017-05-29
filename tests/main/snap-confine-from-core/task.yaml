@@ -3,10 +3,13 @@ summary: Test that snap-confine is run from core on re-exec
 systems: [-ubuntu-core-16-*]
 
 prepare: |
+    echo "Checking initial permitions"
+    permitions=$(stat -c "%a %n" /usr/lib/snapd/snap-confine | awk '{print $1;}')
+    [ $permitions -eq 4755 ]
+
     echo "Installing test-snapd-tools"
     snap install test-snapd-tools
     echo "Breaking host snap-confine"
-    chmod 0755 /usr/lib/snapd/snap-confine
 
 restore: |
     echo "Restoring host snap-confine"
@@ -18,9 +21,13 @@ execute: |
         exit 0
     fi
 
+    prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+    chmod 0755 /usr/lib/snapd/snap-confine
+
     echo "Ensure we re-exec by default"
     snap list
-    journalctl | MATCH "DEBUG: restarting into"
+    final_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+    [ $final_restarts -gt $prev_restarts ]
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
