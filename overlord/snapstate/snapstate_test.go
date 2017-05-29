@@ -77,7 +77,7 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	dirs.SnapContextDir = c.MkDir()
+	dirs.SnapCookieDir = c.MkDir()
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)

@@ -40,7 +40,7 @@ type prepareSnapSuite struct {
 var _ = Suite(&prepareSnapSuite{})
 
 func (s *prepareSnapSuite) SetUpTest(c *C) {
-	dirs.SnapContextDir = c.MkDir()
+	dirs.SnapCookieDir = c.MkDir()
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)

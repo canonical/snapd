@@ -379,8 +379,8 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("Failed to create snap context: %v", err)
+	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap cookie: %v", err)
 	}
 
 	snapst.Active = true
@@ -468,11 +468,11 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) createSnapContext(st *state.State, snapName string) error {
-	contextID := strutil.MakeRandomString(40)
-	path := filepath.Join(dirs.SnapContextDir, fmt.Sprintf("snap.%s", snapName))
+func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
+	cookieID := strutil.MakeRandomString(44)
+	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
 	fstate := osutil.FileState{
-		Content: []byte(contextID),
+		Content: []byte(cookieID),
 		Mode:    0600,
 	}
 	if err := osutil.EnsureFileState(path, &fstate); err != nil {
@@ -480,21 +480,21 @@ func (m *SnapManager) createSnapContext(st *state.State, snapName string) error 
 	}
 
 	var contexts map[string]string
-	err := st.Get("snap-contexts", &contexts)
+	err := st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
 			return fmt.Errorf("failed to get snap contexts: %v", err)
 		}
 		contexts = make(map[string]string)
 	}
-	contexts[contextID] = snapName
-	st.Set("snap-contexts", &contexts)
+	contexts[cookieID] = snapName
+	st.Set("snap-cookies", &contexts)
 	return nil
 }
 
-func (m *SnapManager) removeSnapContext(st *state.State, snapName string) error {
+func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 	var contexts map[string]string
-	err := st.Get("snap-contexts", &contexts)
+	err := st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
 			return fmt.Errorf("failed to get snap contexts: %v", err)
@@ -502,12 +502,12 @@ func (m *SnapManager) removeSnapContext(st *state.State, snapName string) error 
 		contexts = make(map[string]string)
 	}
 
-	for contextID, snap := range contexts {
+	for cookieID, snap := range contexts {
 		if snapName == snap {
-			delete(contexts, contextID)
-			st.Set("snap-contexts", contexts)
+			delete(contexts, cookieID)
+			st.Set("snap-cookies", contexts)
 			// error on removing the context file is not fatal
-			_ = os.Remove(filepath.Join(dirs.SnapContextDir, fmt.Sprintf("snap.%s", snapName)))
+			_ = os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName)))
 			break
 		}
 	}
@@ -524,8 +524,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.createSnapContext(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("Failed to create snap context: %v", err)
+	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
+		return fmt.Errorf("Failed to create snap cookie: %v", err)
 	}
 
 	cand := snapsup.SideInfo
@@ -704,7 +704,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+	if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
 		return fmt.Errorf("cannot remove snap context: %v", err)
 	}
 
@@ -816,7 +816,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	Set(st, snapsup.Name(), snapst)
 
-	if err := m.removeSnapContext(st, snapsup.Name()); err != nil {
+	if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
 		return fmt.Errorf("cannot remove snap context: %v", err)
 	}
 	return err

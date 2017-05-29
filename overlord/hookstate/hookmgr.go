@@ -143,33 +143,33 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *HookManager) ephemeralContext(contextID string) (context *Context, err error) {
+func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
 	var contexts map[string]string
 	m.state.Lock()
 	defer m.state.Unlock()
-	err = m.state.Get("snap-contexts", &contexts)
+	err = m.state.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return nil, fmt.Errorf("cannot get snap contexts: %v", err)
+			return nil, fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 	}
-	if snapName, ok := contexts[contextID]; ok {
-		// create new ephemeral context
-		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, contextID)
+	if snapName, ok := contexts[cookieID]; ok {
+		// create new ephemeral cookie
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
 		return context, err
 	}
-	return nil, fmt.Errorf("unknown snap context requested")
+	return nil, fmt.Errorf("unknown snap cookie requested")
 }
 
-// Context obtains the context for the given context ID.
-func (m *HookManager) Context(contextID string) (*Context, error) {
+// Context obtains the context for the given cookie ID.
+func (m *HookManager) Context(cookieID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
 	var err error
-	context, ok := m.contexts[contextID]
+	context, ok := m.contexts[cookieID]
 	if !ok {
-		context, err = m.ephemeralContext(contextID)
+		context, err = m.ephemeralContext(cookieID)
 		if err != nil {
 			return nil, err
 		}
@@ -349,7 +349,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_COOKIE=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.

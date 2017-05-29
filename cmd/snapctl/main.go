@@ -57,7 +57,7 @@ func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
 	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: os.Getenv("SNAP_CONTEXT"),
+		ContextID: os.Getenv("SNAP_COOKIE"),
 		Args:      os.Args[1:],
 	})
 }
