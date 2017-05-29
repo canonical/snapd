@@ -130,17 +130,24 @@ prepare_classic() {
         exit 1
     fi
 
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
+    fi
+
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 EOF
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -166,7 +173,7 @@ EOF
 
         GRUB_EDITENV=grub-editenv
         case "$SPREAD_SYSTEM" in
-            fedora-*)
+            fedora-*|opensuse-*)
                 GRUB_EDITENV=grub2-editenv
                 ;;
             *)

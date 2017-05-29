@@ -18,13 +18,23 @@ install_build_snapd(){
             ubuntu-*|debian-*)
                 packages="${GOHOME}/snapd_*.deb"
                 ;;
-            fedora-*)
+            fedora-*|opensuse-*)
                 packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
                 ;;
             *)
                 exit 1
                 ;;
         esac
+
         distro_install_local_package $packages
+
+        # Perform per distribution post-installation steps if necessary
+        case "$SPREAD_SYSTEM" in
+            opensuse-*)
+                sudo systemctl enable --now snapd.socket
+                ;;
+            *)
+                ;;
+        esac
     fi
 }

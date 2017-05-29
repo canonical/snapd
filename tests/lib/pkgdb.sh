@@ -34,13 +34,24 @@ fedora_name_package() {
     esac
 }
 
+opensuse_name_package() {
+    case "$1" in
+        *)
+            echo $1
+            ;;
+    esac
+}
+
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             debian_name_package "$1"
             ;;
         fedora-*)
-            fedora_name_package $1
+            fedora_name_package "$1"
+            ;;
+        opensuse-*)
+            opensuse_name_package "$1"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -79,6 +90,9 @@ distro_install_local_package() {
         fedora-*)
             dnf -q -y install "$@"
             ;;
+        opensuse-*)
+            zypper -q install -y "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -101,6 +115,9 @@ distro_install_package() {
                 ;;
             fedora-*)
                 dnf -q -y install -y $package_name
+                ;;
+            opensuse-*)
+                zypper -q install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -126,6 +143,9 @@ distro_purge_package() {
             fedora-*)
                 dnf -y -q remove $package_name
                 ;;
+            opensuse-*)
+                zypper -q remove -y $package_name
+                ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
@@ -142,6 +162,9 @@ distro_update_package_db() {
         fedora-*)
             dnf -y -q upgrade
             ;;
+        opensuse-*)
+            zypper -q update -y
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -153,6 +176,9 @@ distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             quiet apt-get clean
+            ;;
+        opensuse-*)
+            zypper -q clean --all
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -168,6 +194,8 @@ distro_auto_remove_packages() {
             ;;
         fedora-*)
             dnf -q -y autoremove
+            ;;
+        opensuse-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -185,6 +213,9 @@ case "$SPREAD_SYSTEM" in
         ;;
     fedora-*)
         DISTRO_BUILD_DEPS="mock git expect curl golang rpm-build redhat-lsb-core"
+        ;;
+    opensuse-*)
+        DISTRO_BUILD_DEPS="osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools"
         ;;
     *)
         ;;
