@@ -215,7 +215,7 @@ case "$SPREAD_SYSTEM" in
         DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)
         ;;
     opensuse-*)
-        DISTRO_BUILD_DEPS="osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools"
+        DISTRO_BUILD_DEPS=(osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools)
         ;;
     *)
         ;;
