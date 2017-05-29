@@ -367,13 +367,13 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
             $TESTSLIB/reset.sh
+            apt-get purge -y snapd
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
