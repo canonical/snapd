@@ -19,13 +19,22 @@ execute: |
 
     . $TESTSLIB/journalctl.sh
 
-    # this is because journalctl is not clean on 14.04
-    since=$(get_journalctl_since)
+    prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     chmod 0755 /usr/lib/snapd/snap-confine
 
     echo "Ensure we re-exec by default"
     snap list
-    check_journalctl_since "DEBUG: restarting into" "$since"
+
+    for i in $(seq 3); do
+        final_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+        if [ $final_restarts -gt $prev_restarts ]; then
+            break
+        fi
+        sleep 1
+    done
+
+    final_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+    [ $final_restarts -gt $prev_restarts ]
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
