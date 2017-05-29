@@ -380,7 +380,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("Failed to create snap cookie: %v", err)
+		return fmt.Errorf("cannot create snap cookie: %v", err)
 	}
 
 	snapst.Active = true
@@ -480,7 +480,7 @@ func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 	err = st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return fmt.Errorf("failed to get snap cookies: %v", err)
+			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		contexts = make(map[string]string)
 	}
@@ -494,7 +494,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 	err := st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return fmt.Errorf("failed to get snap cookies: %v", err)
+			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		contexts = make(map[string]string)
 	}
@@ -583,7 +583,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("Failed to create snap cookie: %v", err)
+			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
 

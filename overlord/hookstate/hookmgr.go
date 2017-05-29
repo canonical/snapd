@@ -158,7 +158,7 @@ func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err e
 		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
 		return context, err
 	}
-	return nil, fmt.Errorf("unknown snap cookie requested")
+	return nil, fmt.Errorf("invalid snap cookie requested")
 }
 
 // Context obtains the context for the given cookie ID.
