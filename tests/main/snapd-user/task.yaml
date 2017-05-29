@@ -14,7 +14,7 @@ restore: |
 
 execute: |
     # Install necessary pacakges to get dbus-launch helper
-    apt install -y dbus-x11 xdg-utils
+    distro_install_package dbus-x11 xdg-utils
 
     dbus-launch --sh-syntax &> /tmp/dbus-session-env
     . /tmp/dbus-session-env
