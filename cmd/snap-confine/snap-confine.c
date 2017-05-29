@@ -35,7 +35,7 @@
 #include "quirks.h"
 #include "udev-support.h"
 #include "user-support.h"
-#include "context-support.h"
+#include "cookie-support.h"
 #include "snap-confine-args.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
-		snap_context = sc_context_get_from_snapd(snap_name, &err);
+		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
 			error("cannot get context: %s", sc_error_msg(err));
 		}
