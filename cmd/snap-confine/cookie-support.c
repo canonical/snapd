@@ -15,7 +15,7 @@
  *
  */
 
-#include "context-support.h"
+#include "cookie-support.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
@@ -29,20 +29,20 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define SC_CONTEXT_DIR "/var/lib/snapd/context"
+#define SC_COOKIE_DIR "/var/lib/snapd/cookie"
 
 /**
  * Effective value of CONTEXT_DIR
  **/
-static const char *sc_context_dir = SC_CONTEXT_DIR;
+static const char *sc_cookie_dir = SC_COOKIE_DIR;
 
-char *sc_context_get_from_snapd(const char *snap_name, struct sc_error **errorp)
+char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 {
 	char context_path[PATH_MAX];
 	struct sc_error *err = NULL;
 
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
-			 sc_context_dir, snap_name);
+			 sc_cookie_dir, snap_name);
 	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
