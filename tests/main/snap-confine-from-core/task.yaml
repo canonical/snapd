@@ -17,8 +17,6 @@ execute: |
         exit 0
     fi
 
-    . $TESTSLIB/journalctl.sh
-
     prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     chmod 0755 /usr/lib/snapd/snap-confine
 
