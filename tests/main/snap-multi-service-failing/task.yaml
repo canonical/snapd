@@ -1,8 +1,8 @@
 summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 execute: |
   . $TESTSLIB/snaps.sh

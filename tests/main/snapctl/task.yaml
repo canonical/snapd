@@ -1,7 +1,7 @@
 summary: Check that `snapctl` can be run from within hooks
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .

@@ -12,8 +12,8 @@ description: |
     This test verified the correct behaviour of the implemented logic
     inside `snap run`.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 execute: |
     snap install test-snapd-tools

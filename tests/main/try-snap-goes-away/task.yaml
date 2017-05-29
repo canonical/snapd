@@ -1,7 +1,7 @@
 summary: Check that snaps vanishing are handled gracefully
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 environment:
     SNAP_NAME/test_snapd_tools: test-snapd-tools

@@ -1,6 +1,6 @@
 summary: Check that snap download works
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 execute: |
     verify_asserts() {
         fn="$1"

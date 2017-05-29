@@ -1,6 +1,6 @@
 summary: Check that `snap run --command=reload` works
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 kill-timeout: 3m
 execute: |
     echo "When the service snap is installed"

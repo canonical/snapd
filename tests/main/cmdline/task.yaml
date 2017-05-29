@@ -1,6 +1,6 @@
 summary: Check that cmdline for channel shortcuts work
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 execute: |
     echo Conflicting channel commandline errors correctly
     if snap install --beta --edge test-snapd-tools 2>err.msg; then

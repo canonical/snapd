@@ -1,7 +1,7 @@
 summary: Ensure that the udev interface backend works.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 details: |
     This test checks that the udev rules file is created when a snap declaring

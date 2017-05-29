@@ -1,7 +1,7 @@
 summary: Check that revert of a snap in devmode restores devmode
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 environment:
     STORE_TYPE/fake: fake
