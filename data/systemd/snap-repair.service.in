@@ -1,6 +1,5 @@
 [Unit]
 Description=Automatically fetch and run repair assertions
-ConditionPathExistsGlob=@SNAP_MOUNT_DIR@/*/current
 Documentation=man:snap(1)
 
 [Service]
