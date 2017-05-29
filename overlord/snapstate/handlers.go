@@ -480,7 +480,7 @@ func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 	err = st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return fmt.Errorf("failed to get snap contexts: %v", err)
+			return fmt.Errorf("failed to get snap cookies: %v", err)
 		}
 		contexts = make(map[string]string)
 	}
@@ -494,7 +494,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 	err := st.Get("snap-cookies", &contexts)
 	if err != nil {
 		if err != state.ErrNoState {
-			return fmt.Errorf("failed to get snap contexts: %v", err)
+			return fmt.Errorf("failed to get snap cookies: %v", err)
 		}
 		contexts = make(map[string]string)
 	}
