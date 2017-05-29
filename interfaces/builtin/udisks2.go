@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
+
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. This gives privileged access to
 # the system.
@@ -346,6 +348,12 @@ type udisks2Interface struct{}
 
 func (iface *udisks2Interface) Name() string {
 	return "udisks2"
+}
+
+func (iface *udisks2Interface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: udisks2Summary,
+	}
 }
 
 func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

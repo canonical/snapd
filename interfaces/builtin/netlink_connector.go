@@ -19,6 +19,8 @@
 
 package builtin
 
+const netlinkConnectorSummary = `allows communication through the kernel netlink connector`
+
 const netlinkConnectorConnectedPlugSecComp = `
 # Description: Can use netlink to communicate with kernel connector. Because
 # NETLINK_CONNECTOR is not finely mediated and app-specific, use of this
@@ -31,6 +33,7 @@ socket AF_NETLINK - NETLINK_CONNECTOR
 func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-connector",
+		summary:              netlinkConnectorSummary,
 		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
 		reservedForOS:        true,
 	})
