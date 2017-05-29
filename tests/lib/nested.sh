@@ -62,5 +62,5 @@ destroy_nested_core_vm(){
 }
 
 execute_remote(){
-    sshpass -p ubuntu ssh -p 8022 -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
+    sshpass -p ubuntu ssh -p 8022 -q -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
 }

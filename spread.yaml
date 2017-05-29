@@ -422,7 +422,7 @@ suites:
             apt update && apt install -y snapd qemu genisoimage sshpass
             sysctl -w net.ipv6.conf.all.disable_ipv6=0
 
-            snap install --devmode --beta ubuntu-image
+            snap install --classic --beta ubuntu-image
         restore: |
             apt remove -y qemu genisoimage sshpass
             snap remove ubuntu-image
