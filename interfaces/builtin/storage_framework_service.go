@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const storageFrameworkServiceSummary = `allows operating as or interacting with the Storage Framework`
+
 const storageFrameworkServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_is_enabled()
 
@@ -105,6 +107,12 @@ type storageFrameworkServiceInterface struct{}
 
 func (iface *storageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
+}
+
+func (iface *storageFrameworkServiceInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: storageFrameworkServiceSummary,
+	}
 }
 
 func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -19,6 +19,8 @@
 
 package builtin
 
+const timezoneControlSummary = `allows setting system timezone`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
@@ -74,7 +76,8 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "timezone-control",
+		name:                  "timezone-control",
+		summary:               timezoneControlSummary,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

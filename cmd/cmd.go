@@ -39,13 +39,20 @@ import (
 // to be set to 1 (do re-exec); that is: set it to 0 to disable.
 const reExecKey = "SNAP_REEXEC"
 
-// newCore is the place to look for the core snap; everything in this
-// location will be new enough to re-exec into.
-const newCore = "/snap/core/current"
+var (
+	// newCore is the place to look for the core snap; everything in this
+	// location will be new enough to re-exec into.
+	newCore = "/snap/core/current"
 
-// oldCore is the previous location of the core snap. Only things
-// newer than minOldRevno will be ok to re-exec into.
-const oldCore = "/snap/ubuntu-core/current"
+	// oldCore is the previous location of the core snap. Only things
+	// newer than minOldRevno will be ok to re-exec into.
+	oldCore = "/snap/ubuntu-core/current"
+
+	// selfExe is the path to a symlink pointing to the current executable
+	selfExe = "/proc/self/exe"
+
+	syscallExec = syscall.Exec
+)
 
 // distroSupportsReExec returns true if the distribution we are running on can use re-exec.
 //
@@ -154,7 +161,7 @@ func ExecInCoreSnap() {
 	}
 
 	// Which executable are we?
-	exe, err := os.Readlink("/proc/self/exe")
+	exe, err := os.Readlink(selfExe)
 	if err != nil {
 		return
 	}
@@ -177,5 +184,5 @@ func ExecInCoreSnap() {
 
 	logger.Debugf("restarting into %q", full)
 	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscall.Exec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, env))
 }
