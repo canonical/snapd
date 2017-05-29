@@ -30,12 +30,20 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const hidrawSummary = `allows access to specific hidraw device`
+
 // hidrawInterface is the type for hidraw interfaces.
 type hidrawInterface struct{}
 
 // Name of the hidraw interface.
 func (iface *hidrawInterface) Name() string {
 	return "hidraw"
+}
+
+func (iface *hidrawInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: hidrawSummary,
+	}
 }
 
 func (iface *hidrawInterface) String() string {

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. $TESTSLIB/pkgdb.sh
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB"/pkgdb.sh
 
 install_build_snapd(){
     if [ "$SRU_VALIDATION" = "1" ]; then
@@ -15,10 +16,10 @@ install_build_snapd(){
         packages=
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                packages="${GOPATH}/snapd_*.deb"
+                packages="${GOHOME}/snapd_*.deb"
                 ;;
             fedora-*)
-                packages="${GOPATH}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
                 ;;
             *)
                 exit 1

@@ -8,7 +8,6 @@
 set -e
 
 SNAP_MOUNT_DIR="/var/lib/snapd/snap"
-SNAP_UNIT_PREFIX="$(systemd-escape -p $SNAP_MOUNT_DIR)"
 
 show_help() {
     exec cat <<'EOF'
@@ -23,6 +22,8 @@ optional arguments:
 EOF
 }
 
+SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+
 systemctl_stop() {
     unit="$1"
     if systemctl is-active -q "$unit"; then
@@ -34,7 +35,7 @@ systemctl_stop() {
 purge() {
     # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
     if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-        umount -l ${SNAP_MOUNT_DIR} || true
+        umount -l "${SNAP_MOUNT_DIR}" || true
     fi
 
     mounts=$(systemctl list-unit-files --full | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
@@ -56,9 +57,9 @@ purge() {
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # aliases
-            if [ -d ${SNAP_MOUNT_DIR}/bin ]; then
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap" -delete
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap.*" -delete
+            if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
             fi
             # generated binaries
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
@@ -74,7 +75,7 @@ purge() {
             # opportunistic remove (may fail if there are still revisions left)
             for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
                 if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty $d
+                    rmdir --ignore-fail-on-non-empty "$d"
                 fi
             done
         fi
@@ -96,10 +97,11 @@ purge() {
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf ${SNAP_MOUNT_DIR}/*
+    rm -rf "${SNAP_MOUNT_DIR}"/*
     rm -rf /var/snap/*
 
     echo "Removing leftover snap shared state data"
+    rm -rf /var/lib/snapd/desktop/applications/*
     rm -rf /var/lib/snapd/seccomp/profiles/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
