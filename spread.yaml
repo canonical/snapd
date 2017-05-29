@@ -273,7 +273,7 @@ prepare: |
                 apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             fedora-*)
-                dnf install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             *)
                 ;;
