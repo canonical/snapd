@@ -67,6 +67,12 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
+			"checksumSHA1": "eH7CaLQnq+73vvqU0MxppwtV8lA=",
+			"path": "github.com/seccomp/libseccomp-golang",
+			"revision": "84e90a91acea0f4e51e62bc1a75de18b1fc0790f",
+			"revisionTime": "2017-04-20T15:08:39Z"
+		},
+		{
 			"checksumSHA1": "E28iXtNf9DZVsymruqAnTFGNNnE=",
 			"path": "golang.org/x/crypto",
 			"revision": "351dc6a5bf92a5f2ae22fadeee08eb6a45aa2d93",
