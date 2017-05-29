@@ -13,6 +13,8 @@ restore: |
 
 
 execute: |
+    . "$TESTSLIB/pkgdb.sh"
+
     # Install necessary pacakges to get dbus-launch helper
     distro_install_package dbus-x11 xdg-utils
 

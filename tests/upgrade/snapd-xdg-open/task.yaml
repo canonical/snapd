@@ -14,6 +14,7 @@ restore: |
     apt purge -y snapd-xdg-open
 execute: |
     . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
 
     # Original version of snapd-xdg-open in the archive which was not
     # part of the snapd source package.
@@ -34,7 +35,7 @@ execute: |
             ;;
     esac
 
-    distro_package_install snapd-xdg-open=$ver
+    distro_install_package snapd-xdg-open=$ver
 
     prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
 
