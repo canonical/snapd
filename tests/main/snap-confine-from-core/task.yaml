@@ -6,6 +6,7 @@ prepare: |
     echo "Installing test-snapd-tools"
     snap install test-snapd-tools
     echo "Breaking host snap-confine"
+    chmod 0755 /usr/lib/snapd/snap-confine
 
 restore: |
     echo "Restoring host snap-confine"
@@ -17,20 +18,9 @@ execute: |
         exit 0
     fi
 
-    prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-    chmod 0755 /usr/lib/snapd/snap-confine
-
     echo "Ensure we re-exec by default"
+    prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     snap list
-
-    for i in $(seq 3); do
-        after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-        if [ $after_restarts -gt $prev_restarts ]; then
-            break
-        fi
-        sleep 1
-    done
-
     after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     [ $after_restarts -eq $(( $prev_restarts + 1 )) ]
 
