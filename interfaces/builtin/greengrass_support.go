@@ -135,6 +135,14 @@ const greengrassSupportConnectedPlugSeccomp = `
 # Description: can manage greengrass containers. This interface is restricted
 # because it gives wide ranging access to the host and other processes.
 
+# have containers use ggc_user and ggc_group
+# FIXME: seccomp arg filter by this uid/gid when supported by snap-confine
+fchown
+fchown32
+fchownat
+setgroups
+setgroups32
+
 # for overlayfs and various bind mounts
 mount
 umount2
