@@ -64,18 +64,13 @@ type Interfaces struct {
 	Slots []Slot `json:"slots"`
 }
 
-// InterfaceInfo holds information about a given interface and its instances.
-type InterfaceInfo struct {
-	MetaData InterfaceMetaData `json:"meta-data"`
-	Plugs    []Plug            `json:"plugs,omitempty"`
-	Slots    []Slot            `json:"slots,omitempty"`
-}
-
-// InterfaceMetaData contains meta-data about a given interface type.
-type InterfaceMetaData struct {
+// Interface holds information about a given interface and its instances.
+type Interface struct {
 	Summary          string `json:"summary,omitempty"`
 	Description      string `json:"description,omitempty"`
 	DocumentationURL string `json:"documentation-url,omitempty"`
+	Plugs            []Plug `json:"plugs,omitempty"`
+	Slots            []Slot `json:"slots,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
@@ -91,9 +86,15 @@ func (client *Client) Interfaces() (interfaces Interfaces, err error) {
 	return
 }
 
-// InterfaceInfos returns all interfaces, their meta-data, plugs and slots.
-func (client *Client) InterfaceInfos() (infos map[string]InterfaceInfo, err error) {
-	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &infos)
+// InterfaceNames returns the list of all interface names.
+func (client *Client) InterfaceNames() (names []string, err error) {
+	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &names)
+	return
+}
+
+// Interface returns all interfaces, their meta-data, plugs and slots.
+func (client *Client) Interface(name string) (iface Interface, err error) {
+	_, err = client.doSync("GET", "/v2/interface/"+name, nil, nil, nil, &iface)
 	return
 }
 

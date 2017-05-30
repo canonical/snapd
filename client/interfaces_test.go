@@ -95,57 +95,57 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientInterfaceInfosCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.InterfaceInfos()
+func (cs *clientSuite) TestClientInterfaceNames(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": ["bool-file"]
+	}`
+	names, err := cs.cli.InterfaceNames()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface")
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"bool-file"})
 }
 
-func (cs *clientSuite) TestClientInterfaceInfos(c *check.C) {
+func (cs *clientSuite) TestClientInterface(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"bool-file": {
-				"meta-data": {
-					"description": "The bool-file interface allows access to a specific file that contains values 0 or 1"
-				},
-				"plugs": [
-					{
-						"snap": "canonical-pi2",
-						"plug": "pin-13",
-						"label": "Pin 13"
-					}
-				],
-				"slots": [
-					{
-						"snap": "keyboard-lights",
-						"slot": "capslock-led",
-						"label": "Capslock indicator LED"
-					}
-				]
-			}
+			"description": "The bool-file interface allows access to a specific file that contains values 0 or 1",
+			"plugs": [
+				{
+					"snap": "canonical-pi2",
+					"plug": "pin-13",
+					"label": "Pin 13"
+				}
+			],
+			"slots": [
+				{
+					"snap": "keyboard-lights",
+					"slot": "capslock-led",
+					"label": "Capslock indicator LED"
+				}
+			]
 		}
 	}`
-	interfaces, err := cs.cli.InterfaceInfos()
+	iface, err := cs.cli.Interface("bool-file")
 	c.Assert(err, check.IsNil)
-	c.Check(interfaces, check.DeepEquals, map[string]client.InterfaceInfo{
-		"bool-file": {
-			MetaData: client.InterfaceMetaData{
-				Description: "The bool-file interface allows access to a specific file that contains values 0 or 1",
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface/bool-file")
+	c.Check(iface, check.DeepEquals, client.Interface{
+		Description: "The bool-file interface allows access to a specific file that contains values 0 or 1",
+		Plugs: []client.Plug{
+			{
+				Snap:  "canonical-pi2",
+				Name:  "pin-13",
+				Label: "Pin 13",
 			},
-			Plugs: []client.Plug{
-				{
-					Snap:  "canonical-pi2",
-					Name:  "pin-13",
-					Label: "Pin 13",
-				},
-			},
-			Slots: []client.Slot{
-				{
-					Snap:  "keyboard-lights",
-					Name:  "capslock-led",
-					Label: "Capslock indicator LED",
-				},
+		},
+		Slots: []client.Slot{
+			{
+				Snap:  "keyboard-lights",
+				Name:  "capslock-led",
+				Label: "Capslock indicator LED",
 			},
 		},
 	})
