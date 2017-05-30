@@ -1,6 +1,4 @@
 summary: Check commands help
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
 environment:
     CMD/abort: abort
     CMD/changes: changes
