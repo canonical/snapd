@@ -123,6 +123,39 @@ func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
 	return infos
 }
 
+// InterfaceInfo returns information about a specific interface.
+func (r *Repository) InterfaceInfo(name string) *InterfaceInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	iface, ok := r.ifaces[name]
+	if !ok {
+		return nil
+	}
+
+	ii := &InterfaceInfo{MetaData: MetaDataOf(iface)}
+
+	for _, plugMap := range r.plugs {
+		for _, plug := range plugMap {
+			if plug.Interface == name {
+				ii.Plugs = append(ii.Plugs, plug.PlugInfo)
+			}
+		}
+	}
+	for _, slotMap := range r.slots {
+		for _, slot := range slotMap {
+			if slot.Interface == name {
+				ii.Slots = append(ii.Slots, slot.SlotInfo)
+			}
+		}
+	}
+
+	sort.Sort(byPlugInfo(ii.Plugs))
+	sort.Sort(bySlotInfo(ii.Slots))
+
+	return ii
+}
+
 // AddBackend adds the provided security backend to the repository.
 func (r *Repository) AddBackend(backend SecurityBackend) error {
 	r.m.Lock()
