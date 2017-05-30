@@ -81,10 +81,12 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 
 // interfaceInfoJSON aids in marshaling InterfaceInfo into JSON.
 type interfaceInfoJSON struct {
-	Name     string      `json:"name,omitempty"`
-	MetaData MetaData    `json:"meta-data,omitempty"`
-	Plugs    []*plugJSON `json:"plugs,omitempty"`
-	Slots    []*slotJSON `json:"slots,omitempty"`
+	Name             string      `json:"name,omitempty"`
+	Summary          string      `json:"summary,omitempty"`
+	Description      string      `json:"description,omitempty"`
+	DocumentationURL string      `json:"documentation-url,omitempty"`
+	Plugs            []*plugJSON `json:"plugs,omitempty"`
+	Slots            []*slotJSON `json:"slots,omitempty"`
 }
 
 // MarshalJSON returns the JSON encoding of InterfaceInfo.
@@ -108,9 +110,11 @@ func (info *InterfaceInfo) MarshalJSON() ([]byte, error) {
 		})
 	}
 	return json.Marshal(&interfaceInfoJSON{
-		Name:     info.Name,
-		MetaData: info.MetaData,
-		Plugs:    plugs,
-		Slots:    slots,
+		Name:             info.Name,
+		Summary:          info.MetaData.Summary,
+		Description:      info.MetaData.Description,
+		DocumentationURL: info.MetaData.DocumentationURL,
+		Plugs:            plugs,
+		Slots:            slots,
 	})
 }
