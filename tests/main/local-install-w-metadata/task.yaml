@@ -1,6 +1,7 @@
 summary: Checks for local install with metadata from assertions
-# XXX we would need to bother with curl there atm
-systems: [-ubuntu-core-16-*, -fedora-*]
+# Disabled for Core as we would need to bother with curl there atm
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 restore: |
     rm -f test-snapd-tools_*.{snap,assert}
 execute: |

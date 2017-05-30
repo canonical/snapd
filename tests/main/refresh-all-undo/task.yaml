@@ -1,6 +1,7 @@
 summary: Check that undo for snap refresh works
 
-systems: [-ubuntu-core-16-*, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir

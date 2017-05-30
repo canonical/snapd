@@ -1,6 +1,7 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
-systems: [-ubuntu-core-16-*, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 
 prepare: |
     echo Ensure we have a os snap with snap run

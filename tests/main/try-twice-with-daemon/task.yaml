@@ -1,5 +1,6 @@
 summary: Check that try command works when daemon line is added to snap.yaml
-systems: [-ubuntu-core-16-*, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 
 environment:
   SERVICE: snap.test-snapd-service-try.service.service

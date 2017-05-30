@@ -1,6 +1,7 @@
 summary: Check that more than one snap is refreshed.
 
-systems: [-ubuntu-core-16-*, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 
 details: |
     We use only the fake store for this test because we currently
