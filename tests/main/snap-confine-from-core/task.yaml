@@ -24,15 +24,15 @@ execute: |
     snap list
 
     for i in $(seq 3); do
-        final_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-        if [ $final_restarts -gt $prev_restarts ]; then
+        after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+        if [ $after_restarts -gt $prev_restarts ]; then
             break
         fi
         sleep 1
     done
 
-    final_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-    [ $final_restarts -gt $prev_restarts ]
+    after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
+    [ $after_restarts -eq $(( $prev_restarts + 1 )) ]
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
