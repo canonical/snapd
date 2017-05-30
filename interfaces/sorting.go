@@ -19,7 +19,11 @@
 
 package interfaces
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/snapcore/snapd/snap"
+)
 
 type bySlotRef []SlotRef
 
@@ -121,4 +125,26 @@ func (c byInterfaceName) Less(i, j int) bool {
 		return c[i].Name() < c[j].Name()
 	}
 	return c[i].Name() < c[j].Name()
+}
+
+type byPlugInfo []*snap.PlugInfo
+
+func (c byPlugInfo) Len() int      { return len(c) }
+func (c byPlugInfo) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byPlugInfo) Less(i, j int) bool {
+	if c[i].Snap.Name() != c[j].Snap.Name() {
+		return c[i].Snap.Name() < c[j].Snap.Name()
+	}
+	return c[i].Name < c[j].Name
+}
+
+type bySlotInfo []*snap.SlotInfo
+
+func (c bySlotInfo) Len() int      { return len(c) }
+func (c bySlotInfo) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotInfo) Less(i, j int) bool {
+	if c[i].Snap.Name() != c[j].Snap.Name() {
+		return c[i].Snap.Name() < c[j].Snap.Name()
+	}
+	return c[i].Name < c[j].Name
 }
