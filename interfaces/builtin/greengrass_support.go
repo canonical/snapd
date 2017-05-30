@@ -22,13 +22,14 @@ package builtin
 const greengrassSupportSummary = `allows operating as the Greengrass service`
 
 const greengrassSupportConnectedPlugAppArmor = `
-# Description: can manage greengrassngs'. This interface is restricted
-# because it gives wide ranging access to the host and other processes.
+# Description: can manage greengrass 'things' and their sandboxes. This
+# interface is restricted because it gives wide ranging access to the host and
+# other processes.
 
-# why?? for sethostname?
-capability net_admin,
+# 0.8 needed this, but not 0.9
+#capability net_admin,
 
-# ??
+# greengrassd uses 'prctl(PR_CAPBSET_DROP, ...)'
 capability setpcap,
 
 # manage children
@@ -44,6 +45,11 @@ owner @{PROC}/[0-9]*/cgroup r,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus r,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems r,
 owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/** rw,
+# for running under snap run --shell
+owner /sys/fs/cgroup/*/user.slice/ rw,
+owner /sys/fs/cgroup/cpuset/user.slice/cpuset.cpus rw,
+owner /sys/fs/cgroup/cpuset/user.slice/cpuset.mems rw,
+owner /sys/fs/cgroup/*/user.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
 
 # allow use of ggc_user and ggc_group
 capability chown,
@@ -134,8 +140,9 @@ umount /var/snap/@{SNAP_NAME}/**,
 `
 
 const greengrassSupportConnectedPlugSeccomp = `
-# Description: can manage greengrass 'things'. This interface is restricted
-# because it gives wide ranging access to the host and other processes.
+# Description: can manage greengrass 'things' and their sandboxes. This
+# interface is restricted because it gives wide ranging access to the host and
+# other processes.
 
 # allow use of ggc_user and ggc_group
 # FIXME: seccomp arg filter by this uid/gid when supported by snap-confine
@@ -150,11 +157,11 @@ mount
 umount2
 pivot_root
 
-# why is greengrass doing this? To set the thingArn?
+# greengrassd calls 'sethostname("sandbox", 7)'
 sethostname
 
-# Unfortunate, but required
-# TODO: strace to arg filter?
+# greengrassd sets up several session keyrings. See:
+# https://github.com/torvalds/linux/blob/master/Documentation/security/keys.txt
 keyctl
 `
 
