@@ -50,20 +50,20 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "cannot open cookie file %s, SNAP_CONTEXT will not be set",
 				  context_path);
-    sc_error_forward(errorp, err);
-    return NULL;
+		sc_error_forward(errorp, err);
+		return NULL;
 	}
 
 	char context_val[255];
-  int n = read(fd, context_val, sizeof(context_val) - 1);
-  if (n < 0) {
+	int n = read(fd, context_val, sizeof(context_val) - 1);
+	if (n < 0) {
 		err =
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "failed to read cookie file %s",
 				  context_path);
-    sc_error_forward(errorp, err);
-    return NULL;
+		sc_error_forward(errorp, err);
+		return NULL;
 	}
-  context_val[n] = 0;
+	context_val[n] = 0;
 	return strdup(context_val);
 }

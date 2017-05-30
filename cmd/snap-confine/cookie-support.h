@@ -29,7 +29,6 @@
  * If the file cannot be read then an error is returned in errorp and
  * the function returns NULL.
  **/
-char *sc_cookie_get_from_snapd(const char *snap_name,
-				struct sc_error **errorp);
+char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp);
 
 #endif
