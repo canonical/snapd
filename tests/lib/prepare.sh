@@ -145,6 +145,9 @@ EOF
 $START_LIMIT_INTERVAL
 EOF
 
+    systemctl daemon-reload
+    systemctl restart snapd.socket
+
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
