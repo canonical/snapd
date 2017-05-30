@@ -1460,6 +1460,65 @@ slots:
 	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
 
+func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlotsSymmetry(c *C) {
+	repo := s.emptyRepo
+	// Add a "auto" interface
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
+	c.Assert(err, IsNil)
+
+	policyCheck := func(plug *Plug, slot *Slot) bool {
+		return slot.Interface == "auto"
+	}
+
+	// Add a producer snap for "auto"
+	producer := snaptest.MockInfo(c, `
+name: producer
+type: os
+slots:
+    auto:
+`, nil)
+	err = repo.AddSnap(producer)
+	c.Assert(err, IsNil)
+
+	// Add two consumers snaps for "auto"
+	consumer1 := snaptest.MockInfo(c, `
+name: consumer1
+plugs:
+    auto:
+`, nil)
+
+	err = repo.AddSnap(consumer1)
+	c.Assert(err, IsNil)
+
+	// Add two consumers snaps for "auto"
+	consumer2 := snaptest.MockInfo(c, `
+name: consumer2
+plugs:
+    auto:
+`, nil)
+
+	err = repo.AddSnap(consumer2)
+	c.Assert(err, IsNil)
+
+	// Both can auto-connect
+	candidateSlots := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
+	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(candidateSlots[0].Name, Equals, "auto")
+
+	candidateSlots = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
+	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(candidateSlots[0].Name, Equals, "auto")
+
+	// Plugs candidates seen from the producer (for example if
+	// it's installed after) should be the same
+	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
+	c.Assert(candidatePlugs, HasLen, 2)
+}
+
 // Tests for AddSnap and RemoveSnap
 
 type AddRemoveSuite struct {
