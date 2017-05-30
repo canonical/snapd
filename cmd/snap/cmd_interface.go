@@ -33,6 +33,7 @@ import (
 
 type cmdInterface struct {
 	ShowAttrs   bool `long:"attrs"`
+	ShowAll     bool `long:"all"`
 	Positionals struct {
 		Interface interfaceName `skip-help:"true"`
 	} `positional-args:"true"`
@@ -42,7 +43,8 @@ var shortInterfaceHelp = i18n.G("Lists interfaces in the system")
 var longInterfaceHelp = i18n.G(`
 The interface command lists interfaces available in the system.
 
-By default a list of all interfaces, along with a short summary, is displayed.
+By default a list of all used interfaces, along with a short summary, is
+displayed. Use the --all option to include unused interfaces.
 
 $ snap interfaces [--attrs] <interface>
 
@@ -55,6 +57,7 @@ func init() {
 		return &cmdInterface{}
 	}, map[string]string{
 		"attrs": i18n.G("Show interface attributes"),
+		"all":   i18n.G("Show both used and unused interfaces"),
 	}, []argDesc{{
 		name: i18n.G("<interface>"),
 		desc: i18n.G("Show details of a specific interface"),
@@ -143,7 +146,7 @@ func (x *cmdInterface) showManyInterfaces(infos map[string]client.InterfaceInfo)
 	fmt.Fprintln(w, i18n.G("Name\tSummary"))
 	for _, name := range names {
 		ii := infos[name]
-		if shouldShowInterface(&ii) {
+		if x.ShowAll || shouldShowInterface(&ii) {
 			fmt.Fprintf(w, "%s\t%s\n", name, ii.MetaData.Summary)
 		}
 	}
