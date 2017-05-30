@@ -206,8 +206,6 @@ case "$SPREAD_SYSTEM" in
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
         ;;
-    *)
-        ;;
 esac
 
 # update vendoring
@@ -229,6 +227,8 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
          opensuse_build_rpm
          ;;
       *)
+         echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
+         exit 1
          ;;
    esac
 else

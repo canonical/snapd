@@ -1,6 +1,4 @@
 summary: Check commands help
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
 environment:
     CMD/abort: abort
     CMD/changes: changes
