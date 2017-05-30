@@ -549,3 +549,18 @@ pwritev
 # of socket(), bind(), connect(), etc individually.
 socketcall
 `)
+
+// Go's net package attempts to bind early to check whether IPv6 is available or not.
+// For systems with apparmor enabled, this will be mediated and cause an error to be
+// returned. Without apparmor, the call goes through to seccomp and the process is
+// killed instead of just getting the error.
+//
+// For that reason once apparmor is disabled the seccomp profile is given access
+// to bind, so that these processes are not improperly killed. There is on going
+// work to make seccomp return an error in those cases as well and log the error.
+// Once that's in place we can drop this hack.
+const bindSyscallWorkaround = `
+# Add bind() for systems with only Seccomp enabled to workaround
+# LP #1644573
+bind
+`
