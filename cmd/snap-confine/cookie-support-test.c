@@ -64,7 +64,7 @@ static void create_dumy_cookie_file(const char *snap_name,
 
 static void test_cookie_get_from_snapd__successful()
 {
-	struct sc_error *err;
+	struct sc_error *err = NULL;
 	char *cookie;
 
 	char *dummy = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijmnopqrst";
@@ -81,7 +81,7 @@ static void test_cookie_get_from_snapd__successful()
 
 static void test_cookie_get_from_snapd__nofile()
 {
-	struct sc_error *err;
+	struct sc_error *err = NULL;
 	char *cookie;
 
 	set_fake_cookie_dir();
