@@ -19,10 +19,8 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    sleep 1
     prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     snap list
-    sleep 1
     after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
     [ $after_restarts -eq $(( $prev_restarts + 1 )) ]
 
