@@ -19,10 +19,8 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    prev_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-    snap list
-    after_restarts=$(journalctl | grep -c "DEBUG: restarting into")
-    [ $after_restarts -eq $(( $prev_restarts + 1 )) ]
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2> debug.log
+    cat debug.log | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
