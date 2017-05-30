@@ -1,0 +1,49 @@
+#!/bin/sh
+
+do_describe() {
+	cat << EOF
+core revision 1968 contained a snapd that would load snap-update-ns from the
+distribution and not from the core snap, at that time the released (classic)
+package of snapd has a no-op snap-update-ns that always fails.
+
+As a work-around, copy the update-ns tool from the core snap and overwrite
+the system package.
+EOF
+}
+
+do_apply() {
+	sudo cp -a /snap/core/current/usr/lib/snapd/snap-update-ns /usr/lib/snapd/snap-update-ns
+}
+
+is_eligible() {
+	# Only certain distributions are eligible for repair.
+	. /etc/os-release
+	case "$ID" in
+		ubuntu-core)
+			# Not applicable to core systems.
+			return 1
+			;;
+		fedora|centos|opensuse|suse)
+			# Not applicable to systems that do not re-execute.
+			return 1
+			;;
+	esac
+
+	# Only certain core revisions are eligible for repair.
+	case "$(readlink /snap/core/current)" in
+		1968)
+			# This corresponds to snapd 2.26.3+201705171658.git.78e21 on amd64
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
+is_necessary() {
+	if cmp --quiet /snap/core/current/usr/lib/snapd/snap-update-ns /usr/lib/snapd/snap-update-ns; then
+		return 1
+	else
+		return 0
+	fi
+}
