@@ -1,6 +1,0 @@
-summary: Dummy test case which does nothing
-
-systems: [fedora-*, opensuse-*]
-
-execute: |
-    exit 0
