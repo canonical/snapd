@@ -10,18 +10,18 @@ restore: |
 execute: |
     snap install --dangerous snapctl-from-snap_1.0_all.snap
 
-    echo "Verify that context file exists and has proper permissions"
-    CONTEXT_FILE=/var/lib/snapd/context/snap.snapctl-from-snap
-    if ! test -f $CONTEXT_FILE ; then
-        echo "Context file $CONTEXT_FILE is missing"
+    echo "Verify that cookie file exists and has proper permissions"
+    COOKIE_FILE=/var/lib/snapd/cookie/snap.snapctl-from-snap
+    if ! test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE is missing"
         exit 1
     fi
-    if [ $(stat -c%a $CONTEXT_FILE) != "600" ]; then
-        echo "Incorrect permissions of file $CONTEXT_FILE"
+    if [ $(stat -c%a $COOKIE_FILE) != "600" ]; then
+        echo "Incorrect permissions of file $COOKIE_FILE"
         exit 1
     fi
     echo "Verify that context file has expected length"
-    wc -c $CONTEXT_FILE | MATCH 44
+    wc -c $COOKIE_FILE | MATCH 44
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
     /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
@@ -41,14 +41,14 @@ execute: |
     snap remove snapctl-from-snap --revision=x1
 
     echo "Verify that context file is still present"
-    if ! test -f $CONTEXT_FILE ; then
-        echo "Context file $CONTEXT_FILE is missing"
+    if ! test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE is missing"
         exit 1
     fi
 
     echo "Verify that snap context is removed on snap removal"
     snap remove snapctl-from-snap
-    if test -f $CONTEXT_FILE ; then
-        echo "Context file $CONTEXT_FILE still exists"
+    if test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE still exists"
         exit 1
     fi

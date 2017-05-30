@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 #endif
 
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
+	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
 	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
@@ -219,7 +219,9 @@ int main(int argc, char **argv)
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
-  setenv("SNAP_COOKIE", snap_context, 1);
+  if (snap_context != NULL) {
+    setenv("SNAP_CONTEXT", snap_context, 1);
+  }
 	// Permanently drop if not root
 	if (geteuid() == 0) {
 		// Note that we do not call setgroups() here because its ok
