@@ -149,9 +149,7 @@ func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err e
 	defer m.state.Unlock()
 	err = m.state.Get("snap-cookies", &contexts)
 	if err != nil {
-		if err != state.ErrNoState {
-			return nil, fmt.Errorf("cannot get snap cookies: %v", err)
-		}
+		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
 	}
 	if snapName, ok := contexts[cookieID]; ok {
 		// create new ephemeral cookie
@@ -349,7 +347,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_COOKIE=%s", hookContext))
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
