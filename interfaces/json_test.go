@@ -129,11 +129,9 @@ func (s *JSONSuite) TestInterfaceInfoMarshalJSON(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(repr, DeepEquals, map[string]interface{}{
 		"name":              "iface",
-		"meta-data": map[string]interface{}{
-			"description":       "interface description",
-			"summary":           "interface summary",
-			"documentation-url": "http://example.org/",
-		},
+		"description":       "interface description",
+		"summary":           "interface summary",
+		"documentation-url": "http://example.org/",
 		"plugs": []interface{}{
 			map[string]interface{}{
 				"snap":  "snap-name",
