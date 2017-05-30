@@ -271,16 +271,16 @@ var snapTopicalTasks = map[string]bool{
 	"disconnect":         true,
 }
 
-func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
+func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
 	var plugRef interfaces.PlugRef
 	var slotRef interfaces.SlotRef
 	if err := task.Get("plug", &plugRef); err != nil {
-		return plugRef, slotRef, err
+		return nil, nil, err
 	}
 	if err := task.Get("slot", &slotRef); err != nil {
-		return plugRef, slotRef, err
+		return nil, nil, err
 	}
-	return plugRef, slotRef, nil
+	return &plugRef, &slotRef, nil
 }
 
 // CheckChangeConflict ensures that for the given snapName no other
