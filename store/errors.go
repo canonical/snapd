@@ -60,7 +60,7 @@ var (
 	ErrPaymentDeclined = errors.New("payment declined")
 
 	// ErrLocalSnap is returned when an operation that only applies to snaps that come from a store was attempted on a local snap.
-	ErrLocalSnap = errors.New("the given snap does not come from the store")
+	ErrLocalSnap = errors.New("cannot perform operation on local snap")
 )
 
 // ErrDownload represents a download error
