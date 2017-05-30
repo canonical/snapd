@@ -550,20 +550,15 @@ pwritev
 socketcall
 `)
 
-// bindSyscallWorkaround specifies the bind() syscall for systems which
-// don't use AppArmor but only seccomp. In those cases the net package
-// from go uses a bind() syscall for IPv4/IPv6 support detection when
-// loaded the first time.
-// For systems where we only have seccomp enabled this is a problem with
-// snapctl. If AppArmor is around it will block the bind() call and
-// returns an error to the caller before seccomp is checked. When no
-// AppArmor is around seccomp detects the not allowed bind() syscall
-// from snapctl and kills the process. As snapctl itself doesn't use
-// bind() but the golang net package does this is workaround to make
-// snapctl working on these systems.
-// This will only get added to the seccomp default policy for a snap
-// if the system we're running on doesn't support AppArmor. In all
-// other cases bind() isn't added to the seccomp policy.
+// Go's net package attempts to bind early to check whether IPv6 is available or not.
+// For systems with apparmor enabled, this will be mediated and cause an error to be
+// returned. Without apparmor, the call goes through to seccomp and the process is
+// killed instead of just getting the error.
+//
+// For that reason once apparmor is disabled the seccomp profile is given access
+// to bind, so that these processes are not improperly killed. There is on going
+// work to make seccomp return an error in those cases as well and log the error.
+// Once that's in place we can drop this hack.
 const bindSyscallWorkaround = `
 # Add bind() for systems with only Seccomp enabled to workaround
 # LP #1644573
