@@ -81,6 +81,7 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 
 // interfaceInfoJSON aids in marshaling InterfaceInfo into JSON.
 type interfaceInfoJSON struct {
+	Name     string      `json:"name,omitempty"`
 	MetaData MetaData    `json:"meta-data,omitempty"`
 	Plugs    []*plugJSON `json:"plugs,omitempty"`
 	Slots    []*slotJSON `json:"slots,omitempty"`
@@ -107,6 +108,7 @@ func (info *InterfaceInfo) MarshalJSON() ([]byte, error) {
 		})
 	}
 	return json.Marshal(&interfaceInfoJSON{
+		Name:     info.Name,
 		MetaData: info.MetaData,
 		Plugs:    plugs,
 		Slots:    slots,

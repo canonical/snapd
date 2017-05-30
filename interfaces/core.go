@@ -79,6 +79,7 @@ type Interfaces struct {
 
 // InterfaceInfo holds information about a given interface and its instances.
 type InterfaceInfo struct {
+	Name     string
 	MetaData MetaData
 	Plugs    []*snap.PlugInfo
 	Slots    []*snap.SlotInfo

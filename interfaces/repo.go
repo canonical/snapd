@@ -101,7 +101,7 @@ func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
 
 	// Collect meta-data of each interface
 	for _, iface := range r.ifaces {
-		infos[iface.Name()] = &InterfaceInfo{MetaData: MetaDataOf(iface)}
+		infos[iface.Name()] = &InterfaceInfo{Name: iface.Name(), MetaData: MetaDataOf(iface)}
 	}
 
 	// Collect infos of all plugs and slots.
@@ -133,7 +133,7 @@ func (r *Repository) InterfaceInfo(name string) *InterfaceInfo {
 		return nil
 	}
 
-	ii := &InterfaceInfo{MetaData: MetaDataOf(iface)}
+	ii := &InterfaceInfo{Name: iface.Name(), MetaData: MetaDataOf(iface)}
 
 	for _, plugMap := range r.plugs {
 		for _, plug := range plugMap {

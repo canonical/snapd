@@ -188,6 +188,7 @@ func (s *RepositorySuite) TestInterfacesInfo(c *C) {
 	c.Assert(s.emptyRepo.AddSlot(s.slot), IsNil)
 	c.Assert(s.emptyRepo.InterfaceInfos(), DeepEquals, map[string]*InterfaceInfo{
 		s.iface.Name(): {
+			Name:     s.iface.Name(),
 			MetaData: MetaDataOf(s.iface),
 			Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
 			Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
@@ -208,6 +209,7 @@ func (s *RepositorySuite) TestInterfaceInfo(c *C) {
 
 	// Asking about an existing interface returns correct data.
 	c.Assert(s.emptyRepo.InterfaceInfo(s.iface.Name()), DeepEquals, &InterfaceInfo{
+		Name:     s.iface.Name(),
 		MetaData: MetaDataOf(s.iface),
 		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
 		Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
