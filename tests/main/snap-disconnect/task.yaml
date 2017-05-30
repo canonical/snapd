@@ -1,6 +1,7 @@
 summary: Check that snap disconnect works
 
-systems: [-ubuntu-core-16-64, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-16-64, -fedora-*, -opensuse-*]
 
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"

@@ -1,7 +1,8 @@
 summary: Check that the refresh command uses deltas
 
 # delta downloads are currently disabled by default on core
-systems: [-ubuntu-core-*, -fedora-*]
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
 
 environment:
     SNAP_NAME: test-snapd-delta-refresh
