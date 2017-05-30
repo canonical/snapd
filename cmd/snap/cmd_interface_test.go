@@ -37,7 +37,8 @@ func (s *SnapSuite) TestInterfaceHelp(c *C) {
 
 The interface command lists interfaces available in the system.
 
-By default a list of all interfaces, along with a short summary, is displayed.
+By default a list of all used interfaces, along with a short summary, is
+displayed. Use the --all option to include unused interfaces.
 
 $ snap interfaces [--attrs] <interface>
 
@@ -52,6 +53,7 @@ Help Options:
 
 [interface command options]
           --attrs        Show interface attributes
+          --all          Show both used and unused interfaces
 
 [interface command arguments]
   <interface>:           Show details of a specific interface
@@ -91,6 +93,11 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 					},
 					Slots: []client.Slot{{Snap: "core", Name: "network-bind"}},
 				},
+				"unused": {
+					MetaData: client.InterfaceMetaData{
+						Summary: "just an unused interface, nothing to see here",
+					},
+				},
 			},
 		})
 	})
@@ -101,6 +108,56 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 		"Name          Summary\n" +
 		"network       allows access to the network\n" +
 		"network-bind  allows providing services on the network\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfaceListAll(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interface")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": map[string]client.InterfaceInfo{
+				"network": {
+					MetaData: client.InterfaceMetaData{
+						Summary: "allows access to the network",
+					},
+					Plugs: []client.Plug{
+						{Snap: "deepin-music", Name: "network"},
+						{Snap: "http", Name: "network"},
+					},
+					Slots: []client.Slot{{Snap: "core", Name: "network"}},
+				},
+				"network-bind": {
+					MetaData: client.InterfaceMetaData{
+						Summary: "allows providing services on the network",
+					},
+					Plugs: []client.Plug{
+						{Snap: "deepin-music", Name: "network-bind"},
+						{Snap: "http", Name: "network-bind"},
+					},
+					Slots: []client.Slot{{Snap: "core", Name: "network-bind"}},
+				},
+				"unused": {
+					MetaData: client.InterfaceMetaData{
+						Summary: "just an unused interface, nothing to see here",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interface", "--all"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Name          Summary\n" +
+		"network       allows access to the network\n" +
+		"network-bind  allows providing services on the network\n" +
+		"unused        just an unused interface, nothing to see here\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
