@@ -22,9 +22,8 @@ package builtin
 const greengrassSupportSummary = `allows operating as the Greengrass service`
 
 const greengrassSupportConnectedPlugAppArmor = `
-# Description: can manage greengrass containers. This interface is restricted
+# Description: can manage greengrassngs'. This interface is restricted
 # because it gives wide ranging access to the host and other processes.
-
 
 # why?? for sethostname?
 capability net_admin,
@@ -46,15 +45,18 @@ owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus r,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems r,
 owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/** rw,
 
-# have containers use ggc_user and ggc_group
+# allow use of ggc_user and ggc_group
 capability chown,
 capability fowner,
 capability fsetid,
 capability setuid,
 capability setgid,
 
+# Note: if could match on ggc_user instead of just 'owner', this could be
+# refined
 @{PROC}/[0-9]*/uid_map r,
 @{PROC}/[0-9]*/gid_map r,
+@{PROC}/[0-9]*/environ r,
 owner @{PROC}/[0-9]*/uid_map w,
 owner @{PROC}/[0-9]*/gid_map w,
 
@@ -132,10 +134,10 @@ umount /var/snap/@{SNAP_NAME}/**,
 `
 
 const greengrassSupportConnectedPlugSeccomp = `
-# Description: can manage greengrass containers. This interface is restricted
+# Description: can manage greengrass 'things'. This interface is restricted
 # because it gives wide ranging access to the host and other processes.
 
-# have containers use ggc_user and ggc_group
+# allow use of ggc_user and ggc_group
 # FIXME: seccomp arg filter by this uid/gid when supported by snap-confine
 fchown
 fchown32
