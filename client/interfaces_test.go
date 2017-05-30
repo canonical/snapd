@@ -111,6 +111,7 @@ func (cs *clientSuite) TestClientInterface(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
+			"name": "bool-file",
 			"description": "The bool-file interface allows access to a specific file that contains values 0 or 1",
 			"plugs": [
 				{
@@ -133,6 +134,7 @@ func (cs *clientSuite) TestClientInterface(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface/bool-file")
 	c.Check(iface, check.DeepEquals, client.Interface{
+		Name:        "bool-file",
 		Description: "The bool-file interface allows access to a specific file that contains values 0 or 1",
 		Plugs: []client.Plug{
 			{

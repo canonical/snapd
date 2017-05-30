@@ -66,6 +66,7 @@ type Interfaces struct {
 
 // Interface holds information about a given interface and its instances.
 type Interface struct {
+	Name             string `json:"name,omitempty"`
 	Summary          string `json:"summary,omitempty"`
 	Description      string `json:"description,omitempty"`
 	DocumentationURL string `json:"documentation-url,omitempty"`
