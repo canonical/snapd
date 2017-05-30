@@ -61,10 +61,9 @@ backends:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
-                workers: 4
+                workers: 1
             - opensuse-42.2-64:
                 workers: 1
-                image: openSUSE Leap 42.2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -269,7 +268,8 @@ prepare: |
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
         tf=$(mktemp)
-        # NOTE: We can't use tests/lib/pkgdb.sh here as it doesn't exist yet
+        # NOTE: We can't use tests/lib/pkgdb.sh here as it doesn't exist at
+        # this time when none of the test files is yet in place.
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
@@ -280,8 +280,6 @@ prepare: |
                 ;;
             opensuse-*)
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-            *)
                 ;;
         esac
         rm -f "$tf"
@@ -309,7 +307,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-fedora-*, -opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

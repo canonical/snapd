@@ -54,7 +54,6 @@ update_core_snap_for_classic_reexec() {
                 cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
             fi
             ;;
-        *)
     esac
 
     # repack, cheating to speed things up (4sec vs 1.5min)
@@ -109,8 +108,6 @@ prepare_classic() {
             fedora-*)
                 dnf info snapd
                 ;;
-            *)
-                ;;
         esac
         exit 1
     fi
@@ -123,8 +120,6 @@ prepare_classic() {
                 ;;
             fedora-*)
                 dnf info snapd
-                ;;
-            *)
                 ;;
         esac
         exit 1
@@ -176,13 +171,11 @@ EOF
             fedora-*|opensuse-*)
                 GRUB_EDITENV=grub2-editenv
                 ;;
-            *)
-                ;;
         esac
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
         output=$($GRUB_EDITENV list)
-        if echo $output | grep -q snap_ ; then
+        if echo $output | MATCH nap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
