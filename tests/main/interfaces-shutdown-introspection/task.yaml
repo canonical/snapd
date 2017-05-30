@@ -1,10 +1,6 @@
 summary: Ensures that introspection of login1 of the shutdown interface works.
 
 systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-    - -fedora-*
-    - -opensuse-*
     # unity7 implicit classic slot needed (used to access dbus-send) not
     # available on core
     - -ubuntu-core-*
@@ -39,6 +35,10 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect shutdown-introspection-consumer:shutdown
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    if [ "$(snap debug confinement)" = none ]; then
+        exit
+    fi
 
     echo "Then the snap is not able to get system information"
     if su -l -c "shutdown-introspection-consumer" test; then

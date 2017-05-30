@@ -1,8 +1,7 @@
 summary: test chattr
 # ubuntu-core doesn't have go :-)
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 prepare: |
   go build -o toggle ./toggle.go
 execute: |

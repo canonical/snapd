@@ -1,8 +1,5 @@
 summary: Ensure that the content sharing interface with defaults work.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
     snap install --edge test-snapd-content-slot-empty-content-attr
@@ -22,6 +19,10 @@ execute: |
 
     echo "And we can use the shared content"
     test-snapd-content-plug-empty-content-attr.content-plug | grep "Some shared content"
+
+    if [ "$(snap debug confinement)" = none ]; then
+        exit 0
+    fi
 
     echo "============================================"
 

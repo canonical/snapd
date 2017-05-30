@@ -1,5 +1,5 @@
 summary: Ensure that our debs have the "built-using" header
-# Disabled for Fedora and openSUSE until test case is properly ported
+# Does not apply for any other system than Ubuntu or Debian
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
 execute: |
     out=$(dpkg -I $GOHOME/snapd_*.deb)

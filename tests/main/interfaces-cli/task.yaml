@@ -1,8 +1,5 @@
 summary: Check the interfaces command
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 environment:
     SNAP_NAME: network-consumer
     SNAP_FILE: ${SNAP_NAME}_1.0_all.snap

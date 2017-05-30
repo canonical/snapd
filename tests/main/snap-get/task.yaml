@@ -1,8 +1,6 @@
 summary: Check that `snap get` works as expected
-
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
+# Disabled for Fedora as it fails with not yet investigated reexec errors
+systems: [-fedora-*]
 prepare: |
     echo "Build basic test package (without hooks)"
     snapbuild $TESTSLIB/snaps/basic .

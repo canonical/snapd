@@ -36,6 +36,9 @@ fedora_name_package() {
 
 opensuse_name_package() {
     case "$1" in
+        python3-yaml)
+            echo "python3-PyYAML"
+            ;;
         *)
             echo $1
             ;;

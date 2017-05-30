@@ -1,7 +1,6 @@
 summary: Check that 'current' symlink is created with 'snap run'
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh

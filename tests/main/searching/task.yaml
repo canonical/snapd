@@ -1,9 +1,5 @@
 summary: Check snap search
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
-
 execute: |
     echo "List all featured snaps"
     expected="(?s)Name +Version +Developer +Notes +Summary *\n\

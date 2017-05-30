@@ -1,8 +1,5 @@
 summary: Ensure that the content sharing interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap
@@ -33,6 +30,10 @@ execute: |
 
     echo "And the current mount profile is the same as the desired mount profile"
     diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
+
+    if [ "$(snap debug confinement)" = none ]; then
+        exit 0
+    fi
 
     echo "============================================"
 
