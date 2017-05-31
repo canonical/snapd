@@ -63,8 +63,9 @@ int main(int argc, char *argv[])
 		die("cannot create directory /writable");
 	}
 	// We are reading a file from /run and need to do this before unmounting
-	if (sc_read_reboot_arg(reboot_arg, sizeof reboot_arg) < 0)
+	if (sc_read_reboot_arg(reboot_arg, sizeof reboot_arg) < 0) {
 		kmsg("no reboot parameter");
+	}
 
 	if (umount_all()) {
 		kmsg("- found no hard-to-unmount writable partition.");
@@ -106,15 +107,17 @@ int main(int argc, char *argv[])
 	// parameter
 
 	long ret;
-	if (cmd == RB_AUTOBOOT && reboot_arg[0] != '\0')
+	if (cmd == RB_AUTOBOOT && reboot_arg[0] != '\0') {
 		ret = syscall(SYS_reboot,
 			      LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
 			      LINUX_REBOOT_CMD_RESTART2, reboot_arg);
-	else
+	} else {
 		ret = reboot(cmd);
+	}
 
-	if (ret == -1)
+	if (ret == -1) {
 		kmsg("cannot reboot the system: %s", strerror(errno));
+	}
 
 	return 0;
 }
