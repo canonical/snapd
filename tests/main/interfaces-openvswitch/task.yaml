@@ -36,6 +36,7 @@ restore: |
     ip link delete tap1 || true
 
 debug: |
+    echo "=============================="
     echo "Custom debug info"
     echo "=============================="
     systemctl status openvswitch-switch.service || echo "failed"
