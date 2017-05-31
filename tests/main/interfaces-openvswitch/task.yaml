@@ -49,6 +49,12 @@ debug: |
     ifconfig || echo failed
     echo "------------------------------"
     journalctl -xu openvswitch.service || echo "failed"
+    echo "------------------------------"
+    tail -n100 /var/log/openvswitch/ovsdb-server.log || echo "failed"
+    echo "------------------------------"
+    tail -n100 /var/log/openvswitch/ovs-vswitchd.log || echo "failed"
+    echo "------------------------------"
+    ls -al /var/run/openvswitch || echo "failed"
     echo "=============================="
 
 execute: |
