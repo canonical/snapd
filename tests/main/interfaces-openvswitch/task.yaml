@@ -15,11 +15,11 @@ details: |
     list and deletion.
 
 prepare: |
-    echo "Given openvswitch is installed"
-    apt install -y --no-install-recommends openvswitch-switch
-
-    echo "And a snap declaring a plug on the openvswitch interface is installed"
+    echo "Install a snap declaring a plug on the openvswitch interface is installed"
     snap install --edge test-snapd-openvswitch-consumer
+
+    echo "Install openvswitch"
+    apt install -y --no-install-recommends openvswitch-switch
 
     echo "And a tap interface is defined"
     ip tuntap add tap1 mode tap
