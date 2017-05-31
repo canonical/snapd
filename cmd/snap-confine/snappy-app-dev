@@ -15,7 +15,7 @@ MAJMIN="$4"
 [ -n "$DEVPATH" ] || { echo "no devpath given" >&2; exit 1; }
 [ -n "$MAJMIN" ] || { echo "no major/minor given" >&2; exit 0; }
 
-APPNAME=`echo $APPNAME | tr '_' '.'`
+APPNAME="$( echo "$APPNAME" | tr '_' '.' )"
 app_dev_cgroup="/sys/fs/cgroup/devices/$APPNAME"
 
 # check if it's a block or char dev
