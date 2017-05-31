@@ -23,6 +23,7 @@ execute: |
         sleep 1
     done
     cat snap-download.log | MATCH "Retrying.*\.snap, attempt 2"
+
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
     # end up with a "connection refused" error, something we do not retry
