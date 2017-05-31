@@ -35,6 +35,14 @@ restore: |
 
     ip link delete tap1 || true
 
+debug: |
+    systemctl status openvswitch-switch.service
+    ls -al /etc/openvswitch
+    tail -n100 /var/log/dpkg.log
+    tail -n100 /var/log/syslog
+    systemctl list-unit-files
+    ifconfig
+
 execute: |
     CONNECTED_PATTERN=":openvswitch +test-snapd-openvswitch-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-openvswitch-consumer:openvswitch"
