@@ -157,6 +157,9 @@ if [ "$SPREAD" = 1 ]; then
     addtrap "rm -rf \"$TMP_SPREAD\""
 
     export PATH=$TMP_SPREAD:$PATH
+    ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+
+    rm spread
     ( cd $TMP_SPREAD && curl -s -O http://people.canonical.com/~sjcazzol/snappy/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     spread -v -repeat 20 linode:tests/main/interfaces-openvswitch
