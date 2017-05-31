@@ -6,10 +6,7 @@ prepare: |
     "$TESTSLIB"/mkpinentry.sh
 
 debug: |
-    if [ -f /proc/sys/kernel/random/entropy_avail ]; then
-        echo "Available entropy:"
-        cat /proc/sys/kernel/random/entropy_avail
-    fi
+    sysctl kernel.random.entropy_avail || true
 
 execute: |
     echo "Checking passphrase mismatch error"
