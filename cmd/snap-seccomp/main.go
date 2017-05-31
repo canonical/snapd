@@ -62,6 +62,8 @@ import (
 	"syscall"
 
 	"github.com/seccomp/libseccomp-golang"
+
+	"github.com/snapcore/snapd/arch"
 )
 
 var seccompResolver = map[string]uint64{
@@ -365,7 +367,12 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			continue
 		}
 
-		scmpCond, err := seccomp.MakeCondition(uint(pos), cmpOp, value)
+		var scmpCond seccomp.ScmpCondition
+		if cmpOp == seccomp.CompareMaskedEqual {
+			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
+		} else {
+			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value)
+		}
 		if err != nil {
 			return fmt.Errorf("cannot parse line %q: %s", line, err)
 		}
@@ -393,11 +400,7 @@ func compile(in, out string) error {
 	}
 
 	// FIXME: port arch handling properly
-	nativeArch, err := seccomp.GetNativeArch()
-	if err != nil {
-		return fmt.Errorf("cannot get native seecomp arch: %s")
-	}
-	if nativeArch == seccomp.ArchAMD64 {
+	if arch.UbuntuArchitecture() == "amd64" {
 		secFilter.AddArch(seccomp.ArchX86)
 	}
 
