@@ -73,8 +73,9 @@ int sc_read_reboot_arg(char *arg, size_t max_size)
 	// This file is used by systemd to pass around a reboot parameter See
 	// https://github.com/systemd/systemd/blob/v229/src/basic/def.h#L44
 	f = fopen("/run/systemd/reboot-param", "r");
-	if (!f)
+	if (!f) {
 		return -1;
+	}
 
 	if (!fgets(arg, max_size, f)) {
 		fclose(f);
