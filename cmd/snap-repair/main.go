@@ -24,7 +24,7 @@ import (
 	"io"
 	"os"
 
-	// TODO: consider not using go-flags at all 
+	// TODO: consider not using go-flags at all
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/release"
