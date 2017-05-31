@@ -1170,7 +1170,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	}
 }
 
-// query the store for the information about currently-offered revisions of snaps
+// query the store for the information about currently offered revisions of snaps
 func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
