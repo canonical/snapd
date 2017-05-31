@@ -39,9 +39,13 @@ debug: |
     echo "Custom debug info"
     echo "==================================="
     systemctl status openvswitch-switch.service
+    echo "-----------------------------------"
     ls -al /etc/openvswitch
+    echo "-----------------------------------"
     tail -n100 /var/log/dpkg.log
+    echo "-----------------------------------"
     tail -n100 /var/log/syslog
+    echo "-----------------------------------"
     ifconfig
     echo "==================================="
 
