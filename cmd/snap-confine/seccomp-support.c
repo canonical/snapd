@@ -783,9 +783,6 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
            .len = num_read / sizeof(struct sock_filter),
            .filter = (struct sock_filter *)bpf,
 	};
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-		die("prctl(NO_NEW_PRIVS)");
-	}
 	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
 		die("prctl(SECCOMP)");
 	}
