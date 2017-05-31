@@ -1170,7 +1170,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	}
 }
 
-// query the store for the latest revisions of currentSnaps
+// query the store for the information about currently-offered revisions of snaps
 func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
@@ -1211,14 +1211,9 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 	return updateData.Payload.Packages, nil
 }
 
-func isActuallyUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
-	rrev := snap.R(remote.Revision)
-	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
-}
-
 var refreshForCandidates = (*Store).refreshForCandidates
 
-// LookupRefresh returns an updated snap given its refresh candidate
+// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
 func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
 	cur := currentSnap(installed)
 	if cur == nil {
@@ -1235,7 +1230,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 	}
 
 	rsnap := latest[0]
-	if !isActuallyUpdate(rsnap, installed) {
+	if !acceptableUpdate(rsnap, installed) {
 		return nil, &snap.NoUpdateAvailableError{Snap: rsnap.Name}
 	}
 
@@ -1264,7 +1259,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 	toRefresh := make([]*snap.Info, 0, len(latest))
 	for _, rsnap := range latest {
-		if !isActuallyUpdate(rsnap, candidateMap[rsnap.SnapID]) {
+		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
 			continue
 		}
 
@@ -1272,6 +1267,11 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	return toRefresh, nil
+}
+
+func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
+	rrev := snap.R(remote.Revision)
+	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {

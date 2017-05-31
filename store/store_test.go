@@ -3294,18 +3294,18 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 	c.Assert(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestIsActuallyUpdateWorks(c *C) {
-	c.Check(isActuallyUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1")}), Equals, true)
+func (t *remoteRepoTestSuite) TestAcceptableUpdateWorks(c *C) {
+	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1")}), Equals, true)
 }
-func (t *remoteRepoTestSuite) TestIsActuallyUpdateSkipsCurrent(c *C) {
-	c.Check(isActuallyUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42")}), Equals, false)
+func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsCurrent(c *C) {
+	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42")}), Equals, false)
 }
-func (t *remoteRepoTestSuite) TestIsActuallyUpdateSkipsBlocked(c *C) {
-	c.Check(isActuallyUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
+func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsBlocked(c *C) {
+	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
 }
-func (t *remoteRepoTestSuite) TestIsActuallyUpdateSkipsBoth(c *C) {
+func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsBoth(c *C) {
 	// belts-and-suspenders
-	c.Check(isActuallyUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
+	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
