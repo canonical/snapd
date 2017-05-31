@@ -20,6 +20,7 @@
 #include <asm/ioctls.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <linux/can.h>		// needed for search mappings
 #include <linux/netlink.h>
 #include <sched.h>
@@ -50,6 +51,8 @@
 #endif
 
 #include <seccomp.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/string-utils.h"
@@ -739,6 +742,42 @@ static void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 		if (seccomp_arch_add(ctx, compat_arch) < 0)
 			die("seccomp_arch_add(..., compat_arch) failed");
 	}
+}
+
+int sc_apply_seccomp_bpf(const char *filter_profile)
+{
+	debug("loading bpf program for security tag %s", filter_profile);
+
+        char profile_path[512];	// arbitrary path name limit
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
+			 filter_profile_dir, filter_profile);
+
+        // load bpf
+        char bpf[16*1024];
+        int fd = open(profile_path, O_RDONLY);
+        if (fd < 0)
+           die("cannot read %s", profile_path);
+
+        ssize_t num_read = read(fd, bpf, sizeof bpf);
+        if (num_read < 0) {
+           die("cannot read bpf %s", profile_path);
+        } else if (num_read == sizeof bpf) {
+           die("cannot fit bpf %s into buffer", profile_path);
+        }
+        close(fd);
+
+        struct sock_fprog prog = {
+           .len = num_read/sizeof (struct sock_filter),
+           .filter = (struct sock_filter*)bpf,
+        };
+        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+           die("prctl(NO_NEW_PRIVS)");
+	}
+	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+           die("prctl(SECCOMP)");
+	}
+        
+	return 0;
 }
 
 scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)

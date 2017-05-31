@@ -50,4 +50,10 @@ void sc_load_seccomp_context(scmp_filter_ctx ctx);
  **/
 void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
 
+/** 
+ * Load and apply the given bpf program
+ *
+ **/
+int sc_apply_seccomp_bpf(const char *filter_profile);
+
 #endif

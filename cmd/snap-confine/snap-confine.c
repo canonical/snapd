@@ -97,13 +97,6 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-	// TODO: check for similar situation and linux capabilities.
-#ifdef HAVE_SECCOMP
-	scmp_filter_ctx seccomp_ctx
-	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
-	seccomp_ctx = sc_prepare_seccomp_context(security_tag);
-#endif				// ifdef HAVE_SECCOMP
-
 	if (geteuid() == 0) {
 		// ensure that "/" or "/snap" is mounted with the
 		// "shared" option, see LP:#1668659
@@ -209,7 +202,7 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-	sc_load_seccomp_context(seccomp_ctx);
+	sc_apply_seccomp_bpf(security_tag);
 #endif				// ifdef HAVE_SECCOMP
 
 	// Permanently drop if not root
