@@ -133,8 +133,9 @@ umount /var/snap/@{SNAP_NAME}/**,
 /state/ r,
 /state/sqlite* rwk,
 
-# Ideally we would use a child profile for these but that causes a kernel
-# traceback (TODO: file and list bug)
+# Ideally we would use a child profile for these but NNP blocks that since
+# the greengrass sandbox is setting NO_NEW_PRIVS which blocks profile
+# transitions. As such, must simply rely on the greengrass sandbox.
 /lambda/ r,
 /lambda/** ixr,
 `
@@ -162,6 +163,8 @@ sethostname
 
 # greengrassd sets up several session keyrings. See:
 # https://github.com/torvalds/linux/blob/master/Documentation/security/keys.txt
+# Note that the lambda functions themselves run under a seccomp sandbox setup
+# by greengrassd.
 keyctl
 `
 
