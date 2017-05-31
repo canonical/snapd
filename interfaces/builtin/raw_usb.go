@@ -19,6 +19,8 @@
 
 package builtin
 
+const rawusbSummary = `allows raw access to all USB devices`
+
 const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
 # This gives privileged access to the system.
@@ -37,7 +39,8 @@ const rawusbConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "raw-usb",
+		name:                  "raw-usb",
+		summary:               rawusbSummary,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

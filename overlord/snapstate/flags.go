@@ -49,6 +49,10 @@ type Flags struct {
 	// SkipConfigure is used with InstallPath to flag that creating a task
 	// running the configure hook should be skipped.
 	SkipConfigure bool `json:"skip-configure,omitempty"`
+
+	// Unaliased is set to request that no automatic aliases are created
+	// installing the snap.
+	Unaliased bool `json:"unaliased,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)

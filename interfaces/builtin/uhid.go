@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const uhidSummary = `allows control over UHID devices`
+
 const uhidConnectedPlugAppArmor = `
 # Description: Allows accessing the UHID to create kernel
 # hid devices from user-space.
@@ -39,6 +41,12 @@ type uhidInterface struct{}
 
 func (iface *uhidInterface) Name() string {
 	return "uhid"
+}
+
+func (iface *uhidInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: uhidSummary,
+	}
 }
 
 func (iface *uhidInterface) String() string {

@@ -40,7 +40,7 @@ _complete_from_snap() {
     {
         # De-serialize the output of 'snap run --command=complete ...' into the format
         # bash expects:
-        read -a opts
+        read -r -a opts
         # opts is expected to be a series of compopt options
         if [[ ${#opts[@]} -gt 0 ]]; then
             if [[ "${opts[0]}" == "cannot" ]]; then
@@ -56,7 +56,7 @@ _complete_from_snap() {
             done
         fi
 
-        read bounced
+        read -r bounced
         case "$bounced" in
             ""|"alias"|"export"|"job"|"variable")
                 # OK
@@ -67,7 +67,7 @@ _complete_from_snap() {
                 ;;
         esac
 
-        read sep
+        read -r sep
         if [ -n "$sep" ]; then
             # non-blank separator? madness!
             return 2

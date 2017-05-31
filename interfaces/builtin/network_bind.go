@@ -19,6 +19,8 @@
 
 package builtin
 
+const networkBindSummary = `allows operating as a network service`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
@@ -67,7 +69,8 @@ socket AF_NETLINK - NETLINK_ROUTE
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-bind",
+		name:                  "network-bind",
+		summary:               networkBindSummary,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
