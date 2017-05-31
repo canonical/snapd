@@ -226,7 +226,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.AddCleanup(func() { os.Setenv("SNAPD_DEBUG", oldSnapdDebug) })
 
 	t.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
+	l, err := logger.New(t.logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 
@@ -716,8 +716,8 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	var buf SillyBuffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &ErrDownload{})
-	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
+	c.Assert(err, FitsTypeOf, &DownloadError{})
+	c.Check(err.(*DownloadError).Code, Equals, http.StatusNotFound)
 	c.Check(n, Equals, 1)
 }
 
@@ -734,8 +734,8 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	var buf SillyBuffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &ErrDownload{})
-	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
+	c.Assert(err, FitsTypeOf, &DownloadError{})
+	c.Check(err.(*DownloadError).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, 5)
 }
 

@@ -20,43 +20,54 @@
 package osutil
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
 
-// FLock describes a file system lock
-type FLock struct {
-	file  *os.File
-	fname string
+// FileLock describes a file system lock
+type FileLock struct {
+	file *os.File
 }
 
-// OpenLock creates and opens a lock file associated with a particular snap.
-func OpenLock(fname string) (*FLock, error) {
+var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
+
+// NewFileLock creates and opens the lock file given by "path"
+func NewFileLock(path string) (*FileLock, error) {
 	mode := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
-	file, err := os.OpenFile(fname, mode, os.FileMode(0600))
+	file, err := os.OpenFile(path, mode, os.FileMode(0600))
 	if err != nil {
 		return nil, err
 	}
-	l := &FLock{fname: fname, file: file}
+	l := &FileLock{file: file}
 	return l, nil
 }
 
 // Path returns the path of the lock file.
-func (l *FLock) Path() string {
-	return l.fname
+func (l *FileLock) Path() string {
+	return l.file.Name()
 }
 
 // Close closes the lock, unlocking it automatically if needed.
-func (l *FLock) Close() error {
+func (l *FileLock) Close() error {
 	return l.file.Close()
 }
 
-// Lock acquires an exclusive lock.
-func (l *FLock) Lock() error {
+// Lock acquires an exclusive lock and blocks until the lock is free.
+func (l *FileLock) Lock() error {
 	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
 }
 
+// TryLock acquires an exclusive lock and errors if the lock cannot be acquired.
+func (l *FileLock) TryLock() error {
+	err := syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err == syscall.EWOULDBLOCK {
+		return ErrAlreadyLocked
+	}
+	return err
+}
+
 // Unlock releases an acquired lock.
-func (l *FLock) Unlock() error {
+func (l *FileLock) Unlock() error {
 	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 }
