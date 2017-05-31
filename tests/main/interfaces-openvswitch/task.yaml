@@ -38,13 +38,13 @@ restore: |
 debug: |
     echo "Custom debug info"
     echo "=============================="
-    systemctl status openvswitch-switch.service || echo failed
+    systemctl status openvswitch-switch.service || echo "failed"
     echo "-----------------------------------"
-    ls -al /etc/openvswitch || echo failed
+    ls -al /etc/openvswitch || echo "failed"
     echo "------------------------------"
-    tail -n100 /var/log/dpkg.log || echo failed
+    tail -n100 /var/log/dpkg.log || echo "failed"
     echo "------------------------------"
-    tail -n100 /var/log/syslog || echo failed
+    tail -n100 /var/log/syslog || echo "failed"
     echo "------------------------------"
     ifconfig || echo failed
     echo "=============================="
