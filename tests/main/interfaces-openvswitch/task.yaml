@@ -47,6 +47,8 @@ debug: |
     tail -n100 /var/log/syslog || echo "failed"
     echo "------------------------------"
     ifconfig || echo failed
+    echo "------------------------------"
+    journalctl -xu openvswitch.service || echo "failed"
     echo "=============================="
 
 execute: |
