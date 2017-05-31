@@ -6,6 +6,12 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 prepare: |
     "$TESTSLIB"/mkpinentry.sh
 
+debug: |
+    if [ -f /proc/sys/kernel/random/entropy_avail ]; then
+        echo "Available entropy:"
+        cat /proc/sys/kernel/random/entropy_avail
+    fi
+
 execute: |
     echo "Creating a new key without a password"
     expect -f create-key.exp
