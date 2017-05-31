@@ -36,6 +36,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -76,10 +79,22 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	changed, _, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
+	for _, baseName := range changed {
+		in := filepath.Join(dirs.SnapSeccompDir, baseName)
+		out := filepath.Join(dirs.SnapSeccompDir, strings.Replace(baseName, ".in", ".bpf", -1))
+		// FIXME: figure out what base path for the tool by checking
+		//        /proc/self/exe, i.e. deal with re-exec
+		seccompToBpf := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+		cmd := exec.Command(seccompToBpf, "compile", in, out)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
 	return nil
 }
 
@@ -128,7 +143,8 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 	buffer.Write(defaultTemplate)
 	buffer.WriteString(snippetForTag)
 
-	content[securityTag] = &osutil.FileState{
+	path := fmt.Sprintf("%s.in", securityTag)
+	content[path] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

@@ -392,6 +392,15 @@ func compile(in, out string) error {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}
 
+	// FIXME: port arch handling properly
+	nativeArch, err := seccomp.GetNativeArch()
+	if err != nil {
+		return fmt.Errorf("cannot get native seecomp arch: %s")
+	}
+	if nativeArch == seccomp.ArchAMD64 {
+		secFilter.AddArch(seccomp.ArchX86)
+	}
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		if err := parseLine(scanner.Text(), secFilter); err != nil {
@@ -401,6 +410,11 @@ func compile(in, out string) error {
 	if scanner.Err(); err != nil {
 		return err
 	}
+
+	// HACK
+	fdebug, _ := os.Create(out + ".debug")
+	defer fdebug.Close()
+	secFilter.ExportPFC(fdebug)
 
 	fout, err := os.Create(out)
 	if err != nil {
