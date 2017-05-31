@@ -22,7 +22,7 @@ execute: |
         [ grep -q "Retrying.*\.snap, attempt 2" snap-download.log ] && break
         sleep 1
     done
-    MATCH "Retrying.*\.snap, attempt 2" snap-download.log
+    cat snap-download.log | MATCH "Retrying.*\.snap, attempt 2"
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
     # end up with a "connection refused" error, something we do not retry
