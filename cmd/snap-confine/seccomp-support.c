@@ -748,35 +748,58 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
 
-        char profile_path[512];	// arbitrary path name limit
+	uid_t real_uid, effective_uid, saved_uid;
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+		die("could not find user IDs");
+	// If not root but can raise, then raise privileges to load seccomp
+	// policy since we don't have nnp
+	debug("raising privileges to load seccomp profile");
+	if (effective_uid != 0 && saved_uid == 0) {
+		if (seteuid(0) != 0)
+			die("seteuid failed");
+		if (geteuid() != 0)
+			die("raising privs before seccomp_load did not work");
+	}
+
+	char profile_path[512];	// arbitrary path name limit
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
 			 filter_profile_dir, filter_profile);
 
-        // load bpf
-        char bpf[16*1024];
-        int fd = open(profile_path, O_RDONLY);
-        if (fd < 0)
-           die("cannot read %s", profile_path);
+	// load bpf
+	char bpf[32 * 1024];
+	int fd = open(profile_path, O_RDONLY);
+	if (fd < 0)
+		die("cannot read %s", profile_path);
 
-        ssize_t num_read = read(fd, bpf, sizeof bpf);
-        if (num_read < 0) {
-           die("cannot read bpf %s", profile_path);
-        } else if (num_read == sizeof bpf) {
-           die("cannot fit bpf %s into buffer", profile_path);
-        }
-        close(fd);
+	ssize_t num_read = read(fd, bpf, sizeof bpf);
+	if (num_read < 0) {
+		die("cannot read bpf %s", profile_path);
+	} else if (num_read == sizeof bpf) {
+		die("cannot fit bpf %s into buffer", profile_path);
+	}
+	close(fd);
 
-        struct sock_fprog prog = {
-           .len = num_read/sizeof (struct sock_filter),
-           .filter = (struct sock_filter*)bpf,
-        };
-        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-           die("prctl(NO_NEW_PRIVS)");
+	struct sock_fprog prog = {
+           .len = num_read / sizeof(struct sock_filter),
+           .filter = (struct sock_filter *)bpf,
+	};
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+		die("prctl(NO_NEW_PRIVS)");
 	}
 	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-           die("prctl(SECCOMP)");
+		die("prctl(SECCOMP)");
 	}
-        
+
+	// drop privileges again
+	debug("dropping privileges after loading seccomp profile");
+	if (geteuid() == 0) {
+		unsigned real_uid = getuid();
+		if (seteuid(real_uid) != 0)
+			die("seteuid failed");
+		if (real_uid != 0 && geteuid() == 0)
+			die("dropping privs after seccomp_load did not work");
+	}
+
 	return 0;
 }
 
