@@ -18,6 +18,12 @@ restore: |
     rm testdir/foo.snap bar.snap
     rmdir testdir
 
+debug: |
+    if [ -f /proc/sys/kernel/random/entropy_avail ]; then
+        echo "Available entropy:"
+        cat /proc/sys/kernel/random/entropy_avail
+    fi
+
 execute: |
     for i in *.exp; do
         echo $i
