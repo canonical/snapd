@@ -165,7 +165,10 @@ inotify_rm_watch
 
 # TIOCSTI allows for faking input (man tty_ioctl)
 # TODO: this should be scaled back even more
-ioctl - !TIOCSTI
+#ioctl - !TIOCSTI
+# FIXME: replace this with the filter of TIOCSTI once snap-confine can read this syntax
+# See LP:#1662489 for context.
+ioctl
 
 io_cancel
 io_destroy
@@ -209,14 +212,17 @@ mlockall
 mmap
 mmap2
 
+# FIXME: commented out because of:
+# https://forum.snapcraft.io/t/snapd-2-25-blocked-because-of-possible-revert-race-condition
+#
 # Allow mknod for regular files, pipes and sockets (and not block or char
 # devices)
-mknod - |S_IFREG -
-mknodat - - |S_IFREG -
-mknod - |S_IFIFO -
-mknodat - - |S_IFIFO -
-mknod - |S_IFSOCK -
-mknodat - - |S_IFSOCK -
+#mknod - |S_IFREG -
+#mknodat - - |S_IFREG -
+#mknod - |S_IFIFO -
+#mknodat - - |S_IFIFO -
+#mknod - |S_IFSOCK -
+#mknodat - - |S_IFSOCK -
 
 modify_ldt
 mprotect
