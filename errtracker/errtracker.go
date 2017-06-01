@@ -21,6 +21,7 @@ package errtracker
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
@@ -46,6 +47,8 @@ var (
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
 
+	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+
 	timeNow = time.Now
 )
 
@@ -57,6 +60,22 @@ func distroRelease() string {
 	}
 
 	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
+}
+
+func snapConfineProfileDigest(suffix string) string {
+	profileText, err := ioutil.ReadFile(snapConfineProfile + suffix)
+	if err != nil {
+		return ""
+	}
+	// NOTE: uses md5sum for easier comparison against dpkg meta-data
+	return fmt.Sprintf("%x", md5.Sum(profileText))
+}
+
+func didSnapdReExec() string {
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		return "yes"
+	}
+	return "no"
 }
 
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
@@ -102,6 +121,11 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
+
+		"SnapConfineAppArmorProfileCurrentMD5Sum": snapConfineProfileDigest(""),
+		"SnapConfineAppArmorProfileDpkgNewMD5Sum": snapConfineProfileDigest(".dpkg-new"),
+
+		"DidSnapdReExec": didSnapdReExec(),
 	}
 	for k, v := range extra {
 		// only set if empty

@@ -1,3 +1,33 @@
+snapd (2.26.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - partly revert aace15ab53 to unbreak core reverts
+    - Revert "interfaces: re-add reverted ioctl and quotactl (revert 21bc6b9f)"
+    - Disable "mknod |N" in the default seccomp template
+      reasons outline in https://forum.snapcraft.io/t/snapd-2-25-blocked-because-of-revert-race-condition
+    - errtracker: include bits of snap-confine apparmor profile
+    - errtracker: report if snapd did re-execute itself 
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Jun 2017 18:50:52 +0200
+
+snapd (2.26.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cherry pick test fixes f0103a6, 9de5c8a, d7725a7 to make
+      sure the image tests are updated for the changes in the
+      `snap info core` output and the removal of the rsyslog
+      package from core.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 17 May 2017 11:31:56 +0200
+
+snapd (2.26.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cherry pick d444728 to make the uboot.env file parsing more
+      robust
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 16 May 2017 18:37:07 +0200
+
 snapd (2.26.1) xenial; urgency=medium
 
   * New upstream release, LP: #1690083
