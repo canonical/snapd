@@ -97,13 +97,12 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-
-       // TODO: check for similar situation and linux capabilities.
+	// TODO: check for similar situation and linux capabilities.
 #ifdef HAVE_SECCOMP
-       scmp_filter_ctx seccomp_ctx
-           __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
-       seccomp_ctx = sc_prepare_seccomp_context(security_tag);
-#endif                         // ifdef HAVE_SECCOMP
+	scmp_filter_ctx seccomp_ctx
+	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
+	seccomp_ctx = sc_prepare_seccomp_context(security_tag);
+#endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
 		// ensure that "/" or "/snap" is mounted with the
@@ -201,7 +200,6 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && getegid() == 0)
 			die("dropping privs did not work");
 	}
-
 	// Ensure that the user data path exists.
 	setup_user_data();
 #if 0
@@ -211,8 +209,8 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-        if (getenv("SNAP_CONFINE_DUMP_OLD_SECCOMP") != NULL)
-           seccomp_export_pfc(seccomp_ctx, 1 /*stdout*/);
+	if (getenv("SNAP_CONFINE_DUMP_OLD_SECCOMP") != NULL)
+		seccomp_export_pfc(seccomp_ctx, 1 /*stdout */ );
 	sc_apply_seccomp_bpf(security_tag);
 #endif				// ifdef HAVE_SECCOMP
 

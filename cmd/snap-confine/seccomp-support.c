@@ -779,14 +779,23 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	}
 	close(fd);
 
+	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
+	// AppArmor. Unfortunately this means that security policies must be
+	// very careful to not allow the following otherwise apps can escape
+	// the sandbox:
+	//   - seccomp syscall
+	//   - prctl with PR_SET_SECCOMP
+	//   - ptrace (trace) in AppArmor
+	//   - capability sys_admin in AppArmor
+	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to
+	// change the seccomp sandbox.
 	struct sock_fprog prog = {
-           .len = num_read / sizeof(struct sock_filter),
-           .filter = (struct sock_filter *)bpf,
+		.len = num_read / sizeof(struct sock_filter),
+		.filter = (struct sock_filter *)bpf,
 	};
 	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
 		die("prctl(SECCOMP)");
 	}
-
 	// drop privileges again
 	debug("dropping privileges after loading seccomp profile");
 	if (geteuid() == 0) {
