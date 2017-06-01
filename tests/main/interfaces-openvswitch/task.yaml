@@ -15,7 +15,7 @@ details: |
     list and deletion.
 
 prepare: |
-    echo "Install a snap declaring a plug on the openvswitch interface is installed"
+    echo "Install a snap declaring a plug on the openvswitch interface"
     snap install --edge test-snapd-openvswitch-consumer
 
     echo "Install openvswitch"
