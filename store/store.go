@@ -658,9 +658,9 @@ func decodeJSONBody(resp *http.Response, success interface{}, failure interface{
 }
 
 // retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func (s *Store) retryRequestDecodeJSON(reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
 	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, user)
+		return s.doRequest(ctx, s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, success, failure)
 	}, defaultRetryStrategy)
@@ -851,7 +851,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &result, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
@@ -933,7 +933,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote *snapDetails
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1026,7 +1026,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1069,7 +1069,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1171,7 +1171,7 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &updateData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1714,7 +1714,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &orderDetails, &errorInfo)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -1767,7 +1767,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecodeJSON(reqOptions, user, &customer, &errors)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
