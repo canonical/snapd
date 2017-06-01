@@ -79,13 +79,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
-	changed, _, err := osutil.EnsureDirState(dir, glob, content)
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 
-	// FIXME: be smarter
-	for _, baseName := range changed {
+	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
 		out := filepath.Join(dirs.SnapSeccompDir, strings.Replace(baseName, ".in", ".bpf", -1))
 		// FIXME: figure out what base path for the tool by checking
