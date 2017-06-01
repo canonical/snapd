@@ -38,7 +38,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -86,7 +85,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
-		out := filepath.Join(dirs.SnapSeccompDir, strings.Replace(baseName, ".in", ".bpf", -1))
+		out := filepath.Join(dirs.SnapSeccompDir, baseName[:len(baseName)-3]+".bpf")
 		// FIXME: figure out what base path for the tool by checking
 		//        /proc/self/exe, i.e. deal with re-exec
 		seccompToBpf := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
