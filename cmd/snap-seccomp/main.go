@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -400,16 +400,13 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
-func compile(in, out string) error {
-	// pre-processing
-	content, err := ioutil.ReadFile(in)
-	if err != nil {
-		return err
-	}
+func compile(content []byte, out string) error {
+	var err error
+	var secFilter *seccomp.ScmpFilter
 
 	// FIXME: right now complain mode is the equivalent to unrestricted.
 	// We'll want to change this once we seccomp logging is in order.
-	var secFilter *seccomp.ScmpFilter
+
 	if bytes.Contains(content, []byte("@unrestricted")) || bytes.Contains(content, []byte("@complain")) {
 		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
@@ -456,7 +453,11 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "compile":
-		err = compile(os.Args[2], os.Args[3])
+		content, err := ioutil.ReadFile(os.Args[2])
+		if err != nil {
+			break
+		}
+		err = compile(content, os.Args[3])
 	case "version":
 		err = showVersion()
 	default:
