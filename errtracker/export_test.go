@@ -62,3 +62,11 @@ func MockTimeNow(f func() time.Time) (restorer func()) {
 		timeNow = old
 	}
 }
+
+func MockSnapConfineApparmorProfile(path string) (restorer func()) {
+	old := snapConfineProfile
+	snapConfineProfile = path
+	return func() {
+		snapConfineProfile = old
+	}
+}
