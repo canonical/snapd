@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const classicSupportSummary = `special permissions for the classic snap`
 
 const classicSupportPlugAppArmor = `
 # Description: permissions to use classic dimension. This policy is
@@ -104,14 +102,11 @@ umount
 umount2
 `
 
-func NewClassicSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "classic-support",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "classic-support",
+		summary:               classicSupportSummary,
 		connectedPlugAppArmor: classicSupportPlugAppArmor,
 		connectedPlugSecComp:  classicSupportPlugSecComp,
-	}
-}
-
-func init() {
-	registerIface(NewClassicSupportInterface())
+	})
 }

@@ -50,16 +50,28 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
+	// HomeDirBase returns the user-specific home directory base of the snap.
+	HomeDirBase(home string) string
+
+	// UserDataDir returns the per user data directory of the snap.
+	UserDataDir(home string) string
+
 	// CommonDataDir returns the data directory common across revisions of the snap.
 	CommonDataDir() string
 
-	// DataHomeDir returns the per user data directory of the snap.
+	// UserCommonDataDir returns the per user data directory common across revisions of the snap.
+	UserCommonDataDir(home string) string
+
+	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
+	UserXdgRuntimeDir(userID int) string
+
+	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
 
-	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+	// CommonDataHomeDir returns a glob that matches all per user data directories common across revisions of the snap.
 	CommonDataHomeDir() string
 
-	// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR directories for all users of the snap.
 	XdgRuntimeDirs() string
 }
 
@@ -280,6 +292,19 @@ func (s *Info) NeedsClassic() bool {
 	return s.Confinement == ClassicConfinement
 }
 
+// Services returns a list of the apps that have "daemon" set.
+func (s *Info) Services() []*AppInfo {
+	svcs := make([]*AppInfo, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		if !app.IsService() {
+			continue
+		}
+		svcs = append(svcs, app)
+	}
+
+	return svcs
+}
+
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
@@ -454,9 +479,14 @@ func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
 }
 
+// ServiceName returns the systemd service name for the daemon app.
+func (app *AppInfo) ServiceName() string {
+	return app.SecurityTag() + ".service"
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
+	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
 // ServiceSocketFile returns the systemd socket file path for the daemon app.
@@ -475,6 +505,11 @@ func (app *AppInfo) Env() []string {
 		env = append(env, fmt.Sprintf("%s=%s", k, appEnv.Get(k)))
 	}
 	return env
+}
+
+// IsService returns whether app represents a daemon/service.
+func (app *AppInfo) IsService() bool {
+	return app.Daemon != ""
 }
 
 // SecurityTag returns the hook-specific security tag.

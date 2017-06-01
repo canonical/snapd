@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const mountObserveSummary = `allows reading mount table and quota information`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
@@ -58,16 +56,12 @@ const mountObserveConnectedPlugSecComp = `
 #quotactl Q_XGETQSTAT - - -
 `
 
-// NewMountObserveInterface returns a new "mount-observe" interface.
-func NewMountObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "mount-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "mount-observe",
+		summary:               mountObserveSummary,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewMountObserveInterface())
+	})
 }

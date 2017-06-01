@@ -44,10 +44,11 @@ apps:
   plugs: [netlink-connector]
 `
 
-var _ = Suite(&NetlinkConnectorInterfaceSuite{})
+var _ = Suite(&NetlinkConnectorInterfaceSuite{
+	iface: builtin.MustInterface("netlink-connector"),
+})
 
 func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewNetlinkConnectorInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

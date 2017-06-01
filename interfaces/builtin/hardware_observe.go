@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const hardwareObserveSummary = `allows reading information about system hardware`
 
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
@@ -83,16 +81,12 @@ iopl
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewHardwareObserveInterface returns a new "hardware-observe" interface.
-func NewHardwareObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "hardware-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "hardware-observe",
+		summary:               hardwareObserveSummary,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewHardwareObserveInterface())
+	})
 }

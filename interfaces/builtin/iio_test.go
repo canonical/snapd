@@ -56,7 +56,7 @@ type IioInterfaceSuite struct {
 }
 
 var _ = Suite(&IioInterfaceSuite{
-	iface: &builtin.IioInterface{},
+	iface: builtin.MustInterface("iio"),
 })
 
 func (s *IioInterfaceSuite) SetUpTest(c *C) {

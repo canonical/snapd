@@ -37,7 +37,7 @@ type FramebufferInterfaceSuite struct {
 }
 
 var _ = Suite(&FramebufferInterfaceSuite{
-	iface: &builtin.FramebufferInterface{},
+	iface: builtin.MustInterface("framebuffer"),
 })
 
 func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
