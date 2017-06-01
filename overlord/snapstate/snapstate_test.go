@@ -34,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -851,7 +852,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot get refresh information for snap "some-snap": failing as requested`)
+	c.Assert(err, ErrorMatches, `failing as requested`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
@@ -1104,6 +1105,44 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "producer", SnapID: "producer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "consumer", SnapID: "consumer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("another change", "...")
+	t := s.state.NewTask(kind, "...")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	chg.AddTask(t)
+
+	_, err := snapstate.Update(s.state, "producer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "producer" has changes in progress`)
+
+	_, err = snapstate.Update(s.state, "consumer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateConflictWithConnect(c *C) {
+	s.testChangeConflict(c, "connect")
+}
+
+func (s *snapmgrTestSuite) TestUpdateConflictWithDisconnect(c *C) {
+	s.testChangeConflict(c, "disconnect")
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
@@ -2380,7 +2419,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		// conflict checks are triggered
 		chg := s.state.NewChange("update", "...")
 		chg.AddAll(ts)
-		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil)
+		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil, nil)
 		c.Check(err, ErrorMatches, `.* has changes in progress`)
 		chg.SetStatus(state.DoneStatus)
 	}

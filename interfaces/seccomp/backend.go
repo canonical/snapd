@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -127,6 +128,13 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 
 	buffer.Write(defaultTemplate)
 	buffer.WriteString(snippetForTag)
+
+	// For systems with force-devmode we need to apply a workaround
+	// to avoid failing hooks. See description in template.go for
+	// more details.
+	if release.ReleaseInfo.ForceDevMode() {
+		buffer.WriteString(bindSyscallWorkaround)
+	}
 
 	content[securityTag] = &osutil.FileState{
 		Content: buffer.Bytes(),
