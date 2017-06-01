@@ -194,8 +194,8 @@ override_dh_install:
 		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
 
 	install -d $(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants
-	ln -sf /usr/lib/systemd/user/snapd-user.service \
-		$(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants/snapd-user.service
+	ln -sf /usr/lib/systemd/user/snap-userd.service \
+		$(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants/snap-userd.service
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 

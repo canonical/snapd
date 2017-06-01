@@ -1,4 +1,4 @@
-summary: Ensure snapd --user allows opening a URL via xdg-open
+summary: Ensure snap userd allows opening a URL via xdg-open
 
 systems:
     # Not supposed to work on Ubuntu Core systems as we don't have
@@ -8,25 +8,23 @@ systems:
 restore: |
     source /tmp/dbus-session-env
     kill -KILL $DBUS_SESSION_BUS_PID || true
-    kill -KILL $(cat /tmp/snapd-user-pid) || true
+    kill -KILL $(cat /tmp/snap-userd-pid) || true
     umount -f /usr/bin/xdg-open
 
 
 execute: |
     . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/dirs.sh"
 
     # Install necessary pacakges to get dbus-launch helper
     distro_install_package dbus-x11 xdg-utils
 
     dbus-launch --sh-syntax &> /tmp/dbus-session-env
     . /tmp/dbus-session-env
-    /usr/lib/snapd/snapd --user &
-    echo $! > /tmp/snapd-user-pid
+    snap userd &
+    echo $! > /tmp/snap-userd-pid
 
-    # Give snapd --user a moment to start everything
-    sleep 1
-
-    # Create a small helper which will tell us if snapd passes
+    # Create a small helper which will tell us if snap passes
     # the URL correctly to the right handler
     cat << 'EOF' > /tmp/xdg-open
     #!/bin/sh
@@ -50,12 +48,12 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    ! /snap/core/current/usr/local/bin/xdg-open ftp://snapcraft.io
+    ! $SNAPMOUNTDIR/core/current/usr/local/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    ! /snap/core/current/usr/local/bin/xdg-open aabbcc
+    ! $SNAPMOUNTDIR/core/current/usr/local/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output
 
     # We need to kill both here as otherwise the task hangs (even
     # if the restore jobs will do this again)
-    kill -KILL $(cat /tmp/snapd-user-pid)
+    kill -KILL $(cat /tmp/snap-userd-pid)
     kill -KILL $DBUS_SESSION_BUS_PID

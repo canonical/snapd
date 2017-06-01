@@ -1,8 +1,8 @@
 [Unit]
-Description=Snappy daemon
+Description=Snap User Session Service
 
 [Service]
-ExecStart=@libexecdir@/snapd/snapd --user
+ExecStart=@bindir@/snap userd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 

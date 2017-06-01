@@ -25,11 +25,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jessevdk/go-flags"
-
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/daemon/user"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -45,11 +42,6 @@ func init() {
 	errtracker.SnapdVersion = cmd.Version
 }
 
-// commandline args
-var opts struct {
-	User bool `long:"user" description:"Start the user session instance of snapd"`
-}
-
 // Daemon describes all operations necessary to deal with a daemon instance
 type Daemon interface {
 	Init() error
@@ -62,20 +54,10 @@ type Daemon interface {
 func main() {
 	cmd.ExecInCoreSnap()
 
-	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	if _, err := parser.ParseArgs(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
 	var d Daemon
 	var err error
-	if opts.User {
-		d, err = user.NewDaemon()
-	} else {
-		httputil.SetUserAgentFromVersion(cmd.Version)
-		d, err = daemon.New()
-	}
+	httputil.SetUserAgentFromVersion(cmd.Version)
+	d, err = daemon.New()
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

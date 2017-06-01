@@ -17,7 +17,7 @@
  *
  */
 
-package user
+package dbus
 
 import (
 	"net/url"

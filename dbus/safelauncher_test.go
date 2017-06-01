@@ -17,12 +17,12 @@
  *
  */
 
-package user_test
+package dbus_test
 
 import (
 	"testing"
 
-	"github.com/snapcore/snapd/daemon/user"
+	"github.com/snapcore/snapd/dbus"
 
 	"fmt"
 
@@ -51,7 +51,7 @@ func (s *safeLauncherSuite) myXdgOpen(args ...string) (err error) {
 }
 
 func (s *safeLauncherSuite) SetUpTest(c *C) {
-	user.XdgOpenCommand = s.myXdgOpen
+	dbus.XdgOpenCommand = s.myXdgOpen
 	s.i = 0
 	s.args = nil
 	s.errors = nil
@@ -59,7 +59,7 @@ func (s *safeLauncherSuite) SetUpTest(c *C) {
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
-	launcher := &user.SafeLauncher{}
+	launcher := &dbus.SafeLauncher{}
 	err := launcher.OpenURL("tel://049112233445566")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "Supplied URL scheme \"tel\" is not allowed")
@@ -72,31 +72,31 @@ func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTP(c *C) {
-	launcher := &user.SafeLauncher{}
+	launcher := &dbus.SafeLauncher{}
 	err := launcher.OpenURL("http://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"http://snapcraft.io"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTPS(c *C) {
-	launcher := &user.SafeLauncher{}
+	launcher := &dbus.SafeLauncher{}
 	err := launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"https://snapcraft.io"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeMailto(c *C) {
-	launcher := &user.SafeLauncher{}
+	launcher := &dbus.SafeLauncher{}
 	err := launcher.OpenURL("mailto:foo@bar.org")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"mailto:foo@bar.org"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
-	user.XdgOpenCommand = func(args ...string) error {
+	dbus.XdgOpenCommand = func(args ...string) error {
 		return fmt.Errorf("failed")
 	}
-	launcher := &user.SafeLauncher{}
+	launcher := &dbus.SafeLauncher{}
 	err := launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "Can not open supplied URL")
