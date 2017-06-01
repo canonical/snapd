@@ -40,11 +40,11 @@ execute: |
     generic-consumer.cmd cat /dev/snd/mysnd-dev | MATCH mysnd-dev-content
     generic-consumer.cmd rm /dev/snd/mysnd-dev
 
-    echo "And the snap is able to access the related cgroup"
+    echo "And the snap is able to access the related udev data"
     if [ ! -f /run/udev/data/c116:0 ]; then
         touch /run/udev/data/c116:0
-        echo "mycgroup-content" | tee /run/udev/data/c116:0
-        generic-consumer.cmd cat /run/udev/data/c116:0 | MATCH mycgroup-content
+        echo "myudevdata-content" | tee /run/udev/data/c116:0
+        generic-consumer.cmd cat /run/udev/data/c116:0 | MATCH myudevdata-content
         rm /run/udev/data/c116:0
     fi
 
@@ -81,15 +81,15 @@ execute: |
     fi
     MATCH "Permission denied" ./snd-del.error
 
-    echo "And the snap is not able to access the related cgroup"
+    echo "And the snap is not able to access the related udev data"
     if [ ! -f /run/udev/data/c116:0 ]; then
         touch /run/udev/data/c116:0
-        echo "mycgroup-content" | tee /run/udev/data/c116:0
-        if generic-consumer.cmd cat /run/udev/data/c116:0 2>cgroup-read.error; then
-            echo "Read cgroup file with disconnected plug should fail"
+        echo "myudevdata-content" | tee /run/udev/data/c116:0
+        if generic-consumer.cmd cat /run/udev/data/c116:0 2>udevdata-read.error; then
+            echo "Read udev data file with disconnected plug should fail"
             exit 1
         fi
-        MATCH "Permission denied" ./cgroup-read.error
+        MATCH "Permission denied" ./udevdata-read.error
         rm /run/udev/data/c116:0
     fi
 
