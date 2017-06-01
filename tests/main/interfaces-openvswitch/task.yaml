@@ -35,29 +35,6 @@ restore: |
 
     ip link delete tap1 || true
 
-debug: |
-    echo "=============================="
-    echo "Custom debug information"
-    echo "=============================="
-    systemctl status openvswitch-switch.service || echo "failed"
-    echo "------------------------------"
-    ls -al /etc/openvswitch || echo "failed"
-    echo "------------------------------"
-    tail -n100 /var/log/dpkg.log || echo "failed"
-    echo "------------------------------"
-    tail -n100 /var/log/syslog || echo "failed"
-    echo "------------------------------"
-    ifconfig || echo failed
-    echo "------------------------------"
-    journalctl -xu openvswitch.service || echo "failed"
-    echo "------------------------------"
-    tail -n100 /var/log/openvswitch/ovsdb-server.log || echo "failed"
-    echo "------------------------------"
-    tail -n100 /var/log/openvswitch/ovs-vswitchd.log || echo "failed"
-    echo "------------------------------"
-    ls -al /var/run/openvswitch || echo "failed"
-    echo "=============================="
-
 execute: |
     CONNECTED_PATTERN=":openvswitch +test-snapd-openvswitch-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-openvswitch-consumer:openvswitch"
