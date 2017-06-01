@@ -852,7 +852,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot get refresh information for snap "some-snap": failing as requested`)
+	c.Assert(err, ErrorMatches, `failing as requested`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
