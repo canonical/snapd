@@ -91,6 +91,13 @@ func snapConfineProfileDigest(suffix string) string {
 	return fmt.Sprintf("%x", md5.Sum(profileText))
 }
 
+func didSnapdReExec() string {
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		return "yes"
+	}
+	return "no"
+}
+
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
@@ -137,6 +144,8 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 
 		"SnapConfineAppArmorProfileCurrentMD5Sum": snapConfineProfileDigest(""),
 		"SnapConfineAppArmorProfileDpkgNewMD5Sum": snapConfineProfileDigest(".dpkg-new"),
+
+		"DidSnapdReExec": didSnapdReExec(),
 	}
 	for k, v := range extra {
 		// only set if empty
