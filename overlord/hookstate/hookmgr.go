@@ -347,7 +347,10 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_COOKIE=%s", hookContext))
+	// Set SNAP_CONTEXT too for compatibility with old snapctl binary when transitioning
+	// to a new core - otherwise configure hook would fail during transition.
+	command.Env = append(command.Env, fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.

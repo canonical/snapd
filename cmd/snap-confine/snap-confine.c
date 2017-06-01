@@ -87,13 +87,13 @@ int main(int argc, char **argv)
 #endif
 
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_CONTEXT)
+	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
 		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
-			error("cannot get context: %s", sc_error_msg(err));
+			error("cannot get cookie: %s", sc_error_msg(err));
 		}
 	}
 
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
-		setenv("SNAP_CONTEXT", snap_context, 1);
+		setenv("SNAP_COOKIE", snap_context, 1);
 	}
 	// Permanently drop if not root
 	if (geteuid() == 0) {
