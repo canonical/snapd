@@ -40,7 +40,7 @@ debug: |
     echo "Custom debug information"
     echo "=============================="
     systemctl status openvswitch-switch.service || echo "failed"
-    echo "-----------------------------------"
+    echo "------------------------------"
     ls -al /etc/openvswitch || echo "failed"
     echo "------------------------------"
     tail -n100 /var/log/dpkg.log || echo "failed"
