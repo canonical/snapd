@@ -21,6 +21,7 @@ package httputil_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -415,20 +416,14 @@ func (s *retrySuite) TestRetryRequestFailOnDNS(c *C) {
 		return cli.Get(url)
 	}
 
-	failure := false
 	var got interface{}
 	readResponseBody := func(resp *http.Response) error {
-		failure = false
-		if resp.StatusCode != 200 {
-			failure = true
-			return nil
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("proxy error")
 		}
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
 	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
 	c.Assert(err, NotNil)
-
-	c.Check(failure, Equals, false)
-	c.Assert(n, Equals, 1)
 }
