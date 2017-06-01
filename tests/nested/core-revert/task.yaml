@@ -24,7 +24,7 @@ debug: |
         tmp=$(mktemp -d)
         mount /dev/mapper/$part $tmp
 
-        grep "hsearch_r failed for.* No such process" $tmp/system-data/var/log/syslog
+        grep --text "hsearch_r failed for.* No such process" $tmp/system-data/var/log/syslog
 
         umount $tmp
         rm -rf $tmp
