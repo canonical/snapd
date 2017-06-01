@@ -55,7 +55,9 @@ import "C"
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -304,14 +306,6 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		return nil
 	}
 
-	// FIXME: add support for those below
-	switch line {
-	case "@unrestricted":
-		return fmt.Errorf("unrestricted not supported yet")
-	case "@complain":
-		return fmt.Errorf("complain not supported yet")
-	}
-
 	// regular line
 	tokens := strings.Fields(line)
 
@@ -407,29 +401,38 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 }
 
 func compile(in, out string) error {
-	secFilter, err := seccomp.NewFilter(seccomp.ActKill)
-	if err != nil {
-		return fmt.Errorf("cannot create seccomp filter: %s", err)
-	}
-
-	if err := addSecondaryArches(secFilter); err != nil {
-		return err
-	}
-
-	f, err := os.Open(in)
+	// pre-processing
+	content, err := ioutil.ReadFile(in)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		if err := parseLine(scanner.Text(), secFilter); err != nil {
-			return fmt.Errorf("cannot parse line: %s", err)
+	// FIXME: right now complain mode is the equivalent to unrestricted.
+	// We'll want to change this once we seccomp logging is in order.
+	var secFilter *seccomp.ScmpFilter
+	if bytes.Contains(content, []byte("@unrestricted")) || bytes.Contains(content, []byte("@complain")) {
+		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+		if err != nil {
+			fmt.Errorf("cannot create seccomp filter: %s", err)
 		}
-	}
-	if scanner.Err(); err != nil {
-		return err
+	} else {
+		secFilter, err = seccomp.NewFilter(seccomp.ActKill)
+		if err != nil {
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
+		}
+
+		if err := addSecondaryArches(secFilter); err != nil {
+			return err
+		}
+		scanner := bufio.NewScanner(bytes.NewBuffer(content))
+		for scanner.Scan() {
+			if err := parseLine(scanner.Text(), secFilter); err != nil {
+				return fmt.Errorf("cannot parse line: %s", err)
+			}
+		}
+		if scanner.Err(); err != nil {
+			return err
+		}
 	}
 
 	fout, err := os.Create(out)
