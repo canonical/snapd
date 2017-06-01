@@ -37,7 +37,7 @@ restore: |
 
 debug: |
     echo "=============================="
-    echo "Custom debug information"
+    echo " Custom debug information "
     echo "=============================="
     systemctl status openvswitch-switch.service || echo "failed"
     echo "------------------------------"
