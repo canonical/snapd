@@ -66,6 +66,9 @@ import (
 	"github.com/snapcore/snapd/arch"
 )
 
+// libseccomp maximum per ARG_COUNT_MAX in src/arch.h
+const ScArgsMaxlength = 6
+
 var seccompResolver = map[string]uint64{
 	// man 2 socket - domain and man 5 apparmor.d. AF_ and PF_ are
 	// synonymous in the kernel and can be used interchangeably in
@@ -294,23 +297,19 @@ func readNumber(token string) (uint64, error) {
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
-	// comment
 	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "#") {
-		return nil
-	}
-	if line == "" {
+
+	// ignore comments and empty lines
+	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
 	}
 
-	// special
+	// FIXME: add support for those below
 	switch line {
 	case "@unrestricted":
-		println("unrestricted")
-		return nil
+		return fmt.Errorf("unrestricted not supported yet")
 	case "@complain":
-		println("complain")
-		return nil
+		return fmt.Errorf("complain not supported yet")
 	}
 
 	// regular line
@@ -335,6 +334,10 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		var cmpOp seccomp.ScmpCompareOp
 		var value uint64
 		var err error
+
+		if pos >= ScArgsMaxlength {
+			return fmt.Errorf("too many tokens (%d) in line %q", pos, line)
+		}
 
 		if arg == "-" {
 			continue
@@ -387,22 +390,37 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	return err
 }
 
-func compile(in, out string) error {
-	f, err := os.Open(in)
-	if err != nil {
-		return err
+// For architectures that support a compat architecture, when the
+// kernel and userspace match, add the compat arch, otherwise add
+// the kernel arch to support the kernel's arch (eg, 64bit kernels with
+// 32bit userspace).
+func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
+	switch arch.UbuntuArchitecture() {
+	case "amd64":
+		return secFilter.AddArch(seccomp.ArchX86)
+	case "arm64":
+		return secFilter.AddArch(seccomp.ArchARM)
+	case "ppc64el":
+		return secFilter.AddArch(seccomp.ArchPPC)
 	}
-	defer f.Close()
+	return nil
+}
 
+func compile(in, out string) error {
 	secFilter, err := seccomp.NewFilter(seccomp.ActKill)
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}
 
-	// FIXME: port arch handling properly
-	if arch.UbuntuArchitecture() == "amd64" {
-		secFilter.AddArch(seccomp.ArchX86)
+	if err := addSecondaryArches(secFilter); err != nil {
+		return err
 	}
+
+	f, err := os.Open(in)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -413,11 +431,6 @@ func compile(in, out string) error {
 	if scanner.Err(); err != nil {
 		return err
 	}
-
-	// HACK
-	fdebug, _ := os.Create(out + ".debug")
-	defer fdebug.Close()
-	secFilter.ExportPFC(fdebug)
 
 	fout, err := os.Create(out)
 	if err != nil {
