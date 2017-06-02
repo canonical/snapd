@@ -69,7 +69,16 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func infoFromRemote(d snapDetails) *snap.Info {
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+	retry.Exponential{
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+func infoFromRemote(d *snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
 	info.Type = d.Type
@@ -346,7 +355,7 @@ func init() {
 
 type searchResults struct {
 	Payload struct {
-		Packages []snapDetails `json:"clickindex:package"`
+		Packages []*snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -632,64 +641,29 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
-		result := success
-		if !ok {
-			result = failure
-		}
-		if result != nil {
-			return json.NewDecoder(resp.Body).Decode(result)
-		}
+func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
+	ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+	// always decode on success; decode failures only if body is not empty
+	if !ok && resp.ContentLength == 0 {
 		return nil
-	})
+	}
+	result := success
+	if !ok {
+		result = failure
+	}
+	if result != nil {
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	return nil
 }
 
-// retryRequest calls doRequest and decodes the response in a retry loop.
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
-	var attempt *retry.Attempt
-	startTime := time.Now()
-	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
-		if cancelled(ctx) {
-			return nil, ctx.Err()
-		}
-
-		resp, err = s.doRequest(ctx, client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		} else {
-			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
-			// always decode on success; decode failures only if body is not empty
-			if !ok && resp.ContentLength == 0 {
-				resp.Body.Close()
-				break
-			}
-			err = decode(ok, resp)
-			resp.Body.Close()
-			if err != nil {
-				if shouldRetryError(attempt, err) {
-					continue
-				} else {
-					return nil, err
-				}
-			}
-		}
-		// break out from retry loop
-		break
-	}
-	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
-
-	return resp, err
+// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(ctx, s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, success, failure)
+	}, defaultRetryStrategy)
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -877,7 +851,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &result, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
@@ -958,8 +932,8 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		Accept: halJsonContentType,
 	}
 
-	var remote snapDetails
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &remote, nil)
+	var remote *snapDetails
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1052,7 +1026,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,7 +1069,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,7 +1103,7 @@ type RefreshCandidate struct {
 }
 
 // the exact bits that we need to send to the store
-type currentSnapJson struct {
+type currentSnapJSON struct {
 	SnapID      string `json:"snap_id"`
 	Channel     string `json:"channel"`
 	Revision    int    `json:"revision,omitempty"`
@@ -1138,41 +1112,40 @@ type currentSnapJson struct {
 }
 
 type metadataWrapper struct {
-	Snaps  []currentSnapJson `json:"snaps"`
-	Fields []string          `json:"fields"`
+	Snaps  []*currentSnapJSON `json:"snaps"`
+	Fields []string           `json:"fields"`
 }
 
-// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
-
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]currentSnapJson, 0, len(installed))
-	for _, cs := range installed {
-		revision := cs.Revision.N
-		if !cs.Revision.Store() {
-			revision = 0
+func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
+	// the store gets confused if we send snaps without a snapid
+	// (like local ones)
+	if cs.SnapID == "" {
+		if cs.Revision.Store() {
+			logger.Noticef("store.currentSnap got given a RefreshCandidate with an empty SnapID but a store revision!")
 		}
-		// the store gets confused if we send snaps without a snapid
-		// (like local ones)
-		if cs.SnapID == "" {
-			continue
-		}
-
-		channel := cs.Channel
-		if channel == "" {
-			channel = "stable"
-		}
-
-		currentSnaps = append(currentSnaps, currentSnapJson{
-			SnapID:   cs.SnapID,
-			Channel:  channel,
-			Epoch:    cs.Epoch,
-			Revision: revision,
-			// confinement purposely left empty
-		})
-		candidateMap[cs.SnapID] = cs
+		return nil
+	}
+	if !cs.Revision.Store() {
+		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
+		return nil
 	}
 
+	channel := cs.Channel
+	if channel == "" {
+		channel = "stable"
+	}
+
+	return &currentSnapJSON{
+		SnapID:   cs.SnapID,
+		Channel:  channel,
+		Epoch:    cs.Epoch,
+		Revision: cs.Revision.N,
+		// confinement purposely left empty
+	}
+}
+
+// query the store for the information about currently offered revisions of snaps
+func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
@@ -1198,8 +1171,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
-
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1208,26 +1180,72 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, respToError(resp, "query the store for updates")
 	}
 
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
-		rrev := snap.R(rsnap.Revision)
-		cand := candidateMap[rsnap.SnapID]
-
-		// the store also gives us identical revisions, filter those
-		// out, we are not interested
-		if rrev == cand.Revision {
-			continue
-		}
-		// do not upgade to a version we rolledback back from
-		if findRev(rrev, cand.Block) {
-			continue
-		}
-		res = append(res, infoFromRemote(rsnap))
-	}
-
 	s.extractSuggestedCurrency(resp)
 
-	return res, nil
+	return updateData.Payload.Packages, nil
+}
+
+var refreshForCandidates = (*Store).refreshForCandidates
+
+// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
+func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	cur := currentSnap(installed)
+	if cur == nil {
+		return nil, ErrLocalSnap
+	}
+
+	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(latest) != 1 {
+		return nil, ErrSnapNotFound
+	}
+
+	rsnap := latest[0]
+	if !acceptableUpdate(rsnap, installed) {
+		return nil, &snap.NoUpdateAvailableError{Snap: rsnap.Name}
+	}
+
+	return infoFromRemote(rsnap), nil
+}
+
+// ListRefresh returns the available updates for a list of refresh candidates.
+// NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
+
+	candidateMap := map[string]*RefreshCandidate{}
+	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
+	for _, cs := range installed {
+		cur := currentSnap(cs)
+		if cur == nil {
+			continue
+		}
+		currentSnaps = append(currentSnaps, cur)
+		candidateMap[cs.SnapID] = cs
+	}
+
+	latest, err := s.refreshForCandidates(currentSnaps, user)
+	if err != nil {
+		return nil, err
+	}
+
+	toRefresh := make([]*snap.Info, 0, len(latest))
+	for _, rsnap := range latest {
+		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
+			continue
+		}
+
+		toRefresh = append(toRefresh, infoFromRemote(rsnap))
+	}
+
+	return toRefresh, nil
+}
+
+func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
+	rrev := snap.R(remote.Revision)
+	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1337,7 +1355,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			Method: "GET",
 			URL:    storeURL,
 		}
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
+		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
@@ -1368,13 +1386,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				continue
 			}
 			break
 		}
 
-		if shouldRetryHttpResponse(attempt, resp) {
+		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
 		}
@@ -1398,7 +1416,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1562,9 +1580,12 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	}
 
 	var asrt asserts.Assertion
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
+
+	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
 		var e error
-		if ok {
+		if resp.StatusCode == 200 {
 			// decode assertion
 			dec := asserts.NewDecoder(resp.Body)
 			asrt, e = dec.Decode()
@@ -1583,7 +1604,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 		}
 		return e
-	})
+	}, defaultRetryStrategy)
 
 	if err != nil {
 		return nil, err
@@ -1693,7 +1714,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -1746,7 +1767,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &customer, &errors)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
