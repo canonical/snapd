@@ -20,5 +20,6 @@
 package main
 
 var (
-	Compile = compile
+	Compile         = compile
+	SeccompResolver = seccompResolver
 )
