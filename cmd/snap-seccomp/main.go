@@ -51,6 +51,7 @@ package main
 //#endif
 //#include <seccomp.h>
 //#include <linux/sched.h>
+//#include <linux/seccomp.h>
 import "C"
 
 import (
@@ -289,6 +290,19 @@ var seccompResolver = map[string]uint64{
 	"NETLINK_CRYPTO":         C.NETLINK_CRYPTO,
 	"NETLINK_INET_DIAG":      C.NETLINK_INET_DIAG, // synonymous with NETLINK_SOCK_DIAG
 }
+
+const (
+	ScmpArchX86     = C.SCMP_ARCH_X86
+	ScmpArchX86_64  = C.SCMP_ARCH_X86_64
+	ScmpArchARM     = C.SCMP_ARCH_ARM
+	ScmpArchAARCH64 = C.SCMP_ARCH_AARCH64
+	ScmpArchPPC     = C.SCMP_ARCH_PPC
+	ScmpArchPPC64LE = C.SCMP_ARCH_PPC64LE
+	ScmpArchS390X   = C.SCMP_ARCH_S390X
+
+	SeccompRetAllow = C.SECCOMP_RET_ALLOW
+	SeccompRetKill  = C.SECCOMP_RET_KILL
+)
 
 func readNumber(token string) (uint64, error) {
 	if value, ok := seccompResolver[token]; ok {
