@@ -208,6 +208,13 @@ prepare-each: |
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
+    else
+        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+        find /run/log/journal/ -name *@*.journal | xargs rm
+        sudo systemctl restart systemd-journald.service
     fi
     dmesg -c > /dev/null
 
