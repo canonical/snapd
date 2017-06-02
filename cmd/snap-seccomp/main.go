@@ -459,7 +459,7 @@ func compile(content []byte, out string) error {
 	if bytes.Contains(content, []byte("@unrestricted")) || bytes.Contains(content, []byte("@complain")) {
 		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
-			fmt.Errorf("cannot create seccomp filter: %s", err)
+			return fmt.Errorf("cannot create seccomp filter: %s", err)
 		}
 	} else {
 		secFilter, err = seccomp.NewFilter(seccomp.ActKill)
