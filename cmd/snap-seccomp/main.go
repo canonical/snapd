@@ -52,6 +52,26 @@ package main
 //#include <seccomp.h>
 //#include <linux/sched.h>
 //#include <linux/seccomp.h>
+//#include <arpa/inet.h>
+//
+// typedef struct seccomp_data kernel_seccomp_data;
+//
+//__u32 htot32(__u32 arch, __u32 val)
+//{
+//	if (arch & __AUDIT_ARCH_LE)
+//		return htole32(val);
+//	else
+//		return htobe32(val);
+//}
+//
+//__u64 htot64(__u32 arch, __u64 val)
+//{
+//	if (arch & __AUDIT_ARCH_LE)
+//		return htole64(val);
+//	else
+//		return htobe64(val);
+//}
+//
 import "C"
 
 import (
@@ -304,6 +324,21 @@ const (
 	SeccompRetKill  = C.SECCOMP_RET_KILL
 )
 
+// important for unit testing
+type SeccompData C.kernel_seccomp_data
+
+func (sc *SeccompData) SetNr(nr seccomp.ScmpSyscall) {
+	sc.nr = C.int(C.htot32(C.__u32(sc.arch), C.__u32(nr)))
+}
+func (sc *SeccompData) SetArch(arch uint32) {
+	sc.arch = C.htot32(C.__u32(arch), C.__u32(arch))
+}
+func (sc *SeccompData) SetArgs(args [6]uint64) {
+	for i := range args {
+		sc.args[i] = C.htot64(sc.arch, C.__u64(args[i]))
+	}
+}
+
 func readNumber(token string) (uint64, error) {
 	if value, ok := seccompResolver[token]; ok {
 		return value, nil
@@ -451,6 +486,8 @@ func compile(content []byte, out string) error {
 		return err
 	}
 	defer fout.Close()
+
+	//secFilter.ExportPFC(os.Stdout)
 
 	return secFilter.ExportBPF(fout)
 }
