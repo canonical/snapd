@@ -214,7 +214,7 @@ prepare-each: |
 
         #Remove rotated journal logs
         systemctl stop systemd-journald.service
-        find /run/log/journal/ -name *@*.journal | xargs rm
+        find /run/log/journal/ -name "*@*.journal" -delete
         systemctl start systemd-journald.service
     fi
     dmesg -c > /dev/null
