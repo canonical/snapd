@@ -20,15 +20,16 @@
 package main_test
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"unsafe"
 
 	. "gopkg.in/check.v1"
 
@@ -44,15 +45,6 @@ func Test(t *testing.T) { TestingT(t) }
 type snapSeccompSuite struct{}
 
 var _ = Suite(&snapSeccompSuite{})
-
-// from linux/seccomp.h: struct seccomp_data
-type seccompData struct {
-	// FIXME: "int" in linux/seccomp.h
-	syscallNr          uint32
-	arch               uint32
-	instructionPointer uint64
-	syscallArgs        [6]uint64
-}
 
 func goArchToScmpArch(goarch string) uint32 {
 	switch goarch {
@@ -85,8 +77,7 @@ func decodeBpfFromFile(p string) ([]bpf.Instruction, error) {
 	defer r.Close()
 
 	for {
-		// FIXME: native endian here?
-		err = binary.Read(r, binary.LittleEndian, &rawOp)
+		err = binary.Read(r, nativeEndian(), &rawOp)
 		if err == io.EOF {
 			break
 		}
@@ -99,7 +90,7 @@ func decodeBpfFromFile(p string) ([]bpf.Instruction, error) {
 	return ops, nil
 }
 
-func parseBpfInput(s string) (*seccompData, error) {
+func parseBpfInput(s string) (*main.SeccompData /* *seccompData */, error) {
 	// syscall;arch;arg1,arg2...
 	l := strings.Split(s, ";")
 
@@ -111,26 +102,93 @@ func parseBpfInput(s string) (*seccompData, error) {
 	var arch uint32
 	if len(l) < 2 || l[1] == "native" {
 		arch = goArchToScmpArch(runtime.GOARCH)
+	} else {
+		arch = goArchToScmpArch(l[1])
 	}
 
-	return &seccompData{
-		syscallNr: uint32(sc),
-		arch:      arch,
-	}, nil
+	var syscallArgs [6]uint64
+	if len(l) > 2 {
+		args := strings.Split(l[2], ",")
+		for i := range args {
+			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
+				syscallArgs[i] = nr
+			} else {
+				syscallArgs[i] = main.SeccompResolver[args[i]]
+			}
+		}
+	}
+	sd := &main.SeccompData{}
+	sd.SetArch(arch)
+	sd.SetNr(sc)
+	sd.SetArgs(syscallArgs)
+	return sd, nil
+}
+
+// Endianness detection.
+func nativeEndian() binary.ByteOrder {
+	// Credit matt kane, taken from his gosndfile project.
+	// https://groups.google.com/forum/#!msg/golang-nuts/3GEzwKfRRQw/D1bMbFP-ClAJ
+	// https://github.com/mkb218/gosndfile
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	isLittleEndian := b == 0x04
+
+	if isLittleEndian {
+		return binary.LittleEndian
+	} else {
+		return binary.BigEndian
+	}
 }
 
 func (s *snapSeccompSuite) TestCompile(c *C) {
+	// FIXME: this will only work once the following issue is fixed:
+	// https://github.com/golang/go/issues/20556
+	bpf.VmEndianness = nativeEndian()
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
 		expected         int
 	}{
+		// special
 		{"@unrestricted", "execve", main.SeccompRetAllow},
+		{"@complain", "execve", main.SeccompRetAllow},
 
+		// trivial alllow
 		{"read", "read", main.SeccompRetAllow},
 		{"read\nwrite\nexecve\n", "write", main.SeccompRetAllow},
 
+		// trivial denial
 		{"read", "execve", main.SeccompRetKill},
+
+		// argument filtering
+		{"read >=2", "read;native;2", main.SeccompRetAllow},
+		{"read >=2", "read;native;1", main.SeccompRetKill},
+
+		{"read <=2", "read;native;2", main.SeccompRetAllow},
+		{"read <=2", "read;native;3", main.SeccompRetKill},
+
+		{"read !2", "read;native;3", main.SeccompRetAllow},
+		{"read !2", "read;native;2", main.SeccompRetKill},
+
+		{"read >2", "read;native;2", main.SeccompRetKill},
+		{"read >2", "read;native;3", main.SeccompRetAllow},
+
+		{"read <2", "read;native;2", main.SeccompRetKill},
+		{"read <2", "read;native;1", main.SeccompRetAllow},
+
+		// FIXME: test maskedEqual better
+		{"read |1", "read;native;1", main.SeccompRetAllow},
+		{"read |1", "read;native;2", main.SeccompRetKill},
+
+		{"read 2", "read;native;3", main.SeccompRetKill},
+		{"read 2", "read;native;2", main.SeccompRetAllow},
+
+		// with arg1 and name resolving
+		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - !TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetKill},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.seccompWhitelist), outPath)
@@ -145,12 +203,11 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		bpfSeccompInput, err := parseBpfInput(t.bpfInput)
 		c.Assert(err, IsNil)
 
-		buf := bytes.NewBuffer(nil)
-		binary.Write(buf, binary.BigEndian, bpfSeccompInput)
+		buf2 := (*[64]byte)(unsafe.Pointer(bpfSeccompInput))
 
-		out, err := vm.Run(buf.Bytes())
+		out, err := vm.Run(buf2[:])
 		c.Assert(err, IsNil)
-		c.Check(out, Equals, t.expected)
+		c.Check(out, Equals, t.expected, Commentf("unexpected result for %q, got %v expected %v", t.seccompWhitelist, out, t.expected))
 	}
 
 }
