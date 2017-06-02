@@ -16,11 +16,8 @@ debian_name_package() {
 
 fedora_name_package() {
     case "$1" in
-        xdelta3|jq|curl)
+        xdelta3|jq|curl|python3-yaml)
             echo $1
-            ;;
-        python3-yaml)
-            echo "python3-yamlordereddictloader"
             ;;
         openvswitch-switch)
             echo "openvswitch"
