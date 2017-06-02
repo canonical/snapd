@@ -103,6 +103,10 @@ network packet,
 
 #include <abstractions/nameservice>
 
+# Explicitly deny ptrace. This doesn't influence any NetworkManager
+# functionality but silences AppArmor denials in the system log.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
+
 # DBus accesses
 #include <abstractions/dbus-strict>
 
