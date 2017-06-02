@@ -103,8 +103,9 @@ network packet,
 
 #include <abstractions/nameservice>
 
-# Explicitly deny ptrace. This doesn't influence any NetworkManager
-# functionality but silences AppArmor denials in the system log.
+# Explicitly deny plugging snaps from ptracing the slot to silence noisy
+# denials. Neither the NetworkManager service nor nmcli require ptrace
+# trace for full functionality.
 deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 
 # DBus accesses
