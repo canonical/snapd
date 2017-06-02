@@ -6,10 +6,9 @@ systems:
     - -ubuntu-core-*
 
 restore: |
-    source /tmp/dbus-session-env
-    kill -KILL $DBUS_SESSION_BUS_PID || true
-    kill -KILL $(cat /tmp/snap-userd-pid) || true
-    umount -f /usr/bin/xdg-open
+    systemctl stop --signal=KILL test-dbus-session.scope || true
+    systemctl stop --signal=KILL test-snap-userd || true
+    umount -f /usr/bin/xdg-open || true
 
 
 execute: |
@@ -19,10 +18,26 @@ execute: |
     # Install necessary pacakges to get dbus-launch helper
     distro_install_package dbus-x11 xdg-utils
 
-    dbus-launch --sh-syntax &> /tmp/dbus-session-env
-    . /tmp/dbus-session-env
-    snap userd &
-    echo $! > /tmp/snap-userd-pid
+    # Run a dbus session bus and the snap userd service via systemd
+    # to allow easier tracking of any started processes.
+    DBUS_SESSION_BUS_ADDRESS=unix:abstract=/tmp/dbus-test-snap-user
+    systemd-run \
+        --scope \
+        --unit=test-dbus-session \
+        --no-block \
+        /usr/bin/dbus-daemon --address="$DBUS_SESSION_BUS_ADDRESS" --fork --session
+
+    systemd-run \
+        --scope \
+        --unit=test-snap-userd \
+        --no-block \
+        --setenv=DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+        /usr/bin/snap userd
+
+    # Wait until the service is up and running
+    while ! systemctl is-active test-snap-userd ; do
+        sleep .1
+    done
 
     # Create a small helper which will tell us if snap passes
     # the URL correctly to the right handler
@@ -34,9 +49,9 @@ execute: |
     mount --bind /tmp/xdg-open /usr/bin/xdg-open
 
     ensure_xdg_open_output() {
-        . /tmp/dbus-session-env
         rm -f /tmp/xdg-open-output
-        /snap/core/current/usr/local/bin/xdg-open $1
+        DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
+            /snap/core/current/usr/local/bin/xdg-open $1
         test -e /tmp/xdg-open-output
         test "$(cat /tmp/xdg-open-output)" = $1
     }
@@ -55,5 +70,5 @@ execute: |
 
     # We need to kill both here as otherwise the task hangs (even
     # if the restore jobs will do this again)
-    kill -KILL $(cat /tmp/snap-userd-pid)
-    kill -KILL $DBUS_SESSION_BUS_PID
+    systemctl stop --signal=KILL test-snap-userd
+    systemctl stop --signal=KILL test-dbus-session
