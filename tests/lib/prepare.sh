@@ -134,6 +134,9 @@ EOF
         snap install --"$CORE_CHANNEL" core
         snap list | grep core
 
+        systemctl stop snapd.{service,socket}
+        update_core_snap_for_classic_reexec
+        systemctl start snapd.{service,socket}
         # ensure no auto-refresh happens during the tests
         if [ -e /snap/core/current/meta/hooks/configure ]; then
             snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
@@ -148,10 +151,7 @@ EOF
             exit 1
         fi
 
-        systemctl stop snapd.service snapd.socket
-
-        update_core_snap_for_classic_reexec
-
+        systemctl stop snapd.{service,socket}
         systemctl daemon-reload
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
