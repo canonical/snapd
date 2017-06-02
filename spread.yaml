@@ -200,21 +200,22 @@ exclude:
     - "*.a"
 
 prepare-each: |
-    # systemd on 14.04 does not know about --rotate
-    # or --vacuum-time.
-    # TODO: Find a way to clean out systemd logs on
-    # systemd 204.
+    # systemd on 14.04 does not know about --rotate or --vacuum-time.
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
     else
+        # Force a log rotation with small size
         sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
         systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
         mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
         systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        #Remove rotated journal logs
+        systemctl stop systemd-journald.service
         find /run/log/journal/ -name *@*.journal | xargs rm
-        sudo systemctl restart systemd-journald.service
+        systemctl start systemd-journald.service
     fi
     dmesg -c > /dev/null
 
