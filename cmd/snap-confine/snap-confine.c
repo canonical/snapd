@@ -221,6 +221,8 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
+		// for compatibility, if facing older snapd.
+		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
 	// Permanently drop if not root
 	if (geteuid() == 0) {
