@@ -23,9 +23,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -43,59 +43,99 @@ type snapSeccompSuite struct{}
 
 var _ = Suite(&snapSeccompSuite{})
 
-func cmpBpf(c *C, p string, expected []byte) {
-	content, err := ioutil.ReadFile(p)
-	c.Assert(err, IsNil)
-
-	c.Check(content, DeepEquals, expected)
-}
-
-func (s *snapSeccompSuite) TestCompileTrivial(c *C) {
-	for _, syscall := range []string{"read", "write", "execve"} {
-
-		content := []byte(syscall)
-		outPath := filepath.Join(c.MkDir(), "bpf")
-
-		err := main.Compile(content, outPath)
-		c.Assert(err, IsNil)
-
-		r, err := os.Open(outPath)
-		c.Assert(err, IsNil)
-		defer r.Close()
-
-		sc, err := seccomp.GetSyscallFromName(syscall)
-		c.Assert(err, IsNil)
-
-		var rawOp bpf.RawInstruction
-		found := false
-		for {
-			err = binary.Read(r, binary.LittleEndian, &rawOp)
-			if err == io.EOF {
-				break
-			}
-			op := rawOp.Disassemble()
-			if jmpOp, ok := op.(bpf.JumpIf); ok {
-				if jmpOp.Val == uint32(sc) {
-					found = true
-				}
-			}
-		}
-		c.Check(found, Equals, true)
-	}
-}
-
-type seccompData struct {
-	nr                 uint32
-	arch               uint32
-	instructionPointer uint64
-	args               [6]uint64
-}
-
 const (
 	// from #include<linux/seccomp.h>
 	seccompRetKill  = 0
 	seccompRetAllow = 0x7fff0000
 )
+
+// from linux/seccomp.h: struct seccomp_data
+type seccompData struct {
+	// FIXME: "int" in linux/seccomp.h
+	syscallNr          uint32
+	arch               uint32
+	instructionPointer uint64
+	syscallArgs        [6]uint64
+}
+
+func decodeBpfFromFile(p string) ([]bpf.Instruction, error) {
+	var ops []bpf.Instruction
+	var rawOp bpf.RawInstruction
+
+	r, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	for {
+		// FIXME: native endian here?
+		err = binary.Read(r, binary.LittleEndian, &rawOp)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, rawOp.Disassemble())
+	}
+
+	return ops, nil
+}
+
+func parseBpfInput(s string) (*seccompData, error) {
+	// syscall;arch;arg1,arg2...
+	l := strings.Split(s, ";")
+
+	sc, err := seccomp.GetSyscallFromName(l[0])
+	if err != nil {
+		return nil, err
+	}
+
+	var arch uint32
+	if len(l) < 2 {
+		// FIXME: use native arch
+		// x64 - FIXME: get via libseccomp
+		arch = 3221225534
+	}
+
+	return &seccompData{
+		syscallNr: uint32(sc),
+		arch:      arch,
+	}, nil
+}
+
+func (s *snapSeccompSuite) TestCompile(c *C) {
+	for _, t := range []struct {
+		bpfProg  string
+		bpfInput string
+		expected int
+	}{
+		{"read", "read", seccompRetAllow},
+		{"read", "execve", seccompRetKill},
+	} {
+		outPath := filepath.Join(c.MkDir(), "bpf")
+		err := main.Compile([]byte(t.bpfProg), outPath)
+		c.Assert(err, IsNil)
+
+		ops, err := decodeBpfFromFile(outPath)
+		c.Assert(err, IsNil)
+
+		vm, err := bpf.NewVM(ops)
+		c.Assert(err, IsNil)
+
+		bpfSeccompInput, err := parseBpfInput(t.bpfInput)
+		c.Assert(err, IsNil)
+
+		buf := bytes.NewBuffer(nil)
+		binary.Write(buf, binary.BigEndian, bpfSeccompInput)
+
+		out, err := vm.Run(buf.Bytes())
+		c.Assert(err, IsNil)
+		c.Check(out, Equals, t.expected)
+	}
+
+}
 
 func (s *snapSeccompSuite) TestCompileSimulate(c *C) {
 	content := []byte("read\nwrite\n")
@@ -104,19 +144,8 @@ func (s *snapSeccompSuite) TestCompileSimulate(c *C) {
 	err := main.Compile(content, outPath)
 	c.Assert(err, IsNil)
 
-	r, err := os.Open(outPath)
+	ops, err := decodeBpfFromFile(outPath)
 	c.Assert(err, IsNil)
-	defer r.Close()
-
-	var ops []bpf.Instruction
-	for {
-		var rawOp bpf.RawInstruction
-		err = binary.Read(r, binary.LittleEndian, &rawOp)
-		if err == io.EOF {
-			break
-		}
-		ops = append(ops, rawOp.Disassemble())
-	}
 
 	scRead, err := seccomp.GetSyscallFromName("read")
 	c.Assert(err, IsNil)
@@ -125,10 +154,10 @@ func (s *snapSeccompSuite) TestCompileSimulate(c *C) {
 	c.Assert(err, IsNil)
 
 	sdGood := seccompData{
-		nr:                 uint32(scRead),
+		syscallNr:          uint32(scRead),
 		arch:               3221225534, // x64 - FIXME: get via libseccomp
 		instructionPointer: 99,         // random
-		args:               [6]uint64{1, 2, 3, 4, 5, 6},
+		syscallArgs:        [6]uint64{1, 2, 3, 4, 5, 6},
 	}
 	buf := bytes.NewBuffer(nil)
 	binary.Write(buf, binary.BigEndian, &sdGood)
@@ -141,10 +170,10 @@ func (s *snapSeccompSuite) TestCompileSimulate(c *C) {
 	scExecve, err := seccomp.GetSyscallFromName("execve")
 	c.Assert(err, IsNil)
 	sdBad := seccompData{
-		nr:                 uint32(scExecve),
+		syscallNr:          uint32(scExecve),
 		arch:               3221225534, // x64 - FIXME: get via libseccomp
 		instructionPointer: 99,         // random
-		args:               [6]uint64{1, 2, 3, 4, 5, 6},
+		syscallArgs:        [6]uint64{1, 2, 3, 4, 5, 6},
 	}
 	buf = bytes.NewBuffer(nil)
 	binary.Write(buf, binary.BigEndian, &sdBad)
