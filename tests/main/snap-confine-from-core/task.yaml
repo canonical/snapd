@@ -2,6 +2,9 @@ summary: Test that snap-confine is run from core on re-exec
 
 systems: [-ubuntu-core-16-*]
 
+environment:
+    SNAP_REEXEC:
+
 prepare: |
     echo "Installing test-snapd-tools"
     snap install test-snapd-tools
@@ -13,11 +16,6 @@ restore: |
     chmod 4755 /usr/lib/snapd/snap-confine
 
 execute: |
-    if [ "${SNAP_REEXEC:-}" = "0" ]; then
-        echo "skipping test when SNAP_REEXEC is disabled"
-        exit 0
-    fi
-
     echo "Ensure we re-exec by default"
     /usr/bin/env SNAPD_DEBUG=1 snap list 2> debug.log
     cat debug.log | MATCH "DEBUG: restarting into"
