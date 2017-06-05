@@ -87,6 +87,7 @@ type interfaceInfoJSON struct {
 	DocumentationURL string      `json:"documentation-url,omitempty"`
 	Plugs            []*plugJSON `json:"plugs,omitempty"`
 	Slots            []*slotJSON `json:"slots,omitempty"`
+	Used             bool        `json:"used,omitempty"`
 }
 
 // MarshalJSON returns the JSON encoding of InterfaceInfo.
@@ -116,5 +117,6 @@ func (info *InterfaceInfo) MarshalJSON() ([]byte, error) {
 		DocumentationURL: info.MetaData.DocumentationURL,
 		Plugs:            plugs,
 		Slots:            slots,
+		Used:             info.Used,
 	})
 }
