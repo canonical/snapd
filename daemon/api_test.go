@@ -3283,6 +3283,81 @@ func (s *apiSuite) TestInterfaceIndex(c *check.C) {
 	c.Check(body["type"], check.Equals, "sync")
 }
 
+// Tests for GET /v2/interface/test
+
+func (s *apiSuite) TestInterfaceDetail(c *check.C) {
+	_ = s.daemon(c)
+
+	s.mockIface(c, &ifacetest.TestInterface{
+		InterfaceName: "test",
+		InterfaceMetaData: interfaces.MetaData{
+			Summary: "summary",
+		},
+	})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	// NOTE: this is confusing, we must set s.vars manually,
+	s.vars = map[string]string{"name": "test"}
+	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"name":    "test",
+			"summary": "summary",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":  "consumer",
+					"plug":  "plug",
+					"label": "label",
+					"attrs": map[string]interface{}{"key": "value"},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":  "producer",
+					"slot":  "slot",
+					"label": "label",
+					"attrs": map[string]interface{}{"key": "value"},
+				},
+			},
+			"used": true,
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
+	_ = s.daemon(c)
+
+	// NOTE: this is confusing, we must set s.vars manually,
+	s.vars = map[string]string{"name": "test"}
+	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot find interface named "test"`,
+		},
+		"status":      "Not Found",
+		"status-code": 404.0,
+		"type":        "error",
+	})
+}
+
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
