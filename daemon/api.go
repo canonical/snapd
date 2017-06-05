@@ -77,6 +77,7 @@ var api = []*Command{
 	interfacesCmd,
 	interfaceCmd,
 	interfaceIndexCmd,
+	interfaceDetailCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	stateChangeCmd,
@@ -159,13 +160,17 @@ var (
 		UserOK: true,
 		GET:    getInterface,
 	}
-
 	interfaceIndexCmd = &Command{
 		Path:   "/v2/interface",
 		UserOK: true,
 		GET:    getInterfaceIndex,
 	}
 
+	interfaceDetailCmd = &Command{
+		Path:   "/v2/interface/{name}",
+		UserOK: true,
+		GET:    getInterfaceDetail,
+	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
@@ -1605,6 +1610,18 @@ func getInterfaceIndex(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 	return SyncResponse(result, nil)
 }
+
+// getInterfaceDetail returns details about a specific interface.
+func getInterfaceDetail(c *Command, r *http.Request, user *auth.UserState) Response {
+	ifaceName := muxVars(r)["name"]
+	repo := c.d.overlord.InterfaceManager().Repository()
+	ii := repo.InterfaceInfo(ifaceName)
+	if ii == nil {
+		return NotFound("cannot find interface named %q", ifaceName)
+	}
+	return SyncResponse(ii, nil)
+}
+
 // plugJSON aids in marshaling Plug into JSON.
 type plugJSON struct {
 	Snap        string                 `json:"snap"`
