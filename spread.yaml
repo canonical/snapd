@@ -475,6 +475,11 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
             fi
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                restore_each_classic
+            fi
+        restore-each: |
 
     tests/nested/:
         summary: Tests for nested images
