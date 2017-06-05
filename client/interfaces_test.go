@@ -95,26 +95,22 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientInterfaceNames(c *check.C) {
+func (cs *clientSuite) TestClientInterfaceIndex(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": [
-			{
-				"name": "iface",
-				"summary": "summary",
-				"used": true
-			}
+			{"name": "iface-1", "summary": "summary", "used": true },
+			{"name": "iface-2", "summary": "summary"}
 		]
 	}`
-	names, err := cs.cli.InterfaceNames()
+	names, err := cs.cli.InterfaceIndex()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface")
 	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []client.Interface{{
-		Name:    "iface",
-		Summary: "summary",
-		Used:    true,
-	}})
+	c.Check(names, check.DeepEquals, []client.Interface{
+		{Name: "iface-1", Summary: "summary", Used: true},
+		{Name: "iface-2", Summary: "summary"},
+	})
 }
 
 func (cs *clientSuite) TestClientInterface(c *check.C) {
