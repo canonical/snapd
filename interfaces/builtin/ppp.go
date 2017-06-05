@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 )
 
+const pppSummary = `allows operating as the ppp service`
+
 const pppConnectedPlugAppArmor = `
 # Description: Allow operating ppp daemon. This gives privileged access to the
 # ppp daemon.
@@ -57,6 +59,7 @@ func (iface *pppInterface) Name() string {
 
 func (iface *pppInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           pppSummary,
 		ImplicitOnCore:    true,
 		ImplicitOnClassic: true,
 	}

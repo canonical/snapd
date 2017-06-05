@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const fuseSupportSummary = `allows access to the FUSE file system`
+
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -87,6 +89,7 @@ func (iface *fuseSupportInterface) Name() string {
 
 func (iface *fuseSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:        fuseSupportSummary,
 		ImplicitOnCore: true,
 		// Ubuntu 14.04 does not support the fuse-support interface.
 		ImplicitOnClassic: !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),

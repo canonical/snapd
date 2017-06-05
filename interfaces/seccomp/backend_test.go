@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -207,8 +208,11 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
+	restore := release.MockForcedDevmode(false)
+	defer restore()
+
 	// NOTE: replace the real template with a shorter variant
-	restore := seccomp.MockTemplate([]byte("default\n"))
+	restore = seccomp.MockTemplate([]byte("default\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
 		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
@@ -241,8 +245,11 @@ apps:
 
 // Ensure that combined snippets are sorted
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
+	restore := release.MockForcedDevmode(false)
+	defer restore()
+
 	// NOTE: replace the real template with a shorter variant
-	restore := seccomp.MockTemplate([]byte("default\n"))
+	restore = seccomp.MockTemplate([]byte("default\n"))
 	defer restore()
 
 	iface2 := &ifacetest.TestInterface{InterfaceName: "iface2"}
@@ -265,4 +272,18 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	stat, err := os.Stat(profile)
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
+}
+
+func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
+	restore := release.MockForcedDevmode(true)
+	defer restore()
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "\nbind\n")
 }

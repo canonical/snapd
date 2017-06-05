@@ -19,6 +19,8 @@
 
 package builtin
 
+const networkSetupObserveSummary = `allows read access to netplan configuration`
+
 const networkSetupObserveConnectedPlugAppArmor = `
 # Description: Can read netplan configuration files
 
@@ -29,6 +31,7 @@ const networkSetupObserveConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-setup-observe",
+		summary:               networkSetupObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkSetupObserveConnectedPlugAppArmor,

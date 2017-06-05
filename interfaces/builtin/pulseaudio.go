@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
+
 const pulseaudioConnectedPlugAppArmor = `
 /{run,dev}/shm/pulse-shm-* mrwk,
 
@@ -119,6 +121,7 @@ func (iface *pulseAudioInterface) Name() string {
 
 func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           pulseaudioSummary,
 		ImplicitOnClassic: true,
 	}
 }

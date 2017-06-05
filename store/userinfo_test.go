@@ -20,6 +20,7 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ import (
 	"gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,6 +53,10 @@ var mockServerJSON = `{
 }`
 
 func (t *userInfoSuite) SetUpTest(c *check.C) {
+	l, err := logger.New(&bytes.Buffer{}, logger.DefaultFlags)
+	c.Assert(err, check.IsNil)
+	logger.SetLogger(l)
+
 	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,

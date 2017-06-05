@@ -19,6 +19,8 @@
 
 package builtin
 
+const systemObserveSummary = `allows observing all processes and drivers`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
@@ -89,6 +91,7 @@ const systemObserveConnectedPlugSecComp = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "system-observe",
+		summary:               systemObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,

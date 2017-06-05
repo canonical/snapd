@@ -19,6 +19,8 @@
 
 package builtin
 
+const snapdControlSummary = `allows communicating with snapd`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
@@ -29,6 +31,7 @@ const snapdControlConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "snapd-control",
+		summary:               snapdControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,

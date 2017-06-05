@@ -34,13 +34,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var noConflictOnConnectTasks = func(kind string) bool {
+	return kind != "connect" && kind != "disconnect"
+}
+
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
 
@@ -153,10 +157,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
 

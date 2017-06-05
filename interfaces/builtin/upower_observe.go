@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const upowerObserveSummary = `allows operating as or reading from the UPower service`
+
 const upowerObservePermanentSlotAppArmor = `
 # Description: Allow operating as the UPower service.
 
@@ -211,6 +213,7 @@ func (iface *upowerObserveInterface) Name() string {
 
 func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           upowerObserveSummary,
 		ImplicitOnClassic: true,
 	}
 }

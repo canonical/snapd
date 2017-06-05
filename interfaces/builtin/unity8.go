@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const unity8Summary = `allows operating as or interacting with Unity 8`
+
 const unity8ConnectedPlugAppArmor = `
 # Description: Can access unity8 desktop services
 
@@ -86,6 +88,12 @@ type unity8Interface struct{}
 
 func (iface *unity8Interface) Name() string {
 	return "unity8"
+}
+
+func (iface *unity8Interface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: unity8Summary,
+	}
 }
 
 func (iface *unity8Interface) String() string {

@@ -19,6 +19,8 @@
 
 package builtin
 
+const hardwareObserveSummary = `allows reading information about system hardware`
+
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
 # from the system. This is reserved because it allows reading potentially
@@ -82,6 +84,7 @@ socket AF_NETLINK - NETLINK_GENERIC
 func init() {
 	registerIface(&commonInterface{
 		name:                  "hardware-observe",
+		summary:               hardwareObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
