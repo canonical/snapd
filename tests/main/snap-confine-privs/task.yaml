@@ -1,8 +1,8 @@
 summary: ensure that snap-confine handles group and user privileges correctly
 details: |
     The openSUSE security team has made a remark about a particular part of
-    snap-confine's UID/GID handling. The code there was, we believe, correct
-    but this test is here to demonstrate that and ensure it never regresses.
+    snap-confine's UID/GID handling. The code there was correct but this test
+    is here to demonstrate that and ensure it never regresses.
 
     Security review https://bugzilla.opensuse.org/show_bug.cgi?id=986050
 # This test is not executed on a core system simply because of the hassle of
