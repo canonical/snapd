@@ -98,13 +98,23 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 func (cs *clientSuite) TestClientInterfaceNames(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": ["bool-file"]
+		"result": [
+			{
+				"name": "iface",
+				"summary": "summary",
+				"used": true
+			}
+		]
 	}`
 	names, err := cs.cli.InterfaceNames()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface")
 	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []string{"bool-file"})
+	c.Check(names, check.DeepEquals, []client.Interface{{
+		Name:    "iface",
+		Summary: "summary",
+		Used:    true,
+	}})
 }
 
 func (cs *clientSuite) TestClientInterface(c *check.C) {

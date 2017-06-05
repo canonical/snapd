@@ -89,8 +89,10 @@ func (client *Client) Interfaces() (interfaces Interfaces, err error) {
 }
 
 // InterfaceNames returns the list of all interface names.
-func (client *Client) InterfaceNames() (names []string, err error) {
-	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &names)
+//
+// The result will only have three fields populated, Name, Summary and Used.
+func (client *Client) InterfaceNames() (ifaces []Interface, err error) {
+	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &ifaces)
 	return
 }
 
