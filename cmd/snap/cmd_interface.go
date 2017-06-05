@@ -69,50 +69,49 @@ func (x *cmdInterface) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	infos, err := Client().InterfaceInfos()
-	if err != nil {
-		return err
-	}
-
 	if x.Positionals.Interface != "" {
 		// Show one interface in detail.
 		name := string(x.Positionals.Interface)
-		ii, ok := infos[name]
-		if !ok {
-			return fmt.Errorf(i18n.G("interface %q does not exist"), name)
+		iface, err := Client().Interface(name)
+		if err != nil {
+			return err
 		}
-		x.showOneInterface(name, &ii)
+		x.showOneInterface(&iface)
 	} else {
 		// Show an overview of available interfaces.
-		if len(infos) == 0 {
+		ifaces, err := Client().InterfaceIndex()
+		if err != nil {
+			return err
+		}
+		if len(ifaces) == 0 {
 			return fmt.Errorf(i18n.G("no interfaces found"))
 		}
-		x.showManyInterfaces(infos)
+		x.showManyInterfaces(ifaces)
 	}
 	return nil
 }
 
-func (x *cmdInterface) showOneInterface(name string, ii *client.InterfaceInfo) {
+func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintf(w, "name:\t%s\n", name)
-	if ii.MetaData.Summary != "" {
-		fmt.Fprintf(w, "summary:\t%s\n", ii.MetaData.Summary)
+	fmt.Fprintf(w, "name:\t%s\n", iface.Name)
+	if iface.Summary != "" {
+		fmt.Fprintf(w, "summary:\t%s\n", iface.Summary)
 	}
-	if ii.MetaData.Description != "" {
+	if iface.Description != "" {
 		// FIXME: find out for real
 		termWidth := 77
-		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(ii.MetaData.Description, termWidth))
+		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(iface.Description, termWidth))
 	}
-	if ii.MetaData.DocumentationURL != "" {
-		fmt.Fprintf(w, "documentation-url:\t%s\n", ii.MetaData.DocumentationURL)
+	if iface.DocumentationURL != "" {
+		fmt.Fprintf(w, "documentation-url:\t%s\n", iface.DocumentationURL)
 	}
-	if len(ii.Plugs) > 0 {
+	if len(iface.Plugs) > 0 {
 		fmt.Fprintf(w, "plugs:\n")
-		for _, plug := range ii.Plugs {
+		for _, plug := range iface.Plugs {
 			fmt.Fprintf(w, "  - snap:\t%s\n", plug.Snap)
-			if plug.Name != name {
+			if plug.Name != iface.Name {
 				fmt.Fprintf(w, "    plug:\t%s\n", plug.Name)
 			}
 			if plug.Label != "" {
@@ -121,11 +120,11 @@ func (x *cmdInterface) showOneInterface(name string, ii *client.InterfaceInfo) {
 			x.showAttrs(w, plug.Attrs, "    ")
 		}
 	}
-	if len(ii.Slots) > 0 {
+	if len(iface.Slots) > 0 {
 		fmt.Fprintf(w, "slots:\n")
-		for _, slot := range ii.Slots {
+		for _, slot := range iface.Slots {
 			fmt.Fprintf(w, "  - snap:\t%s\n", slot.Snap)
-			if slot.Name != name {
+			if slot.Name != iface.Name {
 				fmt.Fprintf(w, "    slot:\t%s\n", slot.Name)
 			}
 			if slot.Label != "" {
@@ -135,25 +134,16 @@ func (x *cmdInterface) showOneInterface(name string, ii *client.InterfaceInfo) {
 		}
 	}
 }
-func (x *cmdInterface) showManyInterfaces(infos map[string]client.InterfaceInfo) {
-	names := make([]string, 0, len(infos))
-	for name := range infos {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+
+func (x *cmdInterface) showManyInterfaces(infos []client.Interface) {
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Name\tSummary"))
-	for _, name := range names {
-		ii := infos[name]
-		if x.ShowAll || shouldShowInterface(&ii) {
-			fmt.Fprintf(w, "%s\t%s\n", name, ii.MetaData.Summary)
+	for _, iface := range infos {
+		if x.ShowAll || iface.Used {
+			fmt.Fprintf(w, "%s\t%s\n", iface.Name, iface.Summary)
 		}
 	}
-}
-
-func shouldShowInterface(ii *client.InterfaceInfo) bool {
-	return len(ii.Plugs) > 0 || (len(ii.Slots) > 0 && ii.Slots[0].Snap != "core")
 }
 
 func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, indent string) {

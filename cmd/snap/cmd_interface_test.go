@@ -72,33 +72,18 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": map[string]client.InterfaceInfo{
-				"network": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows access to the network",
-					},
-					Plugs: []client.Plug{
-						{Snap: "deepin-music", Name: "network"},
-						{Snap: "http", Name: "network"},
-					},
-					Slots: []client.Slot{{Snap: "core", Name: "network"}},
-				},
-				"network-bind": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows providing services on the network",
-					},
-					Plugs: []client.Plug{
-						{Snap: "deepin-music", Name: "network-bind"},
-						{Snap: "http", Name: "network-bind"},
-					},
-					Slots: []client.Slot{{Snap: "core", Name: "network-bind"}},
-				},
-				"unused": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "just an unused interface, nothing to see here",
-					},
-				},
-			},
+			"result": []client.Interface{{
+				Name:    "network",
+				Summary: "allows access to the network",
+				Used:    true,
+			}, {
+				Name:    "network-bind",
+				Summary: "allows providing services on the network",
+				Used:    true,
+			}, {
+				Name:    "unused",
+				Summary: "just an unused interface, nothing to see here",
+			}},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interface"})
@@ -121,33 +106,18 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": map[string]client.InterfaceInfo{
-				"network": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows access to the network",
-					},
-					Plugs: []client.Plug{
-						{Snap: "deepin-music", Name: "network"},
-						{Snap: "http", Name: "network"},
-					},
-					Slots: []client.Slot{{Snap: "core", Name: "network"}},
-				},
-				"network-bind": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows providing services on the network",
-					},
-					Plugs: []client.Plug{
-						{Snap: "deepin-music", Name: "network-bind"},
-						{Snap: "http", Name: "network-bind"},
-					},
-					Slots: []client.Slot{{Snap: "core", Name: "network-bind"}},
-				},
-				"unused": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "just an unused interface, nothing to see here",
-					},
-				},
-			},
+			"result": []client.Interface{{
+				Name:    "network",
+				Summary: "allows access to the network",
+				Used:    true,
+			}, {
+				Name:    "network-bind",
+				Summary: "allows providing services on the network",
+				Used:    true,
+			}, {
+				Name:    "unused",
+				Summary: "just an unused interface, nothing to see here",
+			}},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interface", "--all"})
@@ -165,27 +135,24 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 func (s *SnapSuite) TestInterfaceDetails(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface")
+		c.Check(r.URL.Path, Equals, "/v2/interface/network")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": map[string]client.InterfaceInfo{
-				"network": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows access to the network",
-						Description: "" +
-							"The network interface allows connected plugs to access the network as a\n" +
-							"client. The core snap provides the slot that is used by all the snaps.",
-						DocumentationURL: "http://example.org/about-the-network-interface",
-					},
-					Plugs: []client.Plug{
-						{Snap: "deepin-music", Name: "network"},
-						{Snap: "http", Name: "network"},
-					},
-					Slots: []client.Slot{{Snap: "core", Name: "network"}},
+			"result": client.Interface{
+				Name:    "network",
+				Summary: "allows access to the network",
+				Description: "" +
+					"The network interface allows connected plugs to access the network as a\n" +
+					"client. The core snap provides the slot that is used by all the snaps.",
+				DocumentationURL: "http://example.org/about-the-network-interface",
+				Plugs: []client.Plug{
+					{Snap: "deepin-music", Name: "network"},
+					{Snap: "http", Name: "network"},
 				},
+				Slots: []client.Slot{{Snap: "core", Name: "network"}},
 			},
 		})
 	})
@@ -211,32 +178,29 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface")
+		c.Check(r.URL.Path, Equals, "/v2/interface/serial-port")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": map[string]client.InterfaceInfo{
-				"serial-port": {
-					MetaData: client.InterfaceMetaData{
-						Summary: "allows providing or using a specific serial port",
-						Description: "" +
-							"The serial-port interface allows connected plugs to access the specific serial port",
-					},
-					Plugs: []client.Plug{
-						{Snap: "minicom", Name: "serial-port"},
-					},
-					Slots: []client.Slot{{
-						Snap: "gizmo-gadget",
-						Name: "debug-serial-port",
-						Attrs: map[string]interface{}{
-							"header":   "pin-array",
-							"location": "internal",
-							"path":     "/dev/ttyS0",
-						},
-					}},
+			"result": client.Interface{
+				Name:    "serial-port",
+				Summary: "allows providing or using a specific serial port",
+				Description: "" +
+					"The serial-port interface allows connected plugs to access the specific serial port",
+				Plugs: []client.Plug{
+					{Snap: "minicom", Name: "serial-port"},
 				},
+				Slots: []client.Slot{{
+					Snap: "gizmo-gadget",
+					Name: "debug-serial-port",
+					Attrs: map[string]interface{}{
+						"header":   "pin-array",
+						"location": "internal",
+						"path":     "/dev/ttyS0",
+					},
+				}},
 			},
 		})
 	})
@@ -269,29 +233,17 @@ func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type": "sync",
-				"result": map[string]client.InterfaceInfo{
-					"network": {
-						MetaData: client.InterfaceMetaData{
-							Summary: "allows access to the network",
-						},
-						Plugs: []client.Plug{
-							{Snap: "deepin-music", Name: "network"},
-							{Snap: "http", Name: "network"},
-						},
-						Slots: []client.Slot{{Snap: "core", Name: "network"}},
-					},
-					"network-bind": {
-						MetaData: client.InterfaceMetaData{
-							Summary: "allows providing services on the network",
-						},
-						Plugs: []client.Plug{
-							{Snap: "deepin-music", Name: "network-bind"},
-							{Snap: "http", Name: "network-bind"},
-						},
-						Slots: []client.Slot{{Snap: "core", Name: "network-bind"}},
-					},
-					"unused": {},
-				},
+				"result": []client.Interface{{
+					Name:    "network",
+					Summary: "allows access to the network",
+					Used:    true,
+				}, {
+					Name:    "network-bind",
+					Summary: "allows providing services on the network",
+					Used:    true,
+				}, {
+					Name: "unused",
+				}},
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

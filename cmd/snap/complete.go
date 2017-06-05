@@ -295,15 +295,15 @@ type interfaceName string
 
 func (s interfaceName) Complete(match string) []flags.Completion {
 	cli := Client()
-	infos, err := cli.InterfaceInfos()
+	ifaces, err := cli.InterfaceIndex()
 	if err != nil {
 		return nil
 	}
 
-	ret := make([]flags.Completion, 0, len(infos))
-	for name, ii := range infos {
-		if shouldShowInterface(&ii) && strings.HasPrefix(name, match) {
-			ret = append(ret, flags.Completion{Item: name, Description: ii.MetaData.Summary})
+	ret := make([]flags.Completion, 0, len(ifaces))
+	for _, iface := range ifaces {
+		if iface.Used && strings.HasPrefix(iface.Name, match) {
+			ret = append(ret, flags.Completion{Item: iface.Name, Description: iface.Summary})
 		}
 	}
 
