@@ -72,6 +72,7 @@ type Interface struct {
 	DocumentationURL string `json:"documentation-url,omitempty"`
 	Plugs            []Plug `json:"plugs,omitempty"`
 	Slots            []Slot `json:"slots,omitempty"`
+	Used             bool   `json:"used,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
