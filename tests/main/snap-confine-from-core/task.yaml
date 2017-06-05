@@ -17,8 +17,7 @@ restore: |
 
 execute: |
     echo "Ensure we re-exec by default"
-    /usr/bin/env SNAPD_DEBUG=1 snap list 2> debug.log
-    cat debug.log | MATCH "DEBUG: restarting into"
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
