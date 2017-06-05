@@ -165,6 +165,7 @@ func (r *Repository) InterfaceInfo(name string) *InterfaceInfo {
 		for _, plug := range plugMap {
 			if plug.Interface == name {
 				ii.Plugs = append(ii.Plugs, plug.PlugInfo)
+				ii.Used = true
 			}
 		}
 	}
@@ -172,7 +173,11 @@ func (r *Repository) InterfaceInfo(name string) *InterfaceInfo {
 		for _, slot := range slotMap {
 			if slot.Interface == name {
 				ii.Slots = append(ii.Slots, slot.SlotInfo)
+				if slot.Snap.Type != snap.TypeOS {
+					ii.Used = true
+				}
 			}
+
 		}
 	}
 

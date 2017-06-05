@@ -256,6 +256,7 @@ func (s *RepositorySuite) TestInterfaceInfo(c *C) {
 		MetaData: MetaDataOf(s.iface),
 		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
 		Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
+		Used:     true,
 	})
 }
 
