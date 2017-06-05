@@ -56,7 +56,8 @@ update_core_snap_for_classic_reexec() {
     mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
-    # Now mount the new core snap
+    # Now mount the new core snap, first discarding the mount namespace
+    /usr/lib/snapd/snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -136,7 +137,6 @@ EOF
 
         systemctl stop snapd.{service,socket}
         update_core_snap_for_classic_reexec
-        systemctl daemon-reload
         systemctl start snapd.{service,socket}
 
         # ensure no auto-refresh happens during the tests
