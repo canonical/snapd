@@ -92,6 +92,35 @@ EOF
     fi
 }
 
+restore_each_classic() {
+    # Restore the environment for each service unit
+    systemctl daemon-reload
+    systemctl stop snapd.service snapd.socket
+    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
+    create_snapd_config_classic
+    if [ -f /etc/environment.bak ]; then
+        cp /etc/environment.bak /etc/environment
+    fi
+    systemctl daemon-reload
+    systemctl start snapd.service snapd.socket
+}
+
+create_snapd_config_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
+}
+
 prepare_classic() {
     install_build_snapd
     if snap --version |MATCH unknown; then
@@ -107,18 +136,9 @@ prepare_classic() {
         exit 1
     fi
 
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
+    # Save the initial environment
+    cp /etc/environment /etc/environment.bak
+    create_snapd_config_classic
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
