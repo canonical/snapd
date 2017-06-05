@@ -106,6 +106,12 @@ restore_each_classic() {
     systemctl start snapd.service snapd.socket
 }
 
+restore_classic() {
+    if [ -f /etc/environment.bak ]; then
+        rm -f /etc/environment.bak
+    fi
+}
+
 create_snapd_config_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
