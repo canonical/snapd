@@ -136,7 +136,9 @@ EOF
 
         systemctl stop snapd.{service,socket}
         update_core_snap_for_classic_reexec
+        systemctl daemon-reload
         systemctl start snapd.{service,socket}
+
         # ensure no auto-refresh happens during the tests
         if [ -e /snap/core/current/meta/hooks/configure ]; then
             snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
