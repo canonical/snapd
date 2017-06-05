@@ -74,9 +74,6 @@ type byBackendName []SecurityBackend
 func (c byBackendName) Len() int      { return len(c) }
 func (c byBackendName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c byBackendName) Less(i, j int) bool {
-	if c[i].Name() != c[j].Name() {
-		return c[i].Name() < c[j].Name()
-	}
 	return c[i].Name() < c[j].Name()
 }
 
@@ -121,9 +118,6 @@ type byInterfaceName []Interface
 func (c byInterfaceName) Len() int      { return len(c) }
 func (c byInterfaceName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c byInterfaceName) Less(i, j int) bool {
-	if c[i].Name() != c[j].Name() {
-		return c[i].Name() < c[j].Name()
-	}
 	return c[i].Name() < c[j].Name()
 }
 
