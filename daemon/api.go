@@ -76,6 +76,7 @@ var api = []*Command{
 	snapConfCmd,
 	interfacesCmd,
 	interfaceCmd,
+	interfaceIndexCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	stateChangeCmd,
@@ -158,6 +159,13 @@ var (
 		UserOK: true,
 		GET:    getInterface,
 	}
+
+	interfaceIndexCmd = &Command{
+		Path:   "/v2/interface",
+		UserOK: true,
+		GET:    getInterfaceIndex,
+	}
+
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
@@ -1576,6 +1584,27 @@ func getInterface(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(repo.InterfaceInfos(), nil)
 }
 
+// getInterfaceIndex returns a list of known interfaces along with their summary.
+func getInterfaceIndex(c *Command, r *http.Request, user *auth.UserState) Response {
+	repo := c.d.overlord.InterfaceManager().Repository()
+	ifaces := repo.AllInterfaces()
+	used := repo.UsedInterfaces()
+	type IfaceOverview struct {
+		Name    string `json:"name,omitempty"`
+		Summary string `json:"summary,omitempty"`
+		Used    bool   `json:"used,omitempty"`
+	}
+	result := make([]IfaceOverview, 0, len(ifaces))
+	for _, iface := range ifaces {
+		ifaceName := iface.Name()
+		result = append(result, IfaceOverview{
+			Name:    ifaceName,
+			Summary: interfaces.MetaDataOf(iface).Summary,
+			Used:    used[ifaceName],
+		})
+	}
+	return SyncResponse(result, nil)
+}
 // plugJSON aids in marshaling Plug into JSON.
 type plugJSON struct {
 	Snap        string                 `json:"snap"`
