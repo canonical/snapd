@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const dockerSupportSummary = `allows operating as the Docker daemon`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -528,6 +530,7 @@ func (iface *dockerSupportInterface) Name() string {
 
 func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           dockerSupportSummary,
 		ImplicitOnCore:    true,
 		ImplicitOnClassic: true,
 	}

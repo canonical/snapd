@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const uhidSummary = `allows control over UHID devices`
+
 const uhidConnectedPlugAppArmor = `
 # Description: Allows accessing the UHID to create kernel
 # hid devices from user-space.
@@ -41,15 +43,16 @@ func (iface *uhidInterface) Name() string {
 	return "uhid"
 }
 
-func (iface *uhidInterface) String() string {
-	return iface.Name()
-}
-
 func (iface *uhidInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           uhidSummary,
 		ImplicitOnCore:    true,
 		ImplicitOnClassic: true,
 	}
+}
+
+func (iface *uhidInterface) String() string {
+	return iface.Name()
 }
 
 // Check the validity of the slot

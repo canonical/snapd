@@ -19,6 +19,8 @@
 
 package builtin
 
+const shutdownSummary = `allows shutting down or rebooting the system`
+
 const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
 
@@ -57,6 +59,7 @@ dbus (send)
 func init() {
 	registerIface(&commonInterface{
 		name:                  "shutdown",
+		summary:               shutdownSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,

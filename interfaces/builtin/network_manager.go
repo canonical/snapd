@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const networkManagerSummary = `allows operating as the NetworkManager service`
+
 const networkManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
@@ -379,6 +381,7 @@ func (iface *networkManagerInterface) Name() string {
 
 func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           networkManagerSummary,
 		ImplicitOnClassic: true,
 	}
 }

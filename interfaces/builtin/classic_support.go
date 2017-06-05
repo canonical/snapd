@@ -19,6 +19,8 @@
 
 package builtin
 
+const classicSupportSummary = `special permissions for the classic snap`
+
 const classicSupportPlugAppArmor = `
 # Description: permissions to use classic dimension. This policy is
 # intentionally not restricted. This gives device ownership to
@@ -103,6 +105,7 @@ umount2
 func init() {
 	registerIface(&commonInterface{
 		name:                  "classic-support",
+		summary:               classicSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: classicSupportPlugAppArmor,

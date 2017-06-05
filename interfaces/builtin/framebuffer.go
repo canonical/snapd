@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const framebufferSummary = `allows access to universal framebuffer devices`
+
 const framebufferConnectedPlugAppArmor = `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
@@ -45,6 +47,7 @@ func (iface *framebufferInterface) Name() string {
 
 func (iface *framebufferInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           framebufferSummary,
 		ImplicitOnCore:    true,
 		ImplicitOnClassic: true,
 	}

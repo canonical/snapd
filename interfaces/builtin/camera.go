@@ -19,6 +19,8 @@
 
 package builtin
 
+const cameraSummary = `allows access to all cameras`
+
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
 /dev/video[0-9]* rw,
@@ -33,6 +35,7 @@ const cameraConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "camera",
+		summary:               cameraSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,

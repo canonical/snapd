@@ -19,6 +19,8 @@
 
 package builtin
 
+const processControlSummary = `allows controlling other processes`
+
 const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
@@ -49,6 +51,7 @@ sched_setscheduler
 func init() {
 	registerIface(&commonInterface{
 		name:                  "process-control",
+		summary:               processControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,

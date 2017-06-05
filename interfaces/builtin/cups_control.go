@@ -19,6 +19,8 @@
 
 package builtin
 
+const cupsControlSummary = `allows access to the CUPS control socket`
+
 const cupsControlConnectedPlugAppArmor = `
 # Description: Can access cups control socket. This is restricted because it provides
 # privileged access to configure printing.
@@ -29,6 +31,7 @@ const cupsControlConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "cups-control",
+		summary:               cupsControlSummary,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		reservedForOS:         true,

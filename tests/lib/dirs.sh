@@ -1,5 +1,5 @@
 #!/bin/sh
 
 # Default applies for: Ubuntu, Debian
-SNAPMOUNTDIR=/snap
-LIBEXECDIR=/usr/lib
+export SNAPMOUNTDIR=/snap
+export LIBEXECDIR=/usr/lib

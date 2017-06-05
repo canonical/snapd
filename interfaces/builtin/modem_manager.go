@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const modemManagerSummary = `allows operating as the ModemManager service`
+
 const modemManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the ModemManager service. This gives
 # privileged access to the system.
@@ -1164,6 +1166,7 @@ func (iface *modemManagerInterface) Name() string {
 
 func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           modemManagerSummary,
 		ImplicitOnClassic: true,
 	}
 }

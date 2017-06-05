@@ -102,6 +102,13 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 	return s.rsnaps, s.err
 }
 
+func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	s.refreshCandidates = []*store.RefreshCandidate{snap}
+	s.user = user
+
+	return s.rsnaps[0], s.err
+}
+
 func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 	s.user = user
@@ -3235,9 +3242,6 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 					},
 				},
 			},
-			"meta-data": map[string]interface{}{
-				"test": map[string]interface{}{},
-			},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -4868,7 +4872,7 @@ func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
+func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
@@ -5373,6 +5377,37 @@ func (s *apiSuite) TestAliases(c *check.C) {
 		},
 	})
 
+}
+
+func (s *apiSuite) TestInstallUnaliased(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
+	}
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap without enabled automatic aliases
+		Unaliased: true,
+		Snaps:     []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags.Unaliased, check.Equals, true)
 }
 
 var _ = check.Suite(&postDebugSuite{})

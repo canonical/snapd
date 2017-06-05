@@ -19,6 +19,8 @@
 
 package builtin
 
+const networkControlSummary = `allows configuring networking and network namespaces`
+
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
 # 'ip netns' command (man ip-netns(8)). This interface is restricted because it
@@ -209,6 +211,7 @@ socket AF_NETLINK - NETLINK_GENERIC
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
+		summary:               networkControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,

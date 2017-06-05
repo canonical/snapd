@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const ofonoSummary = `allows operating as the ofono service`
+
 const ofonoPermanentSlotAppArmor = `
 # Description: Allow operating as the ofono service. This gives privileged
 # access to the system.
@@ -265,6 +267,7 @@ func (iface *ofonoInterface) Name() string {
 
 func (iface *ofonoInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:           ofonoSummary,
 		ImplicitOnClassic: true,
 	}
 }

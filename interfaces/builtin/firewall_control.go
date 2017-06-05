@@ -19,6 +19,8 @@
 
 package builtin
 
+const firewallControlSummary = `allows control over network firewall`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
@@ -122,6 +124,7 @@ var firewallControlConnectedPlugKmod = []string{
 func init() {
 	registerIface(&commonInterface{
 		name:                     "firewall-control",
+		summary:                  firewallControlSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,

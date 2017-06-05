@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
@@ -46,6 +47,7 @@ distro_install_local_package() {
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
+            # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
         *)
@@ -120,3 +122,26 @@ distro_clean_package_cache() {
             ;;
     esac
 }
+
+distro_auto_remove_packages() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            quiet apt-get -y autoremove
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
+# Specify necessary packages which need to be installed on a
+# system to provide a basic build environment for snapd.
+export DISTRO_BUILD_DEPS=()
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
+        ;;
+    *)
+        ;;
+esac

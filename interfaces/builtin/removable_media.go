@@ -19,6 +19,8 @@
 
 package builtin
 
+const removableMediaSummary = `allows access to mounted removable storage`
+
 const removableMediaConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
 
@@ -30,6 +32,7 @@ const removableMediaConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "removable-media",
+		summary:               removableMediaSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,

@@ -19,6 +19,8 @@
 
 package builtin
 
+const openvswitchSummary = `allows access to the openvswitch socket`
+
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 `
@@ -26,6 +28,7 @@ const openvswitchConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "openvswitch",
+		summary:               openvswitchSummary,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
 		reservedForOS:         true,

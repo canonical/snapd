@@ -19,6 +19,8 @@
 
 package builtin
 
+const bluetoothControlSummary = `allows managing the kernel bluetooth stack`
+
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
 # because this gives privileged access to the system.
@@ -49,6 +51,7 @@ bind
 func init() {
 	registerIface(&commonInterface{
 		name:                  "bluetooth-control",
+		summary:               bluetoothControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,

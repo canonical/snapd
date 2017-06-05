@@ -19,6 +19,8 @@
 
 package builtin
 
+const accountControlSummary = `allows managing non-system user accounts`
+
 const accountControlDescription = `
 The account-control interface allows connected plugs to create, modify and
 delete non-system users as well as to change account passwords.
@@ -68,6 +70,7 @@ socket AF_NETLINK - NETLINK_AUDIT
 func init() {
 	registerIface(&commonInterface{
 		name:                  "account-control",
+		summary:               accountControlSummary,
 		description:           accountControlDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,

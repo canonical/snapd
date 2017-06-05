@@ -19,6 +19,8 @@
 
 package builtin
 
+const networkSetupControlSummary = `allows access to netplan configuration`
+
 const networkSetupControlConnectedPlugAppArmor = `
 # Description: Can read/write netplan configuration files
 
@@ -29,6 +31,7 @@ const networkSetupControlConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-setup-control",
+		summary:               networkSetupControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,

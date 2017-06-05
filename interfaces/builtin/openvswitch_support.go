@@ -19,11 +19,14 @@
 
 package builtin
 
+const openvswitchSupportSummary = `allows operating as the openvswitch service`
+
 var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
 
 func init() {
 	registerIface(&commonInterface{
 		name:                     "openvswitch-support",
+		summary:                  openvswitchSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
