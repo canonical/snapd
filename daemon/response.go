@@ -181,11 +181,8 @@ func makeErrorResponder(status int) errorResponder {
 		res := &errorResult{
 			Message: fmt.Sprintf(format, v...),
 		}
-		switch status {
-		case http.StatusUnauthorized:
+		if status == http.StatusUnauthorized {
 			res.Kind = errorKindLoginRequired
-		case http.StatusNotFound:
-			res.Kind = errorKindSnapNotFound
 		}
 		return &resp{
 			Type:   ResponseTypeError,
@@ -252,3 +249,14 @@ var (
 	Forbidden      = makeErrorResponder(http.StatusForbidden)
 	Conflict       = makeErrorResponder(http.StatusConflict)
 )
+
+func SnapNotFound(err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapNotFound,
+		},
+		Status: 404,
+	}
+}
