@@ -75,7 +75,6 @@ var api = []*Command{
 	snapCmd,
 	snapConfCmd,
 	interfacesCmd,
-	interfaceCmd,
 	interfaceIndexCmd,
 	interfaceDetailCmd,
 	assertsCmd,
@@ -155,11 +154,6 @@ var (
 		POST:   changeInterfaces,
 	}
 
-	interfaceCmd = &Command{
-		Path:   "/v2/interface",
-		UserOK: true,
-		GET:    getInterface,
-	}
 	interfaceIndexCmd = &Command{
 		Path:   "/v2/interface",
 		UserOK: true,
@@ -1581,12 +1575,6 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
-}
-
-// getInterface returns the known interfaces and their meta-data.
-func getInterface(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.InterfaceInfos(), nil)
 }
 
 // getInterfaceIndex returns a list of known interfaces along with their summary.
