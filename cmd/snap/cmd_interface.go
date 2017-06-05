@@ -104,8 +104,8 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(iface.Description, termWidth))
 	}
-	if iface.DocumentationURL != "" {
-		fmt.Fprintf(w, "documentation-url:\t%s\n", iface.DocumentationURL)
+	if iface.DocsURL != "" {
+		fmt.Fprintf(w, "docs-url:\t%s\n", iface.DocsURL)
 	}
 	if len(iface.Plugs) > 0 {
 		fmt.Fprintf(w, "plugs:\n")

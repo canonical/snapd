@@ -147,7 +147,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 				Description: "" +
 					"The network interface allows connected plugs to access the network as a\n" +
 					"client. The core snap provides the slot that is used by all the snaps.",
-				DocumentationURL: "http://example.org/about-the-network-interface",
+				DocsURL: "http://example.org/about-the-network-interface",
 				Plugs: []client.Plug{
 					{Snap: "deepin-music", Name: "network"},
 					{Snap: "http", Name: "network"},
@@ -165,7 +165,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		"description: |\n" +
 		"  The network interface allows connected plugs to access the network as a\n" +
 		"  client. The core snap provides the slot that is used by all the snaps.\n" +
-		"documentation-url: http://example.org/about-the-network-interface\n" +
+		"docs-url: http://example.org/about-the-network-interface\n" +
 		"plugs:\n" +
 		"  - snap: deepin-music\n" +
 		"  - snap: http\n" +
