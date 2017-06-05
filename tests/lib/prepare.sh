@@ -76,42 +76,6 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
-prepare_each_classic() {
-    mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ]; then
-        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
-    else
-        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
-[Service]
-Environment=SNAP_REEXEC=$SNAP_REEXEC
-EOF
-    fi
-    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
-        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
-        exit 1
-    fi
-}
-
-restore_each_classic() {
-    # Restore the environment for each service unit
-    systemctl daemon-reload
-    systemctl stop snapd.service snapd.socket
-    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
-    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
-    create_snapd_config_classic
-    if [ -f /etc/environment.bak ]; then
-        cp /etc/environment.bak /etc/environment
-    fi
-    systemctl daemon-reload
-    systemctl start snapd.service snapd.socket
-}
-
-restore_classic() {
-    if [ -f /etc/environment.bak ]; then
-        rm -f /etc/environment.bak
-    fi
-}
-
 create_snapd_config_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
@@ -449,4 +413,40 @@ prepare_all_snap() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+prepare_each_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
+    if [ -z "${SNAP_REEXEC:-}" ]; then
+        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
+    else
+        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
+    fi
+    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+        exit 1
+    fi
+}
+
+restore_each_classic() {
+    # Restore the environment for each service unit
+    systemctl daemon-reload
+    systemctl stop snapd.service snapd.socket
+    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
+    create_snapd_config_classic
+    if [ -f /etc/environment.bak ]; then
+        cp /etc/environment.bak /etc/environment
+    fi
+    systemctl daemon-reload
+    systemctl start snapd.service snapd.socket
+}
+
+restore_classic() {
+    if [ -f /etc/environment.bak ]; then
+        rm -f /etc/environment.bak
+    fi
 }
