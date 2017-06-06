@@ -232,6 +232,12 @@ debug-each: |
     echo '# snap interfaces'
     snap interfaces || true
 
+restore-each: |
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        . $TESTSLIB/prepare.sh
+        restore_each_classic
+    fi
+
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
     # from the content looking similar to codeload.github.com.
@@ -326,11 +332,6 @@ suites:
                 . $TESTSLIB/prepare.sh
                 restore_classic
             fi
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                restore_each_classic
-            fi
 
     tests/completion/:
         summary: completion tests
@@ -350,9 +351,6 @@ suites:
             apt-get purge -y snapd
             . $TESTSLIB/prepare.sh
             restore_classic
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            restore_each_classic
 
         environment:
           _/plain: _
@@ -387,11 +385,6 @@ suites:
                 apt-get purge -y snapd
                 . $TESTSLIB/prepare.sh
                 restore_classic
-            fi
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                restore_each_classic
             fi
 
     tests/upgrade/:
@@ -437,9 +430,6 @@ suites:
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
             . $TESTSLIB/prepare.sh
             restore_classic
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            restore_each_classic
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -460,11 +450,6 @@ suites:
                 apt-get purge -y snapd
                 . $TESTSLIB/prepare.sh
                 restore_classic
-            fi
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                restore_each_classic
             fi
 
     tests/nested/:
