@@ -164,11 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  framebuffer:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   fuse-support:
     allow-installation:
       slot-snap-type:
