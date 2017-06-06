@@ -27,6 +27,14 @@ The alsa interface allows connected plugs to access raw ALSA devices.
 The core snap provides the slot that is shared by all the snaps.
 `
 
+const alsaBaseDeclarationSlots = `
+  alsa:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const alsaConnectedPlugAppArmor = `
 # Description: Allow access to raw ALSA devices.
 
@@ -46,6 +54,7 @@ func init() {
 		description:           alsaDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  alsaBaseDeclarationSlots,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
