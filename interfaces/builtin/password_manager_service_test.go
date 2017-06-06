@@ -92,7 +92,7 @@ func (s *passwordManagerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "interface= org.freedesktop.Secret")
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "interface=org.freedesktop.Secret")
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestInterfaces(c *C) {
