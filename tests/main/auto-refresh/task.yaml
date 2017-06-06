@@ -1,8 +1,5 @@
 summary: Check that auto-refresh works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 prepare: |
     snap install --devmode jq
 

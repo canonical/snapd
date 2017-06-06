@@ -1,6 +1,4 @@
 summary: Check that prepare-image works for uboot-systems
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image

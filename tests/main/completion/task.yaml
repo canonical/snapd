@@ -4,8 +4,6 @@ systems:
     - -ubuntu-core-16-*
     # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
     - -ubuntu-*-ppc64el
-    # Disabled for Fedora until test case is properly ported
-    - -fedora-*
 
 prepare: |
     mkdir -p testdir

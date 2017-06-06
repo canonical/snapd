@@ -1,8 +1,5 @@
 summary: Ensure that the firewall-control interface works.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 

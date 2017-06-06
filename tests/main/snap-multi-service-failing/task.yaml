@@ -1,9 +1,6 @@
 summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 execute: |
   . $TESTSLIB/snaps.sh
   echo "when a snap install fails"

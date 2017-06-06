@@ -1,8 +1,5 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 environment:
     SERVICE_NAME: snap.network-bind-consumer.network-consumer.service
 

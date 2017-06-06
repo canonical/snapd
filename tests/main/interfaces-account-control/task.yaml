@@ -1,8 +1,5 @@
 summary: Check that is possible to handle user accounts
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     This test makes sure that a snap using the account-control interface
     can handle the user accounts properly.

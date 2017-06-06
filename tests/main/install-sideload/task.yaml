@@ -1,8 +1,5 @@
 summary: Checks for snap sideload install
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do

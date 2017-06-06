@@ -1,8 +1,5 @@
 summary: Ensure network interface works.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     The network interface allows a snap to access the network as a client.
 

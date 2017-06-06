@@ -12,9 +12,6 @@ description: |
     This test verified the correct behaviour of the implemented logic
     inside `snap run`.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 execute: |
     snap install test-snapd-tools
 
