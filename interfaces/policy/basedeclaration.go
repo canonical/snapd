@@ -177,11 +177,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  account-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   alsa:
     allow-installation:
       slot-snap-type:
