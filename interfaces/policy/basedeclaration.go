@@ -155,12 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  maliit:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
   media-hub:
     allow-installation:
       slot-snap-type:
