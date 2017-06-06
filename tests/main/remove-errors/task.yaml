@@ -1,4 +1,5 @@
 summary: Check remove command errors
+
 execute: |
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"
