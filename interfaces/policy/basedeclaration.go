@@ -155,14 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  modem-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: true
-    deny-connection:
-      on-classic: false
   mount-observe:
     allow-installation:
       slot-snap-type:
