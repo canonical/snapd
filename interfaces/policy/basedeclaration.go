@@ -164,12 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  fwupd:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
   gpio:
     allow-installation:
       slot-snap-type:
