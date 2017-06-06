@@ -1,6 +1,4 @@
 summary: Simple snap prefer test
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
 execute: |
     . $TESTSLIB/dirs.sh
 

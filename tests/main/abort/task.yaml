@@ -1,8 +1,5 @@
 summary: Check change abort
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 environment:
     SNAP_NAME: test-snapd-tools
 

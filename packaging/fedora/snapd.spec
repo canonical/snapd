@@ -414,6 +414,7 @@ pushd ./data/systemd
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
+rm -fv %{buildroot}%{_unitdir}/snap-repair.*
 popd
 
 # Put /var/lib/snapd/snap/bin on PATH

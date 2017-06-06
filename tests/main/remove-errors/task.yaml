@@ -1,8 +1,5 @@
 summary: Check remove command errors
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 execute: |
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"

@@ -1,8 +1,5 @@
 summary: Ensure that the content sharing interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap

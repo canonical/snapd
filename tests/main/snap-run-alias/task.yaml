@@ -1,7 +1,6 @@
 summary: Check that alias symlinks work correctly
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     echo Ensure we have a os snap with snap run

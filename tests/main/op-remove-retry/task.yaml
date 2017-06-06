@@ -1,8 +1,5 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 restore: |
     kill %1 || true
 

@@ -1,8 +1,5 @@
 summary: Ensures that the system-observe interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.

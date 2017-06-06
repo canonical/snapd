@@ -1,7 +1,6 @@
 summary: Test that snapd reexecs itself into core
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 restore: |
     . $TESTSLIB/dirs.sh

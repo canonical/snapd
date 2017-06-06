@@ -1,8 +1,5 @@
 summary: Check basic apparmor confinement rules.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     echo "Given a basic snap is installed"
     . $TESTSLIB/snaps.sh

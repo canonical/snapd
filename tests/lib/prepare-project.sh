@@ -61,7 +61,7 @@ fedora_build_rpm() {
     cp packaging/fedora-$release/* $HOME/rpmbuild/SOURCES/
 
     rpmbuild -bs packaging/fedora-$release/snapd.spec
-    mock /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
+    mock -v /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
     cp /var/lib/mock/fedora-$release-$arch/result/*.rpm $GOPATH
     rm $GOPATH/*.src.rpm
 }

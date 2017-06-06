@@ -11,8 +11,7 @@ details: |
 environment:
     DISPLAY: :0
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     . $TESTSLIB/dirs.sh

@@ -1,7 +1,5 @@
 summary: Check snap listings
 
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools

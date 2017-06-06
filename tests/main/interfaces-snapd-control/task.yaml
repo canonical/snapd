@@ -1,8 +1,5 @@
 summary: Ensure that the snapd-control interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     The snapd-control interface allows a snap to access the locale configuration.
 

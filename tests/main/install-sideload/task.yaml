@@ -1,8 +1,5 @@
 summary: Checks for snap sideload install
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do

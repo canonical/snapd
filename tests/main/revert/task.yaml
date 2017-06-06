@@ -1,8 +1,5 @@
 summary: Check that revert works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
