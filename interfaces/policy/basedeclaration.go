@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  online-accounts-service:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   opengl:
     allow-installation:
       slot-snap-type:
