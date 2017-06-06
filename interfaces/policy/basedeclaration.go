@@ -146,9 +146,6 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  lxd-support:
-    allow-installation: false
-    deny-auto-connection: true
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
@@ -158,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  lxd-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   maliit:
     allow-installation:
       slot-snap-type:
