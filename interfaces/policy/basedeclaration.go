@@ -155,14 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  mpris:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection:
-      slot-attributes:
-        name: .+
-    deny-auto-connection: true
   netlink-audit:
     allow-installation:
       slot-snap-type:
