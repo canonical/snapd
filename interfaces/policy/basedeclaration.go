@@ -146,9 +146,6 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  kubernetes-support:
-    allow-installation: false
-    deny-auto-connection: true
   lxd-support:
     allow-installation: false
     deny-auto-connection: true
@@ -161,11 +158,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  kubernetes-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   libvirt:
     allow-installation:
       slot-snap-type:
