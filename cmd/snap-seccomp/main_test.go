@@ -34,7 +34,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/seccomp/libseccomp-golang"
-	"golang.org/x/net/bpf"
+
+	// forked from "golang.org/x/net/bpf"
+	// until https://github.com/golang/go/issues/20556
+	"github.com/mvo5/net/bpf"
 
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 )
