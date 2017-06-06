@@ -91,10 +91,9 @@ func run() error {
 	d.Start()
 
 	if ticker, err := runWatchdog(d); err != nil {
-		logger.Noticef("cannot run software watchdog: %s", err)
-	} else {
-		defer ticker.Stop()
+		return fmt.Errorf("cannot run software watchdog: %v", err)
 	}
+	defer ticker.Stop()
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
