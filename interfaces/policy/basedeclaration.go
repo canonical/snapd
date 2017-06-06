@@ -167,11 +167,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  dcdbas-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   docker:
     allow-installation: false
     deny-connection: true
