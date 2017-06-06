@@ -174,11 +174,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  camera:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   classic-support:
     allow-installation:
       slot-snap-type:
