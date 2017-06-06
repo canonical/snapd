@@ -146,9 +146,6 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  docker-support:
-    allow-installation: false
-    deny-auto-connection: true
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
@@ -167,11 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  docker-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   firewall-control:
     allow-installation:
       slot-snap-type:
