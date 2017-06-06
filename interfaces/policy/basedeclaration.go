@@ -167,10 +167,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  docker:
-    allow-installation: false
-    deny-connection: true
-    deny-auto-connection: true
   docker-support:
     allow-installation:
       slot-snap-type:
