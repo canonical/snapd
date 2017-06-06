@@ -77,6 +77,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
 	w := tabWriter()
+	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 	for _, slot := range ifaces.Slots {
 		if wanted := x.Positionals.Query.Snap; wanted != "" {
@@ -132,15 +133,6 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		// Display visual indicator for disconnected plugs.
 		if len(plug.Connections) == 0 {
 			fmt.Fprintf(w, "-\t%s:%s\n", plug.Snap, plug.Name)
-		}
-	}
-	w.Flush()
-	// Display interface description if a single interface was requested via -i
-	// and we have meta-data for that interface and the meta-data contains an
-	// actual description.
-	if x.Interface != "" {
-		if md, ok := ifaces.MetaData[x.Interface]; ok && md.Description != "" {
-			fmt.Fprintf(Stdout, "\n%s\n", fill(md.Description, 0))
 		}
 	}
 	return nil
