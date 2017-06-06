@@ -1,8 +1,5 @@
 summary: Check snap alias and snap unalias
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local aliases

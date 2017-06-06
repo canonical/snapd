@@ -11,7 +11,7 @@ details: |
 environment:
     DISPLAY: :0
 
-systems: [-ubuntu-core-16-*, -fedora-*]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     . $TESTSLIB/dirs.sh

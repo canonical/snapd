@@ -1,8 +1,5 @@
 summary: Ensure that the security rules related to device cgroups work.
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg

@@ -1,6 +1,5 @@
 summary: Check that enable/disable works
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
+
 execute: |
     . $TESTSLIB/dirs.sh
     echo "Install test-snapd-tools and ensure it runs"

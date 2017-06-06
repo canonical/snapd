@@ -1,8 +1,5 @@
 summary: Ensure that the network-observe interface works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     The network-observe interface allows a snap to query the network status information.
 

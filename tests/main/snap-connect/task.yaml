@@ -1,8 +1,5 @@
 summary: Check that snap connect works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 prepare: |
     . $TESTSLIB/snaps.sh
 

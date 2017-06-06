@@ -1,8 +1,5 @@
 summary: Checks for snap sideload reverts
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 prepare: |
     snapbuild $TESTSLIB/snaps/basic .
 

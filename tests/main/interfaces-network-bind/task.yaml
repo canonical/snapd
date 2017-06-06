@@ -1,8 +1,5 @@
 summary: Ensure that the network-bind interface works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     The network-bind interface allows a daemon to access the network as a server.
 

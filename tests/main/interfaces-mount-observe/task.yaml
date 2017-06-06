@@ -1,8 +1,5 @@
 summary: Ensures that the mount-observe interface works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 details: |
     A snap declaring the mount-observe plug is defined, its command
     just read the /proc/<pid>/mounts file.

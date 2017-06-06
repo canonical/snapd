@@ -1,8 +1,5 @@
 summary: Ensure that classic confinement works
 
-# Disabled for Fedora until test case is properly ported
-systems: [-fedora-*]
-
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
