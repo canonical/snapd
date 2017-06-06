@@ -158,11 +158,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  locale-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   location-control:
     allow-installation:
       slot-snap-type:
