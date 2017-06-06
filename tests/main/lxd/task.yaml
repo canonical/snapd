@@ -14,6 +14,17 @@ execute: |
     echo "Create a trivial container using the lxd snap"
     wait_for_lxd
     lxd init --auto
+
+    # dear lxd,
+    # please honor /etc/environment
+    # love Michael
+    if [ -n "$http_proxy" ]; then
+        lxc config set core.proxy_http $http_proxy
+    fi
+    if [ -n "$https_proxy" ]; then
+        lxc config set core.proxy_https $http_proxy
+    fi
+
     lxd.lxc launch ubuntu:16.04 my-ubuntu
 
     echo "Ensure we can run things inside"
