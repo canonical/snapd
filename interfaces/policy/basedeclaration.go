@@ -174,12 +174,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  bluez:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
   bool-file:
     allow-installation:
       slot-snap-type:
