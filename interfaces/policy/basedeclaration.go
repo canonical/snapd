@@ -146,9 +146,6 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  classic-support:
-    allow-installation: false
-    deny-auto-connection: true
   core-support:
     allow-installation:
       plug-snap-type:
@@ -174,11 +171,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  classic-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   content:
     allow-installation:
       slot-snap-type:
