@@ -4,7 +4,7 @@ import sys
 import yaml
 
 def die(s):
-    print(s, file=sys.stderr)
+    sys.stderr.write(str(s))
     sys.exit(1)
 
 def equals(name, s1, s2):
