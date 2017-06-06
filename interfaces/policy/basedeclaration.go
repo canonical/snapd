@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  network-status:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   ofono:
     allow-installation:
       slot-snap-type:
