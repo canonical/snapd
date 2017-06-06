@@ -466,3 +466,9 @@ prepare_all_snap() {
         remove_installed_packages
         restore_packages_history
     fi
+
+    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
+        # Remove all packages installed through apt
+        remove_installed_apt_packages
+        restore_apt_history
+    fi
