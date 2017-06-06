@@ -174,11 +174,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  bluetooth-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   bluez:
     allow-installation:
       slot-snap-type:
