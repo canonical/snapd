@@ -29,9 +29,9 @@ import (
 // SdNotify sends the given state string notification to systemd.
 //
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
-func SdNotify(state string) error {
-	if state == "" {
-		return fmt.Errorf("cannot use empty state")
+func SdNotify(notifyState string) error {
+	if notifyState == "" {
+		return fmt.Errorf("cannot use empty notify state")
 	}
 	e := os.Getenv("NOTIFY_SOCKET")
 	if e == "" {
@@ -51,6 +51,6 @@ func SdNotify(state string) error {
 	}
 	defer conn.Close()
 
-	_, err = conn.Write([]byte(state))
+	_, err = conn.Write([]byte(notifyState))
 	return err
 }
