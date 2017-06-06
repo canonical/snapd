@@ -164,11 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  fuse-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   fwupd:
     allow-installation:
       slot-snap-type:
