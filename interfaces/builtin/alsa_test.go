@@ -99,3 +99,10 @@ func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *AlsaInterfaceSuite) TestMetaData(c *C) {
+	md := interfaces.MetaDataOf(s.iface)
+	c.Assert(md.Summary, Equals, "allows access to raw ALSA devices")
+	c.Assert(md.DocsURL, Equals, "")
+	c.Assert(md.Description, testutil.Contains, "The alsa interface")
+}
