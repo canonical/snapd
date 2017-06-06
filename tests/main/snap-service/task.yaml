@@ -1,4 +1,5 @@
 summary: Check that `snap run --command=reload` works
+
 kill-timeout: 3m
 execute: |
     echo "When the service snap is installed"
