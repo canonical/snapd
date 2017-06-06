@@ -167,11 +167,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  cups-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   dbus:
     allow-installation:
       slot-snap-type:
