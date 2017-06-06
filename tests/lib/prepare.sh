@@ -168,7 +168,7 @@ EOF
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
         output=$($GRUB_EDITENV list)
-        if echo $output | MATCH nap_ ; then
+        if echo $output | MATCH snap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
