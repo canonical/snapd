@@ -164,12 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  iio:
-    allow-installation:
-      slot-snap-type:
-        - gadget
-        - core
-    deny-auto-connection: true
   io-ports-control:
     allow-installation:
       slot-snap-type:
