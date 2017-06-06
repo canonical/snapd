@@ -1,12 +1,10 @@
 summary: Ensure that the fuse-support interface works.
 
+# no support for fuse on 14.04
 systems:
     # no support for fuse on 14.04
     - -ubuntu-14.04-64
     - -ubuntu-14.04-32
-    # Disabled for Fedora and openSUSE until test case is properly ported
-    - -fedora-*
-    - -opensuse-*
 
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.

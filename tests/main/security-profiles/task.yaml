@@ -1,8 +1,5 @@
 summary: Check security profile generation for apps and hooks.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     snapbuild $TESTSLIB/snaps/basic-hooks .
 restore: |

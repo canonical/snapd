@@ -1,8 +1,5 @@
 summary: Check snap web servers
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
     IP_VERSION/pythonServer: 4

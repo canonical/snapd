@@ -2,8 +2,7 @@ summary: Ensure that the ubuntu-core -> core transition works
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m

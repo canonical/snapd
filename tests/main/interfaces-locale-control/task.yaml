@@ -2,9 +2,6 @@ summary: Ensure that the locale-control interface works.
 
 systems:
     - -ubuntu-core-16-*
-    # Disabled for Fedora and openSUSE until test case is properly ported
-    - -fedora-*
-    - -opensuse-*
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.

@@ -1,6 +1,4 @@
 summary: Check error handling in symlinks to /usr/bin/snap
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
 restore: |
     . $TESTSLIB/dirs.sh
     rm -f $SNAPMOUNTDIR/bin/xxx

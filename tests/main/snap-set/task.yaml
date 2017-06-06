@@ -1,8 +1,5 @@
 summary: Check that `snap set` runs configure hook.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     echo "Build basic test package (without hooks)"
     snapbuild $TESTSLIB/snaps/basic .

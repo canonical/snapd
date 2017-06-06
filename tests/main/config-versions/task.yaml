@@ -1,7 +1,6 @@
 summary: Check that snap configuration is maintained on per-revision basis.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 details: |
     This test ensures that snap configuration is mainted per snap revision

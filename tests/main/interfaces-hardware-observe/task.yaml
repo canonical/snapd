@@ -1,8 +1,5 @@
 summary: Ensure that the hardware-observe interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 summary: |
     The hardware-observe interface allows a snap to access hardware information.
 

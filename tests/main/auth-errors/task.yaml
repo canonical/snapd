@@ -1,7 +1,6 @@
 summary: Check that the authentication errors are properly reported.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     mkdir -p /home/test/.snap

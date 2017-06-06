@@ -1,7 +1,6 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |

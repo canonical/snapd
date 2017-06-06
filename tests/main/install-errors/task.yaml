@@ -1,7 +1,6 @@
 summary: Checks for cli errors installing snaps
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*]
 
 environment:
     SNAP_NAME: test-snapd-tools

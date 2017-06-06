@@ -1,8 +1,5 @@
 summary: Ensure that the network-control interface works.
 
-# Disabled for Fedora and openSUSE until test case is properly ported
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     The network-control interface allows a snap to configure networking.
 
