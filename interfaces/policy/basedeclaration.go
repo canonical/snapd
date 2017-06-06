@@ -174,13 +174,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  browser-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-connection:
-      plug-attributes:
-        allow-sandbox: true
   camera:
     allow-installation:
       slot-snap-type:
