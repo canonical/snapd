@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  mount-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   mpris:
     allow-installation:
       slot-snap-type:
