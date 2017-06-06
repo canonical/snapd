@@ -155,13 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  media-hub:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-connection:
-      on-classic: false
   mir:
     allow-installation:
       slot-snap-type:
