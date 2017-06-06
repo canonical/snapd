@@ -164,12 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  gpio:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
   gsettings:
     allow-installation:
       slot-snap-type:
