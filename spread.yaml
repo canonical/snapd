@@ -209,10 +209,12 @@ prepare-each: |
         # Force a log rotation with small size
         sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
         systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        # Restore the initial configuration and rotate logs
         mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
         systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
 
-        #Remove rotated journal logs
+        # Remove rotated journal logs
         systemctl stop systemd-journald.service
         find /run/log/journal/ -name "*@*.journal" -delete
         systemctl start systemd-journald.service
