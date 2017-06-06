@@ -164,12 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  hidraw:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
   home:
     allow-installation:
       slot-snap-type:
