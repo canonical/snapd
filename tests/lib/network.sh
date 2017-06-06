@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 get_default_iface(){
-    echo "$(ip route get 8.8.8.8 | awk '{ print $5; exit }')"
+    ip route get 8.8.8.8 | awk '{ print $5; exit }'
 }

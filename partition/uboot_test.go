@@ -23,16 +23,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/mvo5/uboot-go/uenv"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/partition/ubootenv"
 )
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
 	u := &uboot{}
 
 	// ensure that we have a valid uboot.env too
-	env, err := uenv.Create(u.envFile(), 4096)
+	env, err := ubootenv.Create(u.envFile(), 4096)
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -82,7 +82,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	envFile := (&uboot{}).envFile()
-	env, err := uenv.Create(envFile, 4096)
+	env, err := ubootenv.Create(envFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
@@ -100,7 +100,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	err = u.SetBootVars(map[string]string{"snap_ab": "b"})
 	c.Assert(err, IsNil)
 
-	env, err = uenv.Open(envFile)
+	env, err = ubootenv.Open(envFile)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snap_ab=b\n")
 

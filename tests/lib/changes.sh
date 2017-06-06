@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 change_id() {
     # takes <summary pattern> [<status>]

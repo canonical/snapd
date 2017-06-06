@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mirSummary = `allows operating as the Mir server`
+
 const mirPermanentSlotAppArmor = `
 # Description: Allow operating as the Mir server. This gives privileged access
 # to the system.
@@ -81,6 +83,12 @@ type mirInterface struct{}
 
 func (iface *mirInterface) Name() string {
 	return "mir"
+}
+
+func (iface *mirInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: mirSummary,
+	}
 }
 
 func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const unity7Summary = `allows interacting with Unity 7 services`
+
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
@@ -514,6 +516,12 @@ type unity7Interface struct{}
 
 func (iface *unity7Interface) Name() string {
 	return "unity7"
+}
+
+func (iface *unity7Interface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: unity7Summary,
+	}
 }
 
 func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
