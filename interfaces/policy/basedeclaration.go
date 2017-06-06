@@ -164,15 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  gsettings:
-    allow-installation:
-      slot-snap-type:
-        - core
-  hardware-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   hidraw:
     allow-installation:
       slot-snap-type:
