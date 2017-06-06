@@ -164,12 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  home:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection:
-      on-classic: false
   i2c:
     allow-installation:
       slot-snap-type:
