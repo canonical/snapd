@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const physicalMemoryControlSummary = `allows write access to all physical memory`
+
 const physicalMemoryControlConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical
 # memory.
@@ -45,6 +47,12 @@ type physicalMemoryControlInterface struct{}
 // Getter for the name of the physical-memory-control interface
 func (iface *physicalMemoryControlInterface) Name() string {
 	return "physical-memory-control"
+}
+
+func (iface *physicalMemoryControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: physicalMemoryControlSummary,
+	}
 }
 
 func (iface *physicalMemoryControlInterface) String() string {

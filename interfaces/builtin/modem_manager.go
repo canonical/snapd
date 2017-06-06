@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const modemManagerSummary = `allows operating as the ModemManager service`
+
 const modemManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the ModemManager service. This gives
 # privileged access to the system.
@@ -1160,6 +1162,12 @@ type modemManagerInterface struct{}
 
 func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
+}
+
+func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: modemManagerSummary,
+	}
 }
 
 func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

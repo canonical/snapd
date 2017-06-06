@@ -102,6 +102,13 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 	return s.rsnaps, s.err
 }
 
+func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	s.refreshCandidates = []*store.RefreshCandidate{snap}
+	s.user = user
+
+	return s.rsnaps[0], s.err
+}
+
 func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 	s.user = user
@@ -3234,9 +3241,6 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
-			},
-			"meta-data": map[string]interface{}{
-				"test": map[string]interface{}{},
 			},
 		},
 		"status":      "OK",
