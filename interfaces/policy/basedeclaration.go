@@ -146,10 +146,6 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  core-support:
-    allow-installation:
-      plug-snap-type:
-        - core
   docker-support:
     allow-installation: false
     deny-auto-connection: true
@@ -171,11 +167,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  core-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   cups-control:
     allow-installation:
       slot-snap-type:
