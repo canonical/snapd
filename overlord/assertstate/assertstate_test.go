@@ -92,6 +92,10 @@ func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error)
 	panic("fakeStore.Find not expected")
 }
 
+func (sto *fakeStore) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.LookupRefresh not expected")
+}
+
 func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
 	panic("fakeStore.ListRefresh not expected")
 }

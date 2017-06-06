@@ -1,4 +1,5 @@
-#!bash
+#!/bin/bash
+
 bootenv() {
     if [ $# -eq 0 ]; then
         if command -v grub-editenv >/dev/null; then

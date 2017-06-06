@@ -37,7 +37,7 @@ type PulseAudioInterfaceSuite struct {
 }
 
 var _ = Suite(&PulseAudioInterfaceSuite{
-	iface: &builtin.PulseAudioInterface{},
+	iface: builtin.MustInterface("pulseaudio"),
 })
 
 const pulseaudioMockPlugSnapInfoYaml = `name: other

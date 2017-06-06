@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const gsettingsSummary = `allows access to any gsettings item of current user`
 
 const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
@@ -39,15 +37,11 @@ dbus (receive, send)
     peer=(label=unconfined),
 `
 
-// NewGsettingsInterface returns a new "gsettings" interface.
-func NewGsettingsInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "gsettings",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "gsettings",
+		summary:               gsettingsSummary,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewGsettingsInterface())
+	})
 }

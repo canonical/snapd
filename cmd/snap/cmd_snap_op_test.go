@@ -172,16 +172,57 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "chan",
+			"channel": "candidate",
 		})
-		s.srv.channel = "chan"
+		s.srv.channel = "candidate"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "candidate", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "3.4/stable",
+		})
+		s.srv.channel = "3.4/stable"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	// snap install --channel=3.4 means 3.4/stable, this is what we test here
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/stable\) 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallFromBranch(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "3.4/hotfix-1",
+		})
+		s.srv.channel = "3.4/hotfix-1"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4/hotfix-1", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/hotfix-1\) 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -193,16 +234,16 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
 			"devmode": true,
-			"channel": "chan",
+			"channel": "beta",
 		})
-		s.srv.channel = "chan"
+		s.srv.channel = "beta"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "beta", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -219,6 +260,25 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":    "install",
+			"unaliased": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--unaliased", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)

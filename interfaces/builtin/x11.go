@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const x11Summary = `allows interacting with the X11 server`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
@@ -48,16 +46,12 @@ const x11ConnectedPlugSecComp = `
 shutdown
 `
 
-// NewX11Interface returns a new "x11" interface.
-func NewX11Interface() interfaces.Interface {
-	return &commonInterface{
-		name: "x11",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "x11",
+		summary:               x11Summary,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewX11Interface())
+	})
 }

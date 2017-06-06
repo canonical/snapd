@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const framebufferSummary = `allows access to universal framebuffer devices`
+
 const framebufferConnectedPlugAppArmor = `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
@@ -36,19 +38,25 @@ const framebufferConnectedPlugAppArmor = `
 `
 
 // The type for physical-memory-control interface
-type FramebufferInterface struct{}
+type framebufferInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *FramebufferInterface) Name() string {
+func (iface *framebufferInterface) Name() string {
 	return "framebuffer"
 }
 
-func (iface *FramebufferInterface) String() string {
+func (iface *framebufferInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: framebufferSummary,
+	}
+}
+
+func (iface *framebufferInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *FramebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -63,7 +71,7 @@ func (iface *FramebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *FramebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *framebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -71,12 +79,12 @@ func (iface *FramebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *FramebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *framebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(framebufferConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *FramebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *framebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// This will fix access denied of opengl interface when it's used with
 	// framebuffer interface in the same snap.
 	// https://bugs.launchpad.net/snapd/+bug/1675738
@@ -90,11 +98,11 @@ func (iface *FramebufferInterface) UDevConnectedPlug(spec *udev.Specification, p
 	return nil
 }
 
-func (iface *FramebufferInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *framebufferInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&FramebufferInterface{})
+	registerIface(&framebufferInterface{})
 }

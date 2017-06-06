@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const dcdbasControlSummary = `allows access to Dell Systems Management Base Driver`
 
 // https://www.kernel.org/doc/Documentation/dcdbas.txt
 const dcdbasControlConnectedPlugAppArmor = `
@@ -45,15 +43,11 @@ const dcdbasControlConnectedPlugAppArmor = `
 /sys/devices/platform/dcdbas/host_control_on_shutdown rw,
 `
 
-// NewHardwareObserveInterface returns a new "dcdbas-control" interface.
-func NewDcdbasControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "dcdbas-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "dcdbas-control",
+		summary:               dcdbasControlSummary,
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewDcdbasControlInterface())
+	})
 }

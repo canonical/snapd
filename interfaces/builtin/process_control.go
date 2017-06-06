@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const processControlSummary = `allows controlling other processes`
 
 const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
@@ -50,16 +48,12 @@ sched_setparam
 sched_setscheduler
 `
 
-// NewProcessControlInterface returns a new "process-control" interface.
-func NewProcessControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "process-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "process-control",
+		summary:               processControlSummary,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewProcessControlInterface())
+	})
 }

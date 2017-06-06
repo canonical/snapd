@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const unity8CalendarSummary = `allows operating as or interacting with the Unity 8 Calendar Service`
 
 const unity8CalendarPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. This gives privileged access
@@ -138,16 +136,12 @@ dbus (receive, send)
 	peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-// NewUnity8CalendarInterface returns a new "untiy8-calendar" interface.
-func NewUnity8CalendarInterface() interfaces.Interface {
-	return &unity8PimCommonInterface{
-		name: "unity8-calendar",
+func init() {
+	registerIface(&unity8PimCommonInterface{
+		name:                  "unity8-calendar",
+		summary:               unity8CalendarSummary,
 		permanentSlotAppArmor: unity8CalendarPermanentSlotAppArmor,
 		connectedSlotAppArmor: unity8CalendarConnectedSlotAppArmor,
 		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,
-	}
-}
-
-func init() {
-	registerIface(NewUnity8CalendarInterface())
+	})
 }

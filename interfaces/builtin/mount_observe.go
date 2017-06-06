@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const mountObserveSummary = `allows reading mount table and quota information`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
@@ -49,23 +47,21 @@ const mountObserveConnectedPlugSecComp = `
 # restricted because it gives privileged read access to mount arguments and
 # should only be used with trusted apps.
 
-quotactl Q_GETQUOTA - - -
-quotactl Q_GETINFO - - -
-quotactl Q_GETFMT - - -
-quotactl Q_XGETQUOTA - - -
-quotactl Q_XGETQSTAT - - -
+# FIXME: restore quotactl with parameter filtering once snap-confine can read
+# this syntax. See LP:#1662489 for context.
+#quotactl Q_GETQUOTA - - -
+#quotactl Q_GETINFO - - -
+#quotactl Q_GETFMT - - -
+#quotactl Q_XGETQUOTA - - -
+#quotactl Q_XGETQSTAT - - -
 `
 
-// NewMountObserveInterface returns a new "mount-observe" interface.
-func NewMountObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "mount-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "mount-observe",
+		summary:               mountObserveSummary,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewMountObserveInterface())
+	})
 }

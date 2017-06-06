@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const bluezSummary = `allows operating as the bluez service`
+
 const bluezPermanentSlotAppArmor = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
@@ -181,18 +183,24 @@ const bluezPermanentSlotDBus = `
 </policy>
 `
 
-type BluezInterface struct{}
+type bluezInterface struct{}
 
-func (iface *BluezInterface) Name() string {
+func (iface *bluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *BluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: bluezSummary,
+	}
+}
+
+func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotDBus)
 	return nil
 }
 
-func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
@@ -200,7 +208,7 @@ func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
@@ -208,29 +216,29 @@ func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *BluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *BluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *BluezInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *BluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *bluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&BluezInterface{})
+	registerIface(&bluezInterface{})
 }
