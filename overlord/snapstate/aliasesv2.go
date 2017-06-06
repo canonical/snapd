@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 // AliasTarget carries the targets of an alias in the context of snap.
@@ -214,7 +213,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
 	// apply the current auto-aliases
 	for alias, target := range autoAliases {
-		if app := info.Apps[target]; app == nil || wrappers.IsService(app) {
+		if app := info.Apps[target]; app == nil || app.IsService() {
 			// non-existing app or a daemon
 			continue
 		}
@@ -226,7 +225,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 		if curTarget.Manual == "" {
 			continue
 		}
-		if app := info.Apps[curTarget.Manual]; app == nil || wrappers.IsService(app) {
+		if app := info.Apps[curTarget.Manual]; app == nil || app.IsService() {
 			// non-existing app or daemon
 			continue
 		}
@@ -402,7 +401,7 @@ func reenableAliases(info *snap.Info, curAliases map[string]*AliasTarget, disabl
 	}
 
 	for alias, manual := range disabledManual {
-		if app := info.Apps[manual]; app == nil || wrappers.IsService(app) {
+		if app := info.Apps[manual]; app == nil || app.IsService() {
 			// not a non-daemon app presently
 			continue
 		}
@@ -543,7 +542,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
 		return nil, err
 	}
 
@@ -562,7 +561,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 // manualAliases returns newAliases with a manual alias to target setup over
 // curAliases.
 func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
-	if app := info.Apps[target]; app == nil || wrappers.IsService(app) {
+	if app := info.Apps[target]; app == nil || app.IsService() {
 		var reason string
 		if app == nil {
 			reason = fmt.Sprintf("target application %q does not exist", target)
@@ -599,7 +598,7 @@ func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error)
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
 		return nil, err
 	}
 
@@ -620,7 +619,7 @@ func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapNa
 		return nil, "", err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
 		return nil, "", err
 	}
 
@@ -682,7 +681,7 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
 		return nil, err
 	}
 

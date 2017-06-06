@@ -87,7 +87,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	sysdLog = nil
-	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -111,7 +111,7 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl show" that
-		// StopSnapServicesGenerates
+		// StopServices generates
 		if cmd[0] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
@@ -134,7 +134,7 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -145,7 +145,7 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestStartSnapServices(c *C) {
+func (s *servicesTestSuite) TestStartServices(c *C) {
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
@@ -155,7 +155,7 @@ func (s *servicesTestSuite) TestStartSnapServices(c *C) {
 	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	err := wrappers.StartSnapServices(info, nil)
+	err := wrappers.StartServices(info.Services(), nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(sysdLog, DeepEquals, [][]string{{"start", filepath.Base(svcFile)}})
@@ -189,7 +189,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
   daemon: simple
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.StartSnapServices(info, nil)
+	err := wrappers.StartServices(info.Services(), nil)
 	c.Assert(err, ErrorMatches, "failed")
 
 	c.Assert(sysdLog, HasLen, 4)

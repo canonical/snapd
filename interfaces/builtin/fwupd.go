@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const fwupdSummary = `allows operating as the fwupd service`
+
 const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
@@ -187,6 +189,12 @@ type fwupdInterface struct{}
 // Name of the fwupdInterface
 func (iface *fwupdInterface) Name() string {
 	return "fwupd"
+}
+
+func (iface *fwupdInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: fwupdSummary,
+	}
 }
 
 func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {

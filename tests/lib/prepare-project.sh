@@ -29,7 +29,7 @@ build_deb(){
 
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
-    cp ../*.deb $GOPATH
+    cp ../*.deb "$GOHOME"
 }
 
 download_from_published(){
@@ -43,7 +43,7 @@ download_from_published(){
     # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
     for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${published_version}_${arch}.deb"
-        curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+        curl -L -o "$GOHOME/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
     done
 }
 
@@ -51,7 +51,7 @@ install_dependencies_from_published(){
     local published_version="$1"
 
     for dep in snap-confine ubuntu-core-launcher; do
-        dpkg -i "${GOPATH}/${dep}_${published_version}_$(dpkg --print-architecture).deb"
+        dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
     done
 }
 
@@ -60,6 +60,7 @@ install_dependencies_from_published(){
 echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
 # check that we are not updating
+# shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
 if [ "$(bootenv snap_mode)" = "try" ]; then
    echo "Ongoing reboot upgrade process, please try again when finished"
@@ -67,23 +68,25 @@ if [ "$(bootenv snap_mode)" = "try" ]; then
 fi
 
 # declare the "quiet" wrapper
+# shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
+# shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
-   if [ ! -f $GOPATH/bin/snapbuild ]; then
-       mkdir -p $GOPATH/bin
+   if [ ! -f "$GOHOME/bin/snapbuild" ]; then
+       mkdir -p "$GOHOME/bin"
        snap install --edge test-snapd-snapbuild
-       cp $SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       cp "$SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
+   if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
-   chown test.test -R $PROJECT_PATH
+   chown test.test -R "$PROJECT_PATH"
    exit 0
 fi
 
@@ -98,6 +101,7 @@ fi
 
 create_test_user
 
+# shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
 distro_update_package_db
@@ -122,18 +126,23 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-distro_purge_package snapd
-# utilities
-# XXX: build-essential seems to be required. Otherwise package build
-# fails with unmet dependency on "build-essential:native"
-distro_install_package build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd
+distro_purge_package snapd || true
+distro_install_package "${DISTRO_BUILD_DEPS[@]}"
 
-# in 16.04: apt build-dep -y ./
-quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+# We take a special case for Debian/Ubuntu where we install additional build deps
+# base on the packaging. In Fedora/Suse this is handled via mock/osc
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        # in 16.04: apt build-dep -y ./
+        gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+        ;;
+    *)
+        ;;
+esac
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
-    rm -rf $GOPATH/src/github.com/kardianos/govendor
+    rm -rf "$GOHOME/src/github.com/kardianos/govendor"
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
@@ -153,6 +162,7 @@ fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
+# shellcheck disable=SC2086
 go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
 
 # Build additional utilities we need for testing

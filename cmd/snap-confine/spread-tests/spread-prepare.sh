@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script is started by spread to prepare the execution environment
 set -xue
 
@@ -9,8 +9,11 @@ test -f configure.ac || ( echo 'this script must be executed from the top-level 
 top_dir=$(pwd)
 
 # Record the current distribution release data to know what to do
-release_ID="$( . /etc/os-release && echo "${ID:-linux}" )"
-release_VERSION_ID="$( . /etc/os-release && echo "${VERSION_ID:-}" )"
+# shellcheck disable=SC1091
+{
+    release_ID="$( . /etc/os-release && echo "${ID:-linux}" )"
+    release_VERSION_ID="$( . /etc/os-release && echo "${VERSION_ID:-}" )"
+}
 
 
 build_debian_or_ubuntu_package() {
@@ -30,8 +33,11 @@ build_debian_or_ubuntu_package() {
     fi
 
     # source the distro specific vars
-    . "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID"
-    . "$top_dir/spread-tests/distros/$release_ID.common"
+    # shellcheck disable=SC1090
+    {
+        . "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID"
+        . "$top_dir/spread-tests/distros/$release_ID.common"
+    }
 
     # sanity check, ensure that essential variables were defined
     test -n "$distro_packaging_git_branch"
@@ -51,7 +57,7 @@ build_debian_or_ubuntu_package() {
 
     # Install all the build dependencies declared by the package.
     apt-get install --quiet -y gdebi-core
-    apt-get install --quiet -y $(gdebi --quiet --apt-line ./distro-packaging/debian/control)
+    gdebi --quiet --apt-line ./distro-packaging/debian/control | xargs -r apt-get install --quiet -y
 
     # Generate a new upstream tarball from the current state of the tree
     ( cd "$top_dir" && spread-tests/release.sh )
