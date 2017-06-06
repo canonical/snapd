@@ -76,20 +76,19 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
-prepare_each_classic() {
+create_snapd_config_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -z "${SNAP_REEXEC:-}" ]; then
-        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
-    else
-        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
 [Service]
-Environment=SNAP_REEXEC=$SNAP_REEXEC
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
-    fi
-    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
-        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
-        exit 1
-    fi
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
 }
 
 prepare_classic() {
@@ -416,19 +415,20 @@ prepare_all_snap() {
     disable_kernel_rate_limiting
 }
 
-create_snapd_config_classic() {
+prepare_each_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
+    if [ -z "${SNAP_REEXEC:-}" ]; then
+        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
+    else
+        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
+    fi
+    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+        exit 1
+    fi
 }
 
 restore_each_classic() {
