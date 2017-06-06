@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  network-setup-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   network-setup-observe:
     allow-installation:
       slot-snap-type:
