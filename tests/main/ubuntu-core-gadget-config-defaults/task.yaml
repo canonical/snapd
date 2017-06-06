@@ -16,7 +16,7 @@ prepare: |
     unsquashfs /var/lib/snapd/snaps/pc_*.snap
     # fill in defaults
     TEST_SNAP_ID=
-    if [ "SNAPPY_USE_STAGING_STORE" = 1 ]; then
+    if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
         TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
     else
         TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
