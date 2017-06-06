@@ -1,6 +1,7 @@
 summary: Run the test suite for C code
 environment:
     EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils udev
+    APT_AUTOCLEAN: 1
 prepare: |
     # Sanity check, the core snap is installed
     snap info core | MATCH "installed:"

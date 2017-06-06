@@ -14,6 +14,9 @@ details: |
     The test uses a snap that carries a unikernel built to be run on top of qemu, boot and
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
 
+environment:
+    APT_AUTOCLEAN: 1
+
 prepare: |
     echo "Given libvirt and qemu are installed"
     apt install -y libvirt-bin qemu
@@ -37,8 +40,6 @@ prepare: |
     ip link set dev tap100 up
 
 restore: |
-    apt autoremove -y --purge libvirt-bin qemu
-
     ip link delete tap100
 
     # remove test user from the libvirtd group

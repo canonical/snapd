@@ -14,6 +14,9 @@ details: |
     are carried through the socket, in this test we exercise bridge and port creation,
     list and deletion.
 
+environment:
+    APT_AUTOCLEAN: 1
+
 prepare: |
     echo "Given openvswitch is installed"
     apt install -y --no-install-recommends openvswitch-switch
@@ -27,9 +30,6 @@ prepare: |
 restore: |
     ovs-vsctl del-port br0 tap1 || true
     ovs-vsctl del-br br0 || true
-
-    apt-get remove -y --purge openvswitch-switch
-    apt-get -y autoremove
 
     rm -f *.error
 

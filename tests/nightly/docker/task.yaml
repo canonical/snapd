@@ -1,6 +1,7 @@
 summary: Check that the docker snap works
 systems: [ubuntu-16.04-*, ubuntu-core-16-*, ubuntu-14.04-64]
-
+environment:
+    APT_AUTOCLEAN: 1
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
         apt install -y linux-image-extra-$(uname -r)
@@ -10,9 +11,6 @@ prepare: |
     # which will add "testing" to the user-agent header and the store does
     # not count this.
     snap install docker
-
-restore: |
-    apt remove -y linux-image-extra-$(uname -r)-generic || true
 
 debug: |
     cat /var/log/syslog
