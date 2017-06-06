@@ -1524,7 +1524,11 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
-			return BadRequest("%s", err)
+			if err == state.ErrNoState {
+				return SnapNotFound(err)
+			} else {
+				return InternalError("%v", err)
+			}
 		}
 
 		currentConfValues[key] = value
@@ -1548,10 +1552,12 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err == state.ErrNoState {
-		return NotFound("cannot find %q snap", snapName)
-	} else if err != nil {
-		return InternalError("%v", err)
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		if err == state.ErrNoState {
+			return SnapNotFound(err)
+		} else {
+			return InternalError("%v", err)
+		}
 	}
 
 	taskset := configstate.Configure(st, snapName, patchValues, 0)
