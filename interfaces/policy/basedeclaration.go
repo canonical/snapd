@@ -176,11 +176,6 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
-  hardware-random-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   i2c:
     allow-installation:
       slot-snap-type:
