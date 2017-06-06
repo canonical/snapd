@@ -158,10 +158,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  lxd:
-    allow-installation: false
-    deny-connection: true
-    deny-auto-connection: true
   lxd-support:
     allow-installation:
       slot-snap-type:
