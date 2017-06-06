@@ -164,11 +164,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  io-ports-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   joystick:
     allow-installation:
       slot-snap-type:
