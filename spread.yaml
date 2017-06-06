@@ -1,12 +1,13 @@
 project: snapd
 
 environment:
-    GOPATH: /home/gopath
+    GOHOME: /home/gopath
+    GOPATH: $GOHOME
     REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
-    PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
+    PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
@@ -32,8 +33,8 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
-    HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
-    HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
+    HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
+    HTTPS_PROXY: "$(HOST: echo $SPREAD_HTTPS_PROXY)"
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
@@ -45,20 +46,20 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
-                workers: 2
+                workers: 4
             - ubuntu-16.04-64:
                 kernel: GRUB 2
-                workers: 2
+                workers: 4
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 2
+                workers: 4
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-                workers: 2
+                workers: 4
             - debian-unstable-64:
                 kernel: GRUB 2
-                workers: 2
+                workers: 4
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -242,6 +243,8 @@ repack: |
         tar c current.delta >&4
     fi
 
+kill-timeout: 20m
+
 prepare: |
     # check if running inside a container, the testsuite will not
     # work in such an environment
@@ -250,9 +253,14 @@ prepare: |
         exit 1
     fi
 
-    # apt update is hanging on security.ubuntu.com with IPv6.
-    sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+    # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
+    cat <<EOF > /etc/gai.conf
+    precedence  ::1/128       50
+    precedence  ::/0          40
+    precedence  2002::/16     30
+    precedence ::/96          20
+    precedence ::ffff:0:0/96 100
+    EOF
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
@@ -302,7 +310,9 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
+                distro_purge_package snap-confine
             fi
 
     tests/completion/:
@@ -374,6 +384,18 @@ suites:
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
         systems: [-ubuntu-core-16-*]
+        environment:
+            # env vars required for coverage reporting from a spread task
+            TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
+            TRAVIS_BRANCH: "$(HOST: echo $TRAVIS_BRANCH)"
+            TRAVIS_COMMIT: "$(HOST: echo $TRAVIS_COMMIT)"
+            TRAVIS_JOB_NUMBER: "$(HOST: echo $TRAVIS_JOB_NUMBER)"
+            TRAVIS_PULL_REQUEST: "$(HOST: echo $TRAVIS_PULL_REQUEST)"
+            TRAVIS_JOB_ID: "$(HOST: echo $TRAVIS_JOB_ID)"
+            TRAVIS_REPO_SLUG: "$(HOST: echo $TRAVIS_REPO_SLUG)"
+            TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
+            COVERMODE: "$(HOST: echo $COVERMODE)"
+
         prepare: |
             . $TESTSLIB/prepare.sh
             prepare_classic
@@ -412,9 +434,6 @@ suites:
         kill-timeout: 2h
         manual: true
         prepare: |
-            # apt update is hanging on security.ubuntu.com with IPv6.
-            sysctl -w net.ipv6.conf.all.disable_ipv6=1
-            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
             apt update && apt install -y snapd qemu genisoimage sshpass
         restore: |
             apt remove -y qemu genisoimage sshpass

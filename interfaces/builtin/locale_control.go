@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const localeControlSummary = `allows control over system locale`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/locale-control
 const localeControlConnectedPlugAppArmor = `
@@ -31,15 +29,11 @@ const localeControlConnectedPlugAppArmor = `
 /etc/default/locale rw,
 `
 
-// NewLocaleControlInterface returns a new "locale-control" interface.
-func NewLocaleControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "locale-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "locale-control",
+		summary:               localeControlSummary,
 		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewLocaleControlInterface())
+	})
 }

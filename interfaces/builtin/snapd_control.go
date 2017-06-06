@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const snapdControlSummary = `allows communicating with snapd`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
@@ -30,15 +28,11 @@ const snapdControlConnectedPlugAppArmor = `
 /run/snapd.socket rw,
 `
 
-// NewSnapdControlInterface returns a new "snapd-control" interface.
-func NewSnapdControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "snapd-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "snapd-control",
+		summary:               snapdControlSummary,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewSnapdControlInterface())
+	})
 }

@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const openglSummary = `allows access to OpenGL stack`
 
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
@@ -58,15 +56,11 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-// NewOpenglInterface returns a new "opengl" interface.
-func NewOpenglInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "opengl",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "opengl",
+		summary:               openglSummary,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewOpenglInterface())
+	})
 }

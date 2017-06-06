@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const bluetoothControlSummary = `allows managing the kernel bluetooth stack`
 
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
@@ -50,15 +48,12 @@ const bluetoothControlConnectedPlugSecComp = `
 bind
 `
 
-func NewBluetoothControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "bluetooth-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "bluetooth-control",
+		summary:               bluetoothControlSummary,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewBluetoothControlInterface())
+	})
 }

@@ -331,6 +331,12 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
+	if !strings.Contains(mx.Channel, "/") && mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
+		// shortcut to jump to a different track, e.g.
+		// snap install foo --channel=3.4 # implies 3.4/stable
+		mx.Channel += "/stable"
+	}
+
 	return nil
 }
 
@@ -413,6 +419,8 @@ type cmdInstall struct {
 	// alias for --dangerous, deprecated but we need to support it
 	// because we released 2.14.2 with --force-dangerous
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
+
+	Unaliased bool `long:"unaliased"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
@@ -545,6 +553,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Channel:   x.Channel,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
+		Unaliased: x.Unaliased,
 	}
 	x.setModes(opts)
 
@@ -941,6 +950,7 @@ func init() {
 			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
+			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{

@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const screenInhibitControlSummary = `allows inhibiting the screen saver`
 
 const screenInhibitControlConnectedPlugAppArmor = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
@@ -67,15 +65,11 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-// NewScreenInhibitControlInterface returns a new "screen-inhibit-control" interface.
-func NewScreenInhibitControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "screen-inhibit-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "screen-inhibit-control",
+		summary:               screenInhibitControlSummary,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewScreenInhibitControlInterface())
+	})
 }

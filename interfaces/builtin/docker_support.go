@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const dockerSupportSummary = `allows operating as the Docker daemon`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -520,13 +522,19 @@ const dockerSupportPrivilegedSecComp = `
 @unrestricted
 `
 
-type DockerSupportInterface struct{}
+type dockerSupportInterface struct{}
 
-func (iface *DockerSupportInterface) Name() string {
+func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: dockerSupportSummary,
+	}
+}
+
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
@@ -535,7 +543,7 @@ func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
@@ -545,14 +553,14 @@ func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *dockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -564,15 +572,15 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *dockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&DockerSupportInterface{})
+	registerIface(&dockerSupportInterface{})
 }

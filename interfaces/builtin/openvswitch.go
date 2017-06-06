@@ -19,20 +19,17 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+const openvswitchSummary = `allows access to the openvswitch socket`
 
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 `
 
-func NewOpenvSwitchInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "openvswitch",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "openvswitch",
+		summary:               openvswitchSummary,
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewOpenvSwitchInterface())
+	})
 }

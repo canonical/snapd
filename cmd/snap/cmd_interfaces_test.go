@@ -528,6 +528,51 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
+func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Interfaces{
+				Slots: []client.Slot{
+					{
+						Snap:      "cheese",
+						Name:      "photo-trigger",
+						Interface: "bool-file",
+						Label:     "Photo trigger",
+					},
+					{
+						Snap:      "wake-up-alarm",
+						Name:      "toggle",
+						Interface: "bool-file",
+						Label:     "Alarm toggle",
+					},
+					{
+						Snap:      "wake-up-alarm",
+						Name:      "snooze",
+						Interface: "bool-file",
+						Label:     "Alarm snooze",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "-i", "bool-file"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot                  Plug\n" +
+		"cheese:photo-trigger  -\n" +
+		"wake-up-alarm:toggle  -\n" +
+		"wake-up-alarm:snooze  -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
 func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

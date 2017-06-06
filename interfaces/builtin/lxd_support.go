@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const lxdSupportSummary = `allows operating as the LXD service`
+
 const lxdSupportConnectedPlugAppArmor = `
 # Description: Can change to any apparmor profile (including unconfined) thus
 # giving access to all resources of the system so LXD may manage what to give
@@ -39,35 +41,41 @@ const lxdSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
-type LxdSupportInterface struct{}
+type lxdSupportInterface struct{}
 
-func (iface *LxdSupportInterface) Name() string {
+func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *LxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: lxdSupportSummary,
+	}
+}
+
+func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *LxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *lxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&LxdSupportInterface{})
+	registerIface(&lxdSupportInterface{})
 }

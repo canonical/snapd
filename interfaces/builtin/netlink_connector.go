@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const netlinkConnectorSummary = `allows communication through the kernel netlink connector`
 
 const netlinkConnectorConnectedPlugSecComp = `
 # Description: Can use netlink to communicate with kernel connector. Because
@@ -32,15 +30,11 @@ bind
 socket AF_NETLINK - NETLINK_CONNECTOR
 `
 
-// NewNetlinkConnectorInterface returns a new "netlink-connector" interface.
-func NewNetlinkConnectorInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name:                 "netlink-connector",
+		summary:              netlinkConnectorSummary,
 		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
 		reservedForOS:        true,
-	}
-}
-
-func init() {
-	registerIface(NewNetlinkConnectorInterface())
+	})
 }

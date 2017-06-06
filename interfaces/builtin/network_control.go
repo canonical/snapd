@@ -19,9 +19,7 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const networkControlSummary = `allows configuring networking and network namespaces`
 
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
@@ -210,16 +208,12 @@ socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkControlInterface returns a new "network-control" interface.
-func NewNetworkControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network-control",
+		summary:               networkControlSummary,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewNetworkControlInterface())
+	})
 }

@@ -36,7 +36,9 @@ type NetworkSetupObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkSetupObserveInterfaceSuite{})
+var _ = Suite(&NetworkSetupObserveInterfaceSuite{
+	iface: builtin.MustInterface("network-setup-observe"),
+})
 
 func (s *NetworkSetupObserveInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [network-setup-observe]
 `
-	s.iface = builtin.NewNetworkSetupObserveInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
