@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  mir:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   modem-manager:
     allow-installation:
       slot-snap-type:
