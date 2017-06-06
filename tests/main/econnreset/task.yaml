@@ -2,15 +2,19 @@ summary: Ensure that ECONNRESET is handled
 restore: |
     echo "Remove the firewall rule again"
     iptables -D OUTPUT -m owner --uid-owner $(id -u test) -j REJECT  -p tcp --reject-with tcp-reset
+
+    rm -f test-snapd-huge_*
+
 execute: |
     echo "Downloading a large snap in the background"
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
-    partial=test-snapd-huge_1.snap.partial
     for i in $(seq 20); do
-        if [ -f "$partial" ] && [ $(stat -c%s "$partial") -gt $(( 1024 * 1024 )) ]; then
-            break
+        if partial=$(ls test-snapd-huge_*.snap.partial | head -1); then
+            if [ $(stat -c%s "$partial") -gt $(( 1024 * 1024 )) ]; then
+                break
+            fi
         fi
         sleep .5
     done
