@@ -163,7 +163,7 @@ EOF
         done
         tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core=$(ls /var/lib/snapd/snaps/core_*.snap)
+        core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
