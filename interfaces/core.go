@@ -142,6 +142,9 @@ type MetaData struct {
 	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
 	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	BaseDeclarationPlugs string
+	BaseDeclarationSlots string
 }
 
 // IfaceMetaData returns the meta-data of the given interface.
