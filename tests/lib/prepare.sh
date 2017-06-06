@@ -90,6 +90,9 @@ EOF
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
+    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
+        clean_apt_history
+    fi
 }
 
 prepare_classic() {
@@ -443,6 +446,12 @@ restore_each_classic() {
     fi
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
+
+    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
+        # Remove all packages installed through apt
+        remove_installed_apt_packages
+        restore_apt_history
+    fi
 }
 
 restore_classic() {

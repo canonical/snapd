@@ -7,10 +7,6 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 warn-timeout: 1m
 kill-timeout: 5m
 execute: |
-    . "$TESTSLIB/apt.sh"
-    echo "Ensure we have two cores"
-    apt install -y jq
-
     echo "install a snap"
     snap install test-snapd-python-webserver
     snap interfaces |MATCH ":network.*test-snapd-python-webserver"
