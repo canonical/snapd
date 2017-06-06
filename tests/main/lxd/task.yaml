@@ -22,10 +22,10 @@ execute: |
     # dear lxd,
     # please honor /etc/environment
     # love Michael
-    if [ -n "$http_proxy" ]; then
+    if [ -n "${http_proxy:-}" ]; then
         lxc config set core.proxy_http $http_proxy
     fi
-    if [ -n "$https_proxy" ]; then
+    if [ -n "${https_proxy:-}" ]; then
         lxc config set core.proxy_https $http_proxy
     fi
 
