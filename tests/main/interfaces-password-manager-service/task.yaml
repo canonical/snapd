@@ -5,11 +5,11 @@ systems:
 
 prepare: |
     echo "Ensure we have a working gnome-keyring"
-    apt-get install -y --no-install-recommends gnome-keyring
+    apt-get install -y --no-install-recommends gnome-keyring dbus-x11
     snap install --edge test-snapd-password-manager-consumer
 
 restore: |
-    apt-get purge -y --auto-remove gnome-keyring
+    apt-get purge -y --auto-remove gnome-keyring dbus-x11
 
 execute: |
     CONNECTED_PATTERN=":password-manager-service +test-snapd-password-manager-consumer"
