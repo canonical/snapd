@@ -152,12 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  udisks2:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
   uhid:
     allow-installation:
       slot-snap-type:
