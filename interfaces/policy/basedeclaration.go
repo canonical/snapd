@@ -152,11 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  timezone-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   tpm:
     allow-installation:
       slot-snap-type:
