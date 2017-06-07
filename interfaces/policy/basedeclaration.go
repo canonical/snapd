@@ -152,10 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  unity7:
-    allow-installation:
-      slot-snap-type:
-        - core
   unity8:
     allow-installation:
       slot-snap-type:
