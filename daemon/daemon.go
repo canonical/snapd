@@ -219,7 +219,6 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -250,7 +249,6 @@ func (d *Daemon) Init() error {
 
 	d.addRoutes()
 
-	logger.Debugf("init done in %s", time.Now().Sub(t0))
 	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
