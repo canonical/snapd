@@ -24,12 +24,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -50,6 +53,29 @@ func main() {
 	}
 }
 
+func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
+	usec := osutil.GetenvInt64("WATCHDOG_USEC")
+	if usec == 0 {
+		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %q", os.Getenv("WATCHDOG_USEC"))
+	}
+	dur := time.Duration(usec/2) * time.Microsecond
+	logger.Debugf("Setting up sd_notify() watchdog timer every %s", dur)
+	wt := time.NewTicker(dur)
+
+	go func() {
+		for {
+			select {
+			case <-wt.C:
+				systemd.SdNotify("WATCHDOG=1")
+			case <-d.Dying():
+				break
+			}
+		}
+	}()
+
+	return wt, nil
+}
+
 func run() error {
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
@@ -63,6 +89,12 @@ func run() error {
 	d.Version = cmd.Version
 
 	d.Start()
+
+	ticker, err := runWatchdog(d)
+	if err != nil {
+		return fmt.Errorf("cannot run software watchdog: %v", err)
+	}
+	defer ticker.Stop()
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
