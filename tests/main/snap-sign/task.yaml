@@ -6,6 +6,9 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 prepare: |
     "$TESTSLIB"/mkpinentry.sh
 
+debug: |
+    sysctl kernel.random.entropy_avail || true
+
 execute: |
     echo "Creating a new key without a password"
     expect -f create-key.exp

@@ -18,6 +18,9 @@ restore: |
     rm testdir/foo.snap bar.snap
     rmdir testdir
 
+debug: |
+    sysctl kernel.random.entropy_avail || true
+
 execute: |
     for i in *.exp; do
         echo $i
