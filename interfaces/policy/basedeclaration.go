@@ -155,13 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  pulseaudio:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-connection:
-      on-classic: false
   raw-usb:
     allow-installation:
       slot-snap-type:
