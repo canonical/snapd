@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,23 +17,27 @@
  *
  */
 
-#ifndef SYSTEM_SHUTDOWN_UTILS_H
-#define SYSTEM_SHUTDOWN_UTILS_H
+package main
 
-#include <stdbool.h>
-#include <stddef.h>		// size_t
+import (
+	"fmt"
+)
 
-// tries to umount all (well, most) things. Returns whether in the last pass it
-// no longer found writable.
-bool umount_all();
+func init() {
+	const (
+		short = "Fetch and run repair assertions as necessary for the device"
+		long  = ""
+	)
 
-__attribute__ ((noreturn))
-void die(const char *msg);
-__attribute__ ((format(printf, 1, 2)))
-void kmsg(const char *fmt, ...);
+	if _, err := parser.AddCommand("run", short, long, &cmdRun{}); err != nil {
+		panic(err)
+	}
 
-// Reads a possible argument for reboot syscall in /run/systemd/reboot-param,
-// which is the place where systemd stores it.
-int sc_read_reboot_arg(char *arg, size_t max_size);
+}
 
-#endif
+type cmdRun struct{}
+
+func (c *cmdRun) Execute(args []string) error {
+	fmt.Fprintf(Stdout, "run is not implemented yet\n")
+	return nil
+}
