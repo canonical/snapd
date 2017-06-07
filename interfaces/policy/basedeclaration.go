@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  shutdown:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   snapd-control:
     allow-installation:
       slot-snap-type:
