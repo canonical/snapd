@@ -4,8 +4,6 @@ set -eux
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
-# shellcheck source=tests/lib/apt.sh
-. "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
@@ -99,7 +97,7 @@ EOF
 }
 
 prepare_classic() {
-    install_build_snapd
+    distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
