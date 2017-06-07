@@ -152,12 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  storage-framework-service:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
   system-observe:
     allow-installation:
       slot-snap-type:
