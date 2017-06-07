@@ -95,8 +95,8 @@ EOF
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
-    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
-        clean_apt_history
+    if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
+        clean_packages_history
     fi
 }
 
@@ -461,8 +461,8 @@ prepare_all_snap() {
 }
 
 
-    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
+    if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
         # Remove all packages installed through apt
-        remove_installed_apt_packages
-        restore_apt_history
+        remove_installed_packages
+        restore_packages_history
     fi

@@ -10,7 +10,7 @@ details: |
 
 environment:
     DISPLAY: :0
-    APT_AUTOCLEAN: 1
+    PACKAGE_AUTOCLEAN: 1
 
 systems: [-ubuntu-core-16-*]
 

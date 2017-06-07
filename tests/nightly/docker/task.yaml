@@ -1,7 +1,7 @@
 summary: Check that the docker snap works
 systems: [ubuntu-16.04-*, ubuntu-core-16-*, ubuntu-14.04-64]
 environment:
-    APT_AUTOCLEAN: 1
+    PACKAGE_AUTOCLEAN: 1
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
         apt install -y linux-image-extra-$(uname -r)

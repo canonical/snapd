@@ -252,12 +252,63 @@ distro_install_build_snapd(){
     fi
 }
 
+clean_packages_history(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            if [ -f "$CURR_HISTORY" ]; then
+                mv "$CURR_HISTORY" "$FULL_HISTORY"
+            fi
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
+remove_installed_packages(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            if [ -f "$CURR_HISTORY" ]; then
+                #This commands get the list of packages that were installed searching in the history
+                packages=$(grep -e "^Install:" "$CURR_HISTORY" | awk '{gsub( /\([^()]*\)/ ,"" );gsub(/ ,/," ");sub(/^Install:/,""); print}' | tr '\n' ' ')
+                quiet apt-get remove -y --purge $packages || echo "Failed autocleaning packages: $packages"
+            fi
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
+restore_packages_history(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            if [ -f "$FULL_HISTORY" ]; then
+                if [ -f "$CURR_HISTORY" ]; then
+                    cat "$CURR_HISTORY" >> "$FULL_HISTORY"
+                fi
+                mv "$FULL_HISTORY" "$CURR_HISTORY"
+            fi
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.
 export DISTRO_BUILD_DEPS=()
+export CURR_HISTORY=
+export FULL_HISTORY=
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
         DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
+        CURR_HISTORY=/var/log/apt/history.log
+        FULL_HISTORY=/var/log/apt/history.log.bak
         ;;
     fedora-*)
         DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)

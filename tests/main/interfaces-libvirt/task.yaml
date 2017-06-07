@@ -15,7 +15,7 @@ details: |
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
 
 environment:
-    APT_AUTOCLEAN: 1
+    PACKAGE_AUTOCLEAN: 1
 
 prepare: |
     echo "Given libvirt and qemu are installed"

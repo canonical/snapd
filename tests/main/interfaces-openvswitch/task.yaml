@@ -15,7 +15,7 @@ details: |
     list and deletion.
 
 environment:
-    APT_AUTOCLEAN: 1
+    PACKAGE_AUTOCLEAN: 1
 
 prepare: |
     echo "Given openvswitch is installed"
