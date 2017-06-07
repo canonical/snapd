@@ -8,6 +8,8 @@ set -eux
 . "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB/ppkgdb.sh
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -101,14 +103,7 @@ prepare_classic() {
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                apt-cache policy snapd
-                ;;
-            fedora-*)
-                dnf info snapd
-                ;;
-        esac
+        distro_query_package_info snapd
         exit 1
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then

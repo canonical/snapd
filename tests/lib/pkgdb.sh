@@ -201,6 +201,20 @@ distro_auto_remove_packages() {
     esac
 }
 
+distro_query_package_info() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            apt-cache policy "$1"
+            ;;
+        fedora-*)
+            dnf info "$1"
+            ;;
+        opensuse-*)
+            zypper info "$1"
+            ;;
+    esac
+}
+
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.
 export DISTRO_BUILD_DEPS=()
