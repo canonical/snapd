@@ -10,7 +10,6 @@ details: |
 
 environment:
     DISPLAY: :0
-    APT_AUTOCLEAN: 1
 
 systems: [-ubuntu-core-16-*]
 
@@ -50,6 +49,7 @@ prepare: |
 
 restore: |
     rm -f call.error dbus.env
+    apt remove --purge -y dbus-x11
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         stop dbus-provider
         rm -f /etc/init/dbus-provider.conf
