@@ -90,7 +90,8 @@ func run() error {
 
 	d.Start()
 
-	if ticker, err := runWatchdog(d); err != nil {
+	ticker, err := runWatchdog(d)
+	if err != nil {
 		return fmt.Errorf("cannot run software watchdog: %v", err)
 	}
 	defer ticker.Stop()
