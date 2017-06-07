@@ -152,11 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  tpm:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   udisks2:
     allow-installation:
       slot-snap-type:
