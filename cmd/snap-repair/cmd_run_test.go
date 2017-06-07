@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,23 +17,17 @@
  *
  */
 
-#ifndef SYSTEM_SHUTDOWN_UTILS_H
-#define SYSTEM_SHUTDOWN_UTILS_H
+package main_test
 
-#include <stdbool.h>
-#include <stddef.h>		// size_t
+import (
+	. "gopkg.in/check.v1"
 
-// tries to umount all (well, most) things. Returns whether in the last pass it
-// no longer found writable.
-bool umount_all();
+	repair "github.com/snapcore/snapd/cmd/snap-repair"
+)
 
-__attribute__ ((noreturn))
-void die(const char *msg);
-__attribute__ ((format(printf, 1, 2)))
-void kmsg(const char *fmt, ...);
+func (r *repairSuite) TestRun(c *C) {
+	err := repair.ParseArgs([]string{"run"})
+	c.Check(err, IsNil)
+	c.Check(r.Stdout(), Equals, "run is not implemented yet\n")
 
-// Reads a possible argument for reboot syscall in /run/systemd/reboot-param,
-// which is the place where systemd stores it.
-int sc_read_reboot_arg(char *arg, size_t max_size);
-
-#endif
+}
