@@ -44,6 +44,8 @@ execute: |
     if [ -n "${https_proxy:-}" ]; then
         lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
+    lxd.lxc exec my-ubuntu -- systemctl daemon-reload
+    lxd.lxc exec my-ubuntu -- systemctl reload snapd.service
     lxd.lxc exec my-ubuntu -- cat /etc/environment
 
     # FIXME: workaround for missing squashfuse
