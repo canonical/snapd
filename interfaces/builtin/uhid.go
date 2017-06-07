@@ -29,6 +29,14 @@ import (
 
 const uhidSummary = `allows control over UHID devices`
 
+const uhidBaseDeclarationSlots = `
+  uhid:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const uhidConnectedPlugAppArmor = `
 # Description: Allows accessing the UHID to create kernel
 # hid devices from user-space.
@@ -45,9 +53,10 @@ func (iface *uhidInterface) Name() string {
 
 func (iface *uhidInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           uhidSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              uhidSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: uhidBaseDeclarationSlots,
 	}
 }
 
