@@ -29,6 +29,14 @@ import (
 
 const physicalMemoryObserveSummary = `allows read access to all physical memory`
 
+const physicalMemoryObserveBaseDeclarationSlots = `
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const physicalMemoryObserveConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical
 # memory. With STRICT_DEVMEM=y, allow reading /dev/mem for read-only
@@ -51,9 +59,10 @@ func (iface *physicalMemoryObserveInterface) String() string {
 
 func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           physicalMemoryObserveSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              physicalMemoryObserveSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryObserveBaseDeclarationSlots,
 	}
 }
 

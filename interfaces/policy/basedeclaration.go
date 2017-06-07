@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  physical-memory-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   ppp:
     allow-installation:
       slot-snap-type:
