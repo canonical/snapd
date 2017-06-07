@@ -150,10 +150,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  x11:
-    allow-installation:
-      slot-snap-type:
-        - core
 `
 
 func trimTrailingNewline(s string) string {
