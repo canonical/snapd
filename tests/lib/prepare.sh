@@ -61,7 +61,8 @@ update_core_snap_for_classic_reexec() {
     mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
-    # Now mount the new core snap
+    # Now mount the new core snap, first discarding the old mount namespace
+    /usr/lib/snapd/snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -153,6 +154,10 @@ EOF
         snap install --"$CORE_CHANNEL" core
         snap list | grep core
 
+        systemctl stop snapd.{service,socket}
+        update_core_snap_for_classic_reexec
+        systemctl start snapd.{service,socket}
+
         # ensure no auto-refresh happens during the tests
         if [ -e /snap/core/current/meta/hooks/configure ]; then
             snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
@@ -174,10 +179,7 @@ EOF
             exit 1
         fi
 
-        systemctl stop snapd.service snapd.socket
-
-        update_core_snap_for_classic_reexec
-
+        systemctl stop snapd.{service,socket}
         systemctl daemon-reload
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
@@ -187,6 +189,12 @@ EOF
         done
         tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
+        core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
+        # on 14.04 it is possible that the core snap is still mounted at this point, unmount
+        # to prevent errors starting the mount unit
+        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
+            umount "$core" || true
+        fi
         for unit in $mounts $services; do
             systemctl start "$unit"
         done
