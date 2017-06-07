@@ -150,12 +150,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  unity8-calendar:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
-    deny-connection: true
   unity8-contacts:
     allow-installation:
       slot-snap-type:
