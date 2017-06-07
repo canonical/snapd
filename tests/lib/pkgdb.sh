@@ -252,7 +252,7 @@ distro_install_build_snapd(){
     fi
 }
 
-clean_packages_history(){
+distro_clean_packages_history(){
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             if [ -f "$CURR_HISTORY" ]; then
@@ -266,7 +266,7 @@ clean_packages_history(){
     esac
 }
 
-remove_installed_packages(){
+distro_remove_installed_packages(){
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             if [ -f "$CURR_HISTORY" ]; then
@@ -282,7 +282,7 @@ remove_installed_packages(){
     esac
 }
 
-restore_packages_history(){
+distro_restore_packages_history(){
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             if [ -f "$FULL_HISTORY" ]; then
@@ -298,6 +298,7 @@ restore_packages_history(){
             ;;
     esac
 }
+
 
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.

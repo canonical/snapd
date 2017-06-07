@@ -350,6 +350,11 @@ suites:
                     distro_purge_package snap-confine
                 fi
             fi
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
+            fi
 
     tests/completion/:
         summary: completion tests
@@ -370,6 +375,11 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
+            fi
 
         environment:
           _/plain: _
@@ -405,6 +415,11 @@ suites:
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
+            fi
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
             fi
 
     tests/upgrade/:
@@ -453,6 +468,11 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -475,16 +495,11 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
             fi
-            . $TESTSLIB/prepare.sh
+        restore-each: |
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
                 restore_each_classic
             fi
-        restore-each: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                restore_each_classic
-            fi
-        restore-each: |
 
     tests/nested/:
         summary: Tests for nested images

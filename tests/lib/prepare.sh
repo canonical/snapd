@@ -96,7 +96,7 @@ EOF
         exit 1
     fi
     if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
-        clean_packages_history
+        distro_clean_packages_history
     fi
 }
 
@@ -460,15 +460,10 @@ prepare_all_snap() {
     disable_kernel_rate_limiting
 }
 
-
+restore_each_classic() {
+    # Remove all packages installed through during the task
     if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
-        # Remove all packages installed through apt
-        remove_installed_packages
-        restore_packages_history
+        distro_remove_installed_packages
+        distro_restore_packages_history
     fi
-
-    if [ "${APT_AUTOCLEAN:-}" = "1" ]; then
-        # Remove all packages installed through apt
-        remove_installed_apt_packages
-        restore_apt_history
-    fi
+}
