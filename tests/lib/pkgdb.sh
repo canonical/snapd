@@ -215,6 +215,42 @@ distro_query_package_info() {
     esac
 }
 
+distro_install_build_snapd(){
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        apt install -y snapd
+        cp /etc/apt/sources.list sources.list.back
+        echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+        apt update
+        apt install -y --only-upgrade snapd
+        mv sources.list.back /etc/apt/sources.list
+        apt update
+    else
+        packages=
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                packages="${GOHOME}/snapd_*.deb"
+                ;;
+            fedora-*|opensuse-*)
+                packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+
+        distro_install_local_package $packages
+
+        # Perform per distribution post-installation steps if necessary
+        case "$SPREAD_SYSTEM" in
+            opensuse-*)
+                sudo systemctl enable --now snapd.socket
+                ;;
+            *)
+                ;;
+        esac
+    fi
+}
+
 # Specify necessary packages which need to be installed on a
 # system to provide a basic build environment for snapd.
 export DISTRO_BUILD_DEPS=()
