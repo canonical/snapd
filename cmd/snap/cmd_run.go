@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -93,6 +95,24 @@ func (x *cmdRun) Execute(args []string) error {
 	// pass shell as a special command to snap-exec
 	if x.Shell {
 		x.Command = "shell"
+	}
+
+	// Check if snapd is starting up. If so wait because it means
+	// snapd is still re-generating security profiles. The
+	// snapd.service is configured so that it will enter a
+	// permanent failed state if it cannot be activated and at this
+	// point the code will continue (with potentially stale profiles
+	// but at least services will run).
+	for i := 0; i < 500; i++ {
+		cmd := exec.Command("systemctl", "show", "-pActiveState", "snapd.service")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return osutil.OutputErr(output, err)
+		}
+		if strings.TrimSpace(string(output)) != "ActiveState=activating" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	return snapRunApp(snapApp, x.Command, args)
