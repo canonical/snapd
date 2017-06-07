@@ -323,8 +323,6 @@ suites:
                 . $TESTSLIB/pkgdb.sh
                 distro_purge_package snapd
                 distro_purge_package snap-confine
-                . $TESTSLIB/prepare.sh
-                restore_classic
             fi
         restore-each: |
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
@@ -348,8 +346,6 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd
-            . $TESTSLIB/prepare.sh
-            restore_classic
         restore-each: |
             . $TESTSLIB/prepare.sh
             restore_each_classic
@@ -384,8 +380,6 @@ suites:
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
-                . $TESTSLIB/prepare.sh
-                restore_classic
             fi
         restore-each: |
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
@@ -434,8 +428,6 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
-            . $TESTSLIB/prepare.sh
-            restore_classic
         restore-each: |
             . $TESTSLIB/prepare.sh
             restore_each_classic
@@ -456,8 +448,6 @@ suites:
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
-                . $TESTSLIB/prepare.sh
-                restore_classic
             fi
         restore-each: |
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then

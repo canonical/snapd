@@ -107,8 +107,6 @@ prepare_classic() {
         exit 1
     fi
 
-    # Save the initial environment
-    cp /etc/environment /etc/environment.bak
     create_snapd_config_classic
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -152,7 +150,7 @@ prepare_classic() {
         for unit in $services $mounts; do
             systemctl stop "$unit"
         done
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/environment
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -409,7 +407,7 @@ prepare_all_snap() {
         fi
 
         systemctl stop snapd.service snapd.socket
-        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT
+        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/environment
         systemctl start snapd.socket
     fi
 
@@ -438,15 +436,6 @@ restore_each_classic() {
     find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
     find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
     create_snapd_config_classic
-    if [ -f /etc/environment.bak ]; then
-        cp /etc/environment.bak /etc/environment
-    fi
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
-}
-
-restore_classic() {
-    if [ -f /etc/environment.bak ]; then
-        rm -f /etc/environment.bak
-    fi
 }
