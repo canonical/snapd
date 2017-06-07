@@ -155,10 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  screen-inhibit-control:
-    allow-installation:
-      slot-snap-type:
-        - core
   serial-port:
     allow-installation:
       slot-snap-type:
