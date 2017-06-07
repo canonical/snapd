@@ -152,11 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  system-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   system-trace:
     allow-installation:
       slot-snap-type:
