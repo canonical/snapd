@@ -152,11 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  system-trace:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   thumbnailer-service:
     allow-installation:
       slot-snap-type:
