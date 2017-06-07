@@ -53,12 +53,17 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWrongNotifySocket(c *C) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
+	fakeEnv := map[string]string{}
+	restore := systemd.MockOsGetenv(func(k string) string {
+		return fakeEnv[k]
+	})
+	defer restore()
+
 	for _, sockPath := range []string{
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		os.Setenv("NOTIFY_SOCKET", sockPath)
-		defer os.Unsetenv(sockPath)
+		fakeEnv["NOTIFY_SOCKET"] = sockPath
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
 			Name: sockPath,

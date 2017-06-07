@@ -26,6 +26,8 @@ import (
 	"strings"
 )
 
+var osGetenv = os.Getenv
+
 // SdNotify sends the given state string notification to systemd.
 //
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
@@ -34,7 +36,7 @@ func SdNotify(notifyState string) error {
 		return fmt.Errorf("cannot use empty notify state")
 	}
 
-	notifySocket := os.Getenv("NOTIFY_SOCKET")
+	notifySocket := osGetenv("NOTIFY_SOCKET")
 	if notifySocket == "" {
 		return fmt.Errorf("cannot find NOTIFY_SOCKET environment")
 	}
