@@ -1,5 +1,4 @@
 summary: Ensure that the home interface works.
-
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 

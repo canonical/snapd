@@ -1,5 +1,4 @@
 summary: Check that enable/disable works
-
 execute: |
     . $TESTSLIB/dirs.sh
     echo "Install test-snapd-tools and ensure it runs"

@@ -1,4 +1,7 @@
-summary: Check that `snap connect` runs interface hooks
+summary: Check that `snap connect` runs interface hook
+
+# Disabled for Fedora and openSUSE until test case is properly ported
+systems: [-fedora-*, -opensuse-*]
 
 prepare: |
     echo "Build test hooks package"

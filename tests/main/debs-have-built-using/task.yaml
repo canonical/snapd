@@ -1,5 +1,6 @@
 summary: Ensure that our debs have the "built-using" header
-systems: [-ubuntu-core-*]
+# Does not apply for any other system than Ubuntu or Debian
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
 execute: |
     out=$(dpkg -I $GOHOME/snapd_*.deb)
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then

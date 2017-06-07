@@ -8,6 +8,40 @@ debian_name_package() {
         xdelta3|curl|python3-yaml|kpartx|busybox-static)
             echo "$1"
             ;;
+        *)
+            echo $1
+            ;;
+    esac
+}
+
+fedora_name_package() {
+    case "$1" in
+        xdelta3|jq|curl)
+            echo $1
+            ;;
+        python3-yaml)
+            echo "python3-yamlordereddictloader"
+            ;;
+        openvswitch-switch)
+            echo "openvswitch"
+            ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        *)
+            echo $1
+            ;;
+    esac
+}
+
+opensuse_name_package() {
+    case "$1" in
+        python3-yaml)
+            echo "python3-PyYAML"
+            ;;
+        *)
+            echo $1
+            ;;
     esac
 }
 
@@ -15,6 +49,12 @@ distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             debian_name_package "$1"
+            ;;
+        fedora-*)
+            fedora_name_package "$1"
+            ;;
+        opensuse-*)
+            opensuse_name_package "$1"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -50,6 +90,12 @@ distro_install_local_package() {
             # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
+        fedora-*)
+            dnf -q -y install "$@"
+            ;;
+        opensuse-*)
+            zypper -q install -y "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -68,7 +114,13 @@ distro_install_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                apt-get install -y "$package_name"
+                quiet apt-get install -y "$package_name"
+                ;;
+            fedora-*)
+                dnf -q -y install -y $package_name
+                ;;
+            opensuse-*)
+                zypper -q install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -91,6 +143,12 @@ distro_purge_package() {
             ubuntu-*|debian-*)
                 quiet apt-get remove -y --purge -y "$package_name"
                 ;;
+            fedora-*)
+                dnf -y -q remove $package_name
+                ;;
+            opensuse-*)
+                zypper -q remove -y $package_name
+                ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
@@ -104,6 +162,12 @@ distro_update_package_db() {
         ubuntu-*|debian-*)
             quiet apt-get update
             ;;
+        fedora-*)
+            dnf -y -q upgrade
+            ;;
+        opensuse-*)
+            zypper -q update -y
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -116,6 +180,9 @@ distro_clean_package_cache() {
         ubuntu-*|debian-*)
             quiet apt-get clean
             ;;
+        opensuse-*)
+            zypper -q clean --all
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -127,6 +194,11 @@ distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             quiet apt-get -y autoremove
+            ;;
+        fedora-*)
+            dnf -q -y autoremove
+            ;;
+        opensuse-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -141,6 +213,12 @@ export DISTRO_BUILD_DEPS=()
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
         DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
+        ;;
+    fedora-*)
+        DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)
+        ;;
+    opensuse-*)
+        DISTRO_BUILD_DEPS=(osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools)
         ;;
     *)
         ;;

@@ -44,12 +44,17 @@ update_core_snap_for_classic_reexec() {
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
-    # and snap-confine's apparmor
-    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    else
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    fi
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # and snap-confine's apparmor
+            if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            else
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            fi
+            ;;
+    esac
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
@@ -97,28 +102,52 @@ prepare_classic() {
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        apt-cache policy snapd
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-cache policy snapd
+                ;;
+            fedora-*)
+                dnf info snapd
+                ;;
+        esac
         exit 1
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        apt-cache policy snap-confine
-        "$LIBEXECDIR/snapd/snap-confine" --version
+        $LIBEXECDIR/snapd/snap-confine --version
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-cache policy snapd
+                ;;
+            fedora-*)
+                dnf info snapd
+                ;;
+        esac
         exit 1
+    fi
+
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
     fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 EOF
+
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -145,10 +174,17 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output is empty on classic"
-        output=$(grub-editenv list)
-        if [ -n "$output" ]; then
-            echo "Expected empty grub environment, got:"
+        GRUB_EDITENV=grub-editenv
+        case "$SPREAD_SYSTEM" in
+            fedora-*|opensuse-*)
+                GRUB_EDITENV=grub2-editenv
+                ;;
+        esac
+
+        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
+        output=$($GRUB_EDITENV list)
+        if echo $output | MATCH nap_ ; then
+            echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
         fi

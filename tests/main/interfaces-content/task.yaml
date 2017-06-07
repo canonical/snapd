@@ -31,6 +31,10 @@ execute: |
     echo "And the current mount profile is the same as the desired mount profile"
     diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
 
+    if [ "$(snap debug confinement)" = none ]; then
+        exit 0
+    fi
+
     echo "============================================"
 
     echo "When the plug is disconnected"
