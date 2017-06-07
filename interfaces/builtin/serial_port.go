@@ -30,12 +30,20 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const serialPortSummary = `allows accessing a specific serial port`
+
 // serialPortInterface is the type for serial port interfaces.
 type serialPortInterface struct{}
 
 // Name of the serial-port interface.
 func (iface *serialPortInterface) Name() string {
 	return "serial-port"
+}
+
+func (iface *serialPortInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: serialPortSummary,
+	}
 }
 
 func (iface *serialPortInterface) String() string {
