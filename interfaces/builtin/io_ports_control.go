@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const ioPortsControlSummary = `allows access to all I/O ports`
+
 const ioPortsControlConnectedPlugAppArmor = `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
@@ -53,6 +55,12 @@ type iioPortsControlInterface struct{}
 // Getter for the name of the io-ports-control interface
 func (iface *iioPortsControlInterface) Name() string {
 	return "io-ports-control"
+}
+
+func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary: ioPortsControlSummary,
+	}
 }
 
 func (iface *iioPortsControlInterface) String() string {

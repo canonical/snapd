@@ -2,11 +2,14 @@
 
 set -eu
 
-if [ -z "$(which govendor)" ];then
-	echo Installing govendor
-	go get -u github.com/kardianos/govendor
+if ! which govendor >/dev/null;then
+    export PATH="$PATH:${GOPATH%%:*}/bin"
+
+    if ! which govendor >/dev/null;then
+	    echo Installing govendor
+	    go get -u github.com/kardianos/govendor
+    fi
 fi
-export PATH=$PATH:$GOPATH/bin
 
 echo Obtaining dependencies
 govendor sync

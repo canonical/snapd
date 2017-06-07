@@ -19,6 +19,8 @@
 
 package builtin
 
+const systemTraceSummary = `allows using kernel tracing facilities`
+
 const systemTraceConnectedPlugAppArmor = `
 # Description: Can use kernel tracing facilities. This is restricted because it
 # gives privileged access to all processes on the system and should only be
@@ -53,7 +55,8 @@ perf_event_open
 
 func init() {
 	registerIface(&commonInterface{
-		name: "system-trace",
+		name:                  "system-trace",
+		summary:               systemTraceSummary,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,

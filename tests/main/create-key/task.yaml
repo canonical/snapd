@@ -3,7 +3,10 @@ summary: Checks for snap create-key
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
-    . "$TESTSLIB/mkpinentry.sh"
+    "$TESTSLIB"/mkpinentry.sh
+
+debug: |
+    sysctl kernel.random.entropy_avail || true
 
 execute: |
     echo "Checking passphrase mismatch error"
