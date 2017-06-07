@@ -184,11 +184,6 @@ slots:
         - app
     deny-auto-connection: true
     deny-connection: true
-  ubuntu-download-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:
