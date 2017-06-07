@@ -2241,6 +2241,9 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		st.Lock()
 		defer st.Unlock()
 		ensureStateSoon(st)
+	case "get-base-declaration":
+		blob := asserts.Encode(asserts.BuiltinBaseDeclaration())
+		return SyncResponse(blob, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
