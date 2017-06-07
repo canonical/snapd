@@ -146,20 +146,12 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  snapd-control:
-    allow-installation: false
-    deny-auto-connection: true
   unity8:
     allow-installation: false
 `
 
 const baseDeclarationSlots = `
 slots:
-  snapd-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   storage-framework-service:
     allow-installation:
       slot-snap-type:
