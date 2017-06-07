@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  openvswitch:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   openvswitch-support:
     allow-installation:
       slot-snap-type:
