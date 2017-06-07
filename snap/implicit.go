@@ -89,6 +89,7 @@ var implicitClassicSlots = []string{
 	"ofono",
 	"openvswitch",
 	"optical-drive",
+	"password-manager-service",
 	"pulseaudio",
 	"screen-inhibit-control",
 	"unity7",
