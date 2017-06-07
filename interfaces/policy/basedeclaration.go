@@ -155,10 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  optical-drive:
-    allow-installation:
-      slot-snap-type:
-        - core
   physical-memory-control:
     allow-installation:
       slot-snap-type:
