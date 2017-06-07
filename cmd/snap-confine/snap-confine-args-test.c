@@ -96,6 +96,7 @@ static void test_sc_nonfatal_parse_args__typical()
 			"/usr/lib/snapd/snap-exec");
 	g_assert_cmpint(sc_args_is_version_query(args), ==, false);
 	g_assert_cmpint(sc_args_is_classic_confinement(args), ==, false);
+	g_assert_null(sc_args_base_snap(args));
 
 	// Check remaining arguments
 	g_assert_cmpint(argc, ==, 3);
@@ -375,6 +376,79 @@ static void test_sc_nonfatal_parse_args__forwards_error()
 	     "\nunrecognized command line option: --frozbonicator\n");
 }
 
+static void test_sc_nonfatal_parse_args__base_snap()
+{
+	// Check that --base specifies the name of the base snap.
+	struct sc_error *err __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+
+	int argc;
+	char **argv;
+	test_argc_argv(&argc, &argv,
+		       "/usr/lib/snapd/snap-confine", "--base", "base-snap",
+		       "snap.SNAP_NAME.APP_NAME", "/usr/lib/snapd/snap-exec",
+		       NULL);
+
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+	g_assert_null(err);
+	g_assert_nonnull(args);
+
+	// Check the --base switch
+	g_assert_cmpstr(sc_args_base_snap(args), ==, "base-snap");
+	// Check other arguments
+	g_assert_cmpstr(sc_args_security_tag(args), ==,
+			"snap.SNAP_NAME.APP_NAME");
+	g_assert_cmpstr(sc_args_executable(args), ==,
+			"/usr/lib/snapd/snap-exec");
+	g_assert_cmpint(sc_args_is_version_query(args), ==, false);
+	g_assert_cmpint(sc_args_is_classic_confinement(args), ==, false);
+}
+
+static void test_sc_nonfatal_parse_args__base_snap__missing_arg()
+{
+	// Check that --base specifies the name of the base snap.
+	struct sc_error *err __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+
+	int argc;
+	char **argv;
+	test_argc_argv(&argc, &argv,
+		       "/usr/lib/snapd/snap-confine", "--base", NULL);
+
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+	g_assert_nonnull(err);
+	g_assert_null(args);
+
+	// Check the error that we've got
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"Usage: snap-confine <security-tag> <executable>\n"
+			"\nthe --base option requires an argument");
+	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
+}
+
+static void test_sc_nonfatal_parse_args__base_snap__twice()
+{
+	// Check that --base specifies the name of the base snap.
+	struct sc_error *err __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+
+	int argc;
+	char **argv;
+	test_argc_argv(&argc, &argv,
+		       "/usr/lib/snapd/snap-confine",
+		       "--base", "base1", "--base", "base2", NULL);
+
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+	g_assert_nonnull(err);
+	g_assert_null(args);
+
+	// Check the error that we've got
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"Usage: snap-confine <security-tag> <executable>\n"
+			"\nthe --base option can be used only once");
+	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/args/test_argc_argv", test_test_argc_argv);
@@ -399,4 +473,10 @@ static void __attribute__ ((constructor)) init()
 			test_sc_nonfatal_parse_args__unknown_option);
 	g_test_add_func("/args/sc_nonfatal_parse_args/forwards_error",
 			test_sc_nonfatal_parse_args__forwards_error);
+	g_test_add_func("/args/sc_nonfatal_parse_args/base_snap",
+			test_sc_nonfatal_parse_args__base_snap);
+	g_test_add_func("/args/sc_nonfatal_parse_args/base_snap/missing-arg",
+			test_sc_nonfatal_parse_args__base_snap__missing_arg);
+	g_test_add_func("/args/sc_nonfatal_parse_args/base_snap/twice",
+			test_sc_nonfatal_parse_args__base_snap__twice);
 }
