@@ -152,11 +152,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  uhid:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   unity7:
     allow-installation:
       slot-snap-type:
