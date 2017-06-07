@@ -146,17 +146,10 @@ revision: 0
 
 const baseDeclarationPlugs = `
 plugs:
-  unity8:
-    allow-installation: false
 `
 
 const baseDeclarationSlots = `
 slots:
-  unity8:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   unity8-calendar:
     allow-installation:
       slot-snap-type:
