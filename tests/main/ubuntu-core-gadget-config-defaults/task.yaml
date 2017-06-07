@@ -2,8 +2,6 @@ summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
 systems: [ubuntu-core-16-64]
-environment:
-    TEST_SNAP_ID: aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -17,6 +15,12 @@ prepare: |
     snap download --edge test-snapd-with-configure
     unsquashfs /var/lib/snapd/snaps/pc_*.snap
     # fill in defaults
+    TEST_SNAP_ID=
+    if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
+        TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+    else
+        TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
+    fi
     cat >> squashfs-root/meta/gadget.yaml <<EOF
 
     defaults:
