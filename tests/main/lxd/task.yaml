@@ -19,14 +19,12 @@ execute: |
     wait_for_lxd
     lxd init --auto
 
-    # dear lxd,
-    # please honor /etc/environment
-    # love Michael
+    echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
-        lxc config set core.proxy_http $http_proxy
+        lxd.lxc config set core.proxy_http $http_proxy
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxc config set core.proxy_https $http_proxy
+        lxd.lxc config set core.proxy_https $http_proxy
     fi
 
     lxd.lxc launch ubuntu:16.04 my-ubuntu
@@ -39,6 +37,14 @@ execute: |
     lxd.lxc network attach testbr0 my-ubuntu eth0
     lxd.lxc exec my-ubuntu dhclient eth0
 
+    echo "Setting up proxy *inside* the container"
+    if [ -n "${http_proxy:-}" ]; then
+        lxd.lxc exec my-ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+    fi
+    if [ -n "${https_proxy:-}" ]; then
+        lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+    fi
+
     # FIXME: workaround for missing squashfuse
     lxd.lxc exec my-ubuntu apt update
     lxd.lxc exec my-ubuntu -- apt install -y squashfuse
@@ -49,4 +55,3 @@ execute: |
     echo "Ensure we can use snapd inside lxd"
     lxd.lxc exec my-ubuntu snap install test-snapd-tools
     lxd.lxc exec my-ubuntu test-snapd-tools.echo from-the-inside | MATCH from-the-inside
-
