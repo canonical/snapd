@@ -17,7 +17,7 @@
  *
  */
 
-package builtin
+package policy
 
 import (
 	"fmt"
