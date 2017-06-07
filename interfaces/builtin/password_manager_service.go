@@ -38,8 +38,6 @@ dbus (receive, send)
     interface=org.freedesktop.Secret.*
     path=/org/freedesktop/secrets{,/**}
     peer=(label=unconfined),
-
-
 `
 
 func init() {

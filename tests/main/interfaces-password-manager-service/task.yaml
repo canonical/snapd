@@ -4,12 +4,16 @@ systems:
     - -ubuntu-core-16-*
 
 prepare: |
+    . $TESTSLIB/pkgdb.sh
     echo "Ensure we have a working gnome-keyring"
-    apt-get install -y --no-install-recommends gnome-keyring dbus-x11
+    distro_install_package gnome-keyring dbus-x11
     snap install --edge test-snapd-password-manager-consumer
 
 restore: |
-    apt-get purge -y --auto-remove gnome-keyring dbus-x11
+    . $TESTSLIB/pkgdb.sh
+    distro_auto_remove_packages gnome-keyring dbus-x11
+    kill $(cat dbus-launch.pid)
+    rm -f  dbus-launch.pid
 
 execute: |
     CONNECTED_PATTERN=":password-manager-service +test-snapd-password-manager-consumer"
@@ -17,9 +21,9 @@ execute: |
 
     echo "Ensure things run"
     eval $(dbus-launch --sh-syntax)
-    eval $(printf ubuntu|gnome-keyring-daemon --login)
+    eval $(printf password|gnome-keyring-daemon --login)
     eval $(gnome-keyring-daemon --start)
-    
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
 
     echo "Then it is not shown as connected"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -48,4 +52,5 @@ execute: |
         echo "Expected error with plug disconnected"
         exit 1
     fi
+
 
