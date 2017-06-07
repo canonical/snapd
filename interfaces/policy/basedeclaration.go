@@ -155,11 +155,6 @@ plugs:
 
 const baseDeclarationSlots = `
 slots:
-  raw-usb:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   removable-media:
     allow-installation:
       slot-snap-type:
