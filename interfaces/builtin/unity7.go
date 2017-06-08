@@ -520,7 +520,8 @@ func (iface *unity7Interface) Name() string {
 
 func (iface *unity7Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: unity7Summary,
+		Summary:           unity7Summary,
+		ImplicitOnClassic: true,
 	}
 }
 

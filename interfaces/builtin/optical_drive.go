@@ -30,6 +30,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "optical-drive",
 		summary:               opticalDriveSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

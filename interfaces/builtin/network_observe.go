@@ -117,6 +117,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network-observe",
 		summary:               networkObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,
