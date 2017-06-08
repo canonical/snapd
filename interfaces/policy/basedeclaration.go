@@ -669,12 +669,15 @@ slots:
         - core
 `
 
+func trimTrailingNewline(s string) string {
+	return strings.TrimRight(s, "\n")
+}
+
 func ComposeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
 	var buf bytes.Buffer
 	// Trim newlines at the end of the string. All the elements may have
 	// spurious trailing newlines. All elements start with a leading newline.
 	// We don't want any blanks as that would no longer parse.
-	trimTrailingNewline := func(s string) string { return strings.TrimRight(s, "\n") }
 	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationHeader)); err != nil {
 		return nil, err
 	}
