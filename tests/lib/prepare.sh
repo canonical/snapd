@@ -9,8 +9,6 @@ set -eux
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
 
-
-
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
     echo "Turning off kernel rate-limiting"

@@ -5,7 +5,6 @@ set -e -x
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
-
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
@@ -47,11 +46,12 @@ reset_classic() {
 
     if [ "$1" = "--reuse-core" ]; then
         # Purge all the config files for the service units
-        mkdir -p /etc/systemd/system/snapd.service.d
-        find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
-        mkdir -p /etc/systemd/system/snapd.socket.d
-        find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete        
-
+        if [ -d /etc/systemd/system/snapd.service.d ]; then
+            find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+        fi
+        if [ -d /etc/systemd/system/snapd.socket.d ]; then
+            find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete        
+        fi
         # Restore snapd state and start systemd service units
         tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
