@@ -139,6 +139,8 @@ EOF
 $START_LIMIT_INTERVAL
 EOF
 
+    # We change the service configuration so reload and restart
+    # the snapd socket unit to get them applied
     systemctl daemon-reload
     systemctl restart snapd.socket
 

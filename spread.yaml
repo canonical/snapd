@@ -322,6 +322,9 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-fedora-*, -opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -351,6 +354,9 @@ suites:
         summary: completion tests
 
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
         prepare: |
@@ -381,6 +387,9 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-fedora-*, -opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -400,6 +409,9 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
@@ -416,6 +428,9 @@ suites:
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
         environment:
             # env vars required for coverage reporting from a spread task
@@ -442,6 +457,9 @@ suites:
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-fedora-*, -opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -461,6 +479,9 @@ suites:
 
     tests/nested/:
         summary: Tests for nested images
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
         systems: [-fedora-*, -opensuse-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
