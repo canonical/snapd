@@ -187,7 +187,7 @@ EOF
         for unit in $services $mounts; do
             systemctl stop "$unit"
         done
-        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.socket.d/local.conf"
+        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
         tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
