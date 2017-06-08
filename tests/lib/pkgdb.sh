@@ -8,6 +8,9 @@ debian_name_package() {
         xdelta3|curl|python3-yaml|kpartx|busybox-static)
             echo "$1"
             ;;
+        man)
+            echo "man-db"
+            ;;
         *)
             echo $1
             ;;
