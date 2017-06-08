@@ -8,6 +8,9 @@ set -eux
 . "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
+# shellcheck source=tests/lib/config.sh
+. "$TESTSLIB/config.sh"
+
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -438,30 +441,4 @@ prepare_all_snap() {
     fi
 
     disable_kernel_rate_limiting
-}
-
-create_snapd_config_classic() {
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
-}
-
-restore_each_classic() {
-    # Restore the environment for each service unit
-    systemctl daemon-reload
-    systemctl stop snapd.service snapd.socket
-    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
-    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
-    create_snapd_config_classic
-    systemctl daemon-reload
-    systemctl start snapd.service snapd.socket
 }
