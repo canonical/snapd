@@ -62,7 +62,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    /usr/lib/snapd/snap-discard-ns core
+    $LIBEXECDIR/snapd/snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
