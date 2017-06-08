@@ -99,7 +99,9 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening
+# Enable hardening; We can't use -pie here as this conflicts with
+# our build of static binaries for snap-confine. Also see
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 export CFLAGS
