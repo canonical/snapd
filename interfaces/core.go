@@ -143,7 +143,9 @@ type MetaData struct {
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
 	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
 
+	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
 	BaseDeclarationPlugs string
+	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
 	BaseDeclarationSlots string
 }
 
