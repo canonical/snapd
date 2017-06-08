@@ -13,12 +13,22 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+%bcond_with testkeys
+
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
 %global repo            snapd
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
+
+%global with_test_keys  0
+
+%if %{with testkeys}
+%global with_test_keys 1
+%else
+%global with_test_keys 0
+%endif
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
@@ -117,11 +127,22 @@ export CXXFLAGS
 %build
 # Build golang executables
 %goprep %{import_path}
+
+%if 0%{?with_test_keys}
+# The %gobuild macro doesn't allow us to pass any additional parameters
+# so we we have to invoke `go install` here manually.
+export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
+export GOBIN=%{_builddir}/go/bin
+go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
+%else
+%gobuild cmd/snapd
+%endif
+
 %gobuild cmd/snap
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
-%gobuild cmd/snapd
 %gobuild cmd/snap-update-ns
+
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
