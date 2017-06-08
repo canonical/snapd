@@ -8,8 +8,7 @@ set -eux
 . "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
-# shellcheck source=tests/lib/config.sh
-. "$TESTSLIB/config.sh"
+
 
 
 disable_kernel_rate_limiting() {
@@ -129,7 +128,18 @@ prepare_classic() {
         exit 1
     fi
 
-    create_snapd_config_classic
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -179,7 +189,8 @@ prepare_classic() {
         for unit in $services $mounts; do
             systemctl stop "$unit"
         done
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/environment
+        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
