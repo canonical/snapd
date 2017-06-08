@@ -105,11 +105,25 @@ func (x *cmdRun) Execute(args []string) error {
 	// but at least services will run).
 	for i := 0; i < 500; i++ {
 		cmd := exec.Command("systemctl", "show", "-pActiveState", "snapd.service")
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return osutil.OutputErr(output, err)
+		raw, err := cmd.CombinedOutput()
+		output := strings.TrimSpace(string(raw))
+		// XXX: only needed because systemd 231 behave
+		//      different from 204,229,232. With those we get
+		//      the expected "ActiveState=inactive".
+		if err != nil && output == "Unit snapd.service could not be found." {
+			break
 		}
-		if strings.TrimSpace(string(output)) != "ActiveState=activating" {
+		// XXX2: the backported systemd on 14.04 does not support
+		//       the dbus interface of systemd, only the private
+		//       socket which is only available as root, ignore
+		//       this error.
+		if err != nil && strings.HasPrefix(output, "Failed to issue method call:") {
+			break
+		}
+		if err != nil {
+			return osutil.OutputErr(raw, err)
+		}
+		if output != "ActiveState=activating" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
