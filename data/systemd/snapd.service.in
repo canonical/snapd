@@ -1,8 +1,6 @@
 [Unit]
 Description=Snappy daemon
 Requires=snapd.socket
-StartLimitBurst=10
-StartLimitIntervalSec=105s
 
 [Service]
 Nice=-5
@@ -11,7 +9,6 @@ ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 Type=notify
-TimeoutStartSec=10s
 
 [Install]
 WantedBy=multi-user.target

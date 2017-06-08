@@ -21,6 +21,8 @@ package ifacestate_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +72,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapProfileDigestFile), 0755), IsNil)
+
 	state := state.New(nil)
 	s.state = state
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{

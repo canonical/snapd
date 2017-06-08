@@ -24,11 +24,13 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -54,10 +56,18 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
+	if err := m.generateProfileDigestFile(); err != nil {
+		return err
+	}
 	if err := m.regenerateAllSecurityProfiles(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (m *InterfaceManager) generateProfileDigestFile() error {
+	pd := interfaces.ProfileDigest()
+	return osutil.AtomicWriteFile(dirs.SnapProfileDigestFile, []byte(pd), 0644, 0)
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {

@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -68,6 +70,38 @@ func init() {
 		}, nil)
 }
 
+// Check if snapd is starting up. If so wait because it means
+// snapd is still re-generating security profiles.
+func waitForSnapdActivation() error {
+	// FIXME: should we timeout here?
+	for {
+		cmd := exec.Command("systemctl", "show", "-pActiveState", "snapd.service")
+		raw, err := cmd.CombinedOutput()
+		output := strings.TrimSpace(string(raw))
+		// XXX: only needed because systemd 231 behave
+		//      different from 204,229,232. With those we get
+		//      the expected "ActiveState=inactive".
+		if err != nil && output == "Unit snapd.service could not be found." {
+			break
+		}
+		// XXX2: the backported systemd on 14.04 does not support
+		//       the dbus interface of systemd, only the private
+		//       socket which is only available as root, ignore
+		//       this error.
+		if err != nil && strings.HasPrefix(output, "Failed to issue method call:") {
+			break
+		}
+		if err != nil {
+			return osutil.OutputErr(raw, err)
+		}
+		if output != "ActiveState=activating" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return nil
+}
+
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))
@@ -97,36 +131,17 @@ func (x *cmdRun) Execute(args []string) error {
 		x.Command = "shell"
 	}
 
-	// Check if snapd is starting up. If so wait because it means
-	// snapd is still re-generating security profiles. The
-	// snapd.service is configured so that it will enter a
-	// permanent failed state if it cannot be activated and at this
-	// point the code will continue (with potentially stale profiles
-	// but at least services will run).
-	for i := 0; i < 500; i++ {
-		cmd := exec.Command("systemctl", "show", "-pActiveState", "snapd.service")
-		raw, err := cmd.CombinedOutput()
-		output := strings.TrimSpace(string(raw))
-		// XXX: only needed because systemd 231 behave
-		//      different from 204,229,232. With those we get
-		//      the expected "ActiveState=inactive".
-		if err != nil && output == "Unit snapd.service could not be found." {
-			break
+	// check if the security profiles digest has changed, if so, we need
+	// to wait for snapd to re-generate all profiles
+	raw, err := ioutil.ReadFile(dirs.SnapProfileDigestFile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	profileDigest := string(raw)
+	if profileDigest != "" && profileDigest != interfaces.ProfileDigest() {
+		if err := waitForSnapdActivation(); err != nil {
+			return err
 		}
-		// XXX2: the backported systemd on 14.04 does not support
-		//       the dbus interface of systemd, only the private
-		//       socket which is only available as root, ignore
-		//       this error.
-		if err != nil && strings.HasPrefix(output, "Failed to issue method call:") {
-			break
-		}
-		if err != nil {
-			return osutil.OutputErr(raw, err)
-		}
-		if output != "ActiveState=activating" {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	return snapRunApp(snapApp, x.Command, args)
