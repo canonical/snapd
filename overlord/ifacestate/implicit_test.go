@@ -22,7 +22,7 @@ package ifacestate_test
 import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -31,17 +31,24 @@ type implicitSuite struct{}
 
 var _ = Suite(&implicitSuite{})
 
-func (implicitSuite) TestAddImplicitSlotsOutsideClassic(c *C) {
+func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	osYaml := []byte("name: ubuntu-core\ntype: os\n")
-	info, err := snap.InfoFromSnapYaml(osYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, "name: core\ntype: os\n", nil)
 	ifacestate.AddImplicitSlots(info)
-	c.Assert(info.Slots["network"].Interface, Equals, "network")
-	c.Assert(info.Slots["network"].Name, Equals, "network")
-	c.Assert(info.Slots["network"].Snap, Equals, info)
+	// Ensure that some slots that exist in core systems are present.
+	for _, name := range []string{"network"} {
+		slot := info.Slots[name]
+		c.Assert(slot.Interface, Equals, name)
+		c.Assert(slot.Name, Equals, name)
+		c.Assert(slot.Snap, Equals, info)
+	}
+	// Ensure that some slots that exist is just classic systems are absent.
+	for _, name := range []string{"unity7"} {
+		c.Assert(info.Slots[name], IsNil)
+	}
+
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
 }
@@ -50,13 +57,15 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	osYaml := []byte("name: ubuntu-core\ntype: os\n")
-	info, err := snap.InfoFromSnapYaml(osYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, "name: core\ntype: os\n", nil)
 	ifacestate.AddImplicitSlots(info)
-	c.Assert(info.Slots["unity7"].Interface, Equals, "unity7")
-	c.Assert(info.Slots["unity7"].Name, Equals, "unity7")
-	c.Assert(info.Slots["unity7"].Snap, Equals, info)
+	// Ensure that some slots that exist in classic systems are present.
+	for _, name := range []string{"network", "unity7"} {
+		slot := info.Slots[name]
+		c.Assert(slot.Interface, Equals, name)
+		c.Assert(slot.Name, Equals, name)
+		c.Assert(slot.Snap, Equals, info)
+	}
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
 }
