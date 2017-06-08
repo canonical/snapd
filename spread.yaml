@@ -338,6 +338,11 @@ suites:
                 distro_purge_package snapd
                 distro_purge_package snap-confine
             fi
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
+            fi
 
     tests/completion/:
         summary: completion tests
@@ -355,6 +360,9 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd
+        restore-each: |
+            . $TESTSLIB/prepare.sh
+            restore_each_classic
 
         environment:
           _/plain: _
@@ -383,11 +391,15 @@ suites:
             fi
         prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
-
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
+            fi
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
             fi
 
     tests/upgrade/:
@@ -430,6 +442,9 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
+        restore-each: |
+            . $TESTSLIB/prepare.sh
+            restore_each_classic
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -444,11 +459,15 @@ suites:
             fi
         prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
-
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd
+            fi
+        restore-each: |
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/prepare.sh
+                restore_each_classic
             fi
 
     tests/nested/:
