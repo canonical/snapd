@@ -42,6 +42,9 @@ type commonInterface struct {
 	description      string
 	documentationURL string
 
+	implicitOnCore    bool
+	implicitOnClassic bool
+
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
 	reservedForOS          bool
@@ -61,9 +64,11 @@ func (iface *commonInterface) Name() string {
 // MetaData returns various meta-data about this interface.
 func (iface *commonInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Description:      iface.description,
-		Summary:          iface.summary,
-		DocumentationURL: iface.documentationURL,
+		Summary:           iface.summary,
+		Description:       iface.description,
+		DocumentationURL:  iface.documentationURL,
+		ImplicitOnCore:    iface.implicitOnCore,
+		ImplicitOnClassic: iface.implicitOnClassic,
 	}
 }
 

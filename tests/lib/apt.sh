@@ -13,6 +13,18 @@ install_build_snapd(){
         mv sources.list.back /etc/apt/sources.list
         apt update
     else
-        distro_install_local_package "$GOHOME"/snapd_*.deb
+        packages=
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                packages="${GOHOME}/snapd_*.deb"
+                ;;
+            fedora-*)
+                packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+        distro_install_local_package $packages
     fi
 }

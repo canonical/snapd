@@ -31,6 +31,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "tpm",
 		summary:               tpmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

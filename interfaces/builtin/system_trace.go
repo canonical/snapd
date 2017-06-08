@@ -57,6 +57,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "system-trace",
 		summary:               systemTraceSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,
