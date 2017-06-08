@@ -386,7 +386,8 @@ func (iface *networkManagerInterface) Name() string {
 
 func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: networkManagerSummary,
+		Summary:           networkManagerSummary,
+		ImplicitOnClassic: true,
 	}
 }
 

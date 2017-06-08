@@ -78,6 +78,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "timezone-control",
 		summary:               timezoneControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
