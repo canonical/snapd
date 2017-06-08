@@ -4,8 +4,6 @@ set -e -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
-# shellcheck source=tests/lib/config.sh
-. "$TESTSLIB/config.sh"
 
 
 reset_classic() {
@@ -47,12 +45,14 @@ reset_classic() {
     rm -rf /root/.snap/gnupg
     rm -f /tmp/core* /tmp/ubuntu-core*
 
-    # Purge all the config files for the service units
-    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
-    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
-    create_snapd_config_classic
-
     if [ "$1" = "--reuse-core" ]; then
+        # Purge all the config files for the service units
+        mkdir -p /etc/systemd/system/snapd.service.d
+        find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+        mkdir -p /etc/systemd/system/snapd.socket.d
+        find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete        
+
+        # Restore snapd state and start systemd service units
         tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
