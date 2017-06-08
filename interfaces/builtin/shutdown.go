@@ -60,6 +60,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "shutdown",
 		summary:               shutdownSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -31,6 +31,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-audit",
 		summary:              netlinkAuditSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
 		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
 		reservedForOS:        true,
 	})

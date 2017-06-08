@@ -145,7 +145,7 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
-	snap.AddImplicitSlots(snapInfo)
+	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
 		ts.Set("slot-attrs", slot.Attrs)
 	} else {
@@ -174,8 +174,8 @@ func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) 
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
-	// XXX: AddImplicitSlots is really a brittle interface
-	snap.AddImplicitSlots(snapInfo)
+	// XXX: addImplicitSlots is really a brittle interface
+	addImplicitSlots(snapInfo)
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, so skip interface checks
