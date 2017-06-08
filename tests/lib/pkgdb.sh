@@ -243,14 +243,12 @@ distro_install_build_snapd(){
 
         distro_install_local_package $packages
 
-        # Perform per distribution post-installation steps if necessary
-        case "$SPREAD_SYSTEM" in
-            opensuse-*)
-                sudo systemctl enable --now snapd.socket
-                ;;
-            *)
-                ;;
-        esac
+        # On some distributions the snapd.socket is not yet automatically
+        # enabled as we don't have a systemd present configuration approved
+        # by the distribution for it in place yet.
+        if ! systemctl is-enabled snapd.socket ; then
+            sudo systemctl enable --now snapd.socket
+        fi
     fi
 }
 
