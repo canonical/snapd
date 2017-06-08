@@ -60,6 +60,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "opengl",
 		summary:               openglSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -36,6 +36,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "libvirt",
 		summary:               libvirtSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
