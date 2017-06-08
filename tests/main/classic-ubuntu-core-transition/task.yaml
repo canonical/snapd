@@ -11,6 +11,8 @@ restore: |
     rm -f state.json.new
 
 execute: |
+    . "$TESTSLIB/pkgdb.sh"
+
     wait_for_service() {
         local service_name="$1"
         local state="${2:-active}"
@@ -29,8 +31,7 @@ execute: |
 
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge --force-depends snapd
-    apt-get install -f -y
+    distro_purge_package snapd
     distro_install_build_snapd
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the

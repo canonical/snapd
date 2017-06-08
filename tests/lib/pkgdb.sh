@@ -14,6 +14,17 @@ debian_name_package() {
     esac
 }
 
+ubuntu_14_04_name_package() {
+    case "$1" in
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        *)
+            debian_name_package "$1"
+            ;;
+    esac
+}
+
 fedora_name_package() {
     case "$1" in
         xdelta3|jq|curl|python3-yaml)
@@ -33,6 +44,15 @@ fedora_name_package() {
 
 opensuse_name_package() {
     case "$1" in
+        python3-yaml)
+            echo "python3-PyYAML"
+            ;;
+        dbus-x11)
+            echo "dbus-1-x11"
+            ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
         *)
             echo $1
             ;;
@@ -41,6 +61,9 @@ opensuse_name_package() {
 
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            ubuntu_14_04_name_package "$1"
+            ;;
         ubuntu-*|debian-*)
             debian_name_package "$1"
             ;;
