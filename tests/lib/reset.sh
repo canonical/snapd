@@ -4,6 +4,9 @@ set -e -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
+# shellcheck source=tests/lib/config.sh
+. "$TESTSLIB/config.sh"
+
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
@@ -43,6 +46,11 @@ reset_classic() {
 
     rm -rf /root/.snap/gnupg
     rm -f /tmp/core* /tmp/ubuntu-core*
+
+    # Purge all the config files for the service units
+    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
+    create_snapd_config_classic
 
     if [ "$1" = "--reuse-core" ]; then
         tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
