@@ -230,8 +230,11 @@ distro_install_build_snapd(){
             ubuntu-*|debian-*)
                 packages="${GOHOME}/snapd_*.deb"
                 ;;
-            fedora-*|opensuse-*)
+            fedora-*)
                 packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                ;;
+            opensuse-*)
+                packages="${GOHOME}/snapd*.rpm"
                 ;;
             *)
                 exit 1
