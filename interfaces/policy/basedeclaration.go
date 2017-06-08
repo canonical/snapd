@@ -674,25 +674,25 @@ func ComposeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
 	// Trim newlines at the end of the string. All the elements may have
 	// spurious trailing newlines. All elements start with a leading newline.
 	// We don't want any blanks as that would no longer parse.
-	tr := func(s string) string { return strings.TrimRight(s, "\n") }
-	if _, err := buf.WriteString(tr(baseDeclarationHeader)); err != nil {
+	trimTrailingNewline := func(s string) string { return strings.TrimRight(s, "\n") }
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationHeader)); err != nil {
 		return nil, err
 	}
-	if _, err := buf.WriteString(tr(baseDeclarationPlugs)); err != nil {
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationPlugs)); err != nil {
 		return nil, err
 	}
 	for _, iface := range ifaces {
 		plugPolicy := interfaces.IfaceMetaData(iface).BaseDeclarationPlugs
-		if _, err := buf.WriteString(tr(plugPolicy)); err != nil {
+		if _, err := buf.WriteString(trimTrailingNewline(plugPolicy)); err != nil {
 			return nil, err
 		}
 	}
-	if _, err := buf.WriteString(tr(baseDeclarationSlots)); err != nil {
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationSlots)); err != nil {
 		return nil, err
 	}
 	for _, iface := range ifaces {
 		slotPolicy := interfaces.IfaceMetaData(iface).BaseDeclarationSlots
-		if _, err := buf.WriteString(tr(slotPolicy)); err != nil {
+		if _, err := buf.WriteString(trimTrailingNewline(slotPolicy)); err != nil {
 			return nil, err
 		}
 	}
