@@ -20,6 +20,7 @@
 package seccomp_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -175,6 +176,19 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
+}
+
+func (s *backendSuite) TestRealCanResolveS(c *C) {
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	restore := seccomp.MockTemplate([]byte("quotactl Q_GETQUOTA - - -\n"))
+	defer restore()
+
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, fmt.Sprintf("%d 8388615 - - -\n", seccomp.SeccompSymbolTable["quotactl"]))
 }
 
 type combineSnippetsScenario struct {

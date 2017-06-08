@@ -36,6 +36,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -124,6 +126,12 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 	if opts.DevMode && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
+	}
+
+	for sym, val := range seccompSymbolTable {
+		// FIXME: resolve this only once
+		defaultTemplate = bytes.Replace(defaultTemplate, []byte(sym), []byte(strconv.Itoa(val)), -1)
+		snippetForTag = strings.Replace(snippetForTag, sym, strconv.Itoa(val), -1)
 	}
 
 	buffer.Write(defaultTemplate)
