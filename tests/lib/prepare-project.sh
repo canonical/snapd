@@ -44,62 +44,67 @@ build_deb(){
     cp ../*.deb "$GOHOME"
 }
 
-fedora_build_rpm() {
+build_rpm() {
+    distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
     arch=x86_64
-
     base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
     version="1337.$base_version"
-    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-$release/snapd.spec
+    packaging_path=packaging/$distro-$release
+    archive_name=snapd-$version.tar.gz
+    archive_compression=z
+    extra_tar_args=
+    rpm_dir=
 
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            extra_tar_args="$extra_tar_args --exclude=vendor/"
+            rpm_dir=$HOME/rpmbuild
+            ;;
+        opensuse-*)
+            rpm_dir=/usr/src/packages
+            archive_name=snapd_$version.vendor.tar.xz
+            archive_compression=J
+            ;;
+        *)
+            echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
+            exit 1
+    esac
+
+    sed -i -e "s/^Version:.*$/Version: $version/g" $packaging_path/snapd.spec
+
+    # Create a source tarball for the current snapd sources
     mkdir -p /tmp/pkg/snapd-$version
     cp -rav * /tmp/pkg/snapd-$version/
+    mkdir -p $rpm_dir/SOURCES
+    (cd /tmp/pkg; tar c${archive_compression}f $rpm_dir/SOURCES/$archive_name snapd-$version $extra_tar_args)
+    cp $packaging_path/* $rpm_dir/SOURCES/
 
-    mkdir -p $HOME/rpmbuild/SOURCES
-    (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
-
-    cp packaging/fedora-$release/* $HOME/rpmbuild/SOURCES/
-
-    rpmbuild -bs packaging/fedora-$release/snapd.spec
-    mock -v /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
-    cp /var/lib/mock/fedora-$release-$arch/result/*.rpm $GOPATH
-    rm $GOPATH/*.src.rpm
-}
-
-opensuse_build_rpm() {
-    release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    arch=x86_64
-
-    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
-    version="1337.$base_version"
-    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/opensuse-$release/snapd.spec
-
-    mkdir -p /tmp/pkg/snapd-$version
-    cp -rav * /tmp/pkg/snapd-$version/
-
-    rm -rf /usr/src/packages/BUILD/* /usr/src/packages/SOURCES/*
-
-    mkdir -p /usr/src/packages/SOURCES/
-    (cd /tmp/pkg; tar cJf /usr/src/packages/SOURCES/snapd_$version.vendor.tar.xz snapd-$version)
-    cp packaging/opensuse-$release/* /usr/src/packages/SOURCES
+    # Cleanup all artifacts from previous builds
+    rm -rf $rpm_dir/BUILD/*
 
     # Install all necessary build dependencies
-    rpmbuild --nocheck -bs packaging/opensuse-$release/snapd.spec
+    rpmbuild --with testkeys --nocheck -bs $packaging_path/snapd.spec
     deps=()
     n=0
     IFS=$'\n'
-    for dep in $(rpm -qpR /usr/src/packages/SRPMS/snapd-1337.*.src.rpm); do
+    for dep in $(rpm -qpR $rpm_dir/SRPMS/snapd-1337.*.src.rpm); do
       if [[ "$dep" = rpmlib* ]]; then
          continue
       fi
       deps[$n]=$dep
       n=$((n+1))
     done
-    zypper -q install -y "${deps[@]}"
+    distro_install_package "${deps[@]}"
 
     # And now build our package
-    rpmbuild --nocheck -ba packaging/opensuse-$release/snapd.spec
-    cp /usr/src/packages/RPMS/$arch/snapd*.rpm $GOPATH
+    rpmbuild \
+      --with testkeys \
+      --nocheck \
+      -ba \
+      $packaging_path/snapd.spec
+
+    cp $rpm_dir/RPMS/$arch/snapd*.rpm $GOPATH
 }
 
 download_from_published(){
@@ -220,11 +225,8 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
       ubuntu-*|debian-*)
          build_deb
          ;;
-      fedora-*)
-         fedora_build_rpm
-         ;;
-      opensuse-*)
-         opensuse_build_rpm
+      fedora-*|opensuse-*)
+         build_rpm
          ;;
       *)
          echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
