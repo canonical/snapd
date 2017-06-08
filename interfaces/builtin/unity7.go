@@ -195,9 +195,9 @@ owner @{HOME}/.local/share/mime/**   r,
 owner @{HOME}/.config/user-dirs.dirs r,
 
 # gtk settings
-owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini w,
-owner @{HOME}/.config/gtk-3.0/bookmarks w,
-owner @{HOME}/.config/gtk-3.0/settings.ini w,
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
 
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
