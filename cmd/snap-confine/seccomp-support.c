@@ -95,7 +95,7 @@ struct sc_map_list {
 	int count;
 };
 
-static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
+static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles-v2/";
 static struct hsearch_data sc_map_htab;
 static struct sc_map_list sc_map_entries;
 
