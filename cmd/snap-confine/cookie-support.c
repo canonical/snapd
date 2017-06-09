@@ -40,6 +40,7 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 {
 	char context_path[PATH_MAX];
 	struct sc_error *err = NULL;
+	char *context = NULL;
 
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
 			 sc_cookie_dir, snap_name);
@@ -50,8 +51,7 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "cannot open cookie file %s, SNAP_COOKIE will not be set",
 				  context_path);
-		sc_error_forward(errorp, err);
-		return NULL;
+		goto out;
 	}
 
 	char context_val[255];
@@ -61,9 +61,14 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		    sc_error_init(SC_ERRNO_DOMAIN, 0,
 				  "failed to read cookie file %s",
 				  context_path);
-		sc_error_forward(errorp, err);
-		return NULL;
+		goto out;
 	}
-	context_val[n] = 0;
-	return strdup(context_val);
+	context = strndup(context_val, n);
+	if (context == NULL) {
+		die("cannot duplicate snap cookie value");
+	}
+
+ out:
+	sc_error_forward(errorp, err);
+	return context;
 }
