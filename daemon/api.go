@@ -425,8 +425,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	var macaroon string
 	var discharges []string
-	for _, field := range strings.Split(authorizationData[1], ",") {
-		field := strings.TrimSpace(field)
+	for _, field := range splitQS(authorizationData[1]) {
 		if strings.HasPrefix(field, `root="`) {
 			macaroon = strings.TrimSuffix(field[6:], `"`)
 		}
@@ -452,7 +451,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find %q snap", name)
+			return SnapNotFound(err)
 		}
 
 		return InternalError("%v", err)
@@ -604,7 +603,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
 		if err == store.ErrSnapNotFound {
-			return NotFound(err.Error())
+			return SnapNotFound(err)
 		}
 		return InternalError("%v", err)
 	}
@@ -708,13 +707,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	var wanted map[string]bool
 	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := strings.Split(ns, ",")
+		nsl := splitQS(ns)
 		wanted = make(map[string]bool, len(nsl))
 		for _, name := range nsl {
-			name = strings.TrimSpace(name)
-			if len(name) > 0 {
-				wanted[name] = true
-			}
+			wanted[name] = true
 		}
 	}
 
@@ -1101,28 +1097,35 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	result := &errorResult{Message: err.Error()}
+	var kind errorKind
 
-	switch err := err.(type) {
-	case *snap.AlreadyInstalledError:
-		result.Kind = errorKindSnapAlreadyInstalled
-	case *snap.NotInstalledError:
-		result.Kind = errorKindSnapNotInstalled
-	case *snap.NoUpdateAvailableError:
-		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.SnapNeedsDevModeError:
-		result.Kind = errorKindSnapNeedsDevMode
-	case *snapstate.SnapNeedsClassicError:
-		result.Kind = errorKindSnapNeedsClassic
-	case *snapstate.SnapNeedsClassicSystemError:
-		result.Kind = errorKindSnapNeedsClassicSystem
+	switch err {
+	case store.ErrSnapNotFound:
+		return SnapNotFound(err)
+	case store.ErrNoUpdateAvailable:
+		kind = errorKindSnapNoUpdateAvailable
+	case store.ErrLocalSnap:
+		kind = errorKindSnapLocal
 	default:
-		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		switch err := err.(type) {
+		case *snap.AlreadyInstalledError:
+			kind = errorKindSnapAlreadyInstalled
+		case *snap.NotInstalledError:
+			kind = errorKindSnapNotInstalled
+		case *snapstate.SnapNeedsDevModeError:
+			kind = errorKindSnapNeedsDevMode
+		case *snapstate.SnapNeedsClassicError:
+			kind = errorKindSnapNeedsClassic
+		case *snapstate.SnapNeedsClassicSystemError:
+			kind = errorKindSnapNeedsClassicSystem
+		default:
+			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		}
 	}
 
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
-		Result: result,
+		Result: &errorResult{Message: err.Error(), Kind: kind},
 		Status: http.StatusBadRequest,
 	}, nil)
 }
@@ -1478,7 +1481,7 @@ func iconGet(st *state.State, name string) Response {
 	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find snap %q", name)
+			return SnapNotFound(err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1499,11 +1502,24 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
+func splitQS(qs string) []string {
+	qsl := strings.Split(qs, ",")
+	split := make([]string, 0, len(qsl))
+	for _, elem := range qsl {
+		elem = strings.TrimSpace(elem)
+		if len(elem) > 0 {
+			split = append(split, elem)
+		}
+	}
+
+	return split
+}
+
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := vars["name"]
 
-	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	keys := splitQS(r.URL.Query().Get("keys"))
 	if len(keys) == 0 {
 		return BadRequest("cannot obtain configuration: no keys supplied")
 	}
@@ -1517,7 +1533,11 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
-			return BadRequest("%s", err)
+			if config.IsNoOption(err) {
+				return BadRequest("%v", err)
+			} else {
+				return InternalError("%v", err)
+			}
 		}
 
 		currentConfValues[key] = value
@@ -1541,10 +1561,12 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err == state.ErrNoState {
-		return NotFound("cannot find %q snap", snapName)
-	} else if err != nil {
-		return InternalError("%v", err)
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		if err == state.ErrNoState {
+			return SnapNotFound(err)
+		} else {
+			return InternalError("%v", err)
+		}
 	}
 
 	taskset := configstate.Configure(st, snapName, patchValues, 0)

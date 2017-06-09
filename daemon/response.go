@@ -128,6 +128,8 @@ const (
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
@@ -247,3 +249,14 @@ var (
 	Forbidden      = makeErrorResponder(http.StatusForbidden)
 	Conflict       = makeErrorResponder(http.StatusConflict)
 )
+
+func SnapNotFound(err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapNotFound,
+		},
+		Status: 404,
+	}
+}
