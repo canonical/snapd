@@ -33,12 +33,13 @@
 #include "mount-support.h"
 #include "ns-support.h"
 #include "quirks.h"
+#include "udev-support.h"
+#include "user-support.h"
+#include "cookie-support.h"
+#include "snap-confine-args.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
-#include "udev-support.h"
-#include "user-support.h"
-#include "snap-confine-args.h"
 
 int main(int argc, char **argv)
 {
@@ -87,6 +88,18 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 #endif
+
+	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
+	if (!sc_is_hook_security_tag(security_tag)) {
+		struct sc_error *err
+		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
+		if (err != NULL) {
+			error("%s", sc_error_msg(err));
+		}
+	}
+
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
 	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
@@ -204,13 +217,16 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
-
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
-
+	if (snap_context != NULL) {
+		setenv("SNAP_COOKIE", snap_context, 1);
+		// for compatibility, if facing older snapd.
+		setenv("SNAP_CONTEXT", snap_context, 1);
+	}
 	// Permanently drop if not root
 	if (geteuid() == 0) {
 		// Note that we do not call setgroups() here because its ok
