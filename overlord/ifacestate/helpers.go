@@ -56,7 +56,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.generateProfileDigestFile(); err != nil {
+	if err := m.generateSystemKeyFile(); err != nil {
 		return err
 	}
 	if err := m.regenerateAllSecurityProfiles(); err != nil {
@@ -65,9 +65,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	return nil
 }
 
-func (m *InterfaceManager) generateProfileDigestFile() error {
-	pd := interfaces.ProfileDigest()
-	return osutil.AtomicWriteFile(dirs.SnapProfileDigestFile, []byte(pd), 0644, 0)
+func (m *InterfaceManager) generateSystemKeyFile() error {
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {

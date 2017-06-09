@@ -72,7 +72,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapProfileDigestFile), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
 
 	state := state.New(nil)
 	s.state = state

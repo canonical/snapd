@@ -19,7 +19,6 @@
 
 package interfaces
 
-func AddMockProfileDigestInputs(s string) {
-	profileDigestInputs = append(profileDigestInputs, s)
+func AddMockSystemKeyInputs(s string) {
+	systemKeyInputs = append(systemKeyInputs, s)
 }
-

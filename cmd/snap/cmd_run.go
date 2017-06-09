@@ -133,12 +133,12 @@ func (x *cmdRun) Execute(args []string) error {
 
 	// check if the security profiles digest has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	raw, err := ioutil.ReadFile(dirs.SnapProfileDigestFile)
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	profileDigest := string(raw)
-	if profileDigest != "" && profileDigest != interfaces.ProfileDigest() {
+	systemKey := string(raw)
+	if systemKey != "" && systemKey != interfaces.SystemKey() {
 		if err := waitForSnapdActivation(); err != nil {
 			return err
 		}

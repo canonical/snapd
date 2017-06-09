@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,24 @@
  *
  */
 
-package interfaces_test
+package interfaces
 
 import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/interfaces"
+	"crypto/md5"
+	"encoding/hex"
 )
 
-type InterfacesDigestSuite struct{}
+var systemKeyInputs = []string{"seccomp: v2", "apparmor: v1"}
 
-var _ = Suite(&InterfacesDigestSuite{})
+// SystemKey outputs a digest that uniquely identifies what security
+// profiles this snapd understands. Everytime there is an incompatible
+// change in any of snapds format this digest will change. Later more
+// inputs (like what kernel version etc) may be added.
+func SystemKey() string {
+	h := md5.New()
+	for _, s := range systemKeyInputs {
+		h.Write([]byte(s))
+	}
 
-func (ts *InterfacesDigestSuite) TestInterfaceDigest(c *C) {
-	ifDigest := interfaces.ProfileDigest()
-	c.Check(ifDigest, Equals, "aa08232bae087e737ce088e447481e4c")
-
-	interfaces.AddMockProfileDigestInputs("kernel: 4.42")
-	c.Check(interfaces.ProfileDigest(), Not(Equals), ifDigest)
+	return hex.EncodeToString(h.Sum(nil))
 }
-
