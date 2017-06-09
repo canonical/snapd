@@ -26,14 +26,12 @@ const greengrassSupportConnectedPlugAppArmor = `
 # interface is restricted because it gives wide ranging access to the host and
 # other processes.
 
-# 0.8 needed this, but not 0.9
-#capability net_admin,
-
 # greengrassd uses 'prctl(PR_CAPBSET_DROP, ...)'
 capability setpcap,
 
-# manage children
+# Allow managing child processes (signals, OOM, ptrace, cgroups)
 capability kill,
+
 capability sys_resource,
 /sys/kernel/mm/hugepages/ r,
 owner @{PROC}/[0-9]*/oom_score_adj rw,
@@ -59,19 +57,20 @@ capability fsetid,
 capability setuid,
 capability setgid,
 
-# Note: if could match on ggc_user instead of just 'owner', this could be
-# refined
+# Note: when AppArmor supports fine-grained owner matching, can match on
+# ggc_user (LP: #1697090)
 @{PROC}/[0-9]*/uid_map r,
 @{PROC}/[0-9]*/gid_map r,
 @{PROC}/[0-9]*/environ r,
 owner @{PROC}/[0-9]*/uid_map w,
 owner @{PROC}/[0-9]*/gid_map w,
 
+# Allow greengrassd to read restricted non-root directories (LP: #1697090)
 capability dac_read_search,
 
 # overlayfs
 capability sys_admin,
-capability dac_override,  # various overlayfs accesses
+capability dac_override,  # for various overlayfs accesses
 
 owner @{PROC}/[0-9]*/mountinfo r,
 @{PROC}/filesystems r,
@@ -126,7 +125,7 @@ umount /var/snap/@{SNAP_NAME}/**,
 /run/mount/utab rw,
 /bin/umount ixr,
 
-# post pivot_root lambda execution accesses (can we use apparmor aliases?)
+# For lambda functions, post pivot_root lambda execution accesses
 /certs/ r,
 /certs/** r,
 /group/ r,
@@ -137,6 +136,7 @@ umount /var/snap/@{SNAP_NAME}/**,
 # Ideally we would use a child profile for these but NNP blocks that since
 # the greengrass sandbox is using prctl(PR_SET_NO_NEW_PRIVS, ...) which blocks
 # profile transitions. As such, must simply rely on the greengrass sandbox.
+# (LP: #1696552, LP: #1696551)
 /lambda/ r,
 /lambda/** ixr,
 `
