@@ -172,6 +172,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "greengrass-support",
 		summary:               greengrassSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:         true,
