@@ -39,7 +39,6 @@ type systemKey struct {
 var mySystemKey systemKey
 
 func init() {
-	// add build-id
 	buildID, err := osutil.MyBuildID()
 	if err != nil {
 		buildID = "unknown"
