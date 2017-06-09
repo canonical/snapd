@@ -27,6 +27,7 @@ import (
 	"time"
 )
 
+// HookManager is responsible for the maintenance of hooks in the system state.
 type HookManager interface {
 	Register(pattern *regexp.Regexp, generator HandlerGenerator)
 	Ensure() error
@@ -47,6 +48,7 @@ type HookSetup struct {
 	TrackError  bool          `json:"track-error,omitempty"`
 }
 
+// Context represents the context under which a given hook is running.
 type Context interface {
 	SnapName() string
 	SnapRevision() snap.Revision
