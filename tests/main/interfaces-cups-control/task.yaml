@@ -25,7 +25,7 @@ prepare: |
 
     echo "And the pdf printer is available"
     . "$TESTSLIB/pkgdb.sh"
-    distro_install_package cups printer-driver-cups-pdf
+    distro_install_package --no-install-recommends cups printer-driver-cups-pdf
 
     # Not all distributions are starting the cups service directly after
     # the package was installed.

@@ -18,7 +18,7 @@ prepare: |
     . "$TESTSLIB/pkgdb.sh"
 
     echo "Given openvswitch is installed"
-    distro_install_package openvswitch-switch
+    distro_install_package --no-install-recommends openvswitch-switch
 
     # Ensure the openvswitch service is started which isn't the case by
     # default on all distributions

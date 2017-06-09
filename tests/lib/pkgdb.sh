@@ -121,6 +121,22 @@ distro_install_local_package() {
 }
 
 distro_install_package() {
+    # Parse additional arguments; once we find the first unknown
+    # part we break argument parsing and process all further
+    # arguments as package names.
+    APT_FLAGS=
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                APT_FLAGS="$APT_FLAGS --no-install-recommends"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
     for pkg in "$@" ; do
         package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
@@ -131,7 +147,7 @@ distro_install_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                quiet apt-get install -y "$package_name"
+                quiet apt-get install -y "$APT_FLAGS" "$package_name"
                 ;;
             fedora-*)
                 dnf -q -y install -y $package_name
