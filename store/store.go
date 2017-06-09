@@ -1205,7 +1205,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 
 	rsnap := latest[0]
 	if !acceptableUpdate(rsnap, installed) {
-		return nil, &snap.NoUpdateAvailableError{Snap: rsnap.Name}
+		return nil, ErrNoUpdateAvailable
 	}
 
 	return infoFromRemote(rsnap), nil
