@@ -99,3 +99,12 @@ func ReadBuildID(fname string) (string, error) {
 	}
 	return "", ErrNoBuildID
 }
+
+func MyBuildID() (string, error) {
+	exe, err := os.Readlink("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+
+	return ReadBuildID(exe)
+}
