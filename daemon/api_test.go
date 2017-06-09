@@ -2295,12 +2295,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	return chg.Summary()
 }
 
-func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+func (s *apiSuite) runGetConf(c *check.C, keys []string, statusCode int) map[string]interface{} {
 	s.vars = map[string]string{"name": "test-snap"}
 	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, statusCode)
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -2319,11 +2320,27 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 	tr.Commit()
 	d.overlord.State().Unlock()
 
-	result := s.runGetConf(c, []string{"test-key1"})
+	result := s.runGetConf(c, []string{"test-key1"}, 200)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
 
-	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"}, 200)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+}
+
+func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
+	result := s.runGetConf(c, []string{"test-key2"}, 400)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+}
+
+func (s *apiSuite) TestGetConfNoKey(c *check.C) {
+	result := s.runGetConf(c, nil, 400)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": "cannot obtain configuration: no keys supplied"})
+}
+
+func (s *apiSuite) TestGetConfBadKey(c *check.C) {
+	// TODO: this one in particular should really be a 400 also
+	result := s.runGetConf(c, []string{"."}, 500)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `invalid option name: ""`})
 }
 
 func (s *apiSuite) TestSetConf(c *check.C) {
@@ -2352,7 +2369,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
 
 	st := d.overlord.State()
@@ -2372,6 +2389,41 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
+}
+
+func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
+	d := s.daemon(c)
+
+	// Mock the hook runner
+	hookRunner := testutil.MockCommand(c, "snap", "")
+	defer hookRunner.Restore()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 404.,
+		"status":      "Not Found",
+		"result": map[string]interface{}{
+			"message": "no state entry for key",
+			"kind":    "snap-not-found"},
+		"type": "error"})
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -5408,6 +5460,14 @@ func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Unaliased, check.Equals, true)
+}
+
+func (s *apiSuite) TestSplitQS(c *check.C) {
+	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS(""), check.HasLen, 0)
+	c.Check(splitQS(","), check.HasLen, 0)
 }
 
 var _ = check.Suite(&postDebugSuite{})

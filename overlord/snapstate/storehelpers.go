@@ -20,8 +20,6 @@
 package snapstate
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -46,7 +44,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) 
 	}
 
 	if curInfo.SnapID == "" { // covers also trymode
-		return nil, fmt.Errorf("cannot refresh local snap %q", curInfo.Name())
+		return nil, store.ErrLocalSnap
 	}
 
 	refreshCand := &store.RefreshCandidate{
