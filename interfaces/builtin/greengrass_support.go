@@ -42,9 +42,10 @@ capability sys_ptrace,
 ptrace (trace) peer=@{profile_name},
 
 owner @{PROC}/[0-9]*/cgroup r,
-owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus r,
-owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems r,
-owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/** rw,
+owner /sys/fs/cgroup/*/{,system.slice/} rw,
+owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus rw,
+owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems rw,
+owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/{,**} rw,
 # for running under snap run --shell
 owner /sys/fs/cgroup/*/user.slice/ rw,
 owner /sys/fs/cgroup/cpuset/user.slice/cpuset.cpus rw,
