@@ -92,6 +92,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "system-observe",
 		summary:               systemObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,

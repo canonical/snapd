@@ -117,6 +117,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "avahi-observe",
 		summary:               avahiObserveSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

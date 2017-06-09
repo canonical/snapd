@@ -76,6 +76,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "timeserver-control",
 		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

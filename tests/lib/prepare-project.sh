@@ -1,14 +1,26 @@
 #!/bin/bash
 
+. "$TESTSLIB/quiet.sh"
+
 create_test_user(){
    if ! id test >& /dev/null; then
-        # manually setting the UID and GID to 12345 because we need to
-        # know the numbers match for when we set up the user inside
-        # the all-snap, which has its own user & group database.
-        # Nothing special about 12345 beyond it being high enough it's
-        # unlikely to ever clash with anything, and easy to remember.
-        addgroup --quiet --gid 12345 test
-        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+        quiet groupadd --gid 12345 test
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*)
+                # manually setting the UID and GID to 12345 because we need to
+                # know the numbers match for when we set up the user inside
+                # the all-snap, which has its own user & group database.
+                # Nothing special about 12345 beyond it being high enough it's
+                # unlikely to ever clash with anything, and easy to remember.
+                quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
+                ;;
+            debian-*|fedora-*)
+                quiet useradd -m --uid 12345 --gid 12345 test
+                ;;
+            *)
+                echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
+                exit 1
+        esac
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -30,6 +42,28 @@ build_deb(){
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+}
+
+fedora_build_rpm() {
+    release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    arch=x86_64
+
+    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    version="1337.$base_version"
+    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/fedora-$release/snapd.spec
+
+    mkdir -p /tmp/pkg/snapd-$version
+    cp -rav * /tmp/pkg/snapd-$version/
+
+    mkdir -p $HOME/rpmbuild/SOURCES
+    (cd /tmp/pkg; tar czf $HOME/rpmbuild/SOURCES/snapd-$version.tar.gz snapd-$version --exclude=vendor/)
+
+    cp packaging/fedora-$release/* $HOME/rpmbuild/SOURCES/
+
+    rpmbuild -bs packaging/fedora-$release/snapd.spec
+    mock -v /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
+    cp /var/lib/mock/fedora-$release-$arch/result/*.rpm $GOPATH
+    rm $GOPATH/*.src.rpm
 }
 
 download_from_published(){
@@ -136,19 +170,28 @@ case "$SPREAD_SYSTEM" in
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
         ;;
-    *)
-        ;;
 esac
 
 # update vendoring
-if [ "$(which govendor)" = "" ]; then
-    rm -rf "$GOHOME/src/github.com/kardianos/govendor"
+if [ -z "$(which govendor)" ]; then
+    rm -rf $GOPATH/src/github.com/kardianos/govendor
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
 
 if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
-    build_deb
+    case "$SPREAD_SYSTEM" in
+      ubuntu-*|debian-*)
+         build_deb
+         ;;
+      fedora-*)
+         fedora_build_rpm
+         ;;
+      *)
+         echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
+         exit 1
+         ;;
+   esac
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"

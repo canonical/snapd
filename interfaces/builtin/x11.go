@@ -50,6 +50,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "x11",
 		summary:               x11Summary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,

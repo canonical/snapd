@@ -52,6 +52,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "process-control",
 		summary:               processControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,

@@ -5,6 +5,9 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 prepare: |
     "$TESTSLIB"/mkpinentry.sh
 
+debug: |
+    sysctl kernel.random.entropy_avail || true
+
 execute: |
     echo "Checking passphrase mismatch error"
     expect -d -f passphrase_mismatch.exp

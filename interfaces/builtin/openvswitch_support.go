@@ -27,6 +27,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                     "openvswitch-support",
 		summary:                  openvswitchSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
 		reservedForOS:            true,
 	})

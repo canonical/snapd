@@ -33,6 +33,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "removable-media",
 		summary:               removableMediaSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
