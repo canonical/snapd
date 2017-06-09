@@ -119,25 +119,7 @@ prepare_classic() {
         exit 1
     fi
 
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
-        # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
-        START_LIMIT_INTERVAL=""
-    fi
-
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-EOF
+    create_snapd_config_classic
 
     # We change the service configuration so reload and restart
     # the snapd socket unit to get them applied
@@ -192,7 +174,7 @@ EOF
         for unit in $services $mounts; do
             systemctl stop "$unit"
         done
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/environment
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -454,4 +436,37 @@ prepare_all_snap() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+create_snapd_config_classic() {
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
+    fi
+
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+EOF
+}
+
+restore_each_classic() {
+    # Restore the environment for each service unit
+    systemctl daemon-reload
+    systemctl stop snapd.service snapd.socket
+    find /etc/systemd/system/snapd.service.d -name "*.conf" -delete
+    find /etc/systemd/system/snapd.socket.d -name "*.conf" -delete
+    create_snapd_config_classic
+    systemctl daemon-reload
+    systemctl start snapd.service snapd.socket
 }
