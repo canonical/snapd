@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
 		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
-			error("cannot get cookie: %s", sc_error_msg(err));
+			error("%s", sc_error_msg(err));
 		}
 	}
 
