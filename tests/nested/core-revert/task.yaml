@@ -38,6 +38,7 @@ execute: |
 
     cd $SPREAD_PATH
     execute_remote "sudo snap install network-manager"
+    execute_remote "sudo snap install bluez"
     execute_remote "snap aliases" | MATCH "nmcli"
 
     # configure network-manager to take over the connection control on next reboot
@@ -67,5 +68,6 @@ execute: |
     execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
+    execute_remote "sudo bluez.bluetoothctl -a"
     # this currently fails, refresh from the old version conflicts with aliases
     # execute_remote "sudo snap refresh"
