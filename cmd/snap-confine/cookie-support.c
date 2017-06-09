@@ -23,6 +23,7 @@
 
 #include "config.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/types.h>
@@ -48,19 +49,19 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		err =
-		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "cannot open cookie file %s, SNAP_COOKIE will not be set",
-				  context_path);
+		    sc_error_init_from_errno(errno,
+					     "cannot open cookie file %s",
+					     context_path);
 		goto out;
 	}
-
+	// large enough buffer for opaque cookie string
 	char context_val[255];
-	int n = read(fd, context_val, sizeof(context_val) - 1);
+	ssize_t n = read(fd, context_val, sizeof(context_val) - 1);
 	if (n < 0) {
 		err =
-		    sc_error_init(SC_ERRNO_DOMAIN, 0,
-				  "failed to read cookie file %s",
-				  context_path);
+		    sc_error_init_from_errno(errno,
+					     "cannot read cookie file %s",
+					     context_path);
 		goto out;
 	}
 	context = strndup(context_val, n);
