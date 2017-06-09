@@ -67,3 +67,16 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features:%s`, s.buildID, apparmorFeaturesStr))
 }
+
+func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
+	restore := interfaces.MockSystemKey(`build-id: 7a94e9736c091b3984bd63f5aebfc883c4d859e0
+apparmor-features:
+- caps
+- dbus
+`)
+	defer restore()
+
+	systemKey := interfaces.SystemKey()
+	c.Check(systemKey, Matches, "(?sm)^build-id: [a-z0-9]+$")
+	c.Check(systemKey, Matches, "(?sm).*apparmor-features:")
+}
