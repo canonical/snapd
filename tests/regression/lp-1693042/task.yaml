@@ -1,0 +1,14 @@
+summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1693042
+details: |
+  When attempting to refresh to a bogus channel, detect it and fail.
+execute: |
+  # sanity check
+  snap list core
+
+  out=$(! snap refresh core --channel bogus 2>&1- 1>- )
+  revno=$( snap info core | awk '/^installed:/{print $3}' )
+  if [[ "$revno" =~ x[0-9]+ ]]; then
+      MATCH 'error: snap "core" is local' <<< "$out"
+  else
+      MATCH not.found <<< "$out"
+  fi

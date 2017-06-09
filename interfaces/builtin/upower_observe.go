@@ -213,7 +213,8 @@ func (iface *upowerObserveInterface) Name() string {
 
 func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: upowerObserveSummary,
+		Summary:           upowerObserveSummary,
+		ImplicitOnClassic: true,
 	}
 }
 
