@@ -14,7 +14,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*)
+            debian-*|fedora-*|opensuse-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -64,6 +64,42 @@ fedora_build_rpm() {
     mock -v /root/rpmbuild/SRPMS/snapd-$version-*.src.rpm
     cp /var/lib/mock/fedora-$release-$arch/result/*.rpm $GOPATH
     rm $GOPATH/*.src.rpm
+}
+
+opensuse_build_rpm() {
+    release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    arch=x86_64
+
+    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    version="1337.$base_version"
+    sed -i -e "s/^Version:.*$/Version: $version/g" packaging/opensuse-$release/snapd.spec
+
+    mkdir -p /tmp/pkg/snapd-$version
+    cp -rav * /tmp/pkg/snapd-$version/
+
+    rm -rf /usr/src/packages/BUILD/* /usr/src/packages/SOURCES/*
+
+    mkdir -p /usr/src/packages/SOURCES/
+    (cd /tmp/pkg; tar cJf /usr/src/packages/SOURCES/snapd_$version.vendor.tar.xz snapd-$version)
+    cp packaging/opensuse-$release/* /usr/src/packages/SOURCES
+
+    # Install all necessary build dependencies
+    rpmbuild --nocheck -bs packaging/opensuse-$release/snapd.spec
+    deps=()
+    n=0
+    IFS=$'\n'
+    for dep in $(rpm -qpR /usr/src/packages/SRPMS/snapd-1337.*.src.rpm); do
+      if [[ "$dep" = rpmlib* ]]; then
+         continue
+      fi
+      deps[$n]=$dep
+      n=$((n+1))
+    done
+    zypper -q install -y "${deps[@]}"
+
+    # And now build our package
+    rpmbuild --nocheck -ba packaging/opensuse-$release/snapd.spec
+    cp /usr/src/packages/RPMS/$arch/snapd*.rpm $GOPATH
 }
 
 download_from_published(){
@@ -186,6 +222,9 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
          ;;
       fedora-*)
          fedora_build_rpm
+         ;;
+      opensuse-*)
+         opensuse_build_rpm
          ;;
       *)
          echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"

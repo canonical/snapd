@@ -1,5 +1,5 @@
 summary: Check commands help
-systems: [fedora-*]
+systems: [fedora-*, opensuse-*]
 environment:
     CMD/abort: abort
     CMD/changes: changes
