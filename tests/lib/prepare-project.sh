@@ -104,7 +104,7 @@ build_rpm() {
       -ba \
       $packaging_path/snapd.spec
 
-    cp $rpm_dir/RPMS/$arch/snapd*.rpm $GOPATH
+    cp $rpm_dir/RPMS/$arch/snap*.rpm $GOPATH
 }
 
 download_from_published(){
