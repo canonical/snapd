@@ -30,7 +30,13 @@ type systemKeySuite struct{}
 var _ = Suite(&systemKeySuite{})
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
+	interfaces.MockSystemKey(`build-id: 7a94e9736c091b3984bd63f5aebfc883c4d859e0
+apparmor-features:
+- caps
+- dbus
+`)
+
 	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Matches, "(?sm)^build-id: (unknown|[a-z0-9]+)$")
+	c.Check(systemKey, Matches, "(?sm)^build-id: [a-z0-9]+$")
 	c.Check(systemKey, Matches, "(?sm).*apparmor-features:")
 }

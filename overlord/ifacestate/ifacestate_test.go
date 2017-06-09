@@ -2092,6 +2092,9 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
+	restore := interfaces.MockSystemKey("build-id: something")
+	defer restore()
+
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)

@@ -109,7 +109,13 @@ func (m *InterfaceManager) addSnaps() error {
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	currentSystemKey := interfaces.SystemKey()
+	if currentSystemKey == "" {
+		logger.Noticef("no system key, forcing re-generation of security profiles")
+		return true
+	}
+
+	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	if os.IsNotExist(err) {
 		return true
 	}
@@ -118,8 +124,7 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 		return true
 	}
 
-	onDiskSystemKey := string(raw)
-	return onDiskSystemKey != interfaces.SystemKey()
+	return string(onDiskSystemKey) != currentSystemKey
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.

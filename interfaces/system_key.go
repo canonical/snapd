@@ -41,7 +41,7 @@ var mySystemKey systemKey
 func init() {
 	buildID, err := osutil.MyBuildID()
 	if err != nil {
-		buildID = "unknown"
+		buildID = ""
 	}
 	mySystemKey.BuildID = buildID
 
@@ -58,9 +58,24 @@ func init() {
 // environment this snapd is using. Security profiles that were generated
 // with a different Systemkey should be re-generated.
 func SystemKey() string {
+	// special case: unknown build-ids always trigger a rebuild
+	if mySystemKey.BuildID == "" {
+		return ""
+	}
+
 	sk, err := yaml.Marshal(mySystemKey)
 	if err != nil {
 		panic(err)
 	}
 	return string(sk)
+}
+
+func MockSystemKey(s string) func() {
+	realMySystemKey := mySystemKey
+
+	err := yaml.Unmarshal([]byte(s), &mySystemKey)
+	if err != nil {
+		panic(err)
+	}
+	return func() { mySystemKey = realMySystemKey }
 }
