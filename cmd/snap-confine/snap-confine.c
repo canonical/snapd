@@ -60,6 +60,7 @@ int main(int argc, char **argv)
 		die("security tag %s not allowed", security_tag);
 	}
 	const char *executable = sc_args_executable(args);
+	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
 	bool classic_confinement = sc_args_is_classic_confinement(args);
 
 	const char *snap_name = getenv("SNAP_NAME");
@@ -67,11 +68,13 @@ int main(int argc, char **argv)
 		die("SNAP_NAME is not set");
 	}
 	sc_snap_name_validate(snap_name, NULL);
+	sc_snap_name_validate(base_snap_name, NULL);
 
 	debug("security tag: %s", security_tag);
 	debug("executable:   %s", executable);
 	debug("confinement:  %s",
 	      classic_confinement ? "classic" : "non-classic");
+	debug("base snap:    %s", base_snap_name);
 
 	// Who are we?
 	uid_t real_uid = getuid();
@@ -148,7 +151,7 @@ int main(int argc, char **argv)
 			group = sc_open_ns_group(snap_name, 0);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(snap_name);
+				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_close_ns_group(group);

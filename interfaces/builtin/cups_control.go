@@ -32,6 +32,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "cups-control",
 		summary:               cupsControlSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

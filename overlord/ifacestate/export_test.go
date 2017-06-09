@@ -25,6 +25,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+var (
+	AddImplicitSlots = addImplicitSlots
+)
+
 func MockConflictPredicate(pred func(string) bool) (restore func()) {
 	old := noConflictOnConnectTasks
 	noConflictOnConnectTasks = pred

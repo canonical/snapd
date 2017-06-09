@@ -246,7 +246,9 @@ func (iface *browserSupportInterface) Name() string {
 
 func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: browserSupportSummary,
+		Summary:           browserSupportSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 

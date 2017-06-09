@@ -49,7 +49,9 @@ func (iface *lxdSupportInterface) Name() string {
 
 func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: lxdSupportSummary,
+		Summary:           lxdSupportSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 
