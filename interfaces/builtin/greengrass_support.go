@@ -133,10 +133,12 @@ umount /var/snap/@{SNAP_NAME}/**,
 /state/ r,
 /state/sqlite* rwk,
 
-# Ideally we would use a child profile for these but NNP blocks that since
-# the greengrass sandbox is using prctl(PR_SET_NO_NEW_PRIVS, ...) which blocks
-# profile transitions. As such, must simply rely on the greengrass sandbox.
-# (LP: #1696552, LP: #1696551)
+# Ideally we would use a child profile for these but since the greengrass
+# sandbox is using prctl(PR_SET_NO_NEW_PRIVS, ...) we cannot since that blocks
+# profile transitions. With policy stacking we could use a more restrictive
+# child profile, but there are bugs which prevent that at this time
+# (LP: #1696552, LP: #1696551). As such, must simply rely on the greengrass
+# sandbox for now.
 /lambda/ r,
 /lambda/** ixr,
 `
