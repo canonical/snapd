@@ -122,14 +122,7 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 	return onDiskSystemKey != interfaces.SystemKey()
 }
 
-// regenerateAllSecurityProfiles will regenerate the security profiles
-// for apparmor and seccomp. This is needed because:
-// - for seccomp we may have "terms" on disk that the current snap-confine
-//   does not understand (e.g. in a rollback scenario). a refresh ensures
-//   we have a profile that matches what snap-confine understand
-// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
-//   change that breaks existing profiles for installed snaps. With a
-//   refresh those get fixed.
+// regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
@@ -158,13 +151,6 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 		// For each backend:
 		for _, backend := range securityBackends {
-			// The issue this is attempting to fix is only
-			// affecting seccomp/apparmor so limit the work just to
-			// this backend.
-			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
-			if !shouldRefresh {
-				continue
-			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
 				// Let's log this but carry on

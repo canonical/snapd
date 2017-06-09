@@ -118,6 +118,10 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		c.Assert(err, IsNil)
 		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
+
+		// ensure the re-generation of security profiles did not
+		// confuse the tests
+		s.secBackend.SetupCalls = nil
 	}
 	return s.privateMgr
 }
