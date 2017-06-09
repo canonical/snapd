@@ -10,7 +10,7 @@ execute: |
     echo "whoami before login"
     snap whoami | MATCH "email: -"
 
-    if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
         expect -d -f successful_login.exp
 
         echo "whoami after login"
