@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -70,7 +71,7 @@ type Overlord struct {
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
+	hookMgr   hooks.HookManager
 	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 }
@@ -322,7 +323,7 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 
 // HookManager returns the hook manager responsible for running hooks under the
 // overlord.
-func (o *Overlord) HookManager() *hookstate.HookManager {
+func (o *Overlord) HookManager() hooks.HookManager {
 	return o.hookMgr
 }
 

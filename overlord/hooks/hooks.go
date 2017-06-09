@@ -32,6 +32,7 @@ type HookManager interface {
 	Ensure() error
 	Wait()
 	Stop()
+	Context(contextID string) (Context, error)
 }
 
 // HookSetup is a reference to a hook within a specific snap.

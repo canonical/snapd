@@ -26,7 +26,7 @@ import (
 	"io"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -34,7 +34,7 @@ import (
 type baseCommand struct {
 	stdout io.Writer
 	stderr io.Writer
-	c      *hookstate.Context
+	c      hooks.Context
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -57,11 +57,11 @@ func (c *baseCommand) errorf(format string, a ...interface{}) {
 	}
 }
 
-func (c *baseCommand) setContext(context *hookstate.Context) {
+func (c *baseCommand) setContext(context hooks.Context) {
 	c.c = context
 }
 
-func (c *baseCommand) context() *hookstate.Context {
+func (c *baseCommand) context() hooks.Context {
 	return c.c
 }
 
@@ -69,8 +69,8 @@ type command interface {
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
 
-	setContext(context *hookstate.Context)
-	context() *hookstate.Context
+	setContext(context hooks.Context)
+	context() hooks.Context
 
 	Execute(args []string) error
 }
@@ -92,7 +92,7 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 }
 
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+func Run(context hooks.Context, args []string) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.

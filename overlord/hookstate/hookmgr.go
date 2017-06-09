@@ -118,7 +118,7 @@ func (m *HookManager) Stop() {
 }
 
 // Context obtains the context for the given context ID.
-func (m *HookManager) Context(contextID string) (*Context, error) {
+func (m *HookManager) Context(contextID string) (hooks.Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 

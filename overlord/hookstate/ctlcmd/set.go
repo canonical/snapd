@@ -26,7 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 )
 
 type setCommand struct {
@@ -90,7 +90,7 @@ func (s *setCommand) Execute(args []string) error {
 	return s.setInterfaceSetting(context, name)
 }
 
-func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
+func (s *setCommand) setConfigSetting(context hooks.Context) error {
 	context.Lock()
 	tr := configstate.ContextTransaction(context)
 	context.Unlock()
@@ -114,7 +114,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
-func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
+func (s *setCommand) setInterfaceSetting(context hooks.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
 	if hookType != preparePlugHook && hookType != prepareSlotHook {
