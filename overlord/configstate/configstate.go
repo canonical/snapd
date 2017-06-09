@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/i18n/dumb"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -48,7 +48,7 @@ func configureHookTimeout() time.Duration {
 
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
 		Optional:    len(patch) == 0,
@@ -69,6 +69,6 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 	} else {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	}
-	task := hookstate.HookTask(s, summary, hooksup, contextData)
+	task := hooks.HookTask(s, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }

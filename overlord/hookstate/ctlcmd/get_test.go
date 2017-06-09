@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -56,7 +57,7 @@ func (s *getSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
@@ -121,7 +122,7 @@ func (s *getSuite) TestGetTests(c *C) {
 		state.Lock()
 
 		task := state.NewTask("test-task", "my test task")
-		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+		setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 		var err error
 		mockContext, err := hookstate.NewContext(task, setup, mockHandler)
@@ -177,7 +178,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
-	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-plug-aplug"}
+	plugTaskSetup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-plug-aplug"}
 	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugTaskSetup, s.mockHandler)
 	c.Assert(err, IsNil)
 
@@ -192,7 +193,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
-	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-slot-aplug"}
+	slotTaskSetup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-slot-aplug"}
 	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotTaskSetup, s.mockHandler)
 	c.Assert(err, IsNil)
 

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -54,33 +55,6 @@ type HookManager struct {
 	contexts      map[string]*Context
 }
 
-// Handler is the interface a client must satify to handle hooks.
-type Handler interface {
-	// Before is called right before the hook is to be run.
-	Before() error
-
-	// Done is called right after the hook has finished successfully.
-	Done() error
-
-	// Error is called if the hook encounters an error while running.
-	Error(err error) error
-}
-
-// HandlerGenerator is the function signature required to register for hooks.
-type HandlerGenerator func(*Context) Handler
-
-// HookSetup is a reference to a hook within a specific snap.
-type HookSetup struct {
-	Snap     string        `json:"snap"`
-	Revision snap.Revision `json:"revision"`
-	Hook     string        `json:"hook"`
-	Optional bool          `json:"optional,omitempty"`
-
-	Timeout     time.Duration `json:"timeout,omitempty"`
-	IgnoreError bool          `json:"ignore-error,omitempty"`
-	TrackError  bool          `json:"track-error,omitempty"`
-}
-
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -91,7 +65,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		if thisTask.Kind() != "run-hook" {
 			return false
 		}
-		var hooksup HookSetup
+		var hooksup hooks.HookSetup
 		if thisTask.Get("hook-setup", &hooksup) != nil {
 			return false
 		}
@@ -123,7 +97,7 @@ func Manager(s *state.State) (*HookManager, error) {
 
 // Register registers a function to create Handler values whenever hooks
 // matching the provided pattern are run.
-func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
+func (m *HookManager) Register(pattern *regexp.Regexp, generator hooks.HandlerGenerator) {
 	m.repository.addHandlerGenerator(pattern, generator)
 }
 
@@ -156,8 +130,8 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 	return context, nil
 }
 
-func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
-	var hooksup HookSetup
+func hookSetup(task *state.Task) (*hooks.HookSetup, *snapstate.SnapState, error) {
+	var hooksup hooks.HookSetup
 	err := task.Get("hook-setup", &hooksup)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)

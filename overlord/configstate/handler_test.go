@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -42,7 +43,7 @@ func TestConfigState(t *testing.T) { TestingT(t) }
 type configureHandlerSuite struct {
 	state   *state.State
 	context *hookstate.Context
-	handler hookstate.Handler
+	handler hooks.Handler
 }
 
 var _ = Suite(&configureHandlerSuite{})
@@ -53,7 +54,7 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
 	s.context, err = hookstate.NewContext(task, setup, hooktest.NewMockHandler())

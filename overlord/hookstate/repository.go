@@ -22,6 +22,8 @@ package hookstate
 import (
 	"regexp"
 	"sync"
+
+	"github.com/snapcore/snapd/overlord/hooks"
 )
 
 // repository stores all registered handler generators, and generates registered
@@ -35,7 +37,7 @@ type repository struct {
 // regex pattern for what hook name should cause it to be called.
 type patternGeneratorPair struct {
 	pattern   *regexp.Regexp
-	generator HandlerGenerator
+	generator hooks.HandlerGenerator
 }
 
 // NewRepository creates an empty handler generator repository.
@@ -44,7 +46,7 @@ func newRepository() *repository {
 }
 
 // AddHandler adds the provided handler generator to the repository.
-func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator HandlerGenerator) {
+func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator hooks.HandlerGenerator) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -57,9 +59,9 @@ func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator Handl
 // GenerateHandlers calls the handler generators whose patterns match the
 // hook name contained within the provided context, and returns the resulting
 // handlers.
-func (r *repository) generateHandlers(context *Context) []Handler {
+func (r *repository) generateHandlers(context hooks.Context) []hooks.Handler {
 	hookName := context.HookName()
-	var handlers []Handler
+	var handlers []hooks.Handler
 
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()

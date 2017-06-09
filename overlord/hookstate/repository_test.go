@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -36,8 +37,8 @@ var _ = Suite(&repositorySuite{})
 func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	repository := newRepository()
 
-	var calledContext *Context
-	mockHandlerGenerator := func(context *Context) Handler {
+	var calledContext hooks.Context
+	mockHandlerGenerator := func(context hooks.Context) hooks.Handler {
 		calledContext = context
 		return hooktest.NewMockHandler()
 	}
@@ -48,7 +49,7 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	state := state.New(nil)
 	state.Lock()
 	task := state.NewTask("test-task", "my test task")
-	setup := &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 	context := &Context{task: task, setup: setup}
 	state.Unlock()
 
