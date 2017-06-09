@@ -30,9 +30,14 @@ type systemKeySuite struct{}
 var _ = Suite(&systemKeySuite{})
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
-	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Equals, "aa08232bae087e737ce088e447481e4c")
+	restore := interfaces.MockSystemKeyInputs([]string{"build-id: some-build-id"})
+	defer restore()
 
-	interfaces.AddMockSystemKeyInputs("kernel: 4.42")
+	systemKey := interfaces.SystemKey()
+	c.Check(systemKey, Equals, "cbf4ec4c0ce8bf8c971284803a1cd863")
+
+	// check that changing the inputs changes the output
+	restore = interfaces.MockSystemKeyInputs([]string{"build-id: some-build-id", "kernel-apparmor: dbus,file,namespaces"})
+	defer restore()
 	c.Check(interfaces.SystemKey(), Not(Equals), systemKey)
 }

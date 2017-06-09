@@ -19,6 +19,10 @@
 
 package interfaces
 
-func AddMockSystemKeyInputs(s string) {
-	systemKeyInputs = append(systemKeyInputs, s)
+func MockSystemKeyInputs(new []string) func() {
+	oldSystemKeyInputs := systemKeyInputs
+	systemKeyInputs = new
+	return func() {
+		systemKeyInputs = oldSystemKeyInputs
+	}
 }
