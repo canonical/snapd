@@ -4,10 +4,10 @@ set -eux
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
-# shellcheck source=tests/lib/apt.sh
-. "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB/pkgdb.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -98,18 +98,11 @@ EOF
 }
 
 prepare_classic() {
-    install_build_snapd
+    distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                apt-cache policy snapd
-                ;;
-            fedora-*)
-                dnf info snapd
-                ;;
-        esac
+        distro_query_package_info snapd
         exit 1
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
@@ -126,18 +119,30 @@ prepare_classic() {
         exit 1
     fi
 
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
+    fi
+
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 EOF
+
+    # We change the service configuration so reload and restart
+    # the snapd socket unit to get them applied
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -166,7 +171,7 @@ EOF
 
         GRUB_EDITENV=grub-editenv
         case "$SPREAD_SYSTEM" in
-            fedora-*)
+            fedora-*|opensuse-*)
                 GRUB_EDITENV=grub2-editenv
                 ;;
         esac
