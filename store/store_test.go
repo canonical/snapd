@@ -2935,7 +2935,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *
 		Revision: snap.R(1),
 	}, nil)
 	c.Assert(result, IsNil)
-	c.Check(err, FitsTypeOf, &snap.NoUpdateAvailableError{})
+	c.Check(err, Equals, ErrNoUpdateAvailable)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {

@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var errNoSnap = errors.New("no snap installed")
+var errNoSnap = errors.New("snap not installed")
 
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
