@@ -85,12 +85,17 @@ var JournalctlCmd = jctl
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	DaemonReload() error
-	Enable(service string) error
-	Disable(service string) error
-	Start(service string) error
-	Stop(service string, timeout time.Duration) error
+	Enable(services ...string) error
+	EnableNow(services ...string) error
+	Disable(services ...string) error
+	DisableNow(services ...string) error
+	Start(services ...string) error
+	Stop(services ...string) error
+	Restart(services ...string) error
+	Reload(services ...string) error
 	Kill(service, signal string) error
-	Restart(service string, timeout time.Duration) error
+	StopAndWait(service string, timeout time.Duration) error
+	RestartAndWait(service string, timeout time.Duration) error
 	Status(service string) (string, error)
 	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
@@ -179,20 +184,74 @@ func (*systemd) DaemonReload() error {
 }
 
 // Enable the given service
-func (s *systemd) Enable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
+func (s *systemd) Enable(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+3)
+	copy(args, []string{"--root", s.rootDir, "enable"})
+	copy(args[3:], serviceNames)
+	_, err := SystemctlCmd(args...)
+	return err
+}
+
+// EnableNow enables and starts the given service
+func (s *systemd) EnableNow(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+4)
+	copy(args, []string{"--root", s.rootDir, "enable", "--now"})
+	copy(args[4:], serviceNames)
+	_, err := SystemctlCmd(args...)
 	return err
 }
 
 // Disable the given service
-func (s *systemd) Disable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
+func (s *systemd) Disable(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+3)
+	copy(args, []string{"--root", s.rootDir, "disable"})
+	copy(args[3:], serviceNames)
+	_, err := SystemctlCmd(args...)
+	return err
+}
+
+// DisableNow stops and disables the given service
+func (s *systemd) DisableNow(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+4)
+	copy(args, []string{"--root", s.rootDir, "disable", "--now"})
+	copy(args[4:], serviceNames)
+	_, err := SystemctlCmd(args...)
 	return err
 }
 
 // Start the given service
-func (*systemd) Start(serviceName string) error {
-	_, err := SystemctlCmd("start", serviceName)
+func (*systemd) Start(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+1)
+	args[0] = "start"
+	copy(args[1:], serviceNames)
+	_, err := SystemctlCmd(args...)
+	return err
+}
+
+// Restart the given service
+func (*systemd) Restart(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+1)
+	args[0] = "restart"
+	copy(args[1:], serviceNames)
+	_, err := SystemctlCmd(args...)
+	return err
+}
+
+// Reload the given service
+func (*systemd) Reload(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+1)
+	args[0] = "reload"
+	copy(args[1:], serviceNames)
+	_, err := SystemctlCmd(args...)
+	return err
+}
+
+// Stop the given services
+func (*systemd) Stop(serviceNames ...string) error {
+	args := make([]string, len(serviceNames)+1)
+	args[0] = "stop"
+	copy(args[1:], serviceNames)
+	_, err := SystemctlCmd(args...)
 	return err
 }
 
@@ -277,7 +336,7 @@ func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
 }
 
 // Stop the given service, and wait until it has stopped.
-func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
+func (s *systemd) StopAndWait(serviceName string, timeout time.Duration) error {
 	if _, err := SystemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
@@ -323,8 +382,8 @@ func (s *systemd) Kill(serviceName, signal string) error {
 }
 
 // Restart the service, waiting for it to stop before starting it again.
-func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
-	if err := s.Stop(serviceName, timeout); err != nil {
+func (s *systemd) RestartAndWait(serviceName string, timeout time.Duration) error {
+	if err := s.StopAndWait(serviceName, timeout); err != nil {
 		return err
 	}
 	return s.Start(serviceName)
