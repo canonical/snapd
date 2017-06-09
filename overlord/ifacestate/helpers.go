@@ -21,6 +21,8 @@ package ifacestate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -56,18 +58,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.generateSystemKeyFile(); err != nil {
-		return err
-	}
-	if err := m.regenerateAllSecurityProfiles(); err != nil {
+	if err := m.maybeRegenerateAllSecurityProfiles(); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (m *InterfaceManager) generateSystemKeyFile() error {
-	sk := interfaces.SystemKey()
-	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
@@ -120,7 +114,18 @@ func (m *InterfaceManager) addSnaps() error {
 // - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
 //   change that breaks existing profiles for installed snaps. With a
 //   refresh those get fixed.
-func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
+func (m *InterfaceManager) maybeRegenerateAllSecurityProfiles() error {
+	// check if anything needs to be done at all
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	systemKey := string(raw)
+	// nothing has changed
+	if systemKey == interfaces.SystemKey() {
+		return nil
+	}
+
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -164,7 +169,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return nil
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
