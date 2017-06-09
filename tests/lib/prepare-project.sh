@@ -105,6 +105,10 @@ build_rpm() {
       $packaging_path/snapd.spec
 
     cp $rpm_dir/RPMS/$arch/snap*.rpm $GOPATH
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+      # On Fedora we have an additional package for SELinux
+      cp $rpm_dir/RPMS/noarch/snap*.rpm $GOPATH
+    fi
 }
 
 download_from_published(){
