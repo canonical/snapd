@@ -2,8 +2,14 @@ summary: Ensure security profile re-generation works with system-key
 
 execute: |
     restart_snapd() {
-        systemctl restart snapd.service
-        while "$(systemctl show -pActiveState snapd.service)" != "active"; do
+        systemctl stop snapd.service
+        while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=inactive" ]; do
+            systemctl show -pActiveState snapd.service
+            sleep 1
+        done
+
+        systemctl start snapd.service
+        while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=active" ]; do
             systemctl show -pActiveState snapd.service
             sleep 1
         done
@@ -12,6 +18,7 @@ execute: |
     echo "Ensure a valid system-key file is on-disk"
     cat /var/lib/snapd/system-key | MATCH "build-id: [0-9a-z]+"
     buf="$(stat /var/lib/snapd/system-key)"
+    system_key_content="$(cat /var/lib/snapd/system-key)"
 
     echo "Ensure that the system-key is not rewritten if system-key is unchanged"
     restart_snapd
@@ -24,8 +31,7 @@ execute: |
     echo "Ensure that the system-key is rewritten if system-key changes"
     printf "something: new\n" >> /var/lib/snapd/system-key
     restart_snapd
-    buf3="$(stat /var/lib/snapd/system-key)"
-    if [ "$buf" = "$buf3" ]; then
-        echo "system-key *not* rewriten: $buf3 unchanged, test broken"
+    if grep "something: new" /var/lib/snapd/system-key; then
+        echo "system-key *not* rewriten test broken"
         exit 1
     fi
