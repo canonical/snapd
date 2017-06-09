@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type systemKeySuite struct{}
@@ -30,14 +31,7 @@ type systemKeySuite struct{}
 var _ = Suite(&systemKeySuite{})
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
-	restore := interfaces.MockSystemKeyInputs([]string{"build-id: some-build-id"})
-	defer restore()
-
 	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Equals, "cbf4ec4c0ce8bf8c971284803a1cd863")
-
-	// check that changing the inputs changes the output
-	restore = interfaces.MockSystemKeyInputs([]string{"build-id: some-build-id", "kernel-apparmor: dbus,file,namespaces"})
-	defer restore()
-	c.Check(interfaces.SystemKey(), Not(Equals), systemKey)
+	c.Check(systemKey, testutil.Contains, "build-id: ")
+	c.Check(systemKey, testutil.Contains, "apparmor-features:\n")
 }

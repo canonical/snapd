@@ -20,25 +20,37 @@
 package interfaces
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-	"fmt"
+	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var systemKeyInputs []string
+type systemKey struct {
+	BuildID          string   `yaml:"build-id"`
+	ApparmorFeatures []string `yaml:"apparmor-features"`
+}
+
+var mySystemKey systemKey
 
 func init() {
 	buildID, err := osutil.MyBuildID()
 	if err != nil {
 		logger.Noticef("cannot get builID: %s", err)
-		return
 	}
-	systemKeyInputs = append(systemKeyInputs, fmt.Sprintf("build-id: %s", buildID))
+	mySystemKey.BuildID = buildID
 
-	// FIXME: add $( ls /sys/kernel/security/apparmor/features) output
+	// ioutil.ReadDir() is already sorted
+	if dentries, err := ioutil.ReadDir("/sys/kernel/security/apparmor/features"); err == nil {
+		mySystemKey.ApparmorFeatures = make([]string, len(dentries))
+		for i, f := range dentries {
+			mySystemKey.ApparmorFeatures[i] = f.Name()
+		}
+	}
+
+	// FIXME: add $( ls
 	// FIXME2: make this yaml
 	// FIXME3: do not make it a hash
 }
@@ -48,10 +60,9 @@ func init() {
 // change in any of snapds format this digest will change. Later more
 // inputs (like what kernel version etc) may be added.
 func SystemKey() string {
-	h := md5.New()
-	for _, s := range systemKeyInputs {
-		h.Write([]byte(s))
+	sk, err := yaml.Marshal(mySystemKey)
+	if err != nil {
+		panic(err)
 	}
-
-	return hex.EncodeToString(h.Sum(nil))
+	return string(sk)
 }
