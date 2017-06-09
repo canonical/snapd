@@ -805,13 +805,13 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 
 	var updates []*snap.Info
 	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
-	if infoErr != nil {
-		if !snap.IsNoUpdateAvailableError(infoErr) {
-			return nil, infoErr
-		}
-		// there may be some new auto-aliases
-	} else {
+	switch infoErr {
+	case nil:
 		updates = append(updates, info)
+	case store.ErrNoUpdateAvailable:
+		// there may be some new auto-aliases
+	default:
+		return nil, infoErr
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
@@ -824,7 +824,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	// see if we need to update the channel
-	if snap.IsNoUpdateAvailableError(infoErr) && snapst.Channel != channel {
+	if infoErr == store.ErrNoUpdateAvailable && snapst.Channel != channel {
 		snapsup := &SnapSetup{
 			SideInfo: snapst.CurrentSideInfo(),
 			// update the tracked channel

@@ -31,13 +31,24 @@ fedora_name_package() {
     esac
 }
 
+opensuse_name_package() {
+    case "$1" in
+        *)
+            echo $1
+            ;;
+    esac
+}
+
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             debian_name_package "$1"
             ;;
         fedora-*)
-            fedora_name_package $1
+            fedora_name_package "$1"
+            ;;
+        opensuse-*)
+            opensuse_name_package "$1"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -76,6 +87,9 @@ distro_install_local_package() {
         fedora-*)
             dnf -q -y install "$@"
             ;;
+        opensuse-*)
+            zypper -q install -y "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -98,6 +112,9 @@ distro_install_package() {
                 ;;
             fedora-*)
                 dnf -q -y install -y $package_name
+                ;;
+            opensuse-*)
+                zypper -q install -y $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -123,6 +140,9 @@ distro_purge_package() {
             fedora-*)
                 dnf -y -q remove $package_name
                 ;;
+            opensuse-*)
+                zypper -q remove -y $package_name
+                ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
                 exit 1
@@ -139,6 +159,9 @@ distro_update_package_db() {
         fedora-*)
             dnf -y -q upgrade
             ;;
+        opensuse-*)
+            zypper -q update -y
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -150,6 +173,9 @@ distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             quiet apt-get clean
+            ;;
+        opensuse-*)
+            zypper -q clean --all
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -166,11 +192,64 @@ distro_auto_remove_packages() {
         fedora-*)
             dnf -q -y autoremove
             ;;
+        opensuse-*)
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
             ;;
     esac
+}
+
+distro_query_package_info() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            apt-cache policy "$1"
+            ;;
+        fedora-*)
+            dnf info "$1"
+            ;;
+        opensuse-*)
+            zypper info "$1"
+            ;;
+    esac
+}
+
+distro_install_build_snapd(){
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        apt install -y snapd
+        cp /etc/apt/sources.list sources.list.back
+        echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+        apt update
+        apt install -y --only-upgrade snapd
+        mv sources.list.back /etc/apt/sources.list
+        apt update
+    else
+        packages=
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                packages="${GOHOME}/snapd_*.deb"
+                ;;
+            fedora-*)
+                packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                ;;
+            opensuse-*)
+                packages="${GOHOME}/snapd*.rpm"
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+
+        distro_install_local_package $packages
+
+        # On some distributions the snapd.socket is not yet automatically
+        # enabled as we don't have a systemd present configuration approved
+        # by the distribution for it in place yet.
+        if ! systemctl is-enabled snapd.socket ; then
+            sudo systemctl enable --now snapd.socket
+        fi
+    fi
 }
 
 # Specify necessary packages which need to be installed on a
@@ -182,6 +261,9 @@ case "$SPREAD_SYSTEM" in
         ;;
     fedora-*)
         DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)
+        ;;
+    opensuse-*)
+        DISTRO_BUILD_DEPS=(osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools)
         ;;
     *)
         ;;
