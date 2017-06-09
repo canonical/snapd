@@ -99,9 +99,11 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening
-CFLAGS="$RPM_OPT_FLAGS -fPIC -pie -Wl,-z,relro -Wl,-z,now"
-CXXFLAGS="$RPM_OPT_FLAGS -fPIC -pie -Wl,-z,relro -Wl,-z,now"
+# Enable hardening; We can't use -pie here as this conflicts with
+# our build of static binaries for snap-confine. Also see
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
+CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
+CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 export CFLAGS
 export CXXFLAGS
 
@@ -119,6 +121,7 @@ export CXXFLAGS
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snapd
+%gobuild cmd/snap-update-ns
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -133,10 +136,11 @@ make %{?_smp_mflags} -C cmd check
 rm -rf %{buildroot}/usr/lib64/go
 rm -rf %{buildroot}/usr/lib/go
 find %{buildroot}
-# Move snapd and snap-exec into /usr/lib/snapd
+# Move snapd, snap-exec and snap-update-ns into /usr/lib/snapd
 install -m 755 -d %{buildroot}/usr/lib/snapd
 mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
+mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -171,7 +175,7 @@ install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
 make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service; do
+for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service; do
     rm %buildroot/%{_unitdir}/$s
 done
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
@@ -241,6 +245,7 @@ esac
 /usr/sbin/rcsnapd.refresh
 /usr/lib/snapd/info
 /usr/lib/snapd/snap-discard-ns
+/usr/lib/snapd/snap-update-ns
 /usr/lib/snapd/snap-exec
 /usr/lib/snapd/snapd
 /usr/lib/udev/snappy-app-dev

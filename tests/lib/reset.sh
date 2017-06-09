@@ -16,7 +16,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*)
+        fedora-*|opensuse-*)
             sh -x "${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh" \
                 --snap-mount-dir=$SNAPMOUNTDIR \
                 --purge
@@ -45,6 +45,11 @@ reset_classic() {
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
+        # Purge all the systemd service units config
+        rm -rf /etc/systemd/system/snapd.service.d
+        rm -rf /etc/systemd/system/snapd.socket.d
+
+        # Restore snapd state and start systemd service units
         tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
