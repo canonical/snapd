@@ -31,7 +31,7 @@
  * The function will also try to preserve the current working directory but if
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
-void sc_populate_mount_ns(const char *snap_name);
+void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option. 
