@@ -22,15 +22,16 @@ package ifacestate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 type prepareHandler struct {
-	context *hookstate.Context
+	context hooks.Context
 }
 
 type connectHandler struct {
-	context *hookstate.Context
+	context hooks.Context
 }
 
 func (h *prepareHandler) Before() error {
@@ -59,11 +60,11 @@ func (h *connectHandler) Error(err error) error {
 
 // setupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
-	prepareGenerator := func(context *hookstate.Context) hookstate.Handler {
+	prepareGenerator := func(context hooks.Context) hooks.Handler {
 		return &prepareHandler{context: context}
 	}
 
-	connectGenerator := func(context *hookstate.Context) hookstate.Handler {
+	connectGenerator := func(context hooks.Context) hooks.Handler {
 		return &connectHandler{context: context}
 	}
 

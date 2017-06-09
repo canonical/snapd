@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -35,9 +36,9 @@ import (
 // Context represents the context under which a given hook is running.
 type Context struct {
 	task    *state.Task
-	setup   *HookSetup
+	setup   *hooks.HookSetup
 	id      string
-	handler Handler
+	handler hooks.Handler
 
 	cache  map[interface{}]interface{}
 	onDone []func() error
@@ -47,7 +48,7 @@ type Context struct {
 }
 
 // NewContext returns a new Context.
-func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
+func NewContext(task *state.Task, setup *hooks.HookSetup, handler hooks.Handler) (*Context, error) {
 	// Generate a secure, random ID for this context
 	idBytes := make([]byte, 32)
 	_, err := rand.Read(idBytes)
@@ -90,7 +91,7 @@ func (c *Context) ID() string {
 }
 
 // Handler returns the handler for this context
-func (c *Context) Handler() Handler {
+func (c *Context) Handler() hooks.Handler {
 	return c.handler
 }
 

@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -49,7 +50,7 @@ type hookManagerSuite struct {
 
 	state       *state.State
 	manager     *hookstate.HookManager
-	context     *hookstate.Context
+	context     hooks.Context
 	mockHandler *hooktest.MockHandler
 	task        *state.Task
 	change      *state.Change
@@ -91,7 +92,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.manager = manager
 
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "configure",
 		Revision: snap.R(1),
@@ -102,7 +103,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	}
 
 	s.state.Lock()
-	s.task = hookstate.HookTask(s.state, "test summary", hooksup, initialContext)
+	s.task = hooks.HookTask(s.state, "test summary", hooksup, initialContext)
 	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
 
 	s.change = s.state.NewChange("kind", "summary")
@@ -122,7 +123,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 
 	s.context = nil
 	s.mockHandler = hooktest.NewMockHandler()
-	s.manager.Register(regexp.MustCompile("configure"), func(context *hookstate.Context) hookstate.Handler {
+	s.manager.Register(regexp.MustCompile("configure"), func(context hooks.Context) hooks.Handler {
 		s.context = context
 		return s.mockHandler
 	})
@@ -151,17 +152,17 @@ func (s *hookManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
-	hookSetup := &hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
+	hookSetup := &hooks.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
 	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonUnmarshal(c *C) {
-	out, err := json.Marshal(hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
+	out, err := json.Marshal(hooks.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
 	c.Assert(err, IsNil)
 
-	var setup hookstate.HookSetup
+	var setup hooks.HookSetup
 	err = json.Unmarshal(out, &setup)
 	c.Assert(err, IsNil)
 	c.Check(setup.Snap, Equals, "snap-name")
@@ -173,16 +174,16 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "configure",
 		Revision: snap.R(1),
 	}
 
-	task := hookstate.HookTask(s.state, "test summary", hooksup, nil)
+	task := hooks.HookTask(s.state, "test summary", hooksup, nil)
 	c.Check(task.Kind(), Equals, "run-hook")
 
-	var setup hookstate.HookSetup
+	var setup hooks.HookSetup
 	err := task.Get("hook-setup", &setup)
 	c.Check(err, IsNil)
 	c.Check(setup.Snap, Equals, "test-snap")
@@ -251,7 +252,7 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 	s.state.Lock()
-	var hooksup hookstate.HookSetup
+	var hooksup hooks.HookSetup
 	s.task.Get("hook-setup", &hooksup)
 	hooksup.IgnoreError = true
 	s.task.Set("hook-setup", &hooksup)
@@ -279,7 +280,7 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
-	var hooksup hookstate.HookSetup
+	var hooksup hooks.HookSetup
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
@@ -343,7 +344,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
-	var hooksup hookstate.HookSetup
+	var hooksup hooks.HookSetup
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
@@ -399,7 +400,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
-	var hooksup hookstate.HookSetup
+	var hooksup hooks.HookSetup
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
@@ -557,7 +558,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "prepare-device",
 		Revision: snap.R(1),
@@ -580,7 +581,7 @@ func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
 
 func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
 	// Register multiple times for this hook
-	s.manager.Register(regexp.MustCompile("configure"), func(context *hookstate.Context) hookstate.Handler {
+	s.manager.Register(regexp.MustCompile("configure"), func(context hooks.Context) hooks.Handler {
 		return hooktest.NewMockHandler()
 	})
 
@@ -598,7 +599,7 @@ func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookWithoutHookIsError(c *C) {
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap: "test-snap",
 		Hook: "missing-hook",
 	}
@@ -619,11 +620,11 @@ func (s *hookManagerSuite) TestHookWithoutHookIsError(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookWithoutHookOptional(c *C) {
-	s.manager.Register(regexp.MustCompile("missing-hook"), func(context *hookstate.Context) hookstate.Handler {
+	s.manager.Register(regexp.MustCompile("missing-hook"), func(context hooks.Context) hooks.Handler {
 		return s.mockHandler
 	})
 
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "missing-hook",
 		Optional: true,
@@ -691,7 +692,7 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	s.state.Lock()
-	var hooksup hookstate.HookSetup
+	var hooksup hooks.HookSetup
 	s.task.Get("hook-setup", &hooksup)
 	hooksup.TrackError = true
 	s.task.Set("hook-setup", &hooksup)
@@ -740,7 +741,7 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 		atomic.AddInt32(&TotalExecutions, 1)
 	}
 
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:     "test-snap",
 		Hook:     "configure",
 		Revision: snap.R(1),
@@ -750,7 +751,7 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 
 	var tasks []*state.Task
 	for i := 0; i < 20; i++ {
-		task := hookstate.HookTask(s.state, "test summary", hooksup, nil)
+		task := hooks.HookTask(s.state, "test summary", hooksup, nil)
 		c.Assert(s.task, NotNil)
 		change := s.state.NewChange("kind", "summary")
 		change.AddTask(task)
@@ -797,12 +798,12 @@ func NewMockConcurrentHandler(onDone func()) *MockConcurrentHandler {
 }
 
 func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
-	hooksup1 := &hookstate.HookSetup{
+	hooksup1 := &hooks.HookSetup{
 		Snap:     "test-snap-1",
 		Hook:     "prepare-device",
 		Revision: snap.R(1),
 	}
-	hooksup2 := &hookstate.HookSetup{
+	hooksup2 := &hooks.HookSetup{
 		Snap:     "test-snap-2",
 		Hook:     "prepare-device",
 		Revision: snap.R(1),
@@ -837,7 +838,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 		<-ch
 		testSnap2HookCalls++
 	})
-	s.manager.Register(regexp.MustCompile("prepare-device"), func(context *hookstate.Context) hookstate.Handler {
+	s.manager.Register(regexp.MustCompile("prepare-device"), func(context hooks.Context) hooks.Handler {
 		if context.SnapName() == "test-snap-1" {
 			return mockHandler1
 		}
@@ -848,12 +849,12 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 		return nil
 	})
 
-	task1 := hookstate.HookTask(s.state, "test summary", hooksup1, nil)
+	task1 := hooks.HookTask(s.state, "test summary", hooksup1, nil)
 	c.Assert(task1, NotNil)
 	change1 := s.state.NewChange("kind", "summary")
 	change1.AddTask(task1)
 
-	task2 := hookstate.HookTask(s.state, "test summary", hooksup2, nil)
+	task2 := hooks.HookTask(s.state, "test summary", hooksup2, nil)
 	c.Assert(task2, NotNil)
 	change2 := s.state.NewChange("kind", "summary")
 	change2.AddTask(task2)

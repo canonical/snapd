@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"testing"
 
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -47,7 +48,7 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, setup, handler)

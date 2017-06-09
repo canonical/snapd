@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -70,23 +70,23 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 	initialContext := make(map[string]interface{})
 	initialContext["attrs-task"] = connectInterface.ID()
 
-	plugHookSetup := &hookstate.HookSetup{
+	plugHookSetup := &hooks.HookSetup{
 		Snap:     plugSnap,
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
-	preparePlugConnection := hookstate.HookTask(st, summary, plugHookSetup, initialContext)
+	preparePlugConnection := hooks.HookTask(st, summary, plugHookSetup, initialContext)
 
-	slotHookSetup := &hookstate.HookSetup{
+	slotHookSetup := &hooks.HookSetup{
 		Snap:     slotSnap,
 		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
-	prepareSlotConnection := hookstate.HookTask(st, summary, slotHookSetup, initialContext)
+	prepareSlotConnection := hooks.HookTask(st, summary, slotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
@@ -96,24 +96,24 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 	}
 	connectInterface.WaitFor(prepareSlotConnection)
 
-	connectSlotHookSetup := &hookstate.HookSetup{
+	connectSlotHookSetup := &hooks.HookSetup{
 		Snap:     slotSnap,
 		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
-	connectSlotConnection := hookstate.HookTask(st, summary, connectSlotHookSetup, initialContext)
+	connectSlotConnection := hooks.HookTask(st, summary, connectSlotHookSetup, initialContext)
 	connectSlotConnection.WaitFor(connectInterface)
 
-	connectPlugHookSetup := &hookstate.HookSetup{
+	connectPlugHookSetup := &hooks.HookSetup{
 		Snap:     plugSnap,
 		Hook:     "connect-plug-" + plugName,
 		Optional: true,
 	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
-	connectPlugConnection := hookstate.HookTask(st, summary, connectPlugHookSetup, initialContext)
+	connectPlugConnection := hooks.HookTask(st, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
 
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil

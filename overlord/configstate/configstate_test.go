@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -95,7 +96,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 		c.Assert(task.Summary(), Equals, summary)
 
-		var hooksup hookstate.HookSetup
+		var hooksup hooks.HookSetup
 		s.state.Lock()
 		err := task.Get("hook-setup", &hooksup)
 		s.state.Unlock()

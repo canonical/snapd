@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -164,7 +164,7 @@ func (c *getCommand) Execute(args []string) error {
 	return c.getConfigSetting(context)
 }
 
-func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
+func (c *getCommand) getConfigSetting(context hooks.Context) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
 	}
@@ -239,7 +239,7 @@ func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string)
 	return nil
 }
 
-func attributesTask(context *hookstate.Context) (*state.Task, error) {
+func attributesTask(context hooks.Context) (*state.Task, error) {
 	var attrsTaskID string
 	context.Lock()
 	defer context.Unlock()
@@ -258,7 +258,7 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 	return attrsTask, nil
 }
 
-func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
+func (c *getCommand) getInterfaceSetting(context hooks.Context, plugOrSlot string) error {
 	// Make sure get :<plug|slot> is only supported during the execution of interface hooks
 	hookType, err := interfaceHookType(context.HookName())
 	if err != nil {

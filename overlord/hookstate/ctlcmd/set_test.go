@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -55,7 +56,7 @@ func (s *setSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
@@ -170,7 +171,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
-	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
+	plugTaskSetup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
 	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugTaskSetup, s.mockHandler)
 	c.Assert(err, IsNil)
 
@@ -185,7 +186,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
-	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-slot-aplug"}
+	slotTaskSetup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-slot-aplug"}
 	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotTaskSetup, s.mockHandler)
 	c.Assert(err, IsNil)
 
@@ -248,7 +249,7 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "not-a-connect-hook"}
+	setup := &hooks.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "not-a-connect-hook"}
 	mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
 	c.Assert(err, IsNil)
 

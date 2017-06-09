@@ -38,7 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -5825,7 +5825,7 @@ volumes:
 	c.Assert(gi, NotNil)
 
 	snapName := "some-snap"
-	hooksup := &hookstate.HookSetup{
+	hooksup := &hooks.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
 		Optional:    true,
@@ -5838,7 +5838,7 @@ volumes:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Assert(hookstate.HookTask(s.state, "", hooksup, contextData), NotNil)
+	c.Assert(hooks.HookTask(s.state, "", hooksup, contextData), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {

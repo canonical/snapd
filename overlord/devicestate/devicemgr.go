@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -51,7 +51,7 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager hooks.HookManager) (*DeviceManager, error) {
 	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -73,7 +73,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 type prepareDeviceHandler struct{}
 
-func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
+func newPrepareDeviceHandler(context hooks.Context) hooks.Handler {
 	return prepareDeviceHandler{}
 }
 
@@ -190,11 +190,11 @@ func (m *DeviceManager) ensureOperational() error {
 	var prepareDevice *state.Task
 	if gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
-		hooksup := &hookstate.HookSetup{
+		hooksup := &hooks.HookSetup{
 			Snap: gadgetInfo.Name(),
 			Hook: "prepare-device",
 		}
-		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		prepareDevice = hooks.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
 	}
 

@@ -23,14 +23,14 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 // configureHandler is the handler for the configure hook.
 type configureHandler struct {
-	context *hookstate.Context
+	context hooks.Context
 }
 
 // cachedTransaction is the index into the context cache where the initialized
@@ -39,7 +39,7 @@ type cachedTransaction struct{}
 
 // ContextTransaction retrieves the transaction cached within the context (and
 // creates one if it hasn't already been cached).
-func ContextTransaction(context *hookstate.Context) *config.Transaction {
+func ContextTransaction(context hooks.Context) *config.Transaction {
 	// Check for one already cached
 	tr, ok := context.Cached(cachedTransaction{}).(*config.Transaction)
 	if ok {
@@ -58,7 +58,7 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 	return tr
 }
 
-func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
+func newConfigureHandler(context hooks.Context) hooks.Handler {
 	return &configureHandler{context: context}
 }
 

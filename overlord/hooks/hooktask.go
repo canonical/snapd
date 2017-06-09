@@ -19,7 +19,7 @@
 
 // Package hookstate implements the manager and state aspects responsible for
 // the running of hooks.
-package hookstate
+package hooks
 
 import (
 	"github.com/snapcore/snapd/overlord/state"
