@@ -50,3 +50,10 @@ func MockMountInfoPath(mockMountInfoPath string) func() {
 
 	return func() { mountInfoPath = realMountInfoPath }
 }
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+
+	return func() { osReadlink = realOsReadlink }
+}
