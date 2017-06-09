@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -64,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -5468,6 +5470,185 @@ func (s *apiSuite) TestSplitQS(c *check.C) {
 	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
 	c.Check(splitQS(""), check.HasLen, 0)
 	c.Check(splitQS(","), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSplitSvcName(c *check.C) {
+	type T struct {
+		name string
+		snap string
+		svc  string
+	}
+
+	for _, x := range []T{
+		{name: "foo.bar", snap: "foo", svc: "bar"},
+		{name: "foo", snap: "foo", svc: ""},
+		{name: "foo.bar.baz", snap: "foo", svc: "bar.baz"},
+		{name: ".", snap: "", svc: ""}, // SISO
+	} {
+		snap, svc := splitSvcName(x.name)
+		c.Check(x.snap, check.Equals, snap, check.Commentf(x.name))
+		c.Check(x.svc, check.Equals, svc, check.Commentf(x.name))
+	}
+}
+
+func (s *apiSuite) TestAppInfosForOne(c *check.C) {
+	d := s.daemon(c)
+	info := s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-a.app1"})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 1)
+	c.Check(appInfos[0].Snap, check.DeepEquals, info)
+	c.Check(appInfos[0].Name, check.Equals, "app1")
+}
+
+type bySnapApp []*snap.AppInfo
+
+func (a bySnapApp) Len() int      { return len(a) }
+func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a bySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.Name()
+	jName := a[j].Snap.Name()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
+}
+
+func (s *apiSuite) TestAppInfosForAll(c *check.C) {
+	d := s.daemon(c)
+	infoA := s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	infoB := s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, nil)
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 3)
+	sort.Sort(bySnapApp(appInfos))
+
+	c.Check(appInfos[0].Snap, check.DeepEquals, infoA)
+	c.Check(appInfos[0].Name, check.Equals, "app1")
+	c.Check(appInfos[1].Snap, check.DeepEquals, infoA)
+	c.Check(appInfos[1].Name, check.Equals, "app2")
+	c.Check(appInfos[2].Snap, check.DeepEquals, infoB)
+	c.Check(appInfos[2].Name, check.Equals, "app3")
+}
+
+func (s *apiSuite) TestAppInfosForOneSnap(c *check.C) {
+	d := s.daemon(c)
+	infoA := s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-a"})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 2)
+	sort.Sort(bySnapApp(appInfos))
+
+	c.Check(appInfos[0].Snap, check.DeepEquals, infoA)
+	c.Check(appInfos[0].Name, check.Equals, "app1")
+	c.Check(appInfos[1].Snap, check.DeepEquals, infoA)
+	c.Check(appInfos[1].Name, check.Equals, "app2")
+}
+
+func (s *apiSuite) TestAppInfosForAppless(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-c"})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Assert(appInfos, check.IsNil)
+}
+
+func (s *apiSuite) TestAppInfosForMissingApp(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-c.whatever"})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Assert(appInfos, check.IsNil)
+}
+
+func (s *apiSuite) TestAppInfosForMissingSnap(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	st := d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-x"})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindSnapNotFound)
+	c.Assert(appInfos, check.IsNil)
+}
+
+func (s *apiSuite) TestGetServices(c *check.C) {
+	cmd := testutil.MockCommand(c, "systemctl", `cat <<EOF
+Id=snap.snap-a.app2.service
+LoadState=loaded
+ActiveState=active
+SubState=running
+UnitFileState=enabled
+EOF
+`).Also("journalctl", `cat <<EOF
+{"yadda": "yah"}
+EOF
+`)
+	defer cmd.Restore()
+
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+
+	req, err := http.NewRequest("GET", "/v2/services?names=snap-a.app2&logs=true", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getServices(aliasesCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.Service{})
+	svcs := rsp.Result.([]client.Service)
+	c.Assert(svcs, check.HasLen, 1)
+	c.Check(svcs[0], check.DeepEquals, client.Service{
+		Snap:    "snap-a",
+		AppInfo: client.AppInfo{Name: "app2", Daemon: "simple"},
+		ServiceStatus: &systemd.ServiceStatus{
+			ServiceFileName: "snap.snap-a.app2.service",
+			LoadState:       "loaded",
+			ActiveState:     "active",
+			SubState:        "running",
+			UnitFileState:   "enabled",
+		},
+		Logs: []systemd.Log{{"yadda": "yah"}},
+	})
+}
+
+func (s *apiSuite) TestPostServices(c *check.C) {
+	cmd := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
+	defer cmd.Restore()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {app1: {daemon: simple}, app2: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {app3: {daemon: simple}}")
+	s.mkInstalledInState(c, d, "snap-c", "dev", "v1", snap.R(1), true, "")
+
+	req, err := http.NewRequest("POST", "/v2/services", bytes.NewBufferString(`{"action": "restart", "names": ["snap-a.app2"]}`))
+	c.Assert(err, check.IsNil)
+
+	rsp := changeServices(aliasesCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(cmd.Calls(), check.DeepEquals, [][]string{{"systemctl", "restart", "snap.snap-a.app2.service"}})
 }
 
 var _ = check.Suite(&postDebugSuite{})

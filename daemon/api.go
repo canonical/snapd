@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var api = []*Command{
@@ -87,6 +88,7 @@ var api = []*Command{
 	sectionsCmd,
 	aliasesCmd,
 	debugCmd,
+	servicesCmd,
 }
 
 var (
@@ -223,6 +225,13 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	servicesCmd = &Command{
+		Path:   "/v2/services",
+		UserOK: true,
+		GET:    getServices,
+		POST:   changeServices,
 	}
 )
 
@@ -2501,4 +2510,157 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func splitSvcName(s string) (snap, svc string) {
+	if idx := strings.IndexByte(s, '.'); idx > -1 {
+		return s[:idx], s[idx+1:]
+	}
+
+	return s, ""
+}
+
+func appInfosFor(st *state.State, names []string) ([]*snap.AppInfo, Response) {
+	snapNames := make(map[string]bool)
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+		name, _ = splitSvcName(name)
+		snapNames[name] = true
+	}
+
+	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	if err != nil {
+		return nil, InternalError("cannot list local snaps! %v", err)
+	}
+
+	found := make(map[string]bool)
+	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	for _, snap := range snaps {
+		snapName := snap.info.Name()
+		snapAppInfos := snap.info.Services()
+		if len(requested) == 0 || requested[snapName] {
+			// want all services in a snap
+			if len(snapAppInfos) == 0 && len(requested) != 0 {
+				return nil, AppNotFound("snap %q has no services", snapName)
+			}
+			appInfos = append(appInfos, snapAppInfos...)
+			found[snapName] = true
+		} else {
+			for _, svc := range snapAppInfos {
+				svcName := snapName + "." + svc.Name
+				if requested[svcName] {
+					appInfos = append(appInfos, svc)
+					found[svcName] = true
+				}
+			}
+		}
+	}
+
+	for k := range requested {
+		if !found[k] {
+			if snapNames[k] {
+				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
+			} else {
+				snap, svc := splitSvcName(k)
+				return nil, AppNotFound("snap %q has no service %q", snap, svc)
+			}
+		}
+	}
+
+	return appInfos, nil
+}
+
+func getServices(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	// XXX: limit logs to auth'ed?
+	withLogs, _ := strconv.ParseBool(query.Get("logs"))
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")))
+	if rsp != nil {
+		return rsp
+	}
+
+	services := make([]client.Service, len(appInfos))
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	for i, app := range appInfos {
+		serviceName := app.ServiceName()
+		serviceStatus, err := sysd.ServiceStatus(serviceName)
+		if err != nil {
+			// nassssty
+			return InternalError("cannot get status of service %q: %v", serviceName, err)
+		}
+		var logs []systemd.Log
+		if withLogs {
+			logs, err = sysd.Logs([]string{serviceName})
+			if err != nil {
+				return InternalError("cannot get logs of service %q: %v", serviceName, err)
+			}
+		}
+		services[i] = client.Service{
+			Snap: app.Snap.Name(),
+			AppInfo: client.AppInfo{
+				Name:   app.Name,
+				Daemon: app.Daemon,
+			},
+			ServiceStatus: serviceStatus,
+			Logs:          logs,
+		}
+	}
+
+	return SyncResponse(services, nil)
+}
+
+func changeServices(c *Command, r *http.Request, user *auth.UserState) Response {
+	var inst client.ServiceOp
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into service operation: %v", err)
+	}
+	if len(inst.Names) == 0 {
+		inst.Names = splitQS(r.URL.Query().Get("names"))
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), inst.Names)
+	if rsp != nil {
+		return rsp
+	}
+
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	var op func(...string) error
+
+	switch inst.Action {
+	case "enable":
+		op = sysd.Enable
+	case "disable":
+		op = sysd.Disable
+	case "enable-now":
+		op = sysd.EnableNow
+	case "disable-now":
+		op = sysd.DisableNow
+	case "restart":
+		op = sysd.Restart
+	case "reload":
+		for _, appInfo := range appInfos {
+			if appInfo.ReloadCommand == "" {
+				return BadRequest("app %q from snap %q has no reload command", appInfo.Name, appInfo.Snap.Name())
+			}
+		}
+		op = sysd.Reload
+	case "start":
+		op = sysd.Start
+	case "stop":
+		op = sysd.Stop
+	default:
+		return BadRequest("unknown action %s", inst.Action)
+	}
+
+	apps := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		apps[i] = appInfo.ServiceName()
+	}
+	if err := op(apps...); err != nil {
+		return InternalError("unable to %s services: %v", inst.Action, err)
+	}
+
+	return SyncResponse(nil, nil)
 }

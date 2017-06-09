@@ -129,6 +129,7 @@ const (
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
@@ -257,6 +258,18 @@ func SnapNotFound(err error) Response {
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
 		},
+		Status: 404,
+	}
+}
+
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
 		Status: 404,
 	}
 }
