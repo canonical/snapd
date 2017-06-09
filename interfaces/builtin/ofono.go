@@ -267,7 +267,8 @@ func (iface *ofonoInterface) Name() string {
 
 func (iface *ofonoInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: ofonoSummary,
+		Summary:           ofonoSummary,
+		ImplicitOnClassic: true,
 	}
 }
 

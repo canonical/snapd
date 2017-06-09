@@ -47,6 +47,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "dcdbas-control",
 		summary:               dcdbasControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
