@@ -476,7 +476,7 @@ func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
 	// Force the snap command to exit with a failure and print to stderr so we
 	// can catch and verify it.
 	cmd := testutil.MockCommand(
-		c, "snap", ">&2 echo \"SNAP_CONTEXT=$SNAP_CONTEXT\"; exit 1")
+		c, "snap", ">&2 echo \"SNAP_COOKIE=$SNAP_COOKIE\"; exit 1")
 	defer cmd.Restore()
 
 	s.manager.Ensure()
@@ -492,7 +492,7 @@ func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*SNAP_CONTEXT=\S+`)
+	checkTaskLogContains(c, s.task, `.*SNAP_COOKIE=\S+`)
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
