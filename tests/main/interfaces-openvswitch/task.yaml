@@ -3,6 +3,8 @@ summary: Ensure that the openvswitch interface works.
 systems:
     - -ubuntu-core-*
 
+manual: true
+
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
 
@@ -15,10 +17,13 @@ details: |
     list and deletion.
 
 prepare: |
-    echo "Given openvswitch is installed"
+    # Note that the order of the installs is to avoid a timeout issue on the 
+    # openvswitch-switch package setup
+
+    echo "Install openvswitch"
     apt install -y --no-install-recommends openvswitch-switch
 
-    echo "And a snap declaring a plug on the openvswitch interface is installed"
+    echo "Install a snap declaring a plug on the openvswitch interface"
     snap install --edge test-snapd-openvswitch-consumer
 
     echo "And a tap interface is defined"
