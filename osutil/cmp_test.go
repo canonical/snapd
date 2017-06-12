@@ -17,7 +17,7 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"io/ioutil"
@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type CmpTestSuite struct{}
@@ -40,11 +42,9 @@ func (ts *CmpTestSuite) TestCmp(c *C) {
 	c.Assert(err, IsNil)
 	defer f.Close()
 
+	bufsz := 128
 	// pick a smaller bufsize so that the test can complete quicker
-	defer func() {
-		bufsz = defaultBufsz
-	}()
-	bufsz = 128
+	defer osutil.MockCmpBufSize(bufsz)()
 
 	// test FilesAreEqual for various sizes:
 	// - bufsz not exceeded
@@ -53,7 +53,7 @@ func (ts *CmpTestSuite) TestCmp(c *C) {
 	canary := "1234567890123456"
 	for _, n := range []int{1, bufsz / len(canary), (bufsz / len(canary)) + 1} {
 		for i := 0; i < n; i++ {
-			c.Assert(FilesAreEqual(foo, foo), Equals, true)
+			c.Assert(osutil.FilesAreEqual(foo, foo), Equals, true)
 			_, err := f.WriteString(canary)
 			c.Assert(err, IsNil)
 			f.Sync()
@@ -69,8 +69,8 @@ func (ts *CmpTestSuite) TestCmpEmptyNeqMissing(c *C) {
 	f, err := os.Create(foo)
 	c.Assert(err, IsNil)
 	defer f.Close()
-	c.Assert(FilesAreEqual(foo, bar), Equals, false)
-	c.Assert(FilesAreEqual(bar, foo), Equals, false)
+	c.Assert(osutil.FilesAreEqual(foo, bar), Equals, false)
+	c.Assert(osutil.FilesAreEqual(bar, foo), Equals, false)
 }
 
 func (ts *CmpTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
@@ -82,8 +82,8 @@ func (ts *CmpTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
 	c.Assert(err, IsNil)
 	defer f.Close()
 	c.Assert(ioutil.WriteFile(bar, []byte("x"), 0644), IsNil)
-	c.Assert(FilesAreEqual(foo, bar), Equals, false)
-	c.Assert(FilesAreEqual(bar, foo), Equals, false)
+	c.Assert(osutil.FilesAreEqual(foo, bar), Equals, false)
+	c.Assert(osutil.FilesAreEqual(bar, foo), Equals, false)
 }
 
 func (ts *CmpTestSuite) TestCmpStreams(c *C) {
@@ -96,6 +96,6 @@ func (ts *CmpTestSuite) TestCmpStreams(c *C) {
 		{"hello", "world", false},
 		{"hello", "hell", false},
 	} {
-		c.Assert(StreamsEqual(strings.NewReader(x.a), strings.NewReader(x.b)), Equals, x.r)
+		c.Assert(osutil.StreamsEqual(strings.NewReader(x.a), strings.NewReader(x.b)), Equals, x.r)
 	}
 }

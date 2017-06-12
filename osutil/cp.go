@@ -46,7 +46,7 @@ var (
 	copyfile = doCopyFile
 )
 
-type fileish interface {
+type Fileish interface {
 	Close() error
 	Sync() error
 	Fd() uintptr
@@ -55,7 +55,7 @@ type fileish interface {
 	Write([]byte) (int, error)
 }
 
-func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
+func doOpenFile(name string, flag int, perm os.FileMode) (Fileish, error) {
 	return os.OpenFile(name, flag, perm)
 }
 

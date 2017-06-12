@@ -17,20 +17,21 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 func (s *cpSuite) TestCpMulti(c *C) {
-	maxcp = 2
-	defer func() { maxcp = maxint }()
+	defer osutil.MockMaxCp(2)()
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagDefault), IsNil)
 	bs, err := ioutil.ReadFile(s.f2)
 	c.Check(err, IsNil)
 	c.Check(bs, DeepEquals, s.data)
@@ -42,5 +43,5 @@ func (s *cpSuite) TestDoCpErr(c *C) {
 	st, err := f1.Stat()
 	c.Assert(err, IsNil)
 	// force an error by asking it to write to a readonly stream
-	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
+	c.Check(osutil.DoCopyFile(f1, os.Stdin, st), NotNil)
 }
