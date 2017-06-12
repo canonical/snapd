@@ -2571,6 +2571,8 @@ func appInfosFor(st *state.State, names []string) ([]*snap.AppInfo, Response) {
 	return appInfos, nil
 }
 
+var newSysd = systemd.New
+
 func getServices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	// XXX: limit logs to auth'ed?
@@ -2581,7 +2583,7 @@ func getServices(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	services := make([]client.Service, len(appInfos))
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := newSysd(dirs.GlobalRootDir, &progress.NullProgress{})
 	for i, app := range appInfos {
 		serviceName := app.ServiceName()
 		serviceStatus, err := sysd.ServiceStatus(serviceName)
@@ -2625,7 +2627,7 @@ func changeServices(c *Command, r *http.Request, user *auth.UserState) Response 
 		return rsp
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := newSysd(dirs.GlobalRootDir, &progress.NullProgress{})
 	var op func(...string) error
 
 	switch inst.Action {
