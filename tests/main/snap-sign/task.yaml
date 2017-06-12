@@ -5,6 +5,8 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
     "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/entropy.sh
+    generate_entropy
 
 debug: |
     sysctl kernel.random.entropy_avail || true
