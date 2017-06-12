@@ -151,10 +151,10 @@ distro_install_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                quiet apt-get install -y "$APT_FLAGS" "$package_name"
+                quiet apt-get install "$APT_FLAGS" -y "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install -y "$DNF_FLAGS" $package_name
+                dnf -q -y install "$DNF_FLAGS" $package_name
                 ;;
             opensuse-*)
                 zypper -q install -y "$ZYPPER_FLAGS" $package_name
