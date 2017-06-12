@@ -2113,5 +2113,5 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	_ = s.manager(c)
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
-	c.Check(stat, DeepEquals, stat2)
+	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
