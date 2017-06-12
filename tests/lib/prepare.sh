@@ -218,7 +218,7 @@ EOF
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install -y -q rng-tools
-        generate_entropy --force
+        feed_kernel_entropy_pool --force
     fi
 
     disable_kernel_rate_limiting
