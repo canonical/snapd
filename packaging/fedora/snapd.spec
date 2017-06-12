@@ -331,12 +331,9 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-# We have to build snapd first to prevent the build from
-# building various things from the tree without additional
-# set tags.
 GOFLAGS=
 %if 0%{?with_test_keys}
-GOFLAGS="-tags withtestkeys"
+GOFLAGS="$GOFLAGS -tags withtestkeys"
 %endif
 
 # We have to build snapd first to prevent the build from
