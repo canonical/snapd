@@ -95,6 +95,9 @@ EOF
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
     fi
+    if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
+        distro_clean_packages_history
+    fi
 }
 
 prepare_classic() {
@@ -455,4 +458,12 @@ prepare_all_snap() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+restore_each_classic() {
+    # Remove all packages installed through during the task
+    if [ "${PACKAGE_AUTOCLEAN:-}" = "1" ]; then
+        distro_remove_installed_packages
+        distro_restore_packages_history
+    fi
 }
