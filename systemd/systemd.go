@@ -163,18 +163,18 @@ const (
 	SocketsTarget = "sockets.target"
 )
 
-type reporter interface {
+type Notifier interface {
 	Notify(string)
 }
 
 // New returns a Systemd that uses the given rootDir
-func New(rootDir string, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, reporter: rep}
+func New(rootDir string, rep Notifier) Systemd {
+	return &systemd{rootDir: rootDir, notifier: rep}
 }
 
 type systemd struct {
 	rootDir  string
-	reporter reporter
+	notifier Notifier
 }
 
 // DaemonReload reloads systemd's configuration.
@@ -295,7 +295,7 @@ func (s *systemd) Status(serviceName string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState), nil
+	return status.String(), nil
 }
 
 // A ServiceStatus holds structured service status information.
@@ -305,6 +305,13 @@ type ServiceStatus struct {
 	ActiveState     string `json:"active-state"`
 	SubState        string `json:"sub-state"`
 	UnitFileState   string `json:"unit-file-state"`
+}
+
+func (status *ServiceStatus) String() string {
+	if status == nil {
+		return "-- no status --"
+	}
+	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState)
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
@@ -369,7 +376,7 @@ loop:
 		case <-notify.C:
 		}
 		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
+		s.notifier.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
 	}
 
 	return &Timeout{action: "stop", service: serviceName}
