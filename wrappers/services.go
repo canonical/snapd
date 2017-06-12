@@ -61,7 +61,7 @@ func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
-	if err := sysd.Stop(serviceName, tout); err != nil {
+	if err := sysd.StopAndWait(serviceName, tout); err != nil {
 		if !systemd.IsTimeout(err) {
 			return err
 		}
@@ -150,7 +150,6 @@ func StopServices(apps []*snap.AppInfo, inter interacter) error {
 	}
 
 	return nil
-
 }
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.

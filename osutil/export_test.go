@@ -20,6 +20,8 @@
 package osutil
 
 import (
+	"os"
+	"os/exec"
 	"os/user"
 )
 
@@ -49,4 +51,31 @@ func MockMountInfoPath(mockMountInfoPath string) func() {
 	mountInfoPath = mockMountInfoPath
 
 	return func() { mountInfoPath = realMountInfoPath }
+}
+
+func MockCmpBufSize(newBufsz int) func() {
+	bufsz = newBufsz
+	return func() { bufsz = defaultBufsz }
+}
+
+func MockOpenfile(mock func(name string, flag int, perm os.FileMode) (Fileish, error)) func() {
+	openfile = mock
+	return func() { openfile = doOpenFile }
+}
+
+func MockCopyfile(mock func(fin, fout Fileish, fi os.FileInfo) error) func() {
+	copyfile = mock
+	return func() { copyfile = doCopyFile }
+}
+
+func MockMaxCp(newMax int64) func() {
+	maxcp = newMax
+	return func() { maxcp = maxint }
+}
+
+var DoCopyFile = doCopyFile
+
+func MockLookPath(mock func(name string) (string, error)) func() {
+	lookPath = mock
+	return func() { lookPath = exec.LookPath }
 }

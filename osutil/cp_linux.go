@@ -28,7 +28,7 @@ const maxint = int64(^uint(0) >> 1)
 
 var maxcp = maxint // overridden in testing
 
-func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
+func doCopyFile(fin, fout Fileish, fi os.FileInfo) error {
 	size := fi.Size()
 	var offset int64
 	for offset < size {

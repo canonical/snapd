@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,20 @@
  *
  */
 
-package osutil_test
+package client
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/systemd"
 )
 
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+type ServiceOp struct {
+	Names  []string `json:"names,omitempty"`
+	Action string   `json:"action"`
+}
+
+type Service struct {
+	Snap    string `json:"snap"`
+	AppInfo        // note this is much less than snap.AppInfo, right now
+	*systemd.ServiceStatus
+	Logs []systemd.Log `json:"logs,omitempty"`
+}
