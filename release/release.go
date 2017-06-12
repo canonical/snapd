@@ -35,7 +35,7 @@ var Series = "16"
 
 // BuildStamp contains a auto-generated and random id for each build.
 // It is generated via go:generate and is different from the build-id
-// because it is the same accross the codebase.
+// because it is the same across the codebase.
 var BuildStamp string
 
 // OS contains information about the system extracted from /etc/os-release.
