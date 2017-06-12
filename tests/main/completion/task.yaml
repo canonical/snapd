@@ -12,9 +12,9 @@ prepare: |
     snap install core
     snap install test-snapd-tools
     "$TESTSLIB"/mkpinentry.sh
-    expect -d -f key.exp0
     . "$TESTSLIB"/entropy.sh
-    generate_entropy
+    feed_kernel_entropy_pool
+    expect -d -f key.exp0
 
 restore: |
     rm testdir/foo.snap bar.snap
