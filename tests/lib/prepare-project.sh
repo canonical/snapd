@@ -82,7 +82,7 @@ build_rpm() {
     rm -rf $rpm_dir/BUILD/*
 
     # Build our source package
-    rpmbuild --with testkeys --nocheck -bs $packaging_path/snapd.spec
+    rpmbuild --with testkeys -bs $packaging_path/snapd.spec
 
     # .. and we need all necessary build dependencies available
     deps=()
