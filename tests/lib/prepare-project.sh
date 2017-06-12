@@ -54,15 +54,13 @@ build_rpm() {
     archive_name=snapd-$version.tar.gz
     archive_compression=z
     extra_tar_args=
-    rpm_dir=
+    rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
         fedora-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/"
-            rpm_dir=$HOME/rpmbuild
             ;;
         opensuse-*)
-            rpm_dir=/usr/src/packages
             archive_name=snapd_$version.vendor.tar.xz
             archive_compression=J
             ;;
@@ -83,8 +81,10 @@ build_rpm() {
     # Cleanup all artifacts from previous builds
     rm -rf $rpm_dir/BUILD/*
 
-    # Install all necessary build dependencies
+    # Build our source package
     rpmbuild --with testkeys --nocheck -bs $packaging_path/snapd.spec
+
+    # .. and we need all necessary build dependencies available
     deps=()
     n=0
     IFS=$'\n'
@@ -97,7 +97,7 @@ build_rpm() {
     done
     distro_install_package "${deps[@]}"
 
-    # And now build our package
+    # And now build our binary package
     rpmbuild \
       --with testkeys \
       --nocheck \
