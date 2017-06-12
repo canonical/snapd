@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type baseDeclSuite struct {
@@ -759,4 +760,15 @@ plugs:
 	cand.PlugSnapDeclaration = plugDecl1
 	err = cand.Check()
 	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestComposeBaseDeclaration(c *C) {
+	decl, err := policy.ComposeBaseDeclaration(nil)
+	c.Assert(err, IsNil)
+	c.Assert(string(decl), testutil.Contains, `
+type: base-declaration
+authority-id: canonical
+series: 16
+revision: 0
+`)
 }
