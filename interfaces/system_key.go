@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // systemKey describes the environment for which security profiles
@@ -32,18 +32,14 @@ import (
 // running system is similar enough to the generated profiles or
 // if the profiles need to be re-generated to match the new system.
 type systemKey struct {
-	BuildID          string   `yaml:"build-id"`
+	BuildStamp       string   `yaml:"build-stamp"`
 	ApparmorFeatures []string `yaml:"apparmor-features"`
 }
 
 var mySystemKey systemKey
 
 func init() {
-	buildID, err := osutil.MyBuildID()
-	if err != nil {
-		buildID = ""
-	}
-	mySystemKey.BuildID = buildID
+	mySystemKey.BuildStamp = release.BuildStamp
 
 	// add apparmor-feature, note that ioutil.ReadDir() is already sorted
 	if dentries, err := ioutil.ReadDir("/sys/kernel/security/apparmor/features"); err == nil {
@@ -59,7 +55,7 @@ func init() {
 // with a different Systemkey should be re-generated.
 func SystemKey() string {
 	// special case: unknown build-ids always trigger a rebuild
-	if mySystemKey.BuildID == "" {
+	if mySystemKey.BuildStamp == "" {
 		return ""
 	}
 
