@@ -17,7 +17,7 @@ execute: |
     snapd_build_stamp=$(snap version --verbose | grep ^snapd-build-stamp | tr -s ' ' | cut -f2 -d' ')
 
 
-    if [ -z "$snap_build_stamp ] || [ -z "$snapd_build_stamp" ]; then
+    if [ -z "$snap_build_stamp" ] || [ -z "$snapd_build_stamp" ]; then
         echo "snap or snapd build stamp empty, this should never happen"
         exit 1
     fi
