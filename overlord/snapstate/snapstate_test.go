@@ -78,6 +78,8 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	dirs.SnapCookieDir = c.MkDir()
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 	s.fakeStore = &fakeStore{
@@ -100,6 +102,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.reset = func() {
 		restore2()
 		restore1()
+		dirs.SetRootDir("/")
 	}
 
 	s.state.Lock()
@@ -1837,7 +1840,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
@@ -2441,7 +2444,7 @@ func (s *snapmgrTestSuite) TestUpdateLocalSnapFails(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot refresh local snap "some-snap"`)
+	c.Assert(err, Equals, store.ErrLocalSnap)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDisabledUnsupported(c *C) {

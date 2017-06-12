@@ -50,6 +50,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "home",
 		summary:               homeSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -41,6 +41,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "raw-usb",
 		summary:               rawusbSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

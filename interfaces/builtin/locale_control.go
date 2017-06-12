@@ -33,6 +33,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "locale-control",
 		summary:               localeControlSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -32,6 +32,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "snapd-control",
 		summary:               snapdControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -51,6 +51,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "kernel-module-control",
 		summary:               kernelModuleControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,

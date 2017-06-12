@@ -1,0 +1,54 @@
+summary: Check that `snapctl` can be run from the snap
+
+prepare: |
+    echo "Build basic test package"
+    snapbuild $TESTSLIB/snaps/snapctl-from-snap .
+  
+restore: |
+    rm snapctl-from-snap_1.0_all.snap
+
+execute: |
+    snap install --dangerous snapctl-from-snap_1.0_all.snap
+
+    echo "Verify that cookie file exists and has proper permissions"
+    COOKIE_FILE=/var/lib/snapd/cookie/snap.snapctl-from-snap
+    if ! test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE is missing"
+        exit 1
+    fi
+    if [ $(stat -c%a $COOKIE_FILE) != "600" ]; then
+        echo "Incorrect permissions of file $COOKIE_FILE"
+        exit 1
+    fi
+    echo "Verify that context file has expected length"
+    wc -c $COOKIE_FILE | MATCH 44
+
+    echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
+    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
+
+    echo "Verify that snapctl set can modify configuration values"
+    /snap/bin/snapctl-from-snap.snapctl-set foo=123
+    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
+
+    echo "Verify configuration value with snap get"
+    snap get snapctl-from-snap foo | MATCH 123
+
+
+    echo "Given two revisions of a snap have been installed"
+    snap install --dangerous snapctl-from-snap_1.0_all.snap
+
+    echo "And a single revision gets removed"
+    snap remove snapctl-from-snap --revision=x1
+
+    echo "Verify that context file is still present"
+    if ! test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE is missing"
+        exit 1
+    fi
+
+    echo "Verify that snap context is removed on snap removal"
+    snap remove snapctl-from-snap
+    if test -f $COOKIE_FILE ; then
+        echo "Context file $COOKIE_FILE still exists"
+        exit 1
+    fi
