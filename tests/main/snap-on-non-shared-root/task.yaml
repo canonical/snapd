@@ -22,12 +22,12 @@ execute: |
     test-snapd-tools.echo hello
 
     echo "Ensure we have a shared mount of $SNAPMOUNTDIR"
-    cat /proc/self/mountinfo |MATCH "$SNAPMOUNTDIR $SNAPMOUNTDIR.*shared:1"
+    cat /proc/self/mountinfo |MATCH "$SNAPMOUNTDIR $SNAPMOUNTDIR.*shared:[0-9]"
 
     echo "Run it again for good measure"
     test-snapd-tools.echo hello
     echo "... and ensure we do not mount $SNAPMOUNTDIR again"
-    n=$(cat /proc/self/mountinfo |grep "$SNAPMOUNTDIR $SNAPMOUNTDIR.*shared:1"|wc -l)
+    n=$(cat /proc/self/mountinfo |grep "$SNAPMOUNTDIR $SNAPMOUNTDIR.*shared:[0-9]"|wc -l)
     if [ "$n" -ne 1 ]; then
         echo "Incorrect extra $SNAPMOUNTDIR bind mounts created"
         exit 1
