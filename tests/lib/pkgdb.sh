@@ -154,10 +154,10 @@ distro_install_package() {
                 quiet apt-get install -y "$APT_FLAGS" "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install -y $DNF_FLAGS $package_name
+                dnf -q -y install -y "$DNF_FLAGS" $package_name
                 ;;
             opensuse-*)
-                zypper -q install -y $ZYPPER_FLAGS $package_name
+                zypper -q install -y "$ZYPPER_FLAGS" $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
