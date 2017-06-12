@@ -133,6 +133,12 @@ export CXXFLAGS
 # so we we have to invoke `go install` here manually.
 export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
 export GOBIN=%{_builddir}/go/bin
+# Options used are the same as the %gobuild macro does but as it
+# doesn't allow us to amend new flags we have to repeat them here:
+# -s: tell long running tests to shorten their build time
+# -v: be verbose
+# -p 4: allow parallel execution of tests
+# -x: print commands
 go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %else
 %gobuild cmd/snapd
