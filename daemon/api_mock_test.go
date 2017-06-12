@@ -34,7 +34,6 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	}
 
 	snapInfo := snaptest.MockSnap(c, yamlText, "", &snap.SideInfo{Revision: snap.R(1)})
-	snap.AddImplicitSlots(snapInfo)
 
 	st := s.d.overlord.State()
 

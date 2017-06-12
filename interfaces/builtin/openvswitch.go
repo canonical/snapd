@@ -29,6 +29,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "openvswitch",
 		summary:               openvswitchSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
