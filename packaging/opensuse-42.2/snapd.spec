@@ -95,6 +95,7 @@ the system:snappy repository.
 
 # Set the version that is compiled into the various executables
 ./mkversion.sh %{version}-%{release}
+./mkbuild-stamp.sh
 
 # Generate autotools build system files
 cd cmd && autoreconf -i -f

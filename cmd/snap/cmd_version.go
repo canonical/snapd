@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -35,7 +36,9 @@ The version command displays the versions of the running client, server,
 and operating system.
 `)
 
-type cmdVersion struct{}
+type cmdVersion struct {
+	Verbose bool `long:"verbose"`
+}
 
 func init() {
 	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
@@ -46,11 +49,11 @@ func (cmd cmdVersion) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	printVersions()
+	printVersions(cmd.Verbose)
 	return nil
 }
 
-func printVersions() error {
+func printVersions(verbose bool) error {
 	sv, err := Client().ServerVersion()
 	if err != nil {
 		sv = &client.ServerVersion{
@@ -71,6 +74,10 @@ func printVersions() error {
 	}
 	if sv.KernelVersion != "" {
 		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
+	}
+	if verbose {
+		fmt.Fprintf(w, "snap-build-stamp\t%s\n", release.BuildStamp)
+		fmt.Fprintf(w, "snapd-build-stamp\t%s\n", sv.BuildStamp)
 	}
 	w.Flush()
 

@@ -261,6 +261,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
+		"build-stamp": release.BuildStamp,
 		"refresh": map[string]interface{}{
 			"schedule": refreshScheduleStr,
 			"last":     formatRefreshTime(lastRefresh),
