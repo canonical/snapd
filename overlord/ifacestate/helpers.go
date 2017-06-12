@@ -110,17 +110,9 @@ func (m *InterfaceManager) addSnaps() error {
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
 	currentSystemKey := interfaces.SystemKey()
-	if currentSystemKey == "" {
-		logger.Noticef("no system key, forcing re-generation of security profiles")
-		return true
-	}
-
 	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
-	if os.IsNotExist(err) {
-		return true
-	}
-	if err != nil {
-		logger.Noticef("cannot read system-key file: %s", err)
+	if currentSystemKey == "" || os.IsNotExist(err) {
+		logger.Noticef("no system key, forcing re-generation of security profiles")
 		return true
 	}
 

@@ -73,6 +73,7 @@ func SystemKey() string {
 func MockSystemKey(s string) func() {
 	realMySystemKey := mySystemKey
 
+	mySystemKey = systemKey{}
 	err := yaml.Unmarshal([]byte(s), &mySystemKey)
 	if err != nil {
 		panic(err)
