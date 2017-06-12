@@ -31,7 +31,7 @@ debug: |
         kpartx -ds /tmp/work-dir/ubuntu-core.img
     fi
 
-kill-timeout: 35m
+kill-timeout: 40m
 
 execute: |
     . $TESTSLIB/nested.sh
