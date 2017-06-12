@@ -1,0 +1,28 @@
+summary: Ensure that snap version works
+
+execute: |
+    echo "Snap version prints version information"
+    snap version | MATCH '^snap '
+    snap version | MATCH '^snapd '
+    snap version | MATCH ^series
+    echo "But excludes verbose output"
+    snap version | grep -v build-stamp
+
+    snap version --verbose | MATCH '^snap '
+    snap version --verbose | MATCH '^snapd '
+    snap version --verbose | MATCH ^snap-build-stamp
+    snap version --verbose | MATCH ^snapd-build-stamp
+
+    snap_build_stamp=$(snap version --verbose | grep ^snap-build-stamp | tr -s ' ' |  cut -f2 -d' ')
+    snapd_build_stamp=$(snap version --verbose | grep ^snapd-build-stamp | tr -s ' ' | cut -f2 -d' ')
+
+
+    if [ -z "$snap_build_stamp ] || [ -z "$snapd_build_stamp" ]; then
+        echo "snap or snapd build stamp empty, this should never happen"
+        exit 1
+    fi
+
+    if [ "$snap_build_stamp" != "$snapd_build_stamp" ]; then
+        echo "Build-stamp of snap != snapd, this should never happen"
+        exit 1
+    fi

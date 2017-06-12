@@ -143,14 +143,34 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-// Context obtains the context for the given context ID.
-func (m *HookManager) Context(contextID string) (*Context, error) {
+func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
+	var contexts map[string]string
+	m.state.Lock()
+	defer m.state.Unlock()
+	err = m.state.Get("snap-cookies", &contexts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
+	}
+	if snapName, ok := contexts[cookieID]; ok {
+		// create new ephemeral cookie
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
+		return context, err
+	}
+	return nil, fmt.Errorf("invalid snap cookie requested")
+}
+
+// Context obtains the context for the given cookie ID.
+func (m *HookManager) Context(cookieID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
-	context, ok := m.contexts[contextID]
+	var err error
+	context, ok := m.contexts[cookieID]
 	if !ok {
-		return nil, fmt.Errorf("no context for ID: %q", contextID)
+		context, err = m.ephemeralContext(cookieID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return context, nil
@@ -197,7 +217,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
-	context, err := NewContext(task, hooksup, nil)
+	context, err := NewContext(task, task.State(), hooksup, nil, "")
 	if err != nil {
 		return err
 	}
@@ -327,7 +347,10 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_COOKIE=%s", hookContext))
+	// Set SNAP_CONTEXT too for compatibility with old snapctl binary when transitioning
+	// to a new core - otherwise configure hook would fail during transition.
+	command.Env = append(command.Env, fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
