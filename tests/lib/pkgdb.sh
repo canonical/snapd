@@ -125,10 +125,14 @@ distro_install_package() {
     # part we break argument parsing and process all further
     # arguments as package names.
     APT_FLAGS=
+    DNF_FLAGS=
+    ZYPPER_FLAGS=
     while [ -n "$1" ]; do
         case "$1" in
             --no-install-recommends)
                 APT_FLAGS="$APT_FLAGS --no-install-recommends"
+                DNF_FLAGS="$DNF_FLAGS --setopt=install_weak_deps=False"
+                ZYPPER_FLAGS="$ZYPPER_FLAGS --no-recommends"
                 shift
                 ;;
             *)
@@ -150,10 +154,10 @@ distro_install_package() {
                 quiet apt-get install -y "$APT_FLAGS" "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install -y $package_name
+                dnf -q -y install -y $DNF_FLAGS $package_name
                 ;;
             opensuse-*)
-                zypper -q install -y $package_name
+                zypper -q install -y $ZYPPER_FLAGS $package_name
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
