@@ -1,0 +1,40 @@
+summary: Check install and remove hooks.
+
+prepare: |
+    echo "Build basic test package"
+    snapbuild $TESTSLIB/snaps/snap-install-hooks .
+  
+restore: |
+    rm snap-install-hooks_1.0_all.snap
+
+execute: |
+    snap install --dangerous snap-install-hooks_1.0_all.snap
+
+    echo "Verify that configuration value with snap get"
+    snap get snap-install-hooks installed | MATCH 1
+    snap get snap-install-hooks foo | MATCH bar
+
+    echo "Verify that install hook is run only once"
+    snap set snap-install-hooks installed=2
+    snap install --dangerous snap-install-hooks_1.0_all.snap
+    snap get snap-install-hooks installed | MATCH 2
+
+
+    REMOVE_HOOK_FILE1=/root/snap/snap-install-hooks/x1/remove-hook-executed
+    REMOVE_HOOK_FILE2=/root/snap/snap-install-hooks/x2/remove-hook-executed
+
+    echo "Verify that remove hook is not executed when removing single revision"
+    snap remove --revision=x1 snap-install-hooks
+    if test [ -f $REMOVE_HOOK_FILE1 ] -o [ -f $REMOVE_HOOK_FILE2 ]
+    then
+      echo "Remove hook was exectued. It shouldn't."
+      exit 1
+    fi
+
+    echo "Verify that remove hook is executed"
+    snap remove snap-install-hooks
+    if ! test -f $REMOVE_HOOK_FILE2
+    then
+       echo "Remove hook was not executed"
+       exit 1
+    fi
