@@ -1,0 +1,39 @@
+#!/bin/sh
+
+hotfix_id="$1"
+
+if [ -z "$hotfix_id" ]; then
+	echo "usage: snapd-hotfix-tool HOTFIX-ID"
+	exit 1
+fi
+
+if [ ! -f "hotfixes/$hotfix_id.hotfix" ]; then
+	echo "snapd-hotfix-tool: invalid hotfix identifier: $hotfix_id" >&2
+	exit 1
+fi
+
+echo "snapd-hotfix-tool, hotfix identifier $hotfix_id"
+
+. ./hotfixes/"$hotfix_id".hotfix
+
+echo
+do_describe
+echo
+
+echo "Attempting hotfix:"
+if is_eligible; then
+	echo " - the system is eligible"
+	if is_necessary; then
+		echo " - hotfix is necessary"
+		if do_apply; then
+			echo " - hotfix successful!"
+		else
+			echo " - hotfix failed, please report this on forum.snapcraft.io"
+			exit 1
+		fi
+	else
+		echo " - hotfix is *not* necessary (already performed)"
+	fi
+else
+	echo " - the system is *not* eligible for this hotfix"
+fi
