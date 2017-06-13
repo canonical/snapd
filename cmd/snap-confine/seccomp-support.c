@@ -17,40 +17,10 @@
 #include "config.h"
 #include "seccomp-support.h"
 
-#include <asm/ioctls.h>
-#include <ctype.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <linux/can.h>		// needed for search mappings
-#include <linux/netlink.h>
-#include <sched.h>
-#include <search.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/prctl.h>
-#include <sys/quota.h>
-#include <sys/resource.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <termios.h>
 #include <unistd.h>
 
-// The XFS interface requires a 64 bit file system interface
-// but we don't want to leak this anywhere else if not globally
-// defined.
-#ifndef _FILE_OFFSET_BITS
-#define _FILE_OFFSET_BITS 64
-#include <xfs/xqm.h>
-#undef _FILE_OFFSET_BITS
-#else
-#include <xfs/xqm.h>
-#endif
-
-#include <seccomp.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 
