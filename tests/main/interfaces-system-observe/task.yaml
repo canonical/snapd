@@ -19,7 +19,6 @@ prepare: |
 
 restore: |
     rm -f *.error
-    apt remove --purge -y dbus-x11
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         systemctl stop systemd-hostnamed
     fi
