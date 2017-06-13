@@ -105,6 +105,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
+	// FIXME: restore
+	snapstate.InstallHookSetup = func(st *state.State, name string) *state.Task {
+		//return st.NewTask("fake-install-hook", "")
+		return nil
+	}
+
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	snapstate.CanAutoRefresh = nil
 

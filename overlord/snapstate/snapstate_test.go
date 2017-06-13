@@ -89,6 +89,15 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		state:               s.state,
 	}
 
+	// FIXME: restore
+	snapstate.InstallHookSetup = func(st *state.State, name string) *state.Task {
+		//return st.NewTask("fake-install-hook", "")
+		return nil
+	}
+	snapstate.RemoveHookSetup = func(st *state.State, name string) *state.Task {
+		return nil
+	}
+
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)

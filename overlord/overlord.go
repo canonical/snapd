@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snaphooks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
@@ -102,6 +103,7 @@ func New() (*Overlord, error) {
 	o.hookMgr = hookMgr
 	o.stateEng.AddManager(o.hookMgr)
 
+	snaphooks.SetupHooks(o.hookMgr)
 	snapMgr, err := snapstate.Manager(s)
 	if err != nil {
 		return nil, err
