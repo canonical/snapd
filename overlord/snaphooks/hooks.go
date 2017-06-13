@@ -62,9 +62,10 @@ func (h *snapHookHandler) Error(err error) error {
 
 func RemoveHookSetup(st *state.State, snapName string) *state.Task {
 	hooksup := &hookstate.HookSetup{
-		Snap:     snapName,
-		Hook:     "remove",
-		Optional: true,
+		Snap:        snapName,
+		Hook:        "remove",
+		Optional:    true,
+		IgnoreError: true,
 	}
 
 	summary := fmt.Sprintf(i18n.G("Remove hook of snap %q"), hooksup.Snap)

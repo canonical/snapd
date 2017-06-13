@@ -3,14 +3,17 @@ summary: Check install and remove hooks.
 prepare: |
     echo "Build basic test package"
     snapbuild $TESTSLIB/snaps/snap-install-hooks .
+    snapbuild $TESTSLIB/snaps/snap-install-hooks-broken1 .
   
 restore: |
     rm snap-install-hooks_1.0_all.snap
+    rm snap-install-hooks-broken1_1.0_all.snap
 
 execute: |
+    echo "Installing a snap with hooks"
     snap install --dangerous snap-install-hooks_1.0_all.snap
 
-    echo "Verify that configuration value with snap get"
+    echo "Verify configuration value with snap get"
     snap get snap-install-hooks installed | MATCH 1
     snap get snap-install-hooks foo | MATCH bar
 
@@ -19,13 +22,11 @@ execute: |
     snap install --dangerous snap-install-hooks_1.0_all.snap
     snap get snap-install-hooks installed | MATCH 2
 
-
-    REMOVE_HOOK_FILE1=/root/snap/snap-install-hooks/x1/remove-hook-executed
-    REMOVE_HOOK_FILE2=/root/snap/snap-install-hooks/x2/remove-hook-executed
+    REMOVE_HOOK_FILE=/root/snap/snap-install-hooks/current/remove-hook-executed
 
     echo "Verify that remove hook is not executed when removing single revision"
     snap remove --revision=x1 snap-install-hooks
-    if test [ -f $REMOVE_HOOK_FILE1 ] -o [ -f $REMOVE_HOOK_FILE2 ]
+    if test -f $REMOVE_HOOK_FILE
     then
       echo "Remove hook was exectued. It shouldn't."
       exit 1
@@ -33,8 +34,28 @@ execute: |
 
     echo "Verify that remove hook is executed"
     snap remove snap-install-hooks
-    if ! test -f $REMOVE_HOOK_FILE2
+    if ! test -f $REMOVE_HOOK_FILE
     then
        echo "Remove hook was not executed"
+       exit 1
+    fi
+
+    echo "Installing a snap with hooks again"
+    rm -rf "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
+    snap install --dangerous snap-install-hooks_1.0_all.snap
+
+    echo "Forcing remove script to fail"
+    snap set snap-install-hooks exitcode=1
+    snap remove snap-install-hooks
+    if ! test -f $REMOVE_HOOK_FILE
+    then
+       echo "Remove hook was not executed"
+       exit 1
+    fi
+
+    echo "Installing a snap with broken install hook aborts the installation"
+    if snap install --dangerous snap-install-hook-broken1_1.0_all.snap
+    then
+       echo "Expected installation to fail"
        exit 1
     fi
