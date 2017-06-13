@@ -57,15 +57,16 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		die("profile %s is too big %lu", profile_path,
 		    stat_buf.st_size);
 
-        // FIXME: make this a robust read that deals with e.g. deal with
-        //        e.g. interrupts by signals
+	// FIXME: make this a robust read that deals with e.g. deal with
+	//        e.g. interrupts by signals
 	ssize_t num_read = read(fd, bpf, sizeof bpf);
 	if (num_read < 0) {
 		die("cannot read bpf %s", profile_path);
 	}
-        if (num_read < stat_buf.st_size) {
-           die("cannot read bpf file %s, only got %lu instead of %lu", profile_path, num_read, stat_buf.st_size);
-        }
+	if (num_read < stat_buf.st_size) {
+		die("cannot read bpf file %s, only got %lu instead of %lu",
+		    profile_path, num_read, stat_buf.st_size);
+	}
 	close(fd);
 
 	// raise privs
@@ -81,16 +82,15 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		if (geteuid() != 0)
 			die("raising privs before seccomp_load did not work");
 	}
-	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
-	// AppArmor. Unfortunately this means that security policies must be
-	// very careful to not allow the following otherwise apps can escape
-	// the sandbox:
-	//   - seccomp syscall
-	//   - prctl with PR_SET_SECCOMP
-	//   - ptrace (trace) in AppArmor
-	//   - capability sys_admin in AppArmor
-	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to
-	// change the seccomp sandbox.
+	// Load filter into the kernel. Importantly we are
+	// intentionally *not* setting NO_NEW_PRIVS because it
+	// interferes with exec transitions in AppArmor with certain
+	// snappy interfaces. Not setting NO_NEW_PRIVS does mean that
+	// applications can adjust their sandbox if they have
+	// CAP_SYS_ADMIN or, if running on < 4.8 kernels, break out of
+	// the seccomp via ptrace. Both CAP_SYS_ADMIN and 'ptrace
+	// (trace)' are blocked by AppArmor with typical snappy
+	// interfaces.
 	struct sock_fprog prog = {
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
