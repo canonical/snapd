@@ -45,10 +45,11 @@ bool verify_security_tag(const char *security_tag, const char *snap_name)
 	// first capture is the entire string, second is the name we care about
 	regmatch_t matches[2];
 	int status =
-	    regexec(&re, security_tag, sizeof(matches) / sizeof(regmatch_t),
+	    regexec(&re, security_tag, sizeof matches / sizeof *matches,
 		    matches, 0);
 	regfree(&re);
 
+  // make sure that snap name was captured by 2nd match group
 	if (status != 0 || matches[1].rm_so < 0) {
 		return false;
 	}
