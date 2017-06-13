@@ -28,26 +28,11 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-
 static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
-
 
 int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
-
-	uid_t real_uid, effective_uid, saved_uid;
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-		die("could not find user IDs");
-	// If not root but can raise, then raise privileges to load seccomp
-	// policy since we don't have nnp
-	debug("raising privileges to load seccomp profile");
-	if (effective_uid != 0 && saved_uid == 0) {
-		if (seteuid(0) != 0)
-			die("seteuid failed");
-		if (geteuid() != 0)
-			die("raising privs before seccomp_load did not work");
-	}
 
 	char profile_path[512];	// arbitrary path name limit
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
@@ -67,6 +52,19 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	}
 	close(fd);
 
+	// raise privs
+	uid_t real_uid, effective_uid, saved_uid;
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+		die("could not find user IDs");
+	// If not root but can raise, then raise privileges to load seccomp
+	// policy since we don't have nnp
+	debug("raising privileges to load seccomp profile");
+	if (effective_uid != 0 && saved_uid == 0) {
+		if (seteuid(0) != 0)
+			die("seteuid failed");
+		if (geteuid() != 0)
+			die("raising privs before seccomp_load did not work");
+	}
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
 	// AppArmor. Unfortunately this means that security policies must be
 	// very careful to not allow the following otherwise apps can escape
@@ -96,4 +94,3 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 
 	return 0;
 }
-
