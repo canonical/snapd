@@ -191,7 +191,15 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 
 		// with arg1 and name resolving
 		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
 		{"ioctl - !TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetKill},
+
+		// test_bad_seccomp_filter_args_clone
+		{"setns - CLONE_NEWNET", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNET", "setns;native;0,CLONE_NEWNET", main.SeccompRetAllow},
+		// test_bad_seccomp_filter_args_mknod
+		{"mknod - |S_IFIFO", "mknod;native;0,S_IFIFO", main.SeccompRetAllow},
+		{"mknod - |S_IFIFO", "mknod;native;0,99", main.SeccompRetKill},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.seccompWhitelist), outPath)
@@ -213,4 +221,27 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		c.Check(out, Equals, t.expected, Commentf("unexpected result for %q, got %v expected %v", t.seccompWhitelist, out, t.expected))
 	}
 
+}
+
+func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
+	for _, t := range []struct {
+		inp    string
+		errMsg string
+	}{
+		// test_bad_seccomp_filter_args_clone (various typos in input)
+		{"setns - CLONE_NEWNE", `cannot parse line: cannot parse token "CLONE_NEWNE" \(line "setns - CLONE_NEWNE"\)`},
+		{"setns - CLONE_NEWNETT", `cannot parse line: cannot parse token "CLONE_NEWNETT" \(line "setns - CLONE_NEWNETT"\)`},
+		{"setns - CL0NE_NEWNET", `cannot parse line: cannot parse token "CL0NE_NEWNET" \(line "setns - CL0NE_NEWNET"\)`},
+		// test_bad_seccomp_filter_args_mknod (various typos in input)
+		{"mknod - |S_IFIF", `cannot parse line: cannot parse token "S_IFIF" \(line "mknod - |S_IFIF"\)`},
+		{"mknod - |S_IFIFOO", `cannot parse line: cannot parse token "S_IFIFOO" \(line "mknod - |S_IFIFOO"\)`},
+		{"mknod - |S_!FIFO", `cannot parse line: cannot parse token "S_IFIFO" \(line "mknod - |S_!FIFO"\)`},
+		// test_bad_seccomp_filter_args
+		{"mbind - - - - - - 7", `cannot parse line: too many tokens \(6\) in line.*`},
+		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many tokens \(6\) in line.*`},
+	} {
+		outPath := filepath.Join(c.MkDir(), "bpf")
+		err := main.Compile([]byte(t.inp), outPath)
+		c.Check(err, ErrorMatches, t.errMsg, Commentf("%q errors in unexpected ways, got: %q expected %q", t.inp, err, t.errMsg))
+	}
 }
