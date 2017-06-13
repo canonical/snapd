@@ -39,7 +39,7 @@ const int MAX_BPF_SIZE = 640 * 1024;
 
 typedef struct sock_filter bpf_instr;
 
-bool is_valid_bpf_opcode(__u16 code)
+static bool is_valid_bpf_opcode(__u16 code)
 {
 	// from https://github.com/iovisor/bpf-docs/blob/master/eBPF.md 
 	__u16 valid_opcodes[] = {
@@ -72,7 +72,7 @@ bool is_valid_bpf_opcode(__u16 code)
 	return false;
 }
 
-void validate_bpf(void *buf, size_t buf_size)
+static void validate_bpf(void *buf, size_t buf_size)
 {
 	bpf_instr *bpf = buf;
 
@@ -84,6 +84,16 @@ void validate_bpf(void *buf, size_t buf_size)
 	}
 }
 
+static void validate_dir_is_root_owned(const char *dir)
+{
+	struct stat stat_buf;
+	if (stat(dir, &stat_buf) < 0) {
+		die("cannot stat %s", dir);
+	}
+	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
+		die("cannot use %s: must be root:root owned", dir);
+}
+
 int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
@@ -92,18 +102,33 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
 			 filter_profile_dir, filter_profile);
 
+	// validate profile-path and all parents is all root owned
+	// (TOCTTOU sadly).
+	struct stat stat_buf;
+	char *p = strdup(profile_path);
+	while (*p != 0) {
+		validate_dir_is_root_owned(p);
+
+		char *last_slash = strrchr(p, '/');
+		*last_slash = 0;
+	}
+	validate_dir_is_root_owned("/");
+	free(p);
+
 	// load bpf
 	char bpf[MAX_BPF_SIZE];
 	int fd = open(profile_path, O_RDONLY);
 	if (fd < 0)
 		die("cannot read %s", profile_path);
-	struct stat stat_buf;
 
 	if (fstat(fd, &stat_buf) < 0)
 		die("cannot stat %s", profile_path);
 	if (stat_buf.st_size > MAX_BPF_SIZE)
 		die("profile %s is too big %lu", profile_path,
 		    stat_buf.st_size);
+	// paranoid, but only helps a bit
+	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
+		die("cannot use %s: must be root:root owned", profile_path);
 
 	// FIXME: make this a robust read that deals with e.g. deal with
 	//        e.g. interrupts by signals
