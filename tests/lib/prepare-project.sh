@@ -99,15 +99,15 @@ build_rpm() {
 
     # And now build our binary package
     rpmbuild \
-      --with testkeys \
-      --nocheck \
-      -ba \
-      $packaging_path/snapd.spec
+        --with testkeys \
+        --nocheck \
+        -ba \
+        $packaging_path/snapd.spec
 
     cp $rpm_dir/RPMS/$arch/snap*.rpm $GOPATH
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
-      # On Fedora we have an additional package for SELinux
-      cp $rpm_dir/RPMS/noarch/snap*.rpm $GOPATH
+        # On Fedora we have an additional package for SELinux
+        cp $rpm_dir/RPMS/noarch/snap*.rpm $GOPATH
     fi
 }
 
