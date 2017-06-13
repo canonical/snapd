@@ -409,8 +409,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			value, err = readNumber(arg)
 		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "cannot parse token %q\n", arg)
-			continue
+			return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
 		}
 
 		var scmpCond seccomp.ScmpCondition
@@ -500,11 +499,12 @@ func showVersion() error {
 
 func main() {
 	var err error
+	var content []byte
 
 	cmd := os.Args[1]
 	switch cmd {
 	case "compile":
-		content, err := ioutil.ReadFile(os.Args[2])
+		content, err = ioutil.ReadFile(os.Args[2])
 		if err != nil {
 			break
 		}
