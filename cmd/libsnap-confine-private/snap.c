@@ -29,13 +29,6 @@
 
 bool verify_security_tag(const char *security_tag, const char *snap_name)
 {
-	// The executable name is of form:
-	// snap.<name>.(<appname>|hook.<hookname>)
-	// - <name> must start with lowercase letter, then may contain
-	//   lowercase alphanumerics and '-'; it must match snap_name
-	// - <appname> may contain alphanumerics and '-'
-	// - <hookname must start with a lowercase letter, then may
-	//   contain lowercase letters and '-'
 	const char *whitelist_re =
 	    "^snap\\.([a-z](-?[a-z0-9])*)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
 	regex_t re;
@@ -49,7 +42,7 @@ bool verify_security_tag(const char *security_tag, const char *snap_name)
 		    matches, 0);
 	regfree(&re);
 
-  // make sure that snap name was captured by 2nd match group
+	// make sure that snap name was captured by 2nd match group
 	if (status != 0 || matches[1].rm_so < 0) {
 		return false;
 	}
