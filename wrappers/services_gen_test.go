@@ -59,7 +59,6 @@ WantedBy=multi-user.target
 
 var (
 	expectedAppService     = fmt.Sprintf(expectedServiceFmt, "on-failure", "simple\n\n")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, "on-failure", "dbus\n\nBusName=foo.bar.baz")
 	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, "no", "oneshot\nRemainAfterExit=yes\n")
 )
 
@@ -176,33 +175,6 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 
 	_, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, NotNil)
-}
-
-func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
-
-	yamlText := `
-name: snap
-version: 1.0
-apps:
-    app:
-        command: bin/start
-        stop-command: bin/stop
-        reload-command: bin/reload
-        post-stop-command: bin/stop --post
-        stop-timeout: 10s
-        bus-name: foo.bar.baz
-        daemon: dbus
-`
-
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	info.Revision = snap.R(44)
-	app := info.Apps["app"]
-
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
-	c.Assert(err, IsNil)
-
-	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {

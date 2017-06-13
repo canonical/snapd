@@ -100,6 +100,8 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 	// unity extension
 	"^X-Ayatana-Desktop-Shortcuts=",
 	"^TargetEnvironment=",
+	// dbus
+	"^DBusActivatable=(true|false)",
 }, "|")).Match
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.

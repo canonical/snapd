@@ -286,7 +286,7 @@ apps:
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
-func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
+func (s *sanitizeDesktopFileSuite) TestIsValidDesktopLine(c *C) {
 	langs := []struct {
 		line    string
 		isValid bool
@@ -308,8 +308,14 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 		// bad ones
 		{"Name[foo=bar", false},
 		{"Icon[xx]=bar", false},
+		// dbus related
+		{"Activatable=true", false},
+		{"DBusActivatable=true", true},
+		{"DBusActivatable=false", true},
 	}
 	for _, t := range langs {
+		res := wrappers.IsValidDesktopFileLine([]byte(t.line))
+		c.Check(res, Equals, t.isValid, Commentf("got %v for %q but expected %v", res, t.line, t.isValid))
 		c.Assert(wrappers.IsValidDesktopFileLine([]byte(t.line)), Equals, t.isValid)
 	}
 }

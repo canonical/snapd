@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+
+import os
+import os.path
+import glob
+# ensure that typelib path points to the right directory,
+# eg. $SNAP/usr/lib/x86_64-linux-gnu/girepository-1.0 on amd64
+globpath = os.path.join(os.environ["SNAP"], "usr/lib/*/girepository-1.0")
+os.environ["GI_TYPELIB_PATH"] = glob.glob(globpath)[0]
+
+from gi.repository import GLib
+
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+DBusGMainLoop(set_as_default=True)
+
+
+class ServerObject(dbus.service.Object):
+    def __init__(self):
+        bus_name = dbus.service.BusName(
+            'io.snapcraft.SnapDbusService',bus=dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, '/io/snapcraft/SnapDbusService')
+    @dbus.service.method('io.snapcraft.ExampleInterface')
+    def ExampleMethod(self):
+	    return "hello world"
+
+
+if __name__ == "__main__":
+    server = ServerObject()
+    loop = GLib.MainLoop()
+    loop.run()

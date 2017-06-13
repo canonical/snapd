@@ -1,0 +1,36 @@
+summary: Test dbus activated snaps
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    apt install -y dbus-x11
+    mv /usr/share/dbus-1/session.d/snapd.conf /usr/share/dbus-1/session.d/snapd.conf.xxx
+
+restore: |
+    killall dbus-daemon
+    apt-get autoremove -y dbus-x11
+    rm /etc/dbus-1/session.d/snapd.conf
+    mv /usr/share/dbus-1/session.d/snapd.conf.xxx /usr/share/dbus-1/session.d/snapd.conf
+
+execute: |
+    echo "Ensure we have a snap that is dbus service activated"
+    snap install --edge test-snapd-dbus-service
+
+    if [ ! -e /etc/dbus-1/session.d/snapd.conf ]; then
+        echo "re-exec dbus snapd.conf not created, broken test"
+        exit 1
+    fi
+
+    eval $(dbus-launch --auto-syntax)
+
+    echo "Then sending methods to it will wake it up"
+    dbus-send --print-reply --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
+
+    . $TESTSLIB/snaps.sh
+    if install_local test-snapd-dbus-service-conflicting; then
+        echo "installing a conflicting dbus name should fail"
+        exit 1
+    fi
+
+    echo "But refreshing an existing snap dbus service should work"
+    snap install --dangerous /var/lib/snapd/snaps/test-snapd-dbus-service_*.snap

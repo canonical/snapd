@@ -61,10 +61,12 @@ var (
 
 	SnapStateFile string
 
-	SnapBinariesDir     string
-	SnapServicesDir     string
-	SnapDesktopFilesDir string
-	SnapBusPolicyDir    string
+	SnapBinariesDir                 string
+	SnapServicesDir                 string
+	SnapDesktopFilesDir             string
+	SnapDBusSessionServicesFilesDir string
+	SnapBusPolicyDir                string
+	SnapSessionBusPolicyDir         string
 
 	SystemApparmorDir      string
 	SystemApparmorCacheDir string
@@ -143,6 +145,11 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
+
+	// Use 'dbus/services' to mirror /usr/share/dbus-1/services for session
+	// services. With system services, will use 'dbus/system-services'.
+	SnapDBusSessionServicesFilesDir = filepath.Join(rootdir, snappyDir, "dbus/services")
+
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
@@ -163,6 +170,7 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapSessionBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")

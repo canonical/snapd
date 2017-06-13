@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dbusSummary = `allows owning a specifc name on DBus`
@@ -234,6 +235,15 @@ func (iface *dbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 	return bus, name, nil
 }
 
+// isDbusService returns true if the yaml declares it is a service
+func isDbusService(attribs map[string]interface{}) bool {
+	if isService, ok := attribs["service"].(bool); ok {
+		return isService
+	}
+
+	return false
+}
+
 // Determine AppArmor dbus abstraction to use based on bus
 func getAppArmorAbstraction(bus string) (string, error) {
 	var abstraction string
@@ -323,14 +333,31 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 		return err
 	}
 
-	// only system services need bus policy
-	if bus != "system" {
-		return nil
+	// System services get system bus policy
+	if bus == "system" {
+		old := "###DBUS_NAME###"
+		new := name
+		spec.AddSnippet(strings.Replace(dbusPermanentSlotDBus, old, new, -1))
 	}
 
-	old := "###DBUS_NAME###"
-	new := name
-	spec.AddSnippet(strings.Replace(dbusPermanentSlotDBus, old, new, -1))
+	// dbus activation currently only supported by the session bus
+	//
+	// TODO: we can eventually support 'system' by:
+	// 1. creating the SnapDBusSystemServicesFilesDir directory
+	// 2. writing the service file to SnapDBusSystemServicesFilesDir when
+	//    'daemon' is set to 'dbus' (see validate.go)
+	// 3. add 'Type=dbus' and 'BusName=slot.Attrs["name"].(string)' to
+	//    the systemd unit when 'slot.Attrs["service"].(bool) == True' and
+	//    'daemon' is set to 'dbus'
+	if bus == "session" && isDbusService(slot.Attrs) && len(slot.Apps) == 1 {
+		var serviceApp *snap.AppInfo
+		for _, app := range slot.Apps {
+			serviceApp = app
+			break
+		}
+		spec.AddService(bus, name, serviceApp)
+	}
+
 	return nil
 }
 
@@ -406,7 +433,20 @@ func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	_, _, err := iface.getAttribs(slot.Attrs)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// FIXME: also check that the dbus name is not already taken
+	//        by an existing snap
+	if isDbusService(slot.Attrs) && len(slot.Apps) > 1 {
+		// Because activation service files necessarily must
+		// map one DBus well-known name to one command,
+		// enforce that constraint in the interface here.
+		return fmt.Errorf("cannot add dbus service slot to multiple apps")
+	}
+
+	return nil
 }
 
 func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
