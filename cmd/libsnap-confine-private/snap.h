@@ -43,7 +43,7 @@ enum {
  **/
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
 
-bool verify_security_tag(const char *security_tag);
+bool verify_security_tag(const char *security_tag, const char *snap_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
 

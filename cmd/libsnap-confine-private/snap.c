@@ -27,25 +27,34 @@
 #include "string-utils.h"
 #include "cleanup-funcs.h"
 
-bool verify_security_tag(const char *security_tag)
+bool verify_security_tag(const char *security_tag, const char *snap_name)
 {
 	// The executable name is of form:
 	// snap.<name>.(<appname>|hook.<hookname>)
 	// - <name> must start with lowercase letter, then may contain
-	//   lowercase alphanumerics and '-'
+	//   lowercase alphanumerics and '-'; it must match snap_name
 	// - <appname> may contain alphanumerics and '-'
 	// - <hookname must start with a lowercase letter, then may
 	//   contain lowercase letters and '-'
 	const char *whitelist_re =
-	    "^snap\\.[a-z](-?[a-z0-9])*\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
+	    "^snap\\.([a-z](-?[a-z0-9])*)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
 	regex_t re;
-	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
+	if (regcomp(&re, whitelist_re, REG_EXTENDED) != 0)
 		die("can not compile regex %s", whitelist_re);
 
-	int status = regexec(&re, security_tag, 0, NULL, 0);
+	// first capture is the entire string, second is the name we care about
+	regmatch_t matches[2];
+	int status =
+	    regexec(&re, security_tag, sizeof(matches) / sizeof(regmatch_t),
+		    matches, 0);
 	regfree(&re);
 
-	return (status == 0);
+	if (status != 0 || matches[1].rm_so < 0) {
+		return false;
+	}
+
+	return strncmp(security_tag + matches[1].rm_so, snap_name,
+		       matches[1].rm_eo - matches[1].rm_so) == 0;
 }
 
 bool sc_is_hook_security_tag(const char *security_tag)

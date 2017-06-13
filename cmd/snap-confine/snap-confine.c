@@ -54,21 +54,23 @@ int main(int argc, char **argv)
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;
 	}
-	// Collect and validate the security tag and a few other things passed on
-	// command line.
-	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag)) {
-		die("security tag %s not allowed", security_tag);
-	}
-	const char *executable = sc_args_executable(args);
-	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
-	bool classic_confinement = sc_args_is_classic_confinement(args);
 
 	const char *snap_name = getenv("SNAP_NAME");
 	if (snap_name == NULL) {
 		die("SNAP_NAME is not set");
 	}
 	sc_snap_name_validate(snap_name, NULL);
+
+	// Collect and validate the security tag and a few other things passed on
+	// command line.
+	const char *security_tag = sc_args_security_tag(args);
+	if (!verify_security_tag(security_tag, snap_name)) {
+		die("security tag %s not allowed", security_tag);
+	}
+	const char *executable = sc_args_executable(args);
+	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
+	bool classic_confinement = sc_args_is_classic_confinement(args);
+
 	sc_snap_name_validate(base_snap_name, NULL);
 
 	debug("security tag: %s", security_tag);
