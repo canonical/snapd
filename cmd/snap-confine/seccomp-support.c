@@ -18,6 +18,7 @@
 #include "seccomp-support.h"
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
@@ -35,6 +36,53 @@ static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
 const int MAX_BPF_SIZE = 640 * 1024;
+
+typedef struct sock_filter bpf_instr;
+
+bool is_valid_bpf_opcode(__u16 code)
+{
+	// from https://github.com/iovisor/bpf-docs/blob/master/eBPF.md 
+	__u16 valid_opcodes[] = {
+		// 64-bit
+		0x07, 0x0f, 0x17, 0x1f, 0x27, 0x2f, 0x37, 0x3f, 0x47, 0x4f,
+		0x57, 0x5f, 0x67, 0x6f, 0x77, 0x7f, 0x87, 0x97, 0x9f, 0xa7,
+		0xaf, 0xb7, 0xbf, 0xc7, 0xcf,
+		// 32-bit
+		0x04, 0x0c, 0x14, 0x1c, 0x24, 0x2c, 0x34, 0x3c, 0x44, 0x4c,
+		0x54, 0x5c, 0x64, 0x6c, 0x74, 0x7c, 0x84, 0x94, 0x9c, 0xa4,
+		0xac, 0xb4, 0xbc, 0xc4, 0xcc,
+		// byteswap
+		0xd4, 0xdc,
+		// memory-instructions
+		0x18, 0x20, 0x28, 0x30, 0x38, 0x40, 0x48, 0x50, 0x58, 0x61,
+		0x69, 0x71, 0x79, 0x62, 0x6a, 0x72, 0x7a, 0x63, 0x6b, 0x73,
+		0x7b,
+		// branch
+		0x05, 0x15, 0x1d, 0x25, 0x2d, 0x35, 0x3d, 0x45, 0x4d, 0x55,
+		0x5d, 0x65, 0x6d, 0x75, 0x7d, 0x85, 0x95,
+		// return (not mentioned in the above url)
+		0x6,
+	};
+
+	for (int i = 0; i < sizeof(valid_opcodes) / sizeof(__u16); i++) {
+		if (code == valid_opcodes[i]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void validate_bpf(void *buf, size_t buf_size)
+{
+	bpf_instr *bpf = buf;
+
+	while ((void *)bpf < buf + buf_size) {
+		if (!is_valid_bpf_opcode(bpf->code))
+			die("opcode %x is unknown", bpf->code);
+
+		bpf++;
+	}
+}
 
 int sc_apply_seccomp_bpf(const char *filter_profile)
 {
@@ -68,6 +116,9 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		    profile_path, num_read, stat_buf.st_size);
 	}
 	close(fd);
+
+	// validate bpf, it will die() if things look wrong
+	validate_bpf(bpf, num_read);
 
 	// raise privs
 	uid_t real_uid, effective_uid, saved_uid;
