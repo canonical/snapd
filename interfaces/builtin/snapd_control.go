@@ -21,11 +21,15 @@ package builtin
 
 const snapdControlSummary = `allows communicating with snapd`
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
 
 /run/snapd.socket rw,
+
+# allow snaps to use the snap command to talk to snapd over the above snapd
+# socket. (Currently requires 'sudo su -l ...' if running under sudo on the
+# command line)
+/usr/bin/snap ixr,
 `
 
 func init() {
