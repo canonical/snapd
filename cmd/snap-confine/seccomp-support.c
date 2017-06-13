@@ -18,7 +18,10 @@
 #include "seccomp-support.h"
 
 #include <fcntl.h>
+#include <string.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <linux/filter.h>
@@ -30,6 +33,9 @@
 
 static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
 
+// MAX_BPF_SIZE is an arbitrary limit.
+const int MAX_BPF_SIZE = 640 * 1024;
+
 int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
@@ -39,17 +45,27 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 			 filter_profile_dir, filter_profile);
 
 	// load bpf
-	char bpf[32 * 1024];
+	char bpf[MAX_BPF_SIZE];
 	int fd = open(profile_path, O_RDONLY);
 	if (fd < 0)
 		die("cannot read %s", profile_path);
+	struct stat stat_buf;
 
+	if (fstat(fd, &stat_buf) < 0)
+		die("cannot stat %s", profile_path);
+	if (stat_buf.st_size > MAX_BPF_SIZE)
+		die("profile %s is too big %lu", profile_path,
+		    stat_buf.st_size);
+
+        // FIXME: make this a robust read that deals with e.g. deal with
+        //        e.g. interrupts by signals
 	ssize_t num_read = read(fd, bpf, sizeof bpf);
 	if (num_read < 0) {
 		die("cannot read bpf %s", profile_path);
-	} else if (num_read == sizeof bpf) {
-		die("cannot fit bpf %s into buffer", profile_path);
 	}
+        if (num_read < stat_buf.st_size) {
+           die("cannot read bpf file %s, only got %lu instead of %lu", profile_path, num_read, stat_buf.st_size);
+        }
 	close(fd);
 
 	// raise privs
