@@ -33,8 +33,6 @@ static void test_verify_security_tag()
 
 	// Now, test the names we know are bad
 	g_assert_false(verify_security_tag
-		       ("snap.foo.hook.bar", "nonmatchingname"));
-	g_assert_false(verify_security_tag
 		       ("pkg-foo.bar.0binary-bar+baz", "bar"));
 	g_assert_false(verify_security_tag("pkg-foo_bar_1.1", ""));
 	g_assert_false(verify_security_tag("appname/..", ""));
@@ -63,6 +61,11 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap..name.app", ".name"));
 	g_assert_false(verify_security_tag("snap.name..app", "name."));
 	g_assert_false(verify_security_tag("snap.name.app..", "name"));
+
+	// Test names that are both good, but snap name doesn't match security tag
+	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
+	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
+	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
 }
 
 static void test_sc_snap_name_validate()
