@@ -17,6 +17,7 @@
 #include "config.h"
 #include "seccomp-support.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -77,9 +78,10 @@ static void validate_bpf(void *buf, size_t buf_size)
 	bpf_instr *bpf = buf;
 
 	while ((void *)bpf < buf + buf_size) {
-		if (!is_valid_bpf_opcode(bpf->code))
+		if (!is_valid_bpf_opcode(bpf->code)) {
+			errno = 0;
 			die("opcode %x is unknown", bpf->code);
-
+		}
 		bpf++;
 	}
 }
