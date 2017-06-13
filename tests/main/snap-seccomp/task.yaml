@@ -1,0 +1,25 @@
+summary: Ensure that the snap-seccomp bpf handling works
+
+execute: |
+    echo "Install test-snapd-tools and verify it works"
+    snap install test-snapd-tools
+    test-snapd-tools.echo hello | MATCH hello
+
+    echo "Break snapd.test-snapd-tools.bpf to ensure validation works"
+    dd if=/dev/urandom of=/var/lib/snapd/seccomp/profiles/snap.test-snapd-tools.echo.bpf count=1 bs=1024
+    if output=$(test-snapd-tools.echo hello 2>&1 ); then
+        echo "test-snapd-tools.echo should fail with invalid seccomp profile"
+        exit 1
+    fi
+    echo $output | MATCH "opcode .* is unknown"
+
+    echo "Add huge snapd.test-snapd-tools.bpf to ensure size limit works"
+    dd if=/dev/zero of=/var/lib/snapd/seccomp/profiles/snap.test-snapd-tools.echo.bpf count=50 bs=1M
+    if output=$(test-snapd-tools.echo hello 2>&1 ); then
+        echo "test-snapd-tools.echo should fail with big seccomp profile"
+        exit 1
+    fi
+    echo $output | MATCH "profile .* is too big"
+
+    
+    
