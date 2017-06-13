@@ -1,8 +1,5 @@
 summary: Ensures that the system-observe interface works.
 
-environment:
-    DISPLAY: :0
-
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -14,9 +11,6 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"
     snap install --edge test-snapd-system-observe-consumer
-
-    echo "And the D-bus X11 dependencies are installed"
-    apt install -y dbus-x11
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         echo "And hostnamed is started"
@@ -50,7 +44,7 @@ execute: |
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         echo "And the snap is able to introspect hostname1"
         expected="<property name=\"Hostname\" type=\"s\" access=\"read\">"
-        su -l -c "DISPLAY=$DISPLAY test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
+        su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
     fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
@@ -69,7 +63,7 @@ execute: |
 
         if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
             echo "And the snap is not able to introspect hostname1"
-            if su -l -c "DISPLAY=$DISPLAY test-snapd-system-observe-consumer.dbus-introspect 2>${PWD}/introspect.error" test; then
+            if su -l -c "test-snapd-system-observe-consumer.dbus-introspect 2>${PWD}/introspect.error" test; then
                 echo "Expected error with plug disconnected"
                 exit 1
             fi
