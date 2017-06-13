@@ -72,7 +72,7 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 				return osutil.OutputErr(output, err)
 			}
 
-			if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			if err := sysd.StopAndWait(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 				return err
 			}
 		}

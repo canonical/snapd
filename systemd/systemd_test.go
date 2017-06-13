@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -119,6 +119,47 @@ func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
 	return out, err
 }
 
+func (s *SystemdTestSuite) TestJctlRunsJctl(c *C) {
+	jctl := testutil.MockCommand(c, "journalctl", "")
+	defer jctl.Restore()
+
+	buf, err := Jctl([]string{"foo", "bar", "baz"})
+	c.Assert(err, IsNil)
+	c.Check(buf, HasLen, 0)
+	c.Check(jctl.Calls(), DeepEquals, [][]string{{"journalctl", "-o", "json", "-u", "foo", "-u", "bar", "-u", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestJctlReportsError(c *C) {
+	jctl := testutil.MockCommand(c, "journalctl", "echo OUCH\nexit 1")
+	defer jctl.Restore()
+
+	buf, err := Jctl([]string{"foo", "bar", "baz"})
+	c.Assert(err, ErrorMatches, `.journalctl -o json -u foo -u bar -u baz. failed with exit status 1: OUCH\n`)
+	c.Check(buf, HasLen, 0)
+	c.Check(jctl.Calls(), DeepEquals, [][]string{{"journalctl", "-o", "json", "-u", "foo", "-u", "bar", "-u", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestSysctlRunsSysctl(c *C) {
+	sysctl := testutil.MockCommand(c, "systemctl", "")
+	defer sysctl.Restore()
+
+	buf, err := SystemdRun("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(buf, HasLen, 0)
+	c.Check(sysctl.Calls(), DeepEquals, [][]string{{"systemctl", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestSysctlReportsError(c *C) {
+	sysctl := testutil.MockCommand(c, "systemctl", "echo OUCH\nexit 1")
+	defer sysctl.Restore()
+
+	buf, err := SystemdRun("foo", "bar", "baz")
+	// for simplicity the systemctl omits "systemctl" from the error message
+	c.Assert(err, ErrorMatches, `.foo bar baz. failed with exit status 1: OUCH\n`)
+	c.Check(buf, HasLen, 0)
+	c.Check(sysctl.Calls(), DeepEquals, [][]string{{"systemctl", "foo", "bar", "baz"}})
+}
+
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	err := New("", s.rep).DaemonReload()
 	c.Assert(err, IsNil)
@@ -131,7 +172,49 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestStartMore(c *C) {
+	err := New("", s.rep).Start("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestRestart(c *C) {
+	err := New("", s.rep).Restart("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"restart", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestRestartMore(c *C) {
+	err := New("", s.rep).Restart("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"restart", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestReload(c *C) {
+	err := New("", s.rep).Reload("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"reload", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestReloadMore(c *C) {
+	err := New("", s.rep).Reload("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"reload", "foo", "bar", "baz"}})
+}
+
 func (s *SystemdTestSuite) TestStop(c *C) {
+	err := New("", s.rep).Stop("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"stop", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestStopMore(c *C) {
+	err := New("", s.rep).Stop("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"stop", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestStopAndWait(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
 	s.outs = [][]byte{
@@ -141,7 +224,7 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New("", s.rep).Stop("foo", 1*time.Second)
+	err := New("", s.rep).StopAndWait("foo", 1*time.Second)
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -179,7 +262,7 @@ func (s *SystemdTestSuite) TestStatusObj(c *C) {
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
-	err := New("", s.rep).Stop("foo", 10*time.Millisecond)
+	err := New("", s.rep).StopAndWait("foo", 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Assert(len(s.rep.msgs) > 0, Equals, true)
 	c.Check(s.rep.msgs[0], Equals, "Waiting for foo to stop.")
@@ -191,13 +274,49 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestDisableMore(c *C) {
+	err := New("xyzzy", s.rep).Disable("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestDisableNow(c *C) {
+	err := New("xyzzy", s.rep).DisableNow("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "--now", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestDisableNowMore(c *C) {
+	err := New("xyzzy", s.rep).DisableNow("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "--now", "foo", "bar", "baz"}})
+}
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestRestart(c *C) {
+func (s *SystemdTestSuite) TestEnableMore(c *C) {
+	err := New("xyzzy", s.rep).Enable("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestEnableNow(c *C) {
+	err := New("xyzzy", s.rep).EnableNow("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "--now", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestEnableNowMore(c *C) {
+	err := New("xyzzy", s.rep).EnableNow("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "--now", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestRestartAndWait(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
 	s.outs = [][]byte{
@@ -206,7 +325,7 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 		nil, // for the "start"
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New("", s.rep).Restart("foo", 100*time.Millisecond)
+	err := New("", s.rep).RestartAndWait("foo", 100*time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Check(s.argses, HasLen, 3)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
