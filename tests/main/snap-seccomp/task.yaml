@@ -1,12 +1,80 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
+environment:
+    PROFILE: /var/lib/snapd/seccomp/profiles/snap.test-snapd-tools.echo
+    SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
+
 execute: |
     echo "Install test-snapd-tools and verify it works"
     snap install test-snapd-tools
     test-snapd-tools.echo hello | MATCH hello
 
+    # from the old test_complain
+    echo "Test that the @complain keyword works"
+    rm -f ${PROFILE}.bpf
+    cat >"${PROFILE}.in" <<EOF
+    # some comment
+    @complain
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    echo "Ensure the code still runs"
+    test-snapd-tools.echo hello | MATCH hello
+
+    # from the old test_complain_missed
+    rm -f ${PROFILE}.bpf
+    cat >"${PROFILE}.in" <<EOF
+    # super strict filter
+    @complai
+    @complaim
+    @omplain
+    @COMPLAIN
+    complain
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    echo "Ensure the code cannot not run due to impossible filtering"
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken"
+        exit 1
+    fi
+    
+    # from the old test_unrestricted
+    echo "Test that the @unrestricted keyword works"
+    rm -f ${PROFILE}.bpf
+    cat >"${PROFILE}.in" <<EOF
+    # some comment
+    @unrestricted
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    echo "Ensure the code still runs"
+    test-snapd-tools.echo hello | MATCH hello
+
+    # from the old test_unrestricted_missed
+    rm -f ${PROFILE}.bpf
+    cat >"${PROFILE}.in" <<EOF
+    # super strict filter
+    @unrestricte
+    @unrestrictes
+    @nrestricted
+    @UNRESTRICTED
+    unrestricted
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    echo "Ensure the code cannot not run due to impossible filtering"
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken"
+        exit 1
+    fi
+
+    # from the old test_noprofile
+    rm -f ${PROFILE}.bpf
+    echo "Ensure the code cannot not run due to missing filter"
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken"
+        exit 1
+    fi
+
     echo "Break snapd.test-snapd-tools.bpf to ensure validation works"
-    dd if=/dev/urandom of=/var/lib/snapd/seccomp/profiles/snap.test-snapd-tools.echo.bpf count=1 bs=1024
+    dd if=/dev/urandom of=${PROFILE}.bpf count=1 bs=1024
     if output=$(test-snapd-tools.echo hello 2>&1 ); then
         echo "test-snapd-tools.echo should fail with invalid seccomp profile"
         exit 1
