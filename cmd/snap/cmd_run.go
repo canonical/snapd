@@ -22,16 +22,20 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -66,6 +70,40 @@ func init() {
 		}, nil)
 }
 
+func systemKeyMismatch() (bool, error) {
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	systemKey := string(raw)
+	return systemKey != interfaces.SystemKey(), nil
+}
+
+func maybeWaitForSecurityProfileRegeneration() error {
+	// check if the security profiles key has changed, if so, we need
+	// to wait for snapd to re-generate all profiles
+	//
+	// (wait up to 300s)
+	timeout := 300
+	if timeoutEnv := os.Getenv("SNAP_SYSTEM_KEY_WAIT_TIMEOUT"); timeoutEnv != "" {
+		if i, err := strconv.Atoi(timeoutEnv); err == nil {
+			timeout = i
+		}
+	}
+	for i := 0; i < timeout; i++ {
+		mismatch, err := systemKeyMismatch()
+		if err != nil {
+			return err
+		}
+		if !mismatch {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return fmt.Errorf("cannot find updated security profiles after system-key change")
+}
+
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))
@@ -93,6 +131,10 @@ func (x *cmdRun) Execute(args []string) error {
 	// pass shell as a special command to snap-exec
 	if x.Shell {
 		x.Command = "shell"
+	}
+
+	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+		return err
 	}
 
 	return snapRunApp(snapApp, x.Command, args)

@@ -19,6 +19,8 @@
 
 package release
 
+//go:generate mkbuild-stamp.sh
+
 import (
 	"bufio"
 	"io/ioutil"
@@ -30,6 +32,11 @@ import (
 
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
+
+// BuildStamp contains a auto-generated and random id for each build.
+// It is generated via go:generate and is different from the build-id
+// because it is the same across the codebase.
+var BuildStamp string
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {

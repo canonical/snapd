@@ -584,6 +584,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
+		"build-stamp": "",
 		"refresh": map[string]interface{}{
 			"schedule": "",
 			"last":     "n/a",

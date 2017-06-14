@@ -309,6 +309,7 @@ providing packages with %{import_path} prefix.
 %build
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
+./mkbuild-stamp.sh
 
 # Build snapd
 mkdir -p src/github.com/snapcore

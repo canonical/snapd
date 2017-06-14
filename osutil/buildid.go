@@ -27,6 +27,8 @@ import (
 	"os"
 )
 
+var osReadlink = os.Readlink
+
 // ErrNoBuildID is returned when an executable does not contain a Build-ID
 var ErrNoBuildID = errors.New("executable does not contain a build ID")
 
@@ -98,4 +100,14 @@ func ReadBuildID(fname string) (string, error) {
 		return hex.EncodeToString(noteData), nil
 	}
 	return "", ErrNoBuildID
+}
+
+// MyBuildID return the build-id of the currently running executable
+func MyBuildID() (string, error) {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+
+	return ReadBuildID(exe)
 }
