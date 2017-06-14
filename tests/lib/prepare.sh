@@ -218,7 +218,11 @@ EOF
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install -y -q rng-tools
-        feed_kernel_entropy_pool --force
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+
+        find /run/systemd -type f -name 'rng-tools.service' -exec sed -i 's/^Restart=no/Restart=always/g' {} \;
+        systemctl daemon-reload
     fi
 
     disable_kernel_rate_limiting
