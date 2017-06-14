@@ -145,6 +145,27 @@ func nativeEndian() binary.ByteOrder {
 	}
 }
 
+func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
+	outPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(seccompWhitelist), outPath)
+	c.Assert(err, IsNil)
+
+	ops, err := decodeBpfFromFile(outPath)
+	c.Assert(err, IsNil)
+
+	vm, err := bpf.NewVM(ops)
+	c.Assert(err, IsNil)
+
+	bpfSeccompInput, err := parseBpfInput(bpfInput)
+	c.Assert(err, IsNil)
+
+	buf2 := (*[64]byte)(unsafe.Pointer(bpfSeccompInput))
+
+	out, err := vm.Run(buf2[:])
+	c.Assert(err, IsNil)
+	c.Check(out, Equals, expected, Commentf("unexpected result for %q (input %q), got %v expected %v", seccompWhitelist, bpfInput, out, expected))
+}
+
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	// FIXME: this will only work once the following issue is fixed:
 	// https://github.com/golang/go/issues/20556
@@ -217,27 +238,43 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_termios
 		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
+		// test_restrictions_working_args_clone
+		{"setns - CLONE_NEWIPC", "setns;native;0,CLONE_NEWIPC", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNET", "setns;native;0,CLONE_NEWNET", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNS", "setns;native;0,CLONE_NEWNS", main.SeccompRetAllow},
+		{"setns - CLONE_NEWPID", "setns;native;0,CLONE_NEWPID", main.SeccompRetAllow},
+		{"setns - CLONE_NEWUSER", "setns;native;0,CLONE_NEWUSER", main.SeccompRetAllow},
+		{"setns - CLONE_NEWUTS", "setns;native;0,CLONE_NEWUTS", main.SeccompRetAllow},
+		{"setns - CLONE_NEWIPC", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNET", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNS", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWPID", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWUSER", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWUTS", "setns;native;0,99", main.SeccompRetKill},
+		// test_restrictions_working_args_mkdnor
+		{"mknod - S_IFREG", "mknod;native;0,S_IFREG", main.SeccompRetAllow},
+		{"mknod - S_IFCHR", "mknod;native;0,S_IFCHR", main.SeccompRetAllow},
+		{"mknod - S_IFBLK", "mknod;native;0,S_IFBLK", main.SeccompRetAllow},
+		{"mknod - S_IFIFO", "mknod;native;0,S_IFIFO", main.SeccompRetAllow},
+		{"mknod - S_IFSOCK", "mknod;native;0,S_IFSOCK", main.SeccompRetAllow},
+		{"mknod - S_IFREG", "mknod;native;0,999", main.SeccompRetKill},
+		{"mknod - S_IFCHR", "mknod;native;0,999", main.SeccompRetKill},
+		{"mknod - S_IFBLK", "mknod;native;0,999", main.SeccompRetKill},
+		{"mknod - S_IFIFO", "mknod;native;0,999", main.SeccompRetKill},
+		{"mknod - S_IFSOCK", "mknod;native;0,999", main.SeccompRetKill},
+		// test_restrictions_working_args_prio
+		{"setpriority PRIO_PROCESS", "setpriority;native;PRIO_PROCESS", main.SeccompRetAllow},
+		{"setpriority PRIO_PGRP", "setpriority;native;PRIO_PGRP", main.SeccompRetAllow},
+		{"setpriority PRIO_USER", "setpriority;native;PRIO_USER", main.SeccompRetAllow},
+		{"setpriority PRIO_PROCESS", "setpriority;native;99", main.SeccompRetKill},
+		{"setpriority PRIO_PGRP", "setpriority;native;99", main.SeccompRetKill},
+		{"setpriority PRIO_USER", "setpriority;native;99", main.SeccompRetKill},
+		// test_restrictions_working_args_termios
+		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "quotactl;native;0,99", main.SeccompRetKill},
 	} {
-		outPath := filepath.Join(c.MkDir(), "bpf")
-		err := main.Compile([]byte(t.seccompWhitelist), outPath)
-		c.Assert(err, IsNil)
-
-		ops, err := decodeBpfFromFile(outPath)
-		c.Assert(err, IsNil)
-
-		vm, err := bpf.NewVM(ops)
-		c.Assert(err, IsNil)
-
-		bpfSeccompInput, err := parseBpfInput(t.bpfInput)
-		c.Assert(err, IsNil)
-
-		buf2 := (*[64]byte)(unsafe.Pointer(bpfSeccompInput))
-
-		out, err := vm.Run(buf2[:])
-		c.Assert(err, IsNil)
-		c.Check(out, Equals, t.expected, Commentf("unexpected result for %q (input %q), got %v expected %v", t.seccompWhitelist, t.bpfInput, out, t.expected))
+		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
-
 }
 
 func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
@@ -288,5 +325,80 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.inp), outPath)
 		c.Check(err, ErrorMatches, t.errMsg, Commentf("%q errors in unexpected ways, got: %q expected %q", t.inp, err, t.errMsg))
+	}
+}
+
+// ported from test_restrictions_working_args_socket
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
+	bpf.VmEndianness = nativeEndian()
+
+	for _, pre := range []string{"AF", "PF"} {
+		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
+			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
+			bpfInputGood := fmt.Sprintf("socket;native;%s_%s", pre, i)
+			bpfInputBad := "socket;native;99999"
+			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+
+			for _, j := range []string{"SOCK_STREAM", "SOCK_DGRAM", "SOCK_SEQPACKET", "SOCK_RAW", "SOCK_RDM", "SOCK_PACKET"} {
+				seccompWhitelist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
+				bpfInputGood := fmt.Sprintf("socket;native;%s_%s,%s", pre, i, j)
+				bpfInputBad := fmt.Sprintf("socket;native;%s_%s,9999", pre, i)
+				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			}
+		}
+	}
+
+	for _, i := range []string{"NETLINK_ROUTE", "NETLINK_USERSOCK", "NETLINK_FIREWALL", "NETLINK_SOCK_DIAG", "NETLINK_NFLOG", "NETLINK_XFRM", "NETLINK_SELINUX", "NETLINK_ISCSI", "NETLINK_AUDIT", "NETLINK_FIB_LOOKUP", "NETLINK_CONNECTOR", "NETLINK_NETFILTER", "NETLINK_IP6_FW", "NETLINK_DNRTMSG", "NETLINK_KOBJECT_UEVENT", "NETLINK_GENERIC", "NETLINK_SCSITRANSPORT", "NETLINK_ECRYPTFS", "NETLINK_RDMA", "NETLINK_CRYPTO", "NETLINK_INET_DIAG"} {
+		for _, j := range []string{"AF_NETLINK", "PF_NETLINK"} {
+			seccompWhitelist := fmt.Sprintf("socket %s - %s", j, i)
+			bpfInputGood := fmt.Sprintf("socket;native;%s,0,%s", j, i)
+			bpfInputBad := fmt.Sprintf("socket;native;%s,0,99", j)
+			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+		}
+	}
+}
+
+// ported from test_restrictions_working_args_quotactl
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
+	bpf.VmEndianness = nativeEndian()
+
+	for _, arg := range []string{"Q_QUOTAON", "Q_QUOTAOFF", "Q_GETQUOTA", "Q_SETQUOTA", "Q_GETINFO", "Q_SETINFO", "Q_GETFMT"} {
+		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
+		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
+		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
+			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+		}
+	}
+}
+
+// ported from test_restrictions_working_args_prctl
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
+	bpf.VmEndianness = nativeEndian()
+
+	for _, arg := range []string{"PR_CAP_AMBIENT", "PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL", "PR_CAPBSET_READ", "PR_CAPBSET_DROP", "PR_SET_CHILD_SUBREAPER", "PR_GET_CHILD_SUBREAPER", "PR_SET_DUMPABLE", "PR_GET_DUMPABLE", "PR_SET_ENDIAN", "PR_GET_ENDIAN", "PR_SET_FPEMU", "PR_GET_FPEMU", "PR_SET_FPEXC", "PR_GET_FPEXC", "PR_SET_KEEPCAPS", "PR_GET_KEEPCAPS", "PR_MCE_KILL", "PR_MCE_KILL_GET", "PR_SET_MM", "PR_SET_MM_START_CODE", "PR_SET_MM_END_CODE", "PR_SET_MM_START_DATA", "PR_SET_MM_END_DATA", "PR_SET_MM_START_STACK", "PR_SET_MM_START_BRK", "PR_SET_MM_BRK", "PR_SET_MM_ARG_START", "PR_SET_MM_ARG_END", "PR_SET_MM_ENV_START", "PR_SET_MM_ENV_END", "PR_SET_MM_AUXV", "PR_SET_MM_EXE_FILE", "PR_MPX_ENABLE_MANAGEMENT", "PR_MPX_DISABLE_MANAGEMENT", "PR_SET_NAME", "PR_GET_NAME", "PR_SET_NO_NEW_PRIVS", "PR_GET_NO_NEW_PRIVS", "PR_SET_PDEATHSIG", "PR_GET_PDEATHSIG", "PR_SET_PTRACER", "PR_SET_SECCOMP", "PR_GET_SECCOMP", "PR_SET_SECUREBITS", "PR_GET_SECUREBITS", "PR_SET_THP_DISABLE", "PR_TASK_PERF_EVENTS_DISABLE", "PR_TASK_PERF_EVENTS_ENABLE", "PR_GET_THP_DISABLE", "PR_GET_TID_ADDRESS", "PR_SET_TIMERSLACK", "PR_GET_TIMERSLACK", "PR_SET_TIMING", "PR_GET_TIMING", "PR_SET_TSC", "PR_GET_TSC", "PR_SET_UNALIGN", "PR_GET_UNALIGN"} {
+		seccompWhitelist := fmt.Sprintf("prctl %s", arg)
+		bpfInputGood := fmt.Sprintf("prctl;native;%s", arg)
+		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		for _, bad := range []string{"prctl;native;99999", "read;native;"} {
+			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+		}
+
+		if arg == "PR_CAP_AMBIENT" {
+			for _, j := range []string{"PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL"} {
+				seccompWhitelist := fmt.Sprintf("prctl %s %s", arg, j)
+				bpfInputGood := fmt.Sprintf("prctl;native;%s,%s", arg, j)
+				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				for _, bad := range []string{
+					fmt.Sprintf("prctl;native;%s,99999", arg),
+					"read;native;",
+				} {
+					simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+				}
+			}
+		}
 	}
 }
