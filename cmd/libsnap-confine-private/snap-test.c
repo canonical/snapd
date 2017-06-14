@@ -63,6 +63,7 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap.name.app..", "name"));
 
 	// Test names that are both good, but snap name doesn't match security tag
+	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
