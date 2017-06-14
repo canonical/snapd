@@ -20,7 +20,6 @@ get_apt_dependencies_generic(){
   add_pkgs libglib2.0-dev
   add_pkgs libseccomp-dev
   add_pkgs libudev-dev
-  add_pkgs linux-image-extra-$(uname -r)
   add_pkgs pkg-config
   add_pkgs python3-docutils
   add_pkgs udev
@@ -30,27 +29,41 @@ get_apt_dependencies_classic(){
   add_pkgs dbus-x11
   add_pkgs jq
   add_pkgs man
-  add_pkgs pollinate rng-tools
   add_pkgs python3-yaml
+  add_pkgs rng-tools
   add_pkgs upower
 
   case "$SPREAD_SYSTEM" in
       ubuntu-14.04-*)
           add_pkgs cups-pdf
+          add_pkgs linux-image-extra-$(uname -r)
+          add_pkgs pollinate
+          ;;
+      ubuntu-16.04-32)
+          add_pkgs linux-image-extra-$(uname -r)
+          add_pkgs pollinate
+          add_pkgs printer-driver-cups-pdf
           ;;
       ubuntu-16.04-64)
           add_pkgs gccgo-6
           add_pkgs kpartx
           add_pkgs libvirt-bin
+          add_pkgs linux-image-extra-$(uname -r)
+          add_pkgs pollinate
           add_pkgs printer-driver-cups-pdf
           add_pkgs qemu
           add_pkgs x11-utils
           add_pkgs xvfb
           ;;
-      *)
+      debian-*)
           add_pkgs printer-driver-cups-pdf
           ;;
   esac 
+}
+
+get_apt_dependencies_core(){
+  add_pkgs linux-image-extra-$(uname -r)
+  add_pkgs pollinate
 }
 
 get_dependency_fedora_packages(){
@@ -69,6 +82,7 @@ get_test_dependencies(){
           ;;
       ubuntu-core-16-*)
           get_apt_dependencies_generic
+          get_apt_dependencies_core
           ;;
       fedora-*)
           get_dependency_fedora_packages
