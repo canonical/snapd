@@ -43,6 +43,12 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
+			"checksumSHA1": "EoJqr2ZG7jODFsCnKwrn4JWRS+Y=",
+			"path": "github.com/mvo5/libseccomp-golang",
+			"revision": "84e1d1c75beaa58be6a76d2fc94d95eb8c1583b6",
+			"revisionTime": "2017-06-14T13:46:31Z"
+		},
+		{
 			"checksumSHA1": "4ZkAtTGnZIVrA5hUBCN/5+XdHYU=",
 			"path": "github.com/mvo5/net/bpf",
 			"revision": "0c0cd2628b36f2b053b7cc1ec04b76aab4c5189c",
@@ -59,12 +65,6 @@
 			"path": "github.com/ojii/gettext.go/pluralforms",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
 			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
-			"checksumSHA1": "eH7CaLQnq+73vvqU0MxppwtV8lA=",
-			"path": "github.com/seccomp/libseccomp-golang",
-			"revision": "84e90a91acea0f4e51e62bc1a75de18b1fc0790f",
-			"revisionTime": "2017-04-20T15:08:39Z"
 		},
 		{
 			"checksumSHA1": "E28iXtNf9DZVsymruqAnTFGNNnE=",

@@ -54,7 +54,58 @@ package main
 //#include <linux/seccomp.h>
 //#include <arpa/inet.h>
 //
-// typedef struct seccomp_data kernel_seccomp_data;
+//#ifndef AF_IB
+//#define AF_IB 27
+//#define PF_IB AF_IB
+//#endif				// AF_IB
+//
+//#ifndef AF_MPLS
+//#define AF_MPLS 28
+//#define PF_MPLS AF_MPLS
+//#endif				// AF_MPLS
+//
+//#ifndef PR_CAP_AMBIENT
+//#define PR_CAP_AMBIENT 47
+//#define PR_CAP_AMBIENT_IS_SET    1
+//#define PR_CAP_AMBIENT_RAISE     2
+//#define PR_CAP_AMBIENT_LOWER     3
+//#define PR_CAP_AMBIENT_CLEAR_ALL 4
+//#endif				// PR_CAP_AMBIENT
+//
+//#ifndef PR_SET_THP_DISABLE
+//#define PR_SET_THP_DISABLE 41
+//#endif				// PR_SET_THP_DISABLE
+//#ifndef PR_GET_THP_DISABLE
+//#define PR_GET_THP_DISABLE 42
+//#endif				// PR_GET_THP_DISABLE
+//
+//#ifndef PR_MPX_ENABLE_MANAGEMENT
+//#define PR_MPX_ENABLE_MANAGEMENT 43
+//#endif
+//
+//#ifndef PR_MPX_DISABLE_MANAGEMENT
+//#define PR_MPX_DISABLE_MANAGEMENT 44
+//#endif
+//
+//#define ARCH_BAD ~0
+//#ifndef SCMP_ARCH_AARCH64
+//#define SCMP_ARCH_AARCH64 ARCH_BAD
+//#endif
+//
+//#ifndef SCMP_ARCH_PPC
+//#define SCMP_ARCH_PPC ARCH_BAD
+//#endif
+//
+//#ifndef SCMP_ARCH_PPC64LE
+//#define SCMP_ARCH_PPC64LE ARCH_BAD
+//#endif
+//
+//#ifndef SCMP_ARCH_S390X
+//#define SCMP_ARCH_S390X ARCH_BAD
+//#endif
+//
+//
+//typedef struct seccomp_data kernel_seccomp_data;
 //
 //__u32 htot32(__u32 arch, __u32 val)
 //{
@@ -84,7 +135,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/seccomp/libseccomp-golang"
+	// FIXME: we want github.com/mvo5/libseccomp-golang but that
+	// will not work with trusty because libseccomp-golang checks
+	// for the seccomp version and errors if it find one < 2.2.0
+	"github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 )
