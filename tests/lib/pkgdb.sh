@@ -293,7 +293,9 @@ distro_install_build_snapd(){
         # enabled as we don't have a systemd present configuration approved
         # by the distribution for it in place yet.
         if ! systemctl is-enabled snapd.socket ; then
-            sudo systemctl enable --now snapd.socket
+            # Can't use --now here as not all distributions we run on support it
+            systemctl enable snapd.socket
+            systemctl start snapd.socket
         fi
     fi
 }
