@@ -294,6 +294,7 @@ type ServerVersion struct {
 	OnClassic   bool
 
 	KernelVersion string
+	BuildStamp    string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -310,6 +311,7 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OnClassic:   sysInfo.OnClassic,
 
 		KernelVersion: sysInfo.KernelVersion,
+		BuildStamp:    sysInfo.BuildStamp,
 	}, nil
 }
 
@@ -391,6 +393,7 @@ type SysInfo struct {
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
+	BuildStamp    string `json:"build-stamp,omitempty"`
 
 	Refresh RefreshInfo `json:"refresh,omitempty"`
 }

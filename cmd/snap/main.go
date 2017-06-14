@@ -141,7 +141,7 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 // from each other.
 func Parser() *flags.Parser {
 	optionsData.Version = func() {
-		printVersions()
+		printVersions(false)
 		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
