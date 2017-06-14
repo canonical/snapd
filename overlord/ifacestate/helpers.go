@@ -21,14 +21,18 @@ package ifacestate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -54,8 +58,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.regenerateAllSecurityProfiles(); err != nil {
-		return err
+	if m.profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -102,14 +108,18 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-// regenerateAllSecurityProfiles will regenerate the security profiles
-// for apparmor and seccomp. This is needed because:
-// - for seccomp we may have "terms" on disk that the current snap-confine
-//   does not understand (e.g. in a rollback scenario). a refresh ensures
-//   we have a profile that matches what snap-confine understand
-// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
-//   change that breaks existing profiles for installed snaps. With a
-//   refresh those get fixed.
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	currentSystemKey := interfaces.SystemKey()
+	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if currentSystemKey == "" || os.IsNotExist(err) {
+		logger.Noticef("no system key, forcing re-generation of security profiles")
+		return true
+	}
+
+	return string(onDiskSystemKey) != currentSystemKey
+}
+
+// regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
@@ -138,13 +148,6 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 		// For each backend:
 		for _, backend := range securityBackends {
-			// The issue this is attempting to fix is only
-			// affecting seccomp/apparmor so limit the work just to
-			// this backend.
-			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
-			if !shouldRefresh {
-				continue
-			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
 				// Let's log this but carry on
@@ -154,7 +157,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return nil
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to

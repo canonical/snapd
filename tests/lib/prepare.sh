@@ -195,7 +195,15 @@ EOF
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+
+        # on apparmor systems we need to store the auto-generated profiles
+        # as well
+        etc_apparmor_d=""
+        if [ -d /etc/apparmor.d ]; then
+            etc_apparmor_d=/etc/apparmor.d/*snap-confine*
+        fi
+
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $etc_apparmor_d $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
