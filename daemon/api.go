@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -62,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var api = []*Command{
@@ -87,6 +89,7 @@ var api = []*Command{
 	sectionsCmd,
 	aliasesCmd,
 	debugCmd,
+	servicesCmd,
 }
 
 var (
@@ -223,6 +226,13 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	servicesCmd = &Command{
+		Path:   "/v2/services",
+		UserOK: true,
+		GET:    getServices,
+		POST:   changeServices,
 	}
 )
 
@@ -2509,4 +2519,211 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func splitSvcName(s string) (snap, svc string) {
+	if idx := strings.IndexByte(s, '.'); idx > -1 {
+		return s[:idx], s[idx+1:]
+	}
+
+	return s, ""
+}
+
+type bySnapApp []*snap.AppInfo
+
+func (a bySnapApp) Len() int      { return len(a) }
+func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a bySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.Name()
+	jName := a[j].Snap.Name()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
+}
+
+// appInfosFor returns a sorted list services described by names.
+//
+// * If names is empty, returns all services (which could be an empty list).
+// * An element of names can be a snap name, in which case all services from the
+//   snap are included in the result (and it's an error if the snap has no
+//   services).
+// * An element of names can instead be snap.svc, in which case that service is
+//   included in the result (and it's an error if the snap and service don't
+//   both exist)
+// On error an appropriate error Response is returned; a nil Response means no
+// error.
+func appInfosFor(st *state.State, names []string) ([]*snap.AppInfo, Response) {
+	snapNames := make(map[string]bool)
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+		name, _ = splitSvcName(name)
+		snapNames[name] = true
+	}
+
+	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	if err != nil {
+		return nil, InternalError("cannot list local snaps! %v", err)
+	}
+
+	found := make(map[string]bool)
+	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	for _, snap := range snaps {
+		snapName := snap.info.Name()
+		snapAppInfos := snap.info.Services()
+		if len(snapAppInfos) == 0 && requested[snapName] {
+			return nil, AppNotFound("snap %q has no services", snapName)
+		}
+
+		includeAll := len(requested) == 0 || requested[snapName]
+		if includeAll {
+			// want all services in a snap
+			found[snapName] = true
+		}
+
+		for _, svc := range snapAppInfos {
+			svcName := snapName + "." + svc.Name
+			if includeAll || requested[svcName] {
+				appInfos = append(appInfos, svc)
+				found[svcName] = true
+			}
+		}
+	}
+
+	for k := range requested {
+		if !found[k] {
+			if snapNames[k] {
+				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
+			} else {
+				snap, svc := splitSvcName(k)
+				return nil, AppNotFound("snap %q has no service %q", snap, svc)
+			}
+		}
+	}
+
+	sort.Sort(bySnapApp(appInfos))
+
+	return appInfos, nil
+}
+
+func getServices(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	// XXX: limit logs to auth'ed?
+	withLogs, _ := strconv.ParseBool(query.Get("logs"))
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("services")))
+	if rsp != nil {
+		return rsp
+	}
+
+	services := make([]client.Service, len(appInfos))
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	for i, app := range appInfos {
+		serviceName := app.ServiceName()
+		serviceStatus, err := sysd.ServiceStatus(serviceName)
+		if err != nil {
+			// nassssty
+			return InternalError("cannot get status of service %q: %v", serviceName, err)
+		}
+		var logs []systemd.Log
+		if withLogs {
+			logs, err = sysd.Logs([]string{serviceName})
+			if err != nil {
+				return InternalError("cannot get logs of service %q: %v", serviceName, err)
+			}
+		}
+		services[i] = client.Service{
+			Snap: app.Snap.Name(),
+			AppInfo: client.AppInfo{
+				Name:   app.Name,
+				Daemon: app.Daemon,
+			},
+			ServiceStatus: serviceStatus,
+			Logs:          logs,
+		}
+	}
+
+	sort.Sort(bySnapApp(appInfos))
+
+	return SyncResponse(services, nil)
+}
+
+func changeServices(c *Command, r *http.Request, user *auth.UserState) Response {
+	var inst client.ServiceOp
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into service operation: %v", err)
+	}
+	if len(inst.Services) == 0 {
+		// on POST, don't allow empty to mean all
+		return BadRequest("cannot perform operation on services without a list of services to operate on")
+	}
+
+	st := c.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, inst.Services)
+	if rsp != nil {
+		return rsp
+	}
+	if len(appInfos) == 0 {
+		// can't happen: appInfosFor with a non-empty list of services
+		// shouldn't ever return an empty appInfos with no error response
+		return InternalError("no services found")
+	}
+
+	var presentParticiple string
+	argv := make([]string, 2, 3+len(appInfos))
+	argv[0] = "systemctl"
+	argv[1] = inst.Action
+
+	switch inst.Action {
+	case "enable-now":
+		argv[1] = "enable"
+		argv = append(argv, "--now")
+		presentParticiple = "Enabling and starting"
+	case "disable-now":
+		argv[1] = "disable"
+		argv = append(argv, "--now")
+		presentParticiple = "Stopping and disabling"
+	case "reload":
+		for _, appInfo := range appInfos {
+			if appInfo.ReloadCommand == "" {
+				return BadRequest("app %q from snap %q has no reload command", appInfo.Name, appInfo.Snap.Name())
+			}
+		}
+		presentParticiple = "Reloading"
+	case "start":
+		presentParticiple = "Starting"
+	case "stop":
+		presentParticiple = "Stopping"
+	case "enable":
+		presentParticiple = "Enabling"
+	case "disable":
+		presentParticiple = "Disabling"
+	case "restart":
+		presentParticiple = "Restarting"
+	default:
+		return BadRequest("unknown action %q", inst.Action)
+	}
+
+	names := make([]string, len(appInfos))
+	for i, svc := range appInfos {
+		argv = append(argv, svc.ServiceName())
+		names[i] = svc.Snap.Name() + "." + svc.Name
+	}
+
+	var desc string
+	if len(names) == 1 {
+		desc = presentParticiple + " service " + names[0] + "."
+	} else {
+		names, last := names[:len(names)-1], names[len(names)-1]
+		desc = presentParticiple + " services " + strings.Join(names, ", ") + " and " + last + "."
+	}
+
+	st.Lock()
+	defer st.Unlock()
+	ts := cmdstate.Exec(st, desc, argv)
+	chg := st.NewChange("exec", desc)
+	chg.AddAll(ts)
+	st.EnsureBefore(0)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
