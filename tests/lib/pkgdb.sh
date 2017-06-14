@@ -304,20 +304,3 @@ distro_install_build_snapd(){
         fi
     fi
 }
-
-# Specify necessary packages which need to be installed on a
-# system to provide a basic build environment for snapd.
-export DISTRO_BUILD_DEPS=()
-case "$SPREAD_SYSTEM" in
-    debian-*|ubuntu-*)
-        DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
-        ;;
-    fedora-*)
-        DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)
-        ;;
-    opensuse-*)
-        DISTRO_BUILD_DEPS=(osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools)
-        ;;
-    *)
-        ;;
-esac

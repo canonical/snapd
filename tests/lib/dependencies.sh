@@ -4,37 +4,48 @@
 . "$TESTSLIB/pkgdb.sh"
 
 export DEPENDENCY_PACKAGES=
+export DISTRO_BUILD_DEPS=
 
 add_pkgs(){
   DEPENDENCY_PACKAGES="$DEPENDENCY_PACKAGES $@"
 }
 
-get_dependency_ubuntu_packages(){
+get_apt_dependencies_generic(){
+  add_pkgs autoconf
   add_pkgs automake
   add_pkgs autotools-dev
-  add_pkgs dbus-x11
-  add_pkgs gccgo-6
+  add_pkgs build-essential
   add_pkgs indent
-  add_pkgs jq
-  add_pkgs kpartx
   add_pkgs libapparmor-dev
   add_pkgs libglib2.0-dev
   add_pkgs libseccomp-dev
-  add_pkgs libvirt-bin
   add_pkgs libudev-dev
   add_pkgs linux-image-extra-$(uname -r)
-  add_pkgs man
   add_pkgs pkg-config
-  add_pkgs pollinate rng-tools
   add_pkgs python3-docutils
-  add_pkgs python3-yaml
   add_pkgs udev
-  add_pkgs upower 
-  add_pkgs x11-utils 
-  add_pkgs xvfb
+}
+
+get_apt_dependencies_classic(){
+  add_pkgs dbus-x11
+  add_pkgs jq
+  add_pkgs man
+  add_pkgs pollinate rng-tools
+  add_pkgs python3-yaml
+  add_pkgs upower
+
   case "$SPREAD_SYSTEM" in
       ubuntu-14.04-*)
           add_pkgs cups-pdf
+          ;;
+      ubuntu-16.04-64)
+          add_pkgs gccgo-6
+          add_pkgs kpartx
+          add_pkgs libvirt-bin
+          add_pkgs printer-driver-cups-pdf
+          add_pkgs qemu
+          add_pkgs x11-utils
+          add_pkgs xvfb
           ;;
       *)
           add_pkgs printer-driver-cups-pdf
@@ -50,10 +61,14 @@ get_dependency_opensuse_packages(){
   echo "Opensuse dependencies not ready yet"
 }
 
-get_dependency_packages(){
+get_test_dependencies(){
   case "$SPREAD_SYSTEM" in
-      ubuntu-*|debian-*)
-          get_dependency_ubuntu_packages
+      ubuntu-16.04-*|ubuntu-14.04-64|debian-*)
+          get_apt_dependencies_generic
+          get_apt_dependencies_classic
+          ;;
+      ubuntu-core-16-*)
+          get_apt_dependencies_generic
           ;;
       fedora-*)
           get_dependency_fedora_packages
@@ -68,8 +83,32 @@ get_dependency_packages(){
   esac  
 }
 
-install_dependencies(){
-  get_dependency_packages
+get_build_dependencies(){
+  case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        DISTRO_BUILD_DEPS="build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd"
+        ;;
+    fedora-*)
+        DISTRO_BUILD_DEPS="mock git expect curl golang rpm-build redhat-lsb-core"
+        ;;
+    opensuse-*)
+        DISTRO_BUILD_DEPS="osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools"
+        ;;
+    *)
+        ;;
+  esac
+}
+
+install_build_dependencies(){
+  # Specify necessary packages which need to be installed on a
+  # system to provide a basic build environment for snapd.
+  get_build_dependencies
+  echo "Installing the following packages: $DISTRO_BUILD_DEPS"
+  distro_install_package $DISTRO_BUILD_DEPS
+}
+
+install_test_dependencies(){
+  get_test_dependencies
   echo "Installing the following packages: $DEPENDENCY_PACKAGES"
-  distro_install_package $DEPENDENCY_PACKAGES  
+  distro_install_package $DEPENDENCY_PACKAGES
 }
