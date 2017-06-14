@@ -86,14 +86,64 @@ static void validate_bpf(void *buf, size_t buf_size)
 	}
 }
 
-static void validate_dir_is_root_owned(const char *dir)
+static void validate_path_has_strict_perms(const char *path)
 {
 	struct stat stat_buf;
-	if (stat(dir, &stat_buf) < 0) {
-		die("cannot stat %s", dir);
-	}
+	if (stat(path, &stat_buf) < 0)
+		die("cannot stat %s", path);
+
 	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
-		die("cannot use %s: must be root:root owned", dir);
+		die("%s not root-owned", path);
+
+	if (stat_buf.st_mode & S_IWOTH)
+		die("%s has 'other' write", path);
+}
+
+static void validate_bpfpath_is_safe(const char *path)
+{
+	if (path == NULL || strlen(path) == 0 || path[0] != '/')
+		die("valid_bpfpath_is_safe needs an absolute path as input");
+
+	// strtok_r() modifies its first argument, so work on a copy
+	char *tokenized = strdup(path);
+
+	// allocate a string large enough to hold path, and initialize it to
+	// '/'
+	size_t checked_path_size = sizeof(char) * strlen(path) + 1;
+	char *checked_path = malloc(checked_path_size);
+	if (checked_path == NULL)
+		die("Out of memory creating checked_path");
+
+	checked_path[0] = '/';
+	checked_path[1] = '\0';
+
+	// validate '/'
+	validate_path_has_strict_perms(checked_path);
+
+	// strtok_r needs a pointer to keep track of where it is in the
+	// string.
+	char *buf_saveptr = NULL;
+
+	// reconstruct the path from '/' down to profile_name
+	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
+	while (buf_token != NULL) {
+		char *prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
+		// append '<buf_token>' if checked_path is '/', otherwise '/<buf_token>'
+		if (strlen(checked_path) == 1)
+			sc_must_snprintf(checked_path, checked_path_size,
+					 "%s%s", prev, buf_token);
+		else
+			sc_must_snprintf(checked_path, checked_path_size,
+					 "%s%s", prev, buf_token);
+
+		free(prev);
+		validate_path_has_strict_perms(checked_path);
+
+		buf_token = strtok_r(NULL, "/", &buf_saveptr);
+	}
+
+	free(tokenized);
+	free(checked_path);
 }
 
 int sc_apply_seccomp_bpf(const char *filter_profile)
@@ -104,26 +154,15 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
 			 filter_profile_dir, filter_profile);
 
-	// validate profile-path and all parents is all root owned
-	// (TOCTTOU sadly).
+	// validate '/' down to profile_path are root-owned and not
+	// 'other' writable to avoid possibility of privilege
+	// escalation via bpf program load when paths are incorrectly
+	// set on the system.
+	validate_bpfpath_is_safe(profile_path);
+
+	// sanity check size/owner
 	struct stat stat_buf;
-	char *p = strdup(profile_path);
-	while (*p != 0) {
-		validate_dir_is_root_owned(p);
-
-		char *last_slash = strrchr(p, '/');
-		*last_slash = 0;
-	}
-	validate_dir_is_root_owned("/");
-	free(p);
-
-	// load bpf
-	char bpf[MAX_BPF_SIZE];
-	int fd = open(profile_path, O_RDONLY);
-	if (fd < 0)
-		die("cannot read %s", profile_path);
-
-	if (fstat(fd, &stat_buf) < 0)
+	if (stat(profile_path, &stat_buf) < 0)
 		die("cannot stat %s", profile_path);
 	if (stat_buf.st_size > MAX_BPF_SIZE)
 		die("profile %s is too big %lu", profile_path,
@@ -132,17 +171,19 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
 		die("cannot use %s: must be root:root owned", profile_path);
 
-	// FIXME: make this a robust read that deals with e.g. deal with
-	//        e.g. interrupts by signals
-	ssize_t num_read = read(fd, bpf, sizeof bpf);
-	if (num_read < 0) {
-		die("cannot read bpf %s", profile_path);
-	}
-	if (num_read < stat_buf.st_size) {
-		die("cannot read bpf file %s, only got %lu instead of %lu",
-		    profile_path, num_read, stat_buf.st_size);
-	}
-	close(fd);
+	// load bpf
+	unsigned char bpf[MAX_BPF_SIZE + 1];	// acount for EOF
+	FILE *fp = fopen(profile_path, "rb");
+	if (fp == NULL)
+		die("cannot read %s", profile_path);
+	// set 'size' to 1 to get bytes transferred
+	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
+	if (ferror(fp) != 0)
+		die("cannot fread() %s", profile_path);
+	else if (feof(fp) == 0)
+		die("profile %s exceeds %zu bytes", profile_path, sizeof(bpf));
+	fclose(fp);
+	debug("read %zu bytes from %s", num_read, profile_path);
 
 	// validate bpf, it will die() if things look wrong
 	validate_bpf(bpf, num_read);
