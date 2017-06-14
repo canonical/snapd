@@ -200,6 +200,23 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_mknod
 		{"mknod - |S_IFIFO", "mknod;native;0,S_IFIFO", main.SeccompRetAllow},
 		{"mknod - |S_IFIFO", "mknod;native;0,99", main.SeccompRetKill},
+		// test_bad_seccomp_filter_args_prctl
+		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;PR_CAP_AMBIENT_RAISE", main.SeccompRetAllow},
+		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;99", main.SeccompRetKill},
+		// test_bad_seccomp_filter_args_prio
+		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,19", main.SeccompRetAllow},
+		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;99", main.SeccompRetKill},
+		// test_bad_seccomp_filter_args_quotactl
+		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", main.SeccompRetAllow},
+		{"quotactl Q_GETQUOTA", "quotactl;native;99", main.SeccompRetKill},
+		// test_bad_seccomp_filter_args_socket
+		{"socket AF_UNIX", "socket;native;AF_UNIX", main.SeccompRetAllow},
+		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
+		{"socket - SOCK_STREAM", "socket;native;0,SOCK_STREAM", main.SeccompRetAllow},
+		{"socket - SOCK_STREAM", "socket;native;0,99", main.SeccompRetKill},
+		// test_bad_seccomp_filter_args_termios
+		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.seccompWhitelist), outPath)
@@ -218,7 +235,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 
 		out, err := vm.Run(buf2[:])
 		c.Assert(err, IsNil)
-		c.Check(out, Equals, t.expected, Commentf("unexpected result for %q, got %v expected %v", t.seccompWhitelist, out, t.expected))
+		c.Check(out, Equals, t.expected, Commentf("unexpected result for %q (input %q), got %v expected %v", t.seccompWhitelist, t.bpfInput, out, t.expected))
 	}
 
 }
@@ -236,9 +253,37 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"mknod - |S_IFIF", `cannot parse line: cannot parse token "S_IFIF" \(line "mknod - |S_IFIF"\)`},
 		{"mknod - |S_IFIFOO", `cannot parse line: cannot parse token "S_IFIFOO" \(line "mknod - |S_IFIFOO"\)`},
 		{"mknod - |S_!FIFO", `cannot parse line: cannot parse token "S_IFIFO" \(line "mknod - |S_!FIFO"\)`},
+		// test_bad_seccomp_filter_args_null
+		{"socket S\x00CK_STREAM", `cannot parse line: cannot parse token .*`},
+		{"socket SOCK_STREAM\x00bad stuff", `cannot parse line: cannot parse token .*`},
+
 		// test_bad_seccomp_filter_args
 		{"mbind - - - - - - 7", `cannot parse line: too many tokens \(6\) in line.*`},
 		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many tokens \(6\) in line.*`},
+		// test_bad_seccomp_filter_args_prctl
+		{"prctl PR_GET_SECCOM", `cannot parse line: cannot parse token "PR_GET_SECCOM" .*`},
+		{"prctl PR_GET_SECCOMPP", `cannot parse line: cannot parse token "PR_GET_SECCOMPP" .*`},
+		{"prctl PR_GET_SECC0MP", `cannot parse line: cannot parse token "PR_GET_SECC0MP" .*`},
+		{"prctl PR_CAP_AMBIENT_RAIS", `cannot parse line: cannot parse token "PR_CAP_AMBIENT_RAIS" .*`},
+		{"prctl PR_CAP_AMBIENT_RAISEE", `cannot parse line: cannot parse token "PR_CAP_AMBIENT_RAISEE" .*`},
+		// test_bad_seccomp_filter_args_prio
+		{"setpriority PRIO_PROCES 0 >=0", `cannot parse line: cannot parse token "PRIO_PROCES" .*`},
+		{"setpriority PRIO_PROCESSS 0 >=0", `cannot parse line: cannot parse token "PRIO_PROCESSS" .*`},
+		{"setpriority PRIO_PR0CESS 0 >=0", `cannot parse line: cannot parse token "PRIO_PR0CESS" .*`},
+		// test_bad_seccomp_filter_args_quotactl
+		{"quotactl Q_GETQUOT", `cannot parse line: cannot parse token "Q_GETQUOT" .*`},
+		{"quotactl Q_GETQUOTAA", `cannot parse line: cannot parse token "Q_GETQUOTAA" .*`},
+		{"quotactl Q_GETQU0TA", `cannot parse line: cannot parse token "Q_GETQU0TA" .*`},
+		// test_bad_seccomp_filter_args_socket
+		{"socket AF_UNI", `cannot parse line: cannot parse token "AF_UNI" .*`},
+		{"socket AF_UNIXX", `cannot parse line: cannot parse token "AF_UNIXX" .*`},
+		{"socket AF_UN!X", `cannot parse line: cannot parse token "AF_UN!X" .*`},
+		{"socket - SOCK_STREA", `cannot parse line: cannot parse token "SOCK_STREA" .*`},
+		{"socket - SOCK_STREAMM", `cannot parse line: cannot parse token "SOCK_STREAMM" .*`},
+		// test_bad_seccomp_filter_args_termios
+		{"ioctl - TIOCST", `cannot parse line: cannot parse token "TIOCST" .*`},
+		{"ioctl - TIOCSTII", `cannot parse line: cannot parse token "TIOCSTII" .*`},
+		{"ioctl - TIOCST1", `cannot parse line: cannot parse token "TIOCST1" .*`},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.inp), outPath)
