@@ -24,10 +24,6 @@ prepare: |
     snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package --no-install-recommends cups printer-driver-cups-pdf
-
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         # Not all distributions are starting the cups service directly after
         # the package was installed.
         if ! systemctl is-enabled cups ; then
@@ -35,11 +31,8 @@ prepare: |
             systemctl enable cups
             systemctl start cups
         fi
-    fi
 
 restore: |
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package cups printer-driver-cups-pdf
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
