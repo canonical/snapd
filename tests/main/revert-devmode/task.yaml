@@ -1,4 +1,5 @@
 summary: Check that revert of a snap in devmode restores devmode
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}

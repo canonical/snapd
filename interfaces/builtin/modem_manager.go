@@ -1166,7 +1166,8 @@ func (iface *modemManagerInterface) Name() string {
 
 func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: modemManagerSummary,
+		Summary:           modemManagerSummary,
+		ImplicitOnClassic: true,
 	}
 }
 

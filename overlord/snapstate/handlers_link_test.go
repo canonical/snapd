@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -60,6 +61,8 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
+	dirs.SnapCookieDir = c.MkDir()
+
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(s.stateBackend)
@@ -71,11 +74,29 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	resetReadInfo := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		resetReadInfo()
+		dirs.SetRootDir("/")
+	}
 }
 
 func (s *linkSnapSuite) TearDownTest(c *C) {
 	s.reset()
+}
+
+func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
+	var contexts map[string]interface{}
+	err := st.Get("snap-cookies", &contexts)
+	c.Assert(err, IsNil)
+	c.Check(contexts, HasLen, 1)
+
+	for _, snap := range contexts {
+		if snapName == snap {
+			return
+		}
+	}
+	panic(fmt.Sprintf("Cookie missing for snap %q", snapName))
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
@@ -100,6 +121,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
+
+	checkHasCookieForSnap(c, s.state, "foo")
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)

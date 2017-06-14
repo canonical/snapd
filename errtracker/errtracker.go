@@ -54,7 +54,7 @@ var (
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
 
-	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
 
 	timeNow = time.Now
 )
@@ -142,9 +142,6 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
 
-		"SnapConfineAppArmorProfileCurrentMD5Sum": snapConfineProfileDigest(""),
-		"SnapConfineAppArmorProfileDpkgNewMD5Sum": snapConfineProfileDigest(".dpkg-new"),
-
 		"DidSnapdReExec": didSnapdReExec(),
 	}
 	for k, v := range extra {
@@ -152,6 +149,24 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		if _, ok := report[k]; !ok {
 			report[k] = v
 		}
+	}
+
+	// include md5 hashes of the apparmor conffile for easier debbuging
+	// of not-updated snap-confine apparmor profiles
+	for _, sp := range []struct {
+		suffix string
+		key    string
+	}{
+		{"", "MD5SumSnapConfineAppArmorProfile"},
+		{".dpkg-new", "MD5SumSnapConfineAppArmorProfileDpkgNew"},
+		{".real", "MD5SumSnapConfineAppArmorProfileReal"},
+		{".real.dpkg-new", "MD5SumSnapConfineAppArmorProfileRealDpkgNew"},
+	} {
+		digest := snapConfineProfileDigest(sp.suffix)
+		if digest != "" {
+			report[sp.key] = digest
+		}
+
 	}
 
 	// see if we run in testing mode

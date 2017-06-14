@@ -164,7 +164,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	case "":
 		return nil, store.ErrLocalSnap
 	case "other-snap-id":
-		return nil, &snap.NoUpdateAvailableError{Snap: "other-snap"}
+		return nil, store.ErrNoUpdateAvailable
 	case "fakestore-please-error-on-refresh":
 		return nil, fmt.Errorf("failing as requested")
 	case "services-snap-id":
@@ -221,7 +221,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		return info, nil
 	}
 
-	return nil, &snap.NoUpdateAvailableError{Snap: name}
+	return nil, store.ErrNoUpdateAvailable
 }
 
 func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
@@ -237,7 +237,7 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 	var res []*snap.Info
 	for _, cand := range cands {
 		info, err := f.LookupRefresh(cand, nil)
-		if err == store.ErrLocalSnap || snap.IsNoUpdateAvailableError(err) {
+		if err == store.ErrLocalSnap || err == store.ErrNoUpdateAvailable {
 			continue
 		}
 		res = append(res, info)

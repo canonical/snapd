@@ -51,7 +51,9 @@ func (iface *physicalMemoryControlInterface) Name() string {
 
 func (iface *physicalMemoryControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: physicalMemoryControlSummary,
+		Summary:           physicalMemoryControlSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 
