@@ -157,37 +157,8 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 ## snap-confine
 ##
 
-all_tests =
-
-# FIXME: port to the new world
-# all_tests = \
-#     snap-confine/tests/test_bad_seccomp_filter_args \
-#     snap-confine/tests/test_bad_seccomp_filter_args_clone \
-#     snap-confine/tests/test_bad_seccomp_filter_args_mknod \
-#     snap-confine/tests/test_bad_seccomp_filter_args_null \
-#     snap-confine/tests/test_bad_seccomp_filter_args_prctl \
-#     snap-confine/tests/test_bad_seccomp_filter_args_prio \
-#     snap-confine/tests/test_bad_seccomp_filter_args_quotactl \
-#     snap-confine/tests/test_bad_seccomp_filter_args_socket \
-#     snap-confine/tests/test_bad_seccomp_filter_args_termios \
-#     snap-confine/tests/test_bad_seccomp_filter_length \
-#     snap-confine/tests/test_bad_seccomp_filter_missing_trailing_newline \
-#     snap-confine/tests/test_complain \
-#     snap-confine/tests/test_complain_missed \
-#     snap-confine/tests/test_noprofile \
-#     snap-confine/tests/test_restrictions \
-#     snap-confine/tests/test_restrictions_working \
-#     snap-confine/tests/test_restrictions_working_args \
-#     snap-confine/tests/test_restrictions_working_args_clone \
-#     snap-confine/tests/test_restrictions_working_args_mknod \
-#     snap-confine/tests/test_restrictions_working_args_prctl \
-#     snap-confine/tests/test_restrictions_working_args_prio \
-#     snap-confine/tests/test_restrictions_working_args_quotactl \
-#     snap-confine/tests/test_restrictions_working_args_socket \
-#     snap-confine/tests/test_restrictions_working_args_termios \
-#     snap-confine/tests/test_unrestricted \
-#     snap-confine/tests/test_unrestricted_missed \
-#     snap-confine/tests/test_whitelist
+all_tests = \
+    snap-confine/tests/test_restrictions
 
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
