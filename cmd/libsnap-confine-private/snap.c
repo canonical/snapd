@@ -47,8 +47,9 @@ bool verify_security_tag(const char *security_tag, const char *snap_name)
 		return false;
 	}
 
-	return strncmp(security_tag + matches[1].rm_so, snap_name,
-		       matches[1].rm_eo - matches[1].rm_so) == 0;
+	size_t len = matches[1].rm_eo - matches[1].rm_so;
+	return len == strlen(snap_name)
+	    && strncmp(security_tag + matches[1].rm_so, snap_name, len) == 0;
 }
 
 bool sc_is_hook_security_tag(const char *security_tag)
