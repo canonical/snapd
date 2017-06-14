@@ -69,6 +69,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "screen-inhibit-control",
 		summary:               screenInhibitControlSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -68,7 +68,7 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
 	s.AddCleanup(errtracker.MockReExec(true))
 
-	p = filepath.Join(d, "usr.lib.snapd.snap-confine.real")
+	p = filepath.Join(d, "usr.lib.snapd.snap-confine")
 	err = ioutil.WriteFile(p, []byte("# fake profile of snap-confine"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockSnapConfineApparmorProfile(p))
@@ -84,6 +84,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(s.snapConfineProfile+".dpkg-new", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -122,8 +126,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
 
-				"SnapConfineAppArmorProfileCurrentMD5Sum": "7a7aa5f21063170c1991b84eb8d86de1",
-				"SnapConfineAppArmorProfileDpkgNewMD5Sum": "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfile":            "7a7aa5f21063170c1991b84eb8d86de1",
+				"MD5SumSnapConfineAppArmorProfileDpkgNew":     "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileReal":        "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileRealDpkgNew": "93b885adfe0da089cdf634904fd59f71",
 
 				"DidSnapdReExec": "yes",
 			})

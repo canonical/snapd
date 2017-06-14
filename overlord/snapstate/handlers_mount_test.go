@@ -44,6 +44,9 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
+	oldDir := dirs.SnapCookieDir
+	dirs.SnapCookieDir = c.MkDir()
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
@@ -54,7 +57,11 @@ func (s *mountSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		reset1()
+		dirs.SnapCookieDir = oldDir
+	}
 }
 
 func (s *mountSnapSuite) TearDownTest(c *C) {

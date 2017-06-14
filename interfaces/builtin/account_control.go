@@ -72,6 +72,8 @@ func init() {
 		name:                  "account-control",
 		summary:               accountControlSummary,
 		description:           accountControlDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,
