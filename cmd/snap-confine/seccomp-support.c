@@ -97,11 +97,8 @@ static void validate_path_has_strict_perms(const char *path)
 		die("%s not root-owned %i:%i", path, stat_buf.st_uid,
 		    stat_buf.st_gid);
 
-	// FIXME: disabled for now, I get:
-	//    /var/lib has 'other' write 41777
-	// in spread
-	//if (stat_buf.st_mode & S_IWOTH)
-	//      die("%s has 'other' write %o", path, stat_buf.st_mode);
+	if (stat_buf.st_mode & S_IWOTH)
+		die("%s has 'other' write %o", path, stat_buf.st_mode);
 }
 
 static void validate_bpfpath_is_safe(const char *path)
