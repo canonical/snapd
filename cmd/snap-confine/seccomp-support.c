@@ -94,7 +94,8 @@ static void validate_path_has_strict_perms(const char *path)
 
 	errno = 0;
 	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
-		die("%s not root-owned", path);
+		die("%s not root-owned %i:%i", path, stat_buf.st_uid,
+		    stat_buf.st_gid);
 
 	// FIXME: disabled for now, I get:
 	//    /var/lib has 'other' write 41777
