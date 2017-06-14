@@ -219,7 +219,11 @@ EOF
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 
-        find /run/systemd -type f -name 'rng-tools.service' -exec sed -i 's/^Restart=no/Restart=always/g' {} \;
+        mkdir -p /etc/systemd/system/rng-tools.service.d/
+        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+[Service]
+Restart=always
+EOF
         systemctl daemon-reload
     fi
 
