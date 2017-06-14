@@ -11,8 +11,13 @@ prepare: |
     . $TESTSLIB/pkgdb.sh
     distro_install_package avahi-daemon
     sed -i 's/^#enable-dbus=yes/enable-dbus=yes/' /etc/avahi/avahi-daemon.conf
-    systemctl daemon-reload
-    systemctl restart avahi-daemon.{service,socket}
+    if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
+        initctl reload-configuration
+        restart avahi-daemon
+    else
+        systemctl daemon-reload
+        systemctl restart avahi-daemon.{service,socket}
+    fi
 
 restore: |
     rm -f *.error
