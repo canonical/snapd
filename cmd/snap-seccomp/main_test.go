@@ -295,8 +295,8 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"socket SOCK_STREAM\x00bad stuff", `cannot parse line: cannot parse token .*`},
 
 		// test_bad_seccomp_filter_args
-		{"mbind - - - - - - 7", `cannot parse line: too many tokens \(6\) in line.*`},
-		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many tokens \(6\) in line.*`},
+		{"mbind - - - - - - 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
+		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
 		// test_bad_seccomp_filter_args_prctl
 		{"prctl PR_GET_SECCOM", `cannot parse line: cannot parse token "PR_GET_SECCOM" .*`},
 		{"prctl PR_GET_SECCOMPP", `cannot parse line: cannot parse token "PR_GET_SECCOMPP" .*`},

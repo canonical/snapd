@@ -344,6 +344,8 @@ func readNumber(token string) (uint64, error) {
 		return value, nil
 	}
 
+	// Negative numbers are not supported yet, but when they are,
+	// adjust this accordingly
 	return strconv.ParseUint(token, 10, 64)
 }
 
@@ -357,11 +359,19 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 	// regular line
 	tokens := strings.Fields(line)
+	if len(tokens[1:]) > ScArgsMaxlength {
+		return fmt.Errorf("too many arguments specified for syscall '%s' in line %q", tokens[0], line)
+	}
 
 	// fish out syscall
 	secSyscall, err := seccomp.GetSyscallFromName(tokens[0])
 	if err != nil {
-		// FIXME: add structed error to libseccomp-golang
+		// FIXME: if/when
+		// https://github.com/seccomp/libseccomp-golang/pull/26
+		// gets merged, use ErrSyscallDoesNotExists here
+		// instead of doing the string compare
+		//
+		// For now, ignore unknown syscalls
 		if err.Error() == "could not resolve name to syscall" {
 			return nil
 		}
@@ -369,20 +379,12 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	}
 
 	var conds []seccomp.ScmpCondition
-	if err != nil {
-		return fmt.Errorf("cannot create new filter: %s", err)
-	}
-
 	for pos, arg := range tokens[1:] {
 		var cmpOp seccomp.ScmpCompareOp
 		var value uint64
 		var err error
 
-		if pos >= ScArgsMaxlength {
-			return fmt.Errorf("too many tokens (%d) in line %q", pos, line)
-		}
-
-		if arg == "-" {
+		if arg == "-" { // skip arg
 			continue
 		}
 
@@ -424,7 +426,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		conds = append(conds, scmpCond)
 	}
 
-	// FIXME: why do we need this fallback?
+	// Default to adding a precise match if possible. Otherwise
+	// let seccomp figure out the architecture specifics.
 	if err = secFilter.AddRuleConditionalExact(secSyscall, seccomp.ActAllow, conds); err != nil {
 		err = secFilter.AddRuleConditional(secSyscall, seccomp.ActAllow, conds)
 	}
