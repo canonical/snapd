@@ -146,11 +146,11 @@ var (
 	cmdWaitTimeout = 5 * time.Second
 )
 
-// KillProcessGroup kills the process group associated with the given command.
+// killProcessGroup kills the process group associated with the given command.
 //
 // If the command hasn't had Setpgid set in its SysProcAttr, you'll probably end
 // up killing yourself.
-func KillProcessGroup(cmd *exec.Cmd) error {
+func killProcessGroup(cmd *exec.Cmd) error {
 	pgid, err := syscallGetpgid(cmd.Process.Pid)
 	if err != nil {
 		return err
@@ -165,13 +165,13 @@ func KillProcessGroup(cmd *exec.Cmd) error {
 // os.Environ, killing it if it reaches timeout, or if the tomb is dying.
 func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
 	if len(argv) == 0 {
-		return nil, fmt.Errorf("cannot RunAndWait: need non-empty argv")
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs non-empty argv")
 	}
 	if timeout <= 0 {
-		return nil, fmt.Errorf("cannot RunAndWait: need positive timeout")
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs positive timeout")
 	}
 	if tomb == nil {
-		return nil, fmt.Errorf("cannot RunAndWait: need non-nil tomb")
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs non-nil tomb")
 	}
 
 	command := exec.Command(argv[0], argv[1:]...)
@@ -219,7 +219,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	// select above exited which means that aborted or killTimeout
 	// was reached. Kill the command and wait for command.Wait()
 	// to clean it up (but limit the wait with the cmdWaitTimer)
-	if err := KillProcessGroup(command); err != nil {
+	if err := killProcessGroup(command); err != nil {
 		return nil, fmt.Errorf("cannot abort: %s", err)
 	}
 	select {

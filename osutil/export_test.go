@@ -76,3 +76,5 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 		cmdWaitTimeout = oldCmdWaitTimeout
 	}
 }
+
+var KillProcessGroup = killProcessGroup
