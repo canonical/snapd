@@ -690,7 +690,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		// XXX: the server doesn't behave correctly ATM
-		// but 401 for non purchases is the unlikely case so far
+		// but 401 for payed snaps is the unlikely case so far
 		w.WriteHeader(402)
 	}))
 	c.Assert(mockServer, NotNil)

@@ -113,7 +113,7 @@ if [ "$STATIC" = 1 ]; then
     echo 'Check for usages of http.Status*'
     got=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(grep -nE "http\.Status"  "$dir"/*.go |grep -vE "http\.StatusText\(" || true)"
+        s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\n$got"
         fi

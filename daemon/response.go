@@ -240,14 +240,14 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	Unauthorized   = makeErrorResponder(401)
-	NotFound       = makeErrorResponder(404)
-	BadRequest     = makeErrorResponder(400)
-	BadMethod      = makeErrorResponder(405)
-	InternalError  = makeErrorResponder(500)
-	NotImplemented = makeErrorResponder(501)
-	Forbidden      = makeErrorResponder(403)
-	Conflict       = makeErrorResponder(409)
+	Unauthorized     = makeErrorResponder(401)
+	NotFound         = makeErrorResponder(404)
+	BadRequest       = makeErrorResponder(400)
+	MethodNotAllowed = makeErrorResponder(405)
+	InternalError    = makeErrorResponder(500)
+	NotImplemented   = makeErrorResponder(501)
+	Forbidden        = makeErrorResponder(403)
+	Conflict         = makeErrorResponder(409)
 )
 
 func SnapNotFound(err error) Response {
