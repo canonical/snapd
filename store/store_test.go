@@ -685,11 +685,13 @@ func (nopeSeeker) Seek(int64, int) (int64, error) {
 	return -1, errors.New("what is this, quidditch?")
 }
 
-func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
+func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(401)
+		// XXX: the server doesn't behave correctly ATM
+		// but 401 for non purchases is the unlikely case so far
+		w.WriteHeader(402)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -698,7 +700,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	var buf bytes.Buffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Please buy foo before installing it.")
+	c.Check(err.Error(), Equals, "please buy foo before installing it.")
 	c.Check(n, Equals, 1)
 }
 
