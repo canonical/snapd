@@ -17,17 +17,16 @@
  *
  */
 
-// Package oddjobstate implements a overlord.StateManager that excutes
-// arbitrary commands as tasks.
 package oddjobstate
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
+	"time"
 )
 
-// Exec creates a task that will execute the given command.
-func Exec(st *state.State, summary string, argv []string) *state.TaskSet {
-	t := st.NewTask("exec-command", summary)
-	t.Set("argv", argv)
-	return state.NewTaskSet(t)
+func MockExecTimeout(t time.Duration) func() {
+	ot := execTimeout
+	execTimeout = t
+	return func() {
+		execTimeout = ot
+	}
 }

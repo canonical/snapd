@@ -21,7 +21,9 @@ package oddjobstate_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -39,6 +41,7 @@ type oddjobSuite struct {
 	rootdir string
 	state   *state.State
 	manager overlord.StateManager
+	restore func()
 }
 
 var _ = check.Suite(&oddjobSuite{})
@@ -67,6 +70,11 @@ func (s *oddjobSuite) SetUpTest(c *check.C) {
 	s.rootdir = d
 	s.state = state.New(nil)
 	s.manager = oddjobstate.Manager(s.state)
+	s.restore = oddjobstate.MockExecTimeout(time.Second / 10)
+}
+
+func (s *oddjobSuite) TearDownTest(c *check.C) {
+	s.restore()
 }
 
 func (s *oddjobSuite) TestExecTask(c *check.C) {
@@ -76,7 +84,7 @@ func (s *oddjobSuite) TestExecTask(c *check.C) {
 	tasks := oddjobstate.Exec(s.state, "this is the summary", argvIn).Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	task := tasks[0]
-	c.Check(task.Kind(), check.Equals, "exec")
+	c.Check(task.Kind(), check.Equals, "exec-command")
 
 	var argvOut []string
 	c.Check(task.Get("argv", &argvOut), check.IsNil)
@@ -130,6 +138,7 @@ func (s *oddjobSuite) TestExecAbort(c *check.C) {
 	s.waitfor(chg)
 
 	c.Check(chg.Status(), check.Equals, state.ErrorStatus)
+	c.Check(strings.Join(chg.Tasks()[0].Log(), "\n"), check.Matches, `(?s).*ERROR aborted`)
 }
 
 func (s *oddjobSuite) TestExecStop(c *check.C) {
@@ -148,4 +157,18 @@ func (s *oddjobSuite) TestExecStop(c *check.C) {
 
 	c.Check(chg.Status(), check.Equals, state.DoStatus)
 	chg.Abort()
+}
+
+func (s *oddjobSuite) TestExecTimesOut(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"sleep", "1m"})
+	chg := s.state.NewChange("do-the-thing", "Doing the thing")
+	chg.AddAll(ts)
+
+	s.waitfor(chg)
+
+	c.Check(chg.Status(), check.Equals, state.ErrorStatus)
+	c.Check(strings.Join(chg.Tasks()[0].Log(), "\n"), check.Matches, `(?s).*ERROR exceeded maximum runtime.*`)
 }
