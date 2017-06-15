@@ -91,8 +91,6 @@ get_test_dependencies(){
           get_dependency_opensuse_packages
           ;;
       *)
-          echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-          exit 1
           ;;
   esac  
 }
@@ -109,8 +107,6 @@ get_build_dependencies(){
         DISTRO_BUILD_DEPS="osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools"
         ;;
     *)
-        echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-        exit 1
         ;;
   esac
 }
