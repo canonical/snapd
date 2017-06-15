@@ -57,7 +57,7 @@ func ShouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	if !attempt.More() {
 		return false
 	}
-	return resp.StatusCode >= http.StatusInternalServerError
+	return resp.StatusCode >= 500
 }
 
 func ShouldRetryError(attempt *retry.Attempt, err error) bool {
