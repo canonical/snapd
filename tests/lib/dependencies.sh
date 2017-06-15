@@ -55,6 +55,11 @@ get_apt_dependencies_classic(){
           add_pkgs x11-utils
           add_pkgs xvfb
           ;;
+      ubuntu-*)
+          add_pkgs linux-image-extra-$(uname -r)
+          add_pkgs pollinate
+          add_pkgs printer-driver-cups-pdf
+          ;;
       debian-*)
           add_pkgs printer-driver-cups-pdf
           ;;
@@ -76,13 +81,13 @@ get_dependency_opensuse_packages(){
 
 get_test_dependencies(){
   case "$SPREAD_SYSTEM" in
-      ubuntu-16.04-*|ubuntu-14.04-64|debian-*)
-          get_apt_dependencies_generic
-          get_apt_dependencies_classic
-          ;;
       ubuntu-core-16-*)
           get_apt_dependencies_generic
           get_apt_dependencies_core
+          ;;
+      ubuntu-*|debian-*)
+          get_apt_dependencies_generic
+          get_apt_dependencies_classic
           ;;
       fedora-*)
           get_dependency_fedora_packages
