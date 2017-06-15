@@ -20,17 +20,16 @@
 package oddjobstate
 
 import (
-	"bytes"
-	"fmt"
-	"os/exec"
 	"strings"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// OddJobManager is responsible for running arbitrary commands as tasks.
+// OddJobManager helps running arbitrary commands as tasks.
 type OddJobManager struct {
 	runner *state.TaskRunner
 }
@@ -38,7 +37,7 @@ type OddJobManager struct {
 // Manager returns a new OddJobManager.
 func Manager(st *state.State) *OddJobManager {
 	runner := state.NewTaskRunner(st)
-	runner.AddHandler("exec", doExec, nil)
+	runner.AddHandler("exec-command", doExec, nil)
 	return &OddJobManager{runner: runner}
 }
 
@@ -58,6 +57,8 @@ func (m *OddJobManager) Stop() {
 	m.runner.Stop()
 }
 
+var execTimeout = 5 * time.Second
+
 func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	var argv []string
 	st := t.State()
@@ -68,26 +69,9 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	var buf bytes.Buffer
-	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Stdin = nil
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	go func() {
-		<-tomb.Dying()
-		cmd.Process.Kill()
-	}()
-	if err := cmd.Wait(); err != nil {
+	if buf, err := osutil.RunAndWait(argv, nil, execTimeout, tomb); err != nil {
 		st.Lock()
-		if t.Status() == state.AbortStatus {
-			t.Logf("aborted")
-		} else {
-			fmt.Fprintln(&buf, err)
-			t.Errorf("task %q failed:\n# %s\n%s", t.Summary(), strings.Join(argv, " "), buf.String())
-		}
+		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
 		st.Unlock()
 		return err
 	}
