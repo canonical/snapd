@@ -1735,7 +1735,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case 404:
 		// Likely because snap ID doesn't exist.
 		return buyOptionError("server says not found (snap got removed?)")
-	case 402:
+	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
 	case 401:
