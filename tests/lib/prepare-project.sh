@@ -244,8 +244,9 @@ fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
-# shellcheck disable=SC2086
-go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
+
+# eval to prevent expansion errors on opensuse (the variable keeps quotes)
+eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
 # Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
