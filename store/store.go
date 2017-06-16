@@ -256,17 +256,17 @@ func useStaging() bool {
 func apiURL() string {
 	// FIXME: this will become a store-url assertion
 	// backward-compatibility: this used to be "Click Package Index"
-	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "v1/") {
-		return u[:len(u)-len("v1/")]
+	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
+		return u[:len(u)-len("api/v1/")]
 	}
 	if u := os.Getenv("SNAPPY_FORCE_API_URL"); u != "" {
 		return u
 	}
 	if useStaging() {
-		return "https://api.staging.snapcraft.io/api/"
+		return "https://api.staging.snapcraft.io/"
 	}
 
-	return "https://api.snapcraft.io/api/"
+	return "https://api.snapcraft.io/"
 }
 
 func authLocation() string {
@@ -315,18 +315,18 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("v1/snaps/search")
+	defaultConfig.SearchURI, err = storeBaseURI.Parse("api/v1/snaps/search")
 	if err != nil {
 		panic(err)
 	}
 
 	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("v1/snaps/details/")
+	defaultConfig.DetailsURI, err = storeBaseURI.Parse("api/v1/snaps/details/")
 	if err != nil {
 		panic(err)
 	}
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("v1/snaps/metadata")
+	defaultConfig.BulkURI, err = storeBaseURI.Parse("api/v1/snaps/metadata")
 	if err != nil {
 		panic(err)
 	}
@@ -351,7 +351,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("v1/snaps/sections")
+	defaultConfig.SectionsURI, err = storeBaseURI.Parse("api/v1/snaps/sections")
 	if err != nil {
 		panic(err)
 	}
