@@ -132,8 +132,8 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
 		die("could not find user IDs");
-        // If we can, raise privileges so that we can load the BPF into the
-        // kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
+	// If we can, raise privileges so that we can load the BPF into the
+	// kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
 	debug("raising privileges to load seccomp profile");
 	if (effective_uid != 0 && saved_uid == 0) {
 		if (seteuid(0) != 0)
