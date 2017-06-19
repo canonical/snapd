@@ -98,7 +98,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
-	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
+	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
 
 	return store
 }
@@ -495,7 +495,7 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	assertPath := strings.TrimPrefix(req.URL.Path, "/assertions/")
+	assertPath := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/assertions/")
 
 	bs, err := s.collectAssertions()
 	if err != nil {

@@ -289,11 +289,7 @@ func assertsURL() string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
-	return "https://assertions.ubuntu.com/v1/"
+	return apiURL() + "api/v1/snaps/"
 }
 
 func myappsURL() string {
