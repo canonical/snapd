@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/classic.h"
@@ -39,6 +41,25 @@
 #include "udev-support.h"
 #include "user-support.h"
 #include "snap-confine-args.h"
+
+// sc_maybe_fixup_permissions fixes incorrect permissions
+// inside the mount namespace for /var/lib. Before 1ccce4
+// this directory was created with permissions 1777.
+void sc_maybe_fixup_permissions()
+{
+	struct stat buf;
+	if (stat("/var/lib", &buf) != 0) {
+		die("cannot stat /var/lib");
+	}
+	if ((buf.st_mode & 0777) == 0777) {
+		if (chmod("/var/lib", 0755) != 0) {
+			die("cannot chmod /var/lib");
+		}
+		if (chown("/var/lib", 0, 0) != 0) {
+			die("cannot chown /var/lib");
+		}
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -146,6 +167,11 @@ int main(int argc, char **argv)
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_close_ns_group(group);
+			// older versions of snap-confine created incorrect
+			// 777 permissons for /var/lib and we need to fixup
+			// for systems that had their NS created with an
+			// old version
+			sc_maybe_fixup_permissions();
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to
