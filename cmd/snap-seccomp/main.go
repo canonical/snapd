@@ -491,7 +491,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// note that all architecture strings are in the dpkg
 	// architecture notation
-	var compatArch string
+	var compatArch seccomp.ScmpArch
 
 	// common case: kernel and userspace have the same arch. We
 	// add a compat architecture for some architectures that
@@ -500,11 +500,11 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	if arch.UbuntuArchitecture() == arch.UbuntuKernelArchitecture() {
 		switch arch.UbuntuArchitecture() {
 		case "amd64":
-			compatArch = "i386"
+			compatArch = seccomp.ArchX86
 		case "arm64":
-			compatArch = "armhf"
+			compatArch = seccomp.ArchARM64
 		case "ppc64":
-			compatArch = "powerpc"
+			compatArch = seccomp.ArchPPC
 		}
 	} else {
 		// less common case, kernel and userspace
@@ -516,23 +516,27 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// 64bit code that would have to detect at runtime if
 		// it can be used or not. But we are told this is not
 		// rare with certain classes of embedded devices.
-		compatArch = arch.UbuntuKernelArchitecture()
+		switch arch.UbuntuKernelArchitecture() {
+		case "amd64":
+			compatArch = seccomp.ArchAMD64
+		case "arm64":
+			compatArch = seccomp.ArchARM64
+		case "ppc64el":
+			compatArch = seccomp.ArchPPC64LE
+		case "ppc64":
+			compatArch = seccomp.ArchPPC64
+		case "i386":
+			compatArch = seccomp.ArchX86
+		case "armhf":
+			compatArch = seccomp.ArchARM
+		case "powerpc":
+			compatArch = seccomp.ArchPPC
+
+		}
 	}
 
-	// actually add the compat architecture (if we need one)
-	switch compatArch {
-	case "amd64":
-		return secFilter.AddArch(seccomp.ArchAMD64)
-	case "arm64":
-		return secFilter.AddArch(seccomp.ArchARM64)
-	case "ppc64el":
-		return secFilter.AddArch(seccomp.ArchPPC64LE)
-	case "i386":
-		return secFilter.AddArch(seccomp.ArchX86)
-	case "armhf":
-		return secFilter.AddArch(seccomp.ArchARM)
-	case "powerpc":
-		return secFilter.AddArch(seccomp.ArchPPC)
+	if compatArch != seccomp.ArchInvalid {
+		return secFilter.AddArch(compatArch)
 	}
 
 	return nil
