@@ -1,5 +1,4 @@
 summary: Check commands help
-systems: [fedora-*, opensuse-*, ubuntu-*, debian-*]
 environment:
     CMD/abort: abort
     CMD/changes: changes
