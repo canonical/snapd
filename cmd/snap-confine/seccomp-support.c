@@ -116,7 +116,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1];	// acount for EOF
+	unsigned char bpf[MAX_BPF_SIZE + 1];	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL)
 		die("cannot read %s", profile_path);
@@ -129,12 +129,11 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
-	// raise privs
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
 		die("could not find user IDs");
-	// If not root but can raise, then raise privileges to load seccomp
-	// policy since we don't have nnp
+        // If we can, raise privileges so that we can load the BPF into the
+        // kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
 	debug("raising privileges to load seccomp profile");
 	if (effective_uid != 0 && saved_uid == 0) {
 		if (seteuid(0) != 0)
