@@ -20,9 +20,7 @@
 package snap
 
 var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
+	NewHookType = newHookType
 )
 
 func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {

@@ -52,6 +52,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "bluetooth-control",
 		summary:               bluetoothControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
 		reservedForOS:         true,

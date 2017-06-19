@@ -20,8 +20,12 @@
 package builtin_test
 
 import (
+	"fmt"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -196,11 +200,11 @@ apps:
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, "/snap/name/42/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, "/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, "/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
 }
@@ -226,8 +230,8 @@ slots:
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
 	expectedMnt := []mount.Entry{{
-		Name:    "/snap/producer/5/export",
-		Dir:     "/snap/consumer/7/import",
+		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
+		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
@@ -257,8 +261,8 @@ slots:
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
 	expectedMnt := []mount.Entry{{
-		Name:    "/snap/producer/5/export",
-		Dir:     "/snap/consumer/7/import",
+		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
+		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
@@ -267,12 +271,12 @@ slots:
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	expected := `
+	expected := fmt.Sprintf(`
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/snap/producer/5/export/** mrkix,
-`
+%s/producer/5/export/** mrkix,
+`, dirs.CoreSnapMountDir)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 

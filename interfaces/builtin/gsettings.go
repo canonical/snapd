@@ -41,6 +41,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "gsettings",
 		summary:               gsettingsSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

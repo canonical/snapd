@@ -276,7 +276,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	if rsp.Type != "async" {
 		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
-	if rsp.StatusCode != http.StatusAccepted {
+	if rsp.StatusCode != 202 {
 		return "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
@@ -349,6 +349,8 @@ const (
 
 	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
 	ErrorKindSnapNotInstalled       = "snap-not-installed"
+	ErrorKindSnapNotFound           = "snap-not-found"
+	ErrorKindSnapLocal              = "snap-local"
 	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
