@@ -38,7 +38,7 @@ execute: |
     $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-tools.echo hello; then
-        echo "filtering broken"
+        echo "filtering broken: program should have failed to run: program should have failed to run"
         exit 1
     fi
     
@@ -66,7 +66,7 @@ execute: |
     $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-tools.echo hello; then
-        echo "filtering broken"
+        echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
@@ -74,7 +74,7 @@ execute: |
     rm -f ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to missing filter"
     if test-snapd-tools.echo hello; then
-        echo "filtering broken"
+        echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
