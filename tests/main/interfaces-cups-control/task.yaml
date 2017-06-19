@@ -30,7 +30,9 @@ prepare: |
     # Not all distributions are starting the cups service directly after
     # the package was installed.
     if ! systemctl is-enabled cups ; then
-        systemctl enable --now cups
+        # We can't use --now as this isn't supported by all distributions
+        systemctl enable cups
+        systemctl start cups
     fi
 
 restore: |
