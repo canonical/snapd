@@ -36,7 +36,7 @@
 static char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
-const int MAX_BPF_SIZE = 640 * 1024;
+const int MAX_BPF_SIZE = 32 * 1024;
 
 typedef struct sock_filter bpf_instr;
 
