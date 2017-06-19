@@ -33,7 +33,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
+static char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
 const int MAX_BPF_SIZE = 640 * 1024;
