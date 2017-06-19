@@ -330,6 +330,18 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"socket SOCK_STREAM\x00bad stuff", `cannot parse line: cannot parse token .*`},
 
 		// test_bad_seccomp_filter_args
+		{"setpriority bar", `cannot parse line: cannot parse token "bar" .*`},
+		{"setpriority -1", `cannot parse line: cannot parse token "-1" .*`},
+		{"setpriority 0 - -1 0", `cannot parse line: cannot parse token "-1" .*`},
+		{"setpriority --10", `cannot parse line: cannot parse token "--10" .*`},
+		{"setpriority 0:10", `cannot parse line: cannot parse token "0:10" .*`},
+		{"setpriority 0-10", `cannot parse line: cannot parse token "0-10" .*`},
+		{"setpriority 0,1", `cannot parse line: cannot parse token "0,1" .*`},
+		{"setpriority 0x0", `cannot parse line: cannot parse token "0x0" .*`},
+		{"setpriority a1", `cannot parse line: cannot parse token "a1" .*`},
+		{"setpriority 1-", `cannot parse line: cannot parse token "1-" .*`},
+		{"setpriority 1\\ 2", `cannot parse line: cannot parse token "1\\\\" .*`},
+		{"setpriority 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", `cannot parse line: cannot parse token "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999" .*`},
 		{"mbind - - - - - - 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
 		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
 		// test_bad_seccomp_filter_args_prctl
