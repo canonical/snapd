@@ -642,7 +642,7 @@ func cancelled(ctx context.Context) bool {
 }
 
 func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
-	ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+	ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
 	// always decode on success; decode failures only if body is not empty
 	if !ok && resp.ContentLength == 0 {
 		return nil
@@ -856,11 +856,11 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		return err
 	}
 
-	if resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == 401 {
 		// TODO handle token expiry and refresh
 		return ErrInvalidCredentials
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return respToError(resp, "obtain known orders from store")
 	}
 
@@ -940,9 +940,9 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 
 	// check statusCode
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case 200:
 		// OK
-	case http.StatusNotFound:
+	case 404:
 		return nil, ErrSnapNotFound
 	default:
 		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
@@ -1176,7 +1176,7 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "query the store for updates")
 	}
 
@@ -1400,10 +1400,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
-		case http.StatusOK, http.StatusPartialContent:
-		case http.StatusUnauthorized:
+		case 200, 206: // OK, Partial Content
+		case 402: // Payment Required
 
-			return fmt.Errorf("Please buy %s before installing it.", name)
+			return fmt.Errorf("please buy %s before installing it.", name)
 		default:
 			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
@@ -1720,7 +1720,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	}
 
 	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
+	case 200, 201:
 		// user already ordered or order successful
 		if orderDetails.State == "Cancelled" {
 			return buyOptionError("payment cancelled")
@@ -1729,16 +1729,16 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return &BuyResult{
 			State: orderDetails.State,
 		}, nil
-	case http.StatusBadRequest:
+	case 400:
 		// Invalid price was specified, etc.
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
-	case http.StatusNotFound:
+	case 404:
 		// Likely because snap ID doesn't exist.
 		return buyOptionError("server says not found (snap got removed?)")
-	case http.StatusPaymentRequired:
+	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
-	case http.StatusUnauthorized:
+	case 401:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
@@ -1773,7 +1773,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	}
 
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case 200:
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
 		}
@@ -1781,10 +1781,10 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return ErrTOSNotAccepted
 		}
 		return nil
-	case http.StatusNotFound:
+	case 404:
 		// Likely because user has no account registered on the pay server
 		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
+	case 401:
 		return ErrInvalidCredentials
 	default:
 		if len(errors.Errors) == 0 {
