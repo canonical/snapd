@@ -17,16 +17,17 @@
  *
  */
 
-package oddjobstate
+// Package cmdstate implements a overlord.StateManager that excutes
+// arbitrary commands as tasks.
+package cmdstate
 
 import (
-	"time"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-func MockExecTimeout(t time.Duration) func() {
-	ot := execTimeout
-	execTimeout = t
-	return func() {
-		execTimeout = ot
-	}
+// Exec creates a task that will execute the given command.
+func Exec(st *state.State, summary string, argv []string) *state.TaskSet {
+	t := st.NewTask("exec-command", summary)
+	t.Set("argv", argv)
+	return state.NewTaskSet(t)
 }

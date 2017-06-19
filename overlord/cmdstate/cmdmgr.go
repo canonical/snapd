@@ -17,7 +17,7 @@
  *
  */
 
-package oddjobstate
+package cmdstate
 
 import (
 	"strings"
@@ -29,31 +29,31 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// OddJobManager helps running arbitrary commands as tasks.
-type OddJobManager struct {
+// CommandManager helps running arbitrary commands as tasks.
+type CommandManager struct {
 	runner *state.TaskRunner
 }
 
-// Manager returns a new OddJobManager.
-func Manager(st *state.State) *OddJobManager {
+// Manager returns a new CommandManager.
+func Manager(st *state.State) *CommandManager {
 	runner := state.NewTaskRunner(st)
 	runner.AddHandler("exec-command", doExec, nil)
-	return &OddJobManager{runner: runner}
+	return &CommandManager{runner: runner}
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (m *OddJobManager) Ensure() error {
+func (m *CommandManager) Ensure() error {
 	m.runner.Ensure()
 	return nil
 }
 
 // Wait is part of the overlord.StateManager interface.
-func (m *OddJobManager) Wait() {
+func (m *CommandManager) Wait() {
 	m.runner.Wait()
 }
 
 // Stop is part of the overlord.StateManager interface.
-func (m *OddJobManager) Stop() {
+func (m *CommandManager) Stop() {
 	m.runner.Stop()
 }
 
