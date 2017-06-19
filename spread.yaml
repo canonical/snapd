@@ -271,13 +271,13 @@ prepare: |
     fi
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
-    cat <<EOF > /etc/gai.conf
-    precedence  ::1/128       50
-    precedence  ::/0          40
-    precedence  2002::/16     30
-    precedence ::/96          20
-    precedence ::ffff:0:0/96 100
-    EOF
+    #cat <<EOF > /etc/gai.conf
+    #precedence  ::1/128       50
+    #precedence  ::/0          40
+    #precedence  2002::/16     30
+    #precedence ::/96          20
+    #precedence ::ffff:0:0/96 100
+    #EOF
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
