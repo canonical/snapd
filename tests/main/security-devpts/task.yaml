@@ -9,5 +9,9 @@ prepare: |
     install_local test-snapd-tools
 
 execute: |
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
+
     echo "Then the pts device follows confinement rules"
     expect -d -f pts.exp
