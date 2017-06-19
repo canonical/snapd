@@ -242,6 +242,7 @@ esac
 /usr/lib/snapd/info
 /usr/lib/snapd/snap-discard-ns
 /usr/lib/snapd/snap-exec
+/usr/lib/snapd/snap-seccomp
 /usr/lib/snapd/snapd
 /usr/lib/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
