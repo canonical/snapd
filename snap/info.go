@@ -82,12 +82,7 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return MountDirWithBasePath(dirs.SnapMountDir, name, revision)
-}
-
-// MountDirWithBasePath returns the base directory where it gets mounted of the snap with the given name and revision.
-func MountDirWithBasePath(basePath, name string, revision Revision) string {
-	return filepath.Join(basePath, name, revision.String())
+	return filepath.Join(dirs.SnapMountDir, name, revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
