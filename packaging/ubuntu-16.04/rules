@@ -203,10 +203,6 @@ override_dh_install:
 	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
 		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
 
-	install -d $(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants
-	ln -sf /usr/lib/systemd/user/snap-userd.service \
-		$(CURDIR)/debian/snapd/usr/lib/systemd/user/default.target.wants/snap-userd.service
-
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
