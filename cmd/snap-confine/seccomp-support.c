@@ -115,17 +115,6 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-	// sanity check size/owner
-	struct stat stat_buf;
-	if (stat(profile_path, &stat_buf) < 0)
-		die("cannot stat %s", profile_path);
-	if (stat_buf.st_size > MAX_BPF_SIZE)
-		die("profile %s is too big", profile_path);
-
-	// paranoid, but only helps a bit
-	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
-		die("cannot use %s: must be root:root owned", profile_path);
-
 	// load bpf
 	unsigned char bpf[MAX_BPF_SIZE + 1];	// acount for EOF
 	FILE *fp = fopen(profile_path, "rb");
