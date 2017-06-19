@@ -24,6 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"strings"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -38,9 +41,9 @@ var _ = Suite(&servicesWrapperGenSuite{})
 const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
-Requires=snap-snap-44.mount
+Requires=%s-snap-44.mount
 Wants=network-online.target
-After=snap-snap-44.mount network-online.target
+After=%s-snap-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
@@ -58,18 +61,22 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, "on-failure", "simple\n\n")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, "on-failure", "dbus\n\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, "no", "oneshot\nRemainAfterExit=yes\n")
+	mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
+)
+
+var (
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple\n\n")
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\n\nBusName=foo.bar.baz")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes\n")
 )
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
-Requires=snap-xkcd\x2dwebserver-44.mount
+Requires=%s-xkcd\x2dwebserver-44.mount
 Wants=network-online.target
-After=snap-xkcd\x2dwebserver-44.mount network-online.target
+After=%s-xkcd\x2dwebserver-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
@@ -83,7 +90,7 @@ TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
