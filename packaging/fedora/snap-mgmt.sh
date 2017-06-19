@@ -88,7 +88,7 @@ if [ "$1" = "purge" ]; then
 
     echo "Removing leftover snap shared state data"
     rm -rf /var/lib/snapd/desktop/applications/*
-    rm -rf /var/lib/snapd/seccomp/profiles/*
+    rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
 

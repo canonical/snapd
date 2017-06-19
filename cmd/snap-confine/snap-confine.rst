@@ -47,7 +47,7 @@ extensive dbus mediation. Refer to apparmor documentation for more details.
 Seccomp profiles
 ----------------
 
-`snap-confine` looks for the `/var/lib/snapd/seccomp/profiles/$SECURITY_TAG`
+`snap-confine` looks for the `/var/lib/snapd/seccomp/bpf/$SECURITY_TAG`
 file. This file is **mandatory** and `snap-confine` will refuse to run without
 it.
 
@@ -129,7 +129,7 @@ FILES
 
 	Description of the mount profile.
 
-`/var/lib/snapd/seccomp/profiles/*`:
+`/var/lib/snapd/seccomp/bpf/*`:
 
 	Description of the seccomp profile.
 

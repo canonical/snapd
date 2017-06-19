@@ -10,7 +10,7 @@ execute: |
         exit 0
     fi
 
-    seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
+    seccomp_profile_directory="/var/lib/snapd/seccomp/bpf"
 
     echo "Security profiles are generated and loaded for apps"
     . $TESTSLIB/snaps.sh
