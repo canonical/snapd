@@ -63,6 +63,8 @@ func ubuntuArchFromGoArch(goarch string) string {
 		"ppc64le": "ppc64el",
 		"s390x":   "s390x",
 		"ppc":     "powerpc",
+		// available in debian and other distros
+		"ppc64": "ppc64",
 	}
 
 	ubuntuArch := goArchMapping[goarch]
@@ -106,6 +108,8 @@ func ubuntuArchFromKernelArch(utsMachine string) string {
 		"ppc64le": "ppc64el",
 		"s390x":   "s390x",
 		"ppc":     "powerpc",
+		// available in debian and other distros
+		"ppc64": "ppc64",
 	}
 
 	ubuntuArch := kernelArchMapping[utsMachine]
