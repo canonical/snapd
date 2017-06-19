@@ -489,14 +489,50 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 // the kernel arch to support the kernel's arch (eg, 64bit kernels with
 // 32bit userspace).
 func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
-	switch arch.UbuntuArchitecture() {
+	// note that all architecture strings are in the dpkg
+	// architecture notation
+	var compatArch string
+
+	// common case: kernel and userspace have the same arch. We
+	// add a compat architecture for some architectures that
+	// support it, e.g. on amd64 kernel and userland, we add
+	// compat i386 syscalls.
+	if arch.UbuntuArchitecture() == arch.UbuntuKernelArchitecture() {
+		switch arch.UbuntuArchitecture() {
+		case "amd64":
+			compatArch = "i386"
+		case "arm64":
+			compatArch = "armhf"
+		case "ppc64el":
+			compatArch = "powerpc"
+		}
+	} else {
+		// less common case, kernel and userspace
+		// different. This can happen when running e.g. a
+		// amd64 kernel with a i386 userland. However in this
+		// case snapd would also only request i386 snaps. So
+		// the use-case is even stranger, a i386 snap would
+		// have to ship some 64bit code that would have to
+		// detect at runtime if it can be used or not.
+		compatArch = arch.UbuntuKernelArchitecture()
+	}
+
+	// actually add the compat architecture (if we need one)
+	switch compatArch {
 	case "amd64":
-		return secFilter.AddArch(seccomp.ArchX86)
+		return secFilter.AddArch(seccomp.ArchAMD64)
 	case "arm64":
-		return secFilter.AddArch(seccomp.ArchARM)
+		return secFilter.AddArch(seccomp.ArchARM64)
 	case "ppc64el":
+		return secFilter.AddArch(seccomp.ArchPPC64LE)
+	case "i386":
+		return secFilter.AddArch(seccomp.ArchX86)
+	case "armhf":
+		return secFilter.AddArch(seccomp.ArchARM)
+	case "powerpc":
 		return secFilter.AddArch(seccomp.ArchPPC)
 	}
+
 	return nil
 }
 
