@@ -251,6 +251,7 @@ esac
 /usr/lib/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
 %{_mandir}/man1/snap.1.gz
+/usr/share/dbus-1/services/io.snapcraft.SafeLauncher.service
 
 %changelog
 
