@@ -19,8 +19,20 @@
 
 package main
 
+import (
+	"gopkg.in/retry.v1"
+)
+
 var (
 	Parser    = parser
 	ParseArgs = parseArgs
 	Run       = run
 )
+
+func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
+	originalFetchRetryStrategy := fetchRetryStrategy
+	fetchRetryStrategy = strategy
+	return func() {
+		fetchRetryStrategy = originalFetchRetryStrategy
+	}
+}
