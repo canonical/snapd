@@ -339,25 +339,25 @@ pkg_apt_dependencies_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            echo linux-image-extra-$(uname -r)
+            echo "linux-image-extra-$(uname -r)"
             echo pollinate
             ;;
         ubuntu-16.04-32)
-            echo linux-image-extra-$(uname -r)
+            echo "linux-image-extra-$(uname -r)"
             echo pollinate
             ;;
         ubuntu-16.04-64)
             echo gccgo-6
             echo kpartx
             echo libvirt-bin
-            echo linux-image-extra-$(uname -r)
+            echo "linux-image-extra-$(uname -r)"
             echo pollinate
             echo qemu
             echo x11-utils
             echo xvfb
             ;;
         ubuntu-*)
-            echo linux-image-extra-$(uname -r)
+            echo "linux-image-extra-$(uname -r)"
             echo pollinate
             ;;
         debian-*)
@@ -366,7 +366,7 @@ pkg_apt_dependencies_classic(){
 }
 
 pkg_apt_dependencies_core(){
-    echo linux-image-extra-$(uname -r)
+    echo "linux-image-extra-$(uname -r)"
     echo pollinate
 }
 
