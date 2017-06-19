@@ -21,8 +21,7 @@ SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 SYSTEMDUSERUNITDIR := /usr/lib/systemd/user
 
 SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SYSTEMD_UNITS := snapd.autoimport.service snapd.refresh.service snapd.refresh.timer snapd.socket snapd.service snapd.system-shutdown.service
-SYSTEMD_USER_UNITS := snap-userd.service
+SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
 
 %.service: %.service.in
 	cat $< | \

@@ -24,12 +24,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -54,10 +56,8 @@ type Daemon interface {
 func main() {
 	cmd.ExecInCoreSnap()
 
-	var d Daemon
-	var err error
 	httputil.SetUserAgentFromVersion(cmd.Version)
-	d, err = daemon.New()
+	d, err := daemon.New()
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -71,12 +71,18 @@ func main() {
 }
 
 func run(d Daemon) error {
+	t0 := time.Now().Truncate(time.Millisecond)
+
 	if err := d.Init(); err != nil {
 		return err
 	}
 	d.SetVersion(cmd.Version)
 
 	d.Start()
+
+	// notify systemd that we are ready
+	systemd.SdNotify("READY=1")
+	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -87,5 +93,6 @@ func run(d Daemon) error {
 		// something called Stop()
 	}
 
+	systemd.SdNotify("STOPPING=1")
 	return d.Stop()
 }

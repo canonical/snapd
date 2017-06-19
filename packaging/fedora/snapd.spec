@@ -333,6 +333,13 @@ popd
 
 # Build snap-confine
 pushd ./cmd
+# FIXME This is a hack to get rid of a patch we have to ship for the
+# Fedora package at the moment as /usr/lib/rpm/redhat/redhat-hardened-ld
+# accidentially adds -pie for static executables. See
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892 for a few more
+# details. To prevent this from happening we drop the linker
+# script and define our LDFLAGS manually for now.
+export LDFLAGS="-Wl,-z,relro -z now"
 autoreconf --force --install --verbose
 # selinux support is not yet available, for now just disable apparmor
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
@@ -407,6 +414,7 @@ pushd ./data/systemd
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
+rm -fv %{buildroot}%{_unitdir}/snap-repair.*
 popd
 
 # Put /var/lib/snapd/snap/bin on PATH
@@ -572,7 +580,7 @@ fi
 
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
-   %{_libexecdir}/snapd/snap-mgmt purge || :
+   %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 

@@ -130,7 +130,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rspf ResponseFunc
-	var rsp = BadMethod("method %q not allowed", r.Method)
+	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -224,7 +224,6 @@ func (d *Daemon) SetVersion(version string) {
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -255,7 +254,6 @@ func (d *Daemon) Init() error {
 
 	d.addRoutes()
 
-	logger.Debugf("init done in %s", time.Now().Sub(t0))
 	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil

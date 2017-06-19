@@ -20,6 +20,7 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ import (
 	"gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,6 +53,10 @@ var mockServerJSON = `{
 }`
 
 func (t *userInfoSuite) SetUpTest(c *check.C) {
+	l, err := logger.New(&bytes.Buffer{}, logger.DefaultFlags)
+	c.Assert(err, check.IsNil)
+	logger.SetLogger(l)
+
 	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
@@ -71,7 +77,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0, 1:
-			w.WriteHeader(http.StatusInternalServerError) // force retry of the request
+			w.WriteHeader(500) // force retry of the request
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
@@ -95,7 +101,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	})
 

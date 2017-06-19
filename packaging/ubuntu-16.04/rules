@@ -98,6 +98,7 @@ endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/systemd clean
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -141,6 +142,15 @@ override_dh_systemd_enable:
 		--no-enable \
 		-psnapd \
 		data/systemd/snapd.refresh.service
+	# we want the repair timer enabled by default
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snap-repair.timer
+	# but the repair service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-psnapd \
+		data/systemd/snap-repair.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
