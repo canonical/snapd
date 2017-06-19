@@ -135,7 +135,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		// inside the mount namespace snap-confine creates and there we will
 		// always have a /snap directory available regardless if the system
 		// we're running on supports this or not.
-		return strings.Replace(path, "$SNAP", snap.MountDirWithBasePath(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision), 1)
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision), 1)
 	}
 	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
 		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
@@ -144,7 +144,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snap.MountDirWithBasePath(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision), path)
+	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision), path)
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
