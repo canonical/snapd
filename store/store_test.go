@@ -3665,7 +3665,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://api.snapcraft.io/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://api.snapcraft.io/api/v1/snaps/metadata"), Equals, true)
-	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://api.snapcraft.io/api/v1/snaps/assertions/")
 }
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
