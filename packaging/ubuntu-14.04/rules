@@ -129,8 +129,6 @@ override_dh_auto_build:
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
-	# Build any available upstart configurations
-	$(MAKE) -C data/upstart all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -168,9 +166,6 @@ override_dh_install:
 	# and now the normal install rules
 	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
-
-	# install any available upstart jobs
-	$(MAKE) -C data/upstart install DESTDIR=$(CURDIR)/debian/snapd/
 
 	dh_install
 
