@@ -1,5 +1,6 @@
 summary: check that the bluetooth-control interface works
 
+# currently only enabled for the system that has bluetooth hardware (dragonboard)
 systems: [ubuntu-core-16-arm-64]
 
 prepare: |
@@ -18,26 +19,28 @@ execute: |
     echo "Then the plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "And the snap is not able to read usb"
-    if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version 2>${PWD}/btusb.error" test; then
-        echo "Expected error with disconnected plug didn't happen"
-        exit 1
-    fi
-    cat btusb.error | MATCH "Permission denied"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the snap is not able to read usb"
+        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version 2>${PWD}/btusb.error" test; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        cat btusb.error | MATCH "Permission denied"
 
-    echo "And the snap is not able to read class"
-    if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name 2>${PWD}/btclass.error" test; then
-        echo "Expected error with disconnected plug didn't happen"
-        exit 1
-    fi
-    cat btclass.error | MATCH "Permission denied"
+        echo "And the snap is not able to read class"
+        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name 2>${PWD}/btclass.error" test; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        cat btclass.error | MATCH "Permission denied"
 
-    echo "And the snap is not able to read dev"
-    if su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control 2>${PWD}/btdev-read.error" test; then
-        echo "Expected error with disconnected plug didn't happen"
-        exit 1
+        echo "And the snap is not able to read dev"
+        if su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control 2>${PWD}/btdev-read.error" test; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        cat btdev-read.error | MATCH "Permission denied"
     fi
-    cat btdev-read.error | MATCH "Permission denied"
 
     echo "When the plug is connected"
     snap connect generic-consumer:bluetooth-control
