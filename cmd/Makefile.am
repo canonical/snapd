@@ -157,9 +157,6 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 ## snap-confine
 ##
 
-all_tests = \
-    snap-confine/tests/test_restrictions
-
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
 dist_man_MANS += snap-confine/snap-confine.5
@@ -167,12 +164,6 @@ CLEANFILES += snap-confine/snap-confine.5
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
-EXTRA_DIST += $(all_tests) snap-confine/tests/common.sh
-if SECCOMP
-if CONFINEMENT_TESTS
-TESTS += $(all_tests)
-endif
-endif
 
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/apparmor-support.c \
