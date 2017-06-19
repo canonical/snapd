@@ -14,6 +14,9 @@ details: |
     are carried through the socket, in this test we exercise bridge and port creation,
     list and deletion.
 
+# marking as manual due to errors during prepare
+manual: true
+
 prepare: |
     . "$TESTSLIB/pkgdb.sh"
 
