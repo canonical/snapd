@@ -364,6 +364,9 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"socket AF_UN!X", `cannot parse line: cannot parse token "AF_UN!X" .*`},
 		{"socket - SOCK_STREA", `cannot parse line: cannot parse token "SOCK_STREA" .*`},
 		{"socket - SOCK_STREAMM", `cannot parse line: cannot parse token "SOCK_STREAMM" .*`},
+		{"socket - NETLINK_ROUT", `cannot parse line: cannot parse token "NETLINK_ROUT" .*`},
+		{"socket - NETLINK_ROUTEE", `cannot parse line: cannot parse token "NETLINK_ROUTEE" .*`},
+		{"socket - NETLINK_R0UTE", `cannot parse line: cannot parse token "NETLINK_R0UTE" .*`},
 		// test_bad_seccomp_filter_args_termios
 		{"ioctl - TIOCST", `cannot parse line: cannot parse token "TIOCST" .*`},
 		{"ioctl - TIOCSTII", `cannot parse line: cannot parse token "TIOCSTII" .*`},
