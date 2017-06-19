@@ -685,11 +685,13 @@ func (nopeSeeker) Seek(int64, int) (int64, error) {
 	return -1, errors.New("what is this, quidditch?")
 }
 
-func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
+func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusUnauthorized)
+		// XXX: the server doesn't behave correctly ATM
+		// but 401 for paid snaps is the unlikely case so far
+		w.WriteHeader(402)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -698,7 +700,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	var buf bytes.Buffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Please buy foo before installing it.")
+	c.Check(err.Error(), Equals, "please buy foo before installing it.")
 	c.Check(n, Equals, 1)
 }
 
@@ -706,7 +708,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -716,7 +718,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, http.StatusNotFound)
+	c.Check(err.(*DownloadError).Code, Equals, 404)
 	c.Check(n, Equals, 1)
 }
 
@@ -724,7 +726,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -734,7 +736,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, http.StatusInternalServerError)
+	c.Check(err.(*DownloadError).Code, Equals, 500)
 	c.Check(n, Equals, 5)
 }
 
@@ -743,7 +745,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		if n == 1 {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		} else {
 			io.WriteString(w, "response-data")
 		}
@@ -1319,7 +1321,7 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 			io.WriteString(w, "response-data")
 		} else {
 			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(401)
 		}
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1357,7 +1359,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 				c.Fatalf("device authentication missing")
 			} else if authorization == expiredAuth {
 				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
+				w.WriteHeader(401)
 			} else {
 				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
 				io.WriteString(w, "response-data")
@@ -1445,7 +1447,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1457,7 +1459,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, serializedDischarge))
 	}))
 	c.Assert(mockSSOServer, NotNil)
@@ -1473,7 +1475,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 
 func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1493,7 +1495,7 @@ func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1733,7 +1735,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -1797,7 +1799,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsSt
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "stable")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, strings.Replace(MockDetailsJSON, "edge", "stable", -1))
 	}))
@@ -1830,7 +1832,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -1864,10 +1866,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 		n++
 		if n > 1 {
 			w.Header().Set("X-Suggested-Currency", "GBP")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, MockDetailsJSON)
 		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		}
 	}))
 
@@ -1906,7 +1908,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			c.Check(r.URL.Path, Equals, "/details/hello-world")
 			c.Check(r.URL.Query().Get("channel"), Equals, "")
 			w.Header().Set("X-Suggested-Currency", "GBP")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 
 			io.WriteString(w, MockDetailsJSON)
 		default:
@@ -1996,7 +1998,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
 		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -2029,7 +2031,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "my-brand-store-id")
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -2060,7 +2062,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, ordersPath) {
-			w.WriteHeader(http.StatusNotFound)
+			w.WriteHeader(404)
 			return
 		}
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
@@ -2069,14 +2071,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 			"revision": []string{"26"},
 		})
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 	}))
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
@@ -2110,7 +2112,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
 
 		w.Header().Set("X-Oops-Id", "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 
 		io.WriteString(w, `{"oops": "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f"}`)
 	}))
@@ -2362,7 +2364,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 		}
 
 		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockSectionsJSON)
 		n++
 	}))
@@ -2401,7 +2403,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 		}
 
 		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 
 		n++
@@ -2438,7 +2440,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
-		http.Error(w, http.StatusText(http.StatusTeapot), http.StatusTeapot)
+		http.Error(w, http.StatusText(418), 418) // I'm a teapot
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -2507,7 +2509,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -2531,10 +2533,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		if n == 1 {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		} else {
 			w.Header().Set("Content-Type", "application/hal+json")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 		}
 	}))
@@ -2579,7 +2581,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockPurchasesServer, NotNil)
@@ -3189,7 +3191,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnaut
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "")
 	}))
 
@@ -3240,7 +3242,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -3269,7 +3271,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		time.Sleep(time.Duration(2) * time.Second)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -3819,7 +3821,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -3842,7 +3844,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Suggested-Currency", suggestedCurrency)
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -3935,7 +3937,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "{}")
 	}))
 
@@ -4101,7 +4103,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 		io.WriteString(w, "{}")
 	}))
 
@@ -4135,7 +4137,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "")
 	}))
 
@@ -4211,7 +4213,7 @@ var buyTests = []struct {
 		// failure due to invalid price
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
-		buyStatus:         http.StatusBadRequest,
+		buyStatus:         400,
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
@@ -4221,7 +4223,7 @@ var buyTests = []struct {
 		// failure due to unknown snap ID
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
-		buyStatus:         http.StatusNotFound,
+		buyStatus:         404,
 		buyErrorCode:      "not-found",
 		buyErrorMessage:   "Not found",
 		snapID:            "invalid snap ID",
@@ -4233,7 +4235,7 @@ var buyTests = []struct {
 		// failure due to "Purchase failed"
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
-		buyStatus:         http.StatusPaymentRequired,
+		buyStatus:         402, // Payment Required
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
 		expectedError:     "payment declined",
@@ -4244,7 +4246,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -4285,7 +4287,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 			c.Check(r.URL.Path, Equals, "/hello-world")
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.Header().Set("X-Suggested-Currency", test.suggestedCurrency)
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, MockDetailsJSON)
 			searchServerCalled = true
 		}))
@@ -4521,7 +4523,7 @@ var readyToBuyTests = []struct {
 	{
 		// No user account exists
 		Input: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusNotFound)
+			w.WriteHeader(404)
 			io.WriteString(w, "{}")
 		},
 		Test: func(c *C, err error) {
@@ -4533,7 +4535,7 @@ var readyToBuyTests = []struct {
 	{
 		// An unknown set of errors occurs
 		Input: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 			io.WriteString(w, `
 {
 	"error_list": [

@@ -66,7 +66,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.rsps = nil
 	cs.req = nil
 	cs.header = nil
-	cs.status = http.StatusOK
+	cs.status = 200
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())

@@ -113,7 +113,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -244,7 +244,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(data, NotNil)
 		c.Assert(string(data), Equals, `{"discharge_macaroon":"soft-expired-serialized-discharge-macaroon"}`)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -295,7 +295,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		if n < 4 {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		} else {
 			io.WriteString(w, mockStoreReturnNonce)
 		}
@@ -313,7 +313,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
@@ -346,7 +346,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -407,7 +407,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte("error body"))
 		n++
 	}))
