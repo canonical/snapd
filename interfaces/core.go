@@ -143,6 +143,7 @@ type Interface interface {
 // terms. The DocsURL can point to website (e.g. a forum thread) that goes into
 // more depth and documents the interface in detail.
 type MetaData struct {
+<<<<<<< HEAD
 	Summary     string `json:"summary,omitempty"`
 	Description string `json:"description,omitempty"`
 	DocsURL     string `json:"docs-url,omitempty"`
@@ -150,6 +151,25 @@ type MetaData struct {
 
 // MetaDataOf returns the meta-data of the given interface.
 func MetaDataOf(iface Interface) (md MetaData) {
+=======
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	DocumentationURL string `json:"documentation-url,omitempty"`
+
+	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
+	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
+	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationPlugs string
+	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationSlots string
+}
+
+// IfaceMetaData returns the meta-data of the given interface.
+func IfaceMetaData(iface Interface) (md MetaData) {
+>>>>>>> 2afccb518db3b2e1e6aa710e8f4a7c357095e213
 	type metaDataProvider interface {
 		MetaData() MetaData
 	}

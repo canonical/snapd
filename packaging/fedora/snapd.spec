@@ -333,6 +333,13 @@ popd
 
 # Build snap-confine
 pushd ./cmd
+# FIXME This is a hack to get rid of a patch we have to ship for the
+# Fedora package at the moment as /usr/lib/rpm/redhat/redhat-hardened-ld
+# accidentially adds -pie for static executables. See
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892 for a few more
+# details. To prevent this from happening we drop the linker
+# script and define our LDFLAGS manually for now.
+export LDFLAGS="-Wl,-z,relro -z now"
 autoreconf --force --install --verbose
 # selinux support is not yet available, for now just disable apparmor
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
@@ -361,6 +368,7 @@ install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/profiles
@@ -406,6 +414,7 @@ pushd ./data/systemd
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
+rm -fv %{buildroot}%{_unitdir}/snap-repair.*
 popd
 
 # Put /var/lib/snapd/snap/bin on PATH
@@ -504,6 +513,7 @@ popd
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
+%dir %{_sharedstatedir}/snapd/device
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
@@ -570,7 +580,7 @@ fi
 
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
-   %{_libexecdir}/snapd/snap-mgmt purge || :
+   %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 
@@ -592,6 +602,9 @@ fi
 
 
 %changelog
+* Thu May 25 2017 Neal Gompa <ngompa13@gmail.com> - 2.26.3-3
+- Cover even more stuff for proper erasure on final uninstall (RH#1444422)
+
 * Sun May 21 2017 Neal Gompa <ngompa13@gmail.com> - 2.26.3-2
 - Fix error in script for removing Snappy content (RH#1444422)
 - Adjust changelog bug references to be specific on origin

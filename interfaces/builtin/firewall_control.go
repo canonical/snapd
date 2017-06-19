@@ -125,6 +125,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                     "firewall-control",
 		summary:                  firewallControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,

@@ -53,6 +53,8 @@ func init() {
 		name:                  "network",
 		summary:               networkSummary,
 		description:           networkDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,

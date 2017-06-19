@@ -102,7 +102,9 @@ func (iface *timeControlInterface) Name() string {
 
 func (iface *timeControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: timeControlSummary,
+		Summary:           timeControlSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 

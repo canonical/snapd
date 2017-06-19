@@ -58,21 +58,29 @@ var (
 
 	// ErrPaymentDeclined is returned when the user's payment method was declined by the upstream payment provider.
 	ErrPaymentDeclined = errors.New("payment declined")
+
+	// ErrLocalSnap is returned when an operation that only applies to snaps that come from a store was attempted on a local snap.
+	ErrLocalSnap = errors.New("cannot perform operation on local snap")
+
+	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
+	ErrNoUpdateAvailable = errors.New("snap has no updates available")
 )
 
-// ErrDownload represents a download error
-type ErrDownload struct {
+// DownloadError represents a download error
+type DownloadError struct {
 	Code int
 	URL  *url.URL
 }
 
-func (e *ErrDownload) Error() string {
+func (e *DownloadError) Error() string {
 	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
 }
 
-type ErrPasswordPolicy map[string]stringList
+// PasswordPolicyError is returned in a few corner cases, most notably
+// when the password has been force-reset.
+type PasswordPolicyError map[string]stringList
 
-func (e ErrPasswordPolicy) Error() string {
+func (e PasswordPolicyError) Error() string {
 	var msg string
 
 	if reason, ok := e["reason"]; ok && len(reason) == 1 {
@@ -89,10 +97,10 @@ func (e ErrPasswordPolicy) Error() string {
 	return msg
 }
 
-// ErrInvalidAuthData signals that the authentication data didn't pass validation.
-type ErrInvalidAuthData map[string]stringList
+// InvalidAuthDataError signals that the authentication data didn't pass validation.
+type InvalidAuthDataError map[string]stringList
 
-func (e ErrInvalidAuthData) Error() string {
+func (e InvalidAuthDataError) Error() string {
 	var es []string
 	for _, v := range e {
 		es = append(es, v...)
