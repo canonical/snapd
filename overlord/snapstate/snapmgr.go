@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -628,6 +629,37 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
+// GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
+// before the feature of running snapctl outside of hooks was introduced, leading to a warning
+// from snap-confine).
+func (m *SnapManager) GenerateCookies(st *state.State) error {
+	var snapNames map[string]*json.RawMessage
+	err := st.Get("snaps", &snapNames)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	var contexts map[string]string
+	err = st.Get("snap-cookies", &contexts)
+	if err != nil {
+		if err != state.ErrNoState {
+			return fmt.Errorf("cannot get snap cookies: %v", err)
+		}
+		contexts = make(map[string]string)
+	}
+
+	for snap := range snapNames {
+		if _, ok := contexts[snap]; !ok {
+			err := m.createSnapCookie(st, snap)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
