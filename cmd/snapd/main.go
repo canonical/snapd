@@ -44,39 +44,26 @@ func init() {
 	errtracker.SnapdVersion = cmd.Version
 }
 
-// Daemon describes all operations necessary to deal with a daemon instance
-type Daemon interface {
-	Init() error
-	Start()
-	Stop() error
-	Dying() <-chan struct{}
-	SetVersion(version string)
-}
-
 func main() {
 	cmd.ExecInCoreSnap()
-
-	httputil.SetUserAgentFromVersion(cmd.Version)
-	d, err := daemon.New()
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := run(d); err != nil {
+	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(d Daemon) error {
+func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
+	httputil.SetUserAgentFromVersion(cmd.Version)
 
+	d, err := daemon.New()
+	if err != nil {
+		return err
+	}
 	if err := d.Init(); err != nil {
 		return err
 	}
-	d.SetVersion(cmd.Version)
+	d.Version = cmd.Version
 
 	d.Start()
 

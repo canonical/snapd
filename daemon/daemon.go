@@ -216,11 +216,6 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 	return listener, nil
 }
 
-// SetVersion sets the version of the daemon
-func (d *Daemon) SetVersion(version string) {
-	d.Version = version
-}
-
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
