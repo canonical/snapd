@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jessevdk/go-flags"
 )
 
@@ -38,12 +40,12 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	var decl []byte
-	if err := Client().Debug("get-base-declaration", nil, &decl); err != nil {
+	var resp struct {
+		BaseDeclaration string `json:"base-declaration"`
+	}
+	if err := Client().Debug("get-base-declaration", nil, &resp); err != nil {
 		return err
 	}
-	if _, err := Stdout.Write(decl); err != nil {
-		return err
-	}
+	fmt.Fprintf(Stdout, "%s\n", resp.BaseDeclaration)
 	return nil
 }
