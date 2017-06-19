@@ -22,6 +22,7 @@ package arch
 import (
 	"log"
 	"runtime"
+	"syscall"
 )
 
 // ArchitectureType is the type for a supported snappy architecture
@@ -66,7 +67,50 @@ func ubuntuArchFromGoArch(goarch string) string {
 
 	ubuntuArch := goArchMapping[goarch]
 	if ubuntuArch == "" {
-		log.Panicf("unknown goarch %v", goarch)
+		log.Panicf("unknown goarch %q", goarch)
+	}
+
+	return ubuntuArch
+}
+
+// UbuntuKernelArchitecture return the debian equivalent architecture
+// for the current running kernel. This is usually the same as the
+// UbuntuArchitecture - however there maybe cases that you run e.g.
+// a snapd:i386 on an amd64 kernel.
+func UbuntuKernelArchitecture() string {
+	var utsname syscall.Utsname
+	if err := syscall.Uname(&utsname); err != nil {
+		log.Panicf("cannot get kernel architecture: %v", err)
+	}
+
+	kernelArch := make([]byte, 0, len(utsname.Machine))
+	for _, c := range utsname.Machine {
+		if c == 0 {
+			break
+		}
+		kernelArch = append(kernelArch, byte(c))
+	}
+
+	return ubuntuArchFromKernelArch(string(kernelArch))
+}
+
+// ubuntuArchFromkernelArch maps the kernel architecture as reported
+// via uname() to the dpkg architecture
+func ubuntuArchFromKernelArch(utsMachine string) string {
+	kernelArchMapping := map[string]string{
+		// kernel  ubuntu
+		"i686":    "i386",
+		"x86_64":  "amd64",
+		"armv7":   "armhf",
+		"aarch64": "arm64",
+		"ppc64le": "ppc64el",
+		"s390x":   "s390x",
+		"ppc":     "powerpc",
+	}
+
+	ubuntuArch := kernelArchMapping[utsMachine]
+	if ubuntuArch == "" {
+		log.Panicf("unknown kernel arch %q", utsMachine)
 	}
 
 	return ubuntuArch
