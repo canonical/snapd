@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -34,8 +35,8 @@ import (
 
 // Runner implements fetching, tracking and running repairs.
 type Runner struct {
-	URL string
-	cli *http.Client
+	BaseURL *url.URL
+	cli     *http.Client
 }
 
 // NewRunner returns a Runner.
@@ -64,11 +65,13 @@ var ErrRepairNotFound = errors.New("repair not found")
 
 // Fetch retrieves a stream with the repair with the given ids and any auxiliary assertions.
 func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err error) {
-	// TODO: BaseURL
-	url := fmt.Sprintf(run.URL, brandID, repairID)
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+	if err != nil {
+		return nil, err
+	}
 
-	resp, err := httputil.RetryRequest(url, func() (*http.Response, error) {
-		req, err := http.NewRequest("GET", url, nil)
+	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
 			return nil, err
 		}

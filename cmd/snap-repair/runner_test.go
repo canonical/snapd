@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -68,6 +69,14 @@ AXNpZw==
 `
 )
 
+func MustParseURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
 func (r *repairSuite) TestFetchJustRepair(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -79,7 +88,7 @@ func (r *repairSuite) TestFetchJustRepair(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	a, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
@@ -111,7 +120,7 @@ func (r *repairSuite) TestFetch500(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, "cannot fetch repair, unexpected status 500")
@@ -132,7 +141,7 @@ func (r *repairSuite) TestFetchEmpty(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
@@ -154,7 +163,7 @@ func (r *repairSuite) TestFetchBroken(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
@@ -175,7 +184,7 @@ func (r *repairSuite) TestFetchNotFound(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
@@ -192,7 +201,7 @@ func (r *repairSuite) TestFetchIdMismatch(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "4")
 	c.Assert(err, ErrorMatches, `cannot fetch repair, id mismatch canonical/2 != canonical/4`)
@@ -209,7 +218,7 @@ func (r *repairSuite) TestFetchWrongFirstType(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
@@ -228,7 +237,7 @@ func (r *repairSuite) TestFetchRepairPlusKey(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.URL = mockServer.URL + "/repairs/%s/%s"
+	runner.BaseURL = MustParseURL(mockServer.URL)
 
 	a, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
