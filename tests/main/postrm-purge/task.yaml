@@ -4,19 +4,28 @@ systems: [-ubuntu-core-16-*]
 
 execute: |
     echo "When some snaps are installed"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     snap install test-snapd-control-consumer
     snap install test-snapd-auto-aliases
 
-    echo "And snapd is purged"
-    # only available on trusty
-    if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
-        sh -x ${SPREAD_PATH}/debian/snapd.prerm
-    fi
-    sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+    . "$TESTSLIB/dirs.sh"
 
-    . $TESTSLIB/dirs.sh
+    # For now we use the Fedora specific snap-mgmt script but as soon
+    # as we have a generic one we can use cross-distro we need to
+    # change this.
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
+        ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
+            --snap-mount-dir=$SNAPMOUNTDIR \
+            --purge
+    else
+        echo "And snapd is purged"
+        # only available on trusty
+        if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
+            sh -x ${SPREAD_PATH}/debian/snapd.prerm
+        fi
+        sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+    fi
 
     echo "Nothing is left"
     for d in $SNAPMOUNTDIR /var/snap; do

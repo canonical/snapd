@@ -73,5 +73,5 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the service is not accessible by a client"
-    response=$(nc -w 2 -q 2 localhost "$PORT" < $REQUEST_FILE)
+    response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
     [ "$response" = "" ]

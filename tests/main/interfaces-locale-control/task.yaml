@@ -1,5 +1,10 @@
 summary: Ensure that the locale-control interface works.
 
+systems:
+    # /etc/default/locale doesn't exist on these distributions
+    - -fedora-*
+    - -opensuse-*
+
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
 
