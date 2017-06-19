@@ -13,7 +13,6 @@ restore: |
     fi
     apt purge -y snapd-xdg-open
 execute: |
-    . "$TESTSLIB/apt.sh"
     . "$TESTSLIB/pkgdb.sh"
 
     # Original version of snapd-xdg-open in the archive which was not
