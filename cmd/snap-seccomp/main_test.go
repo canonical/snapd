@@ -419,7 +419,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 	bpf.VmEndianness = nativeEndian()
 
-	for _, arg := range []string{"Q_QUOTAON", "Q_QUOTAOFF", "Q_GETQUOTA", "Q_SETQUOTA", "Q_GETINFO", "Q_SETINFO", "Q_GETFMT"} {
+	for _, arg := range []string{"Q_QUOTAON", "Q_QUOTAOFF", "Q_GETQUOTA", "Q_SETQUOTA", "Q_GETINFO", "Q_SETINFO", "Q_GETFMT", "Q_SYNC", "Q_XQUOTAON", "Q_XQUOTAOFF", "Q_XGETQUOTA", "Q_XSETQLIM", "Q_XGETQSTAT", "Q_XQUOTARM"} {
 		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
 		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
