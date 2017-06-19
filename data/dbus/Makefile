@@ -13,18 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-LIBEXECDIR ?= /usr/lib
-UPSTARTSESSIONSDIR ?= /usr/share/upstart/sessions
+BINDIR := /usr/bin
+DBUSSERVICESDIR := /usr/share/dbus-1/services
 
-UPSTART_SERVICES := $(patsubst %.conf.in,%.conf,$(wildcard *.conf.in))
+SERVICES_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
+SERVICES := ${SERVICES_GENERATED}
 
-%.conf: %.conf.in
-	cat $< | sed "s:@libexecdir@:${LIBEXECDIR}:g" | cat > $@
+%.service: %.service.in
+	cat $< | sed s:@bindir@:${BINDIR}:g | cat > $@
 
-all: ${UPSTART_SERVICES}
+all: ${SERVICES}
 
-install: ${UPSTART_SERVICES}
-	install -D -m 0644 -t ${DESTDIR}/${UPSTARTSESSIONSDIR} $^
+install: ${SERVICES}
+	install -D -m 0644 -t ${DESTDIR}/${DBUSSERVICESDIR} $^
 
 clean:
-	rm -f ${UPSTART_SERVICES}
+	rm -f ${SERVICES_GENERATED}

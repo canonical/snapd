@@ -34,6 +34,9 @@ cmd/*/*.[1-9]
 data/systemd/*.service
 data/upstart/*.conf
 
+# auto-generated dbus services
+data/dbus/*.service
+
 # test-driver
 *.log
 *.trs

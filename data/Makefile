@@ -1,3 +1,3 @@
 all install clean:
 	$(MAKE) -C systemd $@
-	$(MAKE) -C upstart $@
+	$(MAKE) -C dbus $@

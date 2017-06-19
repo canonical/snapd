@@ -18,7 +18,6 @@ SNAP_MOUNT_DIR := /snap
 BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
-SYSTEMDUSERUNITDIR := /usr/lib/systemd/user
 
 SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
 SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
@@ -31,15 +30,10 @@ SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.soc
 		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g  | \
 		cat > $@
 
-all: ${SYSTEMD_UNITS} ${SYSTEMD_USER_UNITS}
+all: ${SYSTEMD_UNITS}
 
-install: install-system install-user
-
-install-system: $(SYSTEMD_UNITS)
+install: $(SYSTEMD_UNITS)
 	install -D -m 0644 -t ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR} $^
-
-install-user: $(SYSTEMD_USER_UNITS)
-	install -D -m 0644 -t ${DESTDIR}/${SYSTEMDUSERUNITDIR} $^
 
 clean:
 	rm -f ${SYSTEMD_UNITS_GENERATED}

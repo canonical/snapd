@@ -1,6 +1,0 @@
-start on started dbus
-
-respawn
-respawn limit 10 5
-
-exec @bindir@/snap userd
