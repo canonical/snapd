@@ -318,6 +318,7 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setpriority 0,1", `cannot parse line: cannot parse token "0,1" .*`},
 		{"setpriority 0x0", `cannot parse line: cannot parse token "0x0" .*`},
 		{"setpriority a1", `cannot parse line: cannot parse token "a1" .*`},
+		{"setpriority 1a", `cannot parse line: cannot parse token "1a" .*`},
 		{"setpriority 1-", `cannot parse line: cannot parse token "1-" .*`},
 		{"setpriority 1\\ 2", `cannot parse line: cannot parse token "1\\\\" .*`},
 		{"setpriority 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", `cannot parse line: cannot parse token "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999" .*`},
