@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -113,10 +114,13 @@ func parseBpfInput(s string) (*main.SeccompData /* *seccompData */, error) {
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
 		for i := range args {
+			// init with random number argument
+			syscallArgs[i] = (uint64)(rand.Uint32())
+			// override if the test specifies a specific number
 			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
 				syscallArgs[i] = nr
-			} else {
-				syscallArgs[i] = main.SeccompResolver[args[i]]
+			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
+				syscallArgs[i] = nr
 			}
 		}
 	}
@@ -246,16 +250,16 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 
 		// test actual syscalls and their expected usage
 
-		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
-		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
-		{"ioctl - !TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
+		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetKill},
 
 		// test_bad_seccomp_filter_args_clone
-		{"setns - CLONE_NEWNET", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNET", "setns;native;0,CLONE_NEWNET", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNET", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", main.SeccompRetAllow},
 		// test_bad_seccomp_filter_args_mknod
-		{"mknod - |S_IFIFO", "mknod;native;0,S_IFIFO", main.SeccompRetAllow},
-		{"mknod - |S_IFIFO", "mknod;native;0,99", main.SeccompRetKill},
+		{"mknod - |S_IFIFO", "mknod;native;-,S_IFIFO", main.SeccompRetAllow},
+		{"mknod - |S_IFIFO", "mknod;native;-,99", main.SeccompRetKill},
 		// test_bad_seccomp_filter_args_prctl
 		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;PR_CAP_AMBIENT_RAISE", main.SeccompRetAllow},
 		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;99", main.SeccompRetKill},
@@ -268,35 +272,35 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_socket
 		{"socket AF_UNIX", "socket;native;AF_UNIX", main.SeccompRetAllow},
 		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
-		{"socket - SOCK_STREAM", "socket;native;0,SOCK_STREAM", main.SeccompRetAllow},
-		{"socket - SOCK_STREAM", "socket;native;0,99", main.SeccompRetKill},
+		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", main.SeccompRetAllow},
+		{"socket - SOCK_STREAM", "socket;native;-,99", main.SeccompRetKill},
 		// test_bad_seccomp_filter_args_termios
-		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
-		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 		// test_restrictions_working_args_clone
-		{"setns - CLONE_NEWIPC", "setns;native;0,CLONE_NEWIPC", main.SeccompRetAllow},
-		{"setns - CLONE_NEWNET", "setns;native;0,CLONE_NEWNET", main.SeccompRetAllow},
-		{"setns - CLONE_NEWNS", "setns;native;0,CLONE_NEWNS", main.SeccompRetAllow},
-		{"setns - CLONE_NEWPID", "setns;native;0,CLONE_NEWPID", main.SeccompRetAllow},
-		{"setns - CLONE_NEWUSER", "setns;native;0,CLONE_NEWUSER", main.SeccompRetAllow},
-		{"setns - CLONE_NEWUTS", "setns;native;0,CLONE_NEWUTS", main.SeccompRetAllow},
-		{"setns - CLONE_NEWIPC", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNET", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNS", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWPID", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWUSER", "setns;native;0,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWUTS", "setns;native;0,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWIPC", "setns;native;-,CLONE_NEWIPC", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNS", "setns;native;-,CLONE_NEWNS", main.SeccompRetAllow},
+		{"setns - CLONE_NEWPID", "setns;native;-,CLONE_NEWPID", main.SeccompRetAllow},
+		{"setns - CLONE_NEWUSER", "setns;native;-,CLONE_NEWUSER", main.SeccompRetAllow},
+		{"setns - CLONE_NEWUTS", "setns;native;-,CLONE_NEWUTS", main.SeccompRetAllow},
+		{"setns - CLONE_NEWIPC", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNET", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWNS", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWPID", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWUSER", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWUTS", "setns;native;-,99", main.SeccompRetKill},
 		// test_restrictions_working_args_mknod
-		{"mknod - S_IFREG", "mknod;native;0,S_IFREG", main.SeccompRetAllow},
-		{"mknod - S_IFCHR", "mknod;native;0,S_IFCHR", main.SeccompRetAllow},
-		{"mknod - S_IFBLK", "mknod;native;0,S_IFBLK", main.SeccompRetAllow},
-		{"mknod - S_IFIFO", "mknod;native;0,S_IFIFO", main.SeccompRetAllow},
-		{"mknod - S_IFSOCK", "mknod;native;0,S_IFSOCK", main.SeccompRetAllow},
-		{"mknod - S_IFREG", "mknod;native;0,999", main.SeccompRetKill},
-		{"mknod - S_IFCHR", "mknod;native;0,999", main.SeccompRetKill},
-		{"mknod - S_IFBLK", "mknod;native;0,999", main.SeccompRetKill},
-		{"mknod - S_IFIFO", "mknod;native;0,999", main.SeccompRetKill},
-		{"mknod - S_IFSOCK", "mknod;native;0,999", main.SeccompRetKill},
+		{"mknod - S_IFREG", "mknod;native;-,S_IFREG", main.SeccompRetAllow},
+		{"mknod - S_IFCHR", "mknod;native;-,S_IFCHR", main.SeccompRetAllow},
+		{"mknod - S_IFBLK", "mknod;native;-,S_IFBLK", main.SeccompRetAllow},
+		{"mknod - S_IFIFO", "mknod;native;-,S_IFIFO", main.SeccompRetAllow},
+		{"mknod - S_IFSOCK", "mknod;native;-,S_IFSOCK", main.SeccompRetAllow},
+		{"mknod - S_IFREG", "mknod;native;-,999", main.SeccompRetKill},
+		{"mknod - S_IFCHR", "mknod;native;-,999", main.SeccompRetKill},
+		{"mknod - S_IFBLK", "mknod;native;-,999", main.SeccompRetKill},
+		{"mknod - S_IFIFO", "mknod;native;-,999", main.SeccompRetKill},
+		{"mknod - S_IFSOCK", "mknod;native;-,999", main.SeccompRetKill},
 		// test_restrictions_working_args_prio
 		{"setpriority PRIO_PROCESS", "setpriority;native;PRIO_PROCESS", main.SeccompRetAllow},
 		{"setpriority PRIO_PGRP", "setpriority;native;PRIO_PGRP", main.SeccompRetAllow},
@@ -305,8 +309,8 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"setpriority PRIO_PGRP", "setpriority;native;99", main.SeccompRetKill},
 		{"setpriority PRIO_USER", "setpriority;native;99", main.SeccompRetKill},
 		// test_restrictions_working_args_termios
-		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
-		{"ioctl - TIOCSTI", "quotactl;native;0,99", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
 	} {
 		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
