@@ -27,12 +27,14 @@ prepare: |
     . "$TESTSLIB/pkgdb.sh"
     distro_install_package --no-install-recommends cups printer-driver-cups-pdf
 
-    # Not all distributions are starting the cups service directly after
-    # the package was installed.
-    if ! systemctl is-enabled cups ; then
-        # We can't use --now as this isn't supported by all distributions
-        systemctl enable cups
-        systemctl start cups
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # Not all distributions are starting the cups service directly after
+        # the package was installed.
+        if ! systemctl is-enabled cups ; then
+            # We can't use --now as this isn't supported by all distributions
+            systemctl enable cups
+            systemctl start cups
+        fi
     fi
 
 restore: |
