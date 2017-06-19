@@ -6,8 +6,6 @@ prepare: |
     # FIXME: until https://github.com/snapcore/snapd/pull/3263 is available from
     # the archive we need to build snapd from branch so that it can be used by
     # ubuntu-image
-    apt remove -y --purge snapd
-
     . $TESTSLIB/prepare.sh
     prepare_classic
     prepare_each_classic
