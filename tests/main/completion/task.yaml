@@ -12,8 +12,6 @@ prepare: |
     snap install core
     snap install test-snapd-tools
     "$TESTSLIB"/mkpinentry.sh
-    . "$TESTSLIB"/entropy.sh
-    feed_kernel_entropy_pool
     expect -d -f key.exp0
 
 restore: |
