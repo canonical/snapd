@@ -4,8 +4,6 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
     "$TESTSLIB"/mkpinentry.sh
-    . "$TESTSLIB"/entropy.sh
-    feed_kernel_entropy_pool
 
 debug: |
     sysctl kernel.random.entropy_avail || true
