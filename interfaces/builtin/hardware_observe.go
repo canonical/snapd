@@ -85,6 +85,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "hardware-observe",
 		summary:               hardwareObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,

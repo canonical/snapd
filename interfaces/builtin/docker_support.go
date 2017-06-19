@@ -530,7 +530,9 @@ func (iface *dockerSupportInterface) Name() string {
 
 func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: dockerSupportSummary,
+		Summary:           dockerSupportSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 

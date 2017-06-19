@@ -20,6 +20,10 @@ execute: |
     echo "And we can use the shared content"
     test-snapd-content-plug-empty-content-attr.content-plug | grep "Some shared content"
 
+    if [ "$(snap debug confinement)" = none ]; then
+        exit 0
+    fi
+
     echo "============================================"
 
     echo "When the plug is disconnected"

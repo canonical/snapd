@@ -44,6 +44,8 @@ func init() {
 		name:                  "alsa",
 		summary:               alsaSummary,
 		description:           alsaDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

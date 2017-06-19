@@ -51,8 +51,8 @@ const coreSupportConnectedPlugAppArmor = `
 
 # Allow modifying logind configuration. For now, allow reading all logind
 # configuration but only allow modifying NN-snap*.conf and snap*.conf files
-# in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d 
-# directory as it may not be there for existing installs (wirtable-path 
+# in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d
+# directory as it may not be there for existing installs (wirtable-path
 # magic oddness).
 /etc/systemd/logind.conf                            r,
 /etc/systemd/logind.conf.d/                         rw,
@@ -78,8 +78,10 @@ owner /boot/uboot/config.txt.tmp rwk,
 
 func init() {
 	registerIface(&commonInterface{
-		name:    "core-support",
-		summary: coreSupportSummary,
+		name:              "core-support",
+		summary:           coreSupportSummary,
+		implicitOnCore:    true,
+		implicitOnClassic: true,
 		// NOTE: core-support implicitly contains the rules from network-bind.
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,

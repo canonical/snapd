@@ -194,6 +194,12 @@ dbus send
 owner @{HOME}/.local/share/mime/**   r,
 owner @{HOME}/.config/user-dirs.dirs r,
 
+# gtk settings (subset of gnome abstraction)
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+# Note: this leaks directory names that wouldn't otherwise be known to the snap
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
+
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
 dbus (send)
@@ -520,7 +526,8 @@ func (iface *unity7Interface) Name() string {
 
 func (iface *unity7Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: unity7Summary,
+		Summary:           unity7Summary,
+		ImplicitOnClassic: true,
 	}
 }
 

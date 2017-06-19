@@ -106,7 +106,6 @@ dbus (send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive, send)

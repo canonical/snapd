@@ -379,7 +379,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write(asserts.Encode(a))
 			return
 		case "details":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, fillHit(comps[2]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
@@ -401,7 +401,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				hits = append(hits, json.RawMessage(fillHit(name)))
 			}
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			output, err := json.Marshal(map[string]interface{}{
 				"_embedded": map[string]interface{}{
 					"clickindex:package": hits,

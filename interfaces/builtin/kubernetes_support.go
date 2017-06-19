@@ -74,6 +74,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                     "kubernetes-support",
 		summary:                  kubernetesSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
 		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
 		reservedForOS:            true,
