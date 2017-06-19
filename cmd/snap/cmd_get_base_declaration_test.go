@@ -40,7 +40,7 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(data, check.DeepEquals, []byte(`{"action":"get-base-declaration"}`))
-			fmt.Fprintln(w, `{"type": "sync", "result": "aGVsbG8K"}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"base-declaration": "hello"}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}

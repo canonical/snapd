@@ -5499,6 +5499,8 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 }
 
 func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
+	_ = s.daemon(c)
+
 	buf := bytes.NewBufferString(`{"action": "get-base-declaration"}`)
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
@@ -5506,5 +5508,6 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	rsp := postDebug(debugCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(string(rsp.Result.([]byte)), testutil.Contains, "type: base-declaration")
+	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
+		testutil.Contains, "type: base-declaration")
 }
