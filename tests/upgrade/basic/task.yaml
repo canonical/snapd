@@ -10,7 +10,7 @@ execute: |
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
-    . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
 
     echo Install previous version...
     dpkg -l snapd snap-confine || true

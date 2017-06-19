@@ -106,6 +106,7 @@ shutdown
 type unity8PimCommonInterface struct {
 	name                  string
 	summary               string
+	baseDeclarationSlots  string
 	permanentSlotAppArmor string
 	connectedSlotAppArmor string
 	connectedPlugAppArmor string
@@ -117,7 +118,8 @@ func (iface *unity8PimCommonInterface) Name() string {
 
 func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: iface.summary,
+		Summary:              iface.summary,
+		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}
 }
 

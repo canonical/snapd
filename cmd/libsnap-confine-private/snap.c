@@ -48,6 +48,21 @@ bool verify_security_tag(const char *security_tag)
 	return (status == 0);
 }
 
+bool sc_is_hook_security_tag(const char *security_tag)
+{
+	const char *whitelist_re =
+	    "^snap\\.[a-z](-?[a-z0-9])*\\.(hook\\.[a-z](-?[a-z])*)$";
+
+	regex_t re;
+	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
+		die("can not compile regex %s", whitelist_re);
+
+	int status = regexec(&re, security_tag, 0, NULL, 0);
+	regfree(&re);
+
+	return status == 0;
+}
+
 static int skip_lowercase_letters(const char **p)
 {
 	int skipped = 0;
