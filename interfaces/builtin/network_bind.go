@@ -71,6 +71,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network-bind",
 		summary:               networkBindSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,

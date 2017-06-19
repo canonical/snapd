@@ -103,6 +103,11 @@ network packet,
 
 #include <abstractions/nameservice>
 
+# Explicitly deny plugging snaps from ptracing the slot to silence noisy
+# denials. Neither the NetworkManager service nor nmcli require ptrace
+# trace for full functionality.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
+
 # DBus accesses
 #include <abstractions/dbus-strict>
 
@@ -381,7 +386,8 @@ func (iface *networkManagerInterface) Name() string {
 
 func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: networkManagerSummary,
+		Summary:           networkManagerSummary,
+		ImplicitOnClassic: true,
 	}
 }
 

@@ -58,6 +58,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "autopilot-introspection",
 		summary:               autopilotIntrospectionSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
 		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
 		reservedForOS:         true,

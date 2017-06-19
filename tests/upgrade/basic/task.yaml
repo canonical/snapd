@@ -10,7 +10,7 @@ execute: |
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
-    . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
 
     echo Install previous version...
     dpkg -l snapd snap-confine || true
@@ -38,7 +38,7 @@ execute: |
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    distro_install_local_package --allow-downgrades ${GOPATH}/snapd*.deb
+    distro_install_local_package --allow-downgrades $GOHOME/snapd*.deb
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]

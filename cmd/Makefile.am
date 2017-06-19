@@ -11,7 +11,7 @@ subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-syntax-sh check-unit-tests
+check: check-syntax-c check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
@@ -24,15 +24,6 @@ check-syntax-c:
 	       HOME=$(srcdir) indent "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
-
-# Check for common shell errors
-.PHONY: check-syntax-sh
-check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*)) snap-confine/tests/common.sh
-if HAVE_SHELLCHECK
-	$(HAVE_SHELLCHECK) -x --format=gcc $^
-else
-	echo "shellcheck is not installed, skipping (non-critical) syntax test"
-endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
@@ -205,6 +196,8 @@ endif
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support.c \
+	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
 	snap-confine/mount-support.c \
@@ -294,6 +287,7 @@ snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \

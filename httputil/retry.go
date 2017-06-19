@@ -17,7 +17,7 @@
  *
  */
 
-package store
+package httputil
 
 import (
 	"fmt"
@@ -35,16 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// the LimitTime should be slightly more than 3 times of our http.Client
-// Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
-	retry.Exponential{
-		Initial: 100 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
-
-func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
+func MaybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
 	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
 		logger.Debugf("Retrying %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
 	}
@@ -62,14 +53,14 @@ func maybeLogRetrySummary(startTime time.Time, url string, attempt *retry.Attemp
 	}
 }
 
-func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
+func ShouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	if !attempt.More() {
 		return false
 	}
-	return resp.StatusCode == 500 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504
+	return resp.StatusCode >= http.StatusInternalServerError
 }
 
-func shouldRetryError(attempt *retry.Attempt, err error) bool {
+func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
@@ -92,6 +83,10 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 				return true
 			}
 		}
+		if opNetErr, ok := opErr.Err.(net.Error); ok {
+			// TODO: some DNS errors? just log for now
+			logger.Debugf("Not retrying: %#v", opNetErr)
+		}
 	}
 
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
@@ -100,4 +95,41 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	}
 
 	return false
+}
+
+// RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
+func RetryRequest(endpoint string, doRequest func() (*http.Response, error), readResponseBody func(resp *http.Response) error, retryStrategy retry.Strategy) (resp *http.Response, err error) {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(retryStrategy, nil); attempt.Next(); {
+		MaybeLogRetryAttempt(endpoint, attempt, startTime)
+
+		resp, err = doRequest()
+		if err != nil {
+			if ShouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if ShouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		} else {
+			err := readResponseBody(resp)
+			resp.Body.Close()
+			if err != nil {
+				if ShouldRetryError(attempt, err) {
+					continue
+				} else {
+					return nil, err
+				}
+			}
+		}
+		// break out from retry loop
+		break
+	}
+	maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
+
+	return resp, err
 }

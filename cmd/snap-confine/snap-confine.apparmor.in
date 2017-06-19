@@ -103,7 +103,7 @@
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
     # the next line is for classic system
-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/ -> /tmp/snap.rootfs_*/,
     # the next line is for core system
     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
     # all of the constructed rootfs is a rslave
@@ -263,6 +263,9 @@
 
     # Allow snap-confine to move to the void
     /var/lib/snapd/void/ r,
+
+    # Allow snap-confine to read snap contexts
+    /var/lib/snapd/context/snap.* r,
 
     # Support for the quirk system
     /var/ r,
