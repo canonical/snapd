@@ -420,16 +420,11 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// fish out syscall
 	secSyscall, err := seccomp.GetSyscallFromName(tokens[0])
 	if err != nil {
-		// FIXME: if/when
-		// https://github.com/seccomp/libseccomp-golang/pull/26
-		// gets merged, use ErrSyscallDoesNotExists here
-		// instead of doing the string compare
-		//
-		// For now, ignore unknown syscalls
-		if err.Error() == "could not resolve name to syscall" {
-			return nil
-		}
-		return fmt.Errorf("cannot resolve name: %s", err)
+		// FIXME: use structed error in libseccomp-golang when
+		//   https://github.com/seccomp/libseccomp-golang/pull/26
+		// gets merged. For now, ignore
+		// unknown syscalls
+		return nil
 	}
 
 	var conds []seccomp.ScmpCondition
