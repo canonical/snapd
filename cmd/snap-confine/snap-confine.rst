@@ -129,9 +129,13 @@ FILES
 
 	Description of the mount profile.
 
-`/var/lib/snapd/seccomp/bpf/*`:
+`/var/lib/snapd/seccomp/bpf/*.bpf`:
 
-	Description of the seccomp profile.
+	Compiled seccomp profile program.
+
+`/var/lib/snapd/seccomp/bpf/*.in`:
+
+	Input for the /usr/lib/snapd/snap-seccomp profile compiler.
 
 `/run/snapd/ns/`:
 
