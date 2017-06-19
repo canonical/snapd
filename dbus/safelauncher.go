@@ -29,7 +29,7 @@ import (
 )
 
 const safeLauncherIntrospectionXML = `
-<interface name='com.canonical.SafeLauncher'>
+<interface name='io.snapcraft.SafeLauncher'>
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
@@ -44,7 +44,7 @@ type SafeLauncher struct{}
 
 // Name returns the name of the interface this object implements
 func (s *SafeLauncher) Name() string {
-	return "com.canonical.SafeLauncher"
+	return "io.snapcraft.SafeLauncher"
 }
 
 // IntrospectionData gives the

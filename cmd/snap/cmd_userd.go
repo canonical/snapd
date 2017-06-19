@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	busName  = "com.canonical.SafeLauncher"
+	busName  = "io.snapcraft.SafeLauncher"
 	basePath = "/"
 )
 
