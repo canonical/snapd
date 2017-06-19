@@ -503,7 +503,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 			compatArch = "i386"
 		case "arm64":
 			compatArch = "armhf"
-		case "ppc64el":
+		case "ppc64":
 			compatArch = "powerpc"
 		}
 	} else {
@@ -511,9 +511,11 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// different. This can happen when running e.g. a
 		// amd64 kernel with a i386 userland. However in this
 		// case snapd would also only request i386 snaps. So
-		// the use-case is even stranger, a i386 snap would
-		// have to ship some 64bit code that would have to
-		// detect at runtime if it can be used or not.
+		// the use-case is even stranger (from a distro
+		// perspective), a i386 snap would have to ship some
+		// 64bit code that would have to detect at runtime if
+		// it can be used or not. But we are told this is not
+		// rare with certain classes of embedded devices.
 		compatArch = arch.UbuntuKernelArchitecture()
 	}
 
