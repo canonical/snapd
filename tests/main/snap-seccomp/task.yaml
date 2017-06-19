@@ -38,7 +38,7 @@ execute: |
     $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-tools.echo hello; then
-        echo "filtering broken: program should have failed to run: program should have failed to run"
+        echo "filtering broken: program should have failed to run"
         exit 1
     fi
     
@@ -95,4 +95,20 @@ execute: |
     echo $output | MATCH "profile .* exceeds .* bytes"
 
     
+    echo "Ensure the code cannot not run with a missing .bpf profile"
+    rm -f ${PROFILE}.bpf
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
+    echo "Ensure the code cannot not run with an empty seccomp profile"
+    rm -f ${PROFILE}.bpf
+    echo "" > ${PROFILE}.in
+    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
     
