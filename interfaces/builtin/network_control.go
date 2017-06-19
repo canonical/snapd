@@ -212,6 +212,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
 		summary:               networkControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,

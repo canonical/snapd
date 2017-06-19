@@ -36,6 +36,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "camera",
 		summary:               cameraSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

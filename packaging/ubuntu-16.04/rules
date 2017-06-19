@@ -98,6 +98,7 @@ endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/systemd clean
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc

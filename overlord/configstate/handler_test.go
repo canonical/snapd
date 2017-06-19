@@ -56,7 +56,7 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.context, err = hookstate.NewContext(task, setup, hooktest.NewMockHandler())
+	s.context, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
 	c.Assert(err, IsNil)
 
 	s.handler = configstate.NewConfigureHandler(s.context)

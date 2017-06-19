@@ -53,7 +53,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 0:
 		t.checker(r)
 		t.c.Check(r.Method, check.Equals, "POST")
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(202)
 		fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 	case 1:
 		t.c.Check(r.Method, check.Equals, "GET")
@@ -768,7 +768,7 @@ func (s *SnapOpSuite) TestTryClassic(c *check.C) {
 func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(202)
 		fmt.Fprintln(w, `
 {
   "type": "error",
@@ -895,7 +895,7 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 			})
 
 			c.Check(r.Method, check.Equals, "POST")
-			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
@@ -947,7 +947,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 			})
 
 			c.Check(r.Method, check.Equals, "POST")
-			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")

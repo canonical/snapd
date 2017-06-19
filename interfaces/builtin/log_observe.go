@@ -57,6 +57,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "log-observe",
 		summary:               logObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

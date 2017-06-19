@@ -77,7 +77,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0, 1:
-			w.WriteHeader(http.StatusInternalServerError) // force retry of the request
+			w.WriteHeader(500) // force retry of the request
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
@@ -101,7 +101,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	})
 
