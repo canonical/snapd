@@ -92,7 +92,7 @@ execute: |
         echo "test-snapd-tools.echo should fail with big seccomp profile"
         exit 1
     fi
-    echo $output | MATCH "profile .* is too big"
+    echo $output | MATCH "profile .* exceeds .* bytes"
 
     
     
