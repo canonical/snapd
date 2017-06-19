@@ -35,14 +35,15 @@ bool verify_security_tag(const char *security_tag, const char *snap_name)
 	if (regcomp(&re, whitelist_re, REG_EXTENDED) != 0)
 		die("can not compile regex %s", whitelist_re);
 
-	// first capture is the entire string, second is the name we care about
+	// first capture is for verifying the full security tag, second capture
+	// for verifying the snap_name is correct for this security tag
 	regmatch_t matches[2];
 	int status =
 	    regexec(&re, security_tag, sizeof matches / sizeof *matches,
 		    matches, 0);
 	regfree(&re);
 
-	// make sure that snap name was captured by 2nd match group
+	// Fail if no match or if snap name wasn't captured in the 2nd match group
 	if (status != 0 || matches[1].rm_so < 0) {
 		return false;
 	}
