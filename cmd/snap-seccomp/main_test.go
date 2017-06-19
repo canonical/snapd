@@ -166,9 +166,17 @@ func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	c.Check(out, Equals, expected, Commentf("unexpected result for %q (input %q), got %v expected %v", seccompWhitelist, bpfInput, out, expected))
 }
 
+// TestCompile will test the input from our textual seccomp whitelist
+// against a kernel syscall input that may contain arguments. The test
+// is performed by running the compiled bpf program on a virtual bpf
+// machine. Each test needs to declare what output from the VM it expects.
+//
+// This output is usually main.SeccompRet{Allow,Kill}. It is recommended
+// to test the allow and kill case for each new syscall and each argument.
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// FIXME: this will only work once the following issue is fixed:
-	// https://github.com/golang/go/issues/20556
+	// FIXME: we currently use a fork of x/net/bpf because of:
+	//   https://github.com/golang/go/issues/20556
+	// switch to x/net/bpf once we can simulate seccomp bpf there
 	bpf.VmEndianness = nativeEndian()
 
 	for _, t := range []struct {
@@ -187,30 +195,57 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// trivial denial
 		{"read", "execve", main.SeccompRetKill},
 
-		// argument filtering
+		// test argument filtering syntax, we currently support:
+		//   >=, <=, !, <, >, |
+		// modifiers.
+
+		// reads >= 2 are ok
 		{"read >=2", "read;native;2", main.SeccompRetAllow},
+		{"read >=2", "read;native;3", main.SeccompRetAllow},
+		// but not reads < 2, those get killed
 		{"read >=2", "read;native;1", main.SeccompRetKill},
+		{"read >=2", "read;native;0", main.SeccompRetKill},
 
+		// reads <= 2 are ok
+		{"read <=2", "read;native;0", main.SeccompRetAllow},
+		{"read <=2", "read;native;1", main.SeccompRetAllow},
 		{"read <=2", "read;native;2", main.SeccompRetAllow},
+		// but not reads >2, those get killed
 		{"read <=2", "read;native;3", main.SeccompRetKill},
+		{"read <=2", "read;native;4", main.SeccompRetKill},
 
+		// reads that are not 2 are ok
+		{"read !2", "read;native;1", main.SeccompRetAllow},
 		{"read !2", "read;native;3", main.SeccompRetAllow},
+		// but not 2, this gets killed
 		{"read !2", "read;native;2", main.SeccompRetKill},
 
-		{"read >2", "read;native;2", main.SeccompRetKill},
+		// reads > 2 are ok
+		{"read >2", "read;native;4", main.SeccompRetAllow},
 		{"read >2", "read;native;3", main.SeccompRetAllow},
+		// but not reads <= 2, those get killed
+		{"read >2", "read;native;2", main.SeccompRetKill},
+		{"read >2", "read;native;1", main.SeccompRetKill},
 
-		{"read <2", "read;native;2", main.SeccompRetKill},
+		// reads < 2 are ok
+		{"read <2", "read;native;0", main.SeccompRetAllow},
 		{"read <2", "read;native;1", main.SeccompRetAllow},
+		// but not reads >= 2, those get killed
+		{"read <2", "read;native;2", main.SeccompRetKill},
+		{"read <2", "read;native;3", main.SeccompRetKill},
 
 		// FIXME: test maskedEqual better
 		{"read |1", "read;native;1", main.SeccompRetAllow},
 		{"read |1", "read;native;2", main.SeccompRetKill},
 
-		{"read 2", "read;native;3", main.SeccompRetKill},
+		// exact match, reads == 2 are ok
 		{"read 2", "read;native;2", main.SeccompRetAllow},
+		// but not those != 2
+		{"read 2", "read;native;3", main.SeccompRetKill},
+		{"read 2", "read;native;1", main.SeccompRetKill},
 
-		// with arg1 and name resolving
+		// test actual syscalls and their expected usage
+
 		{"ioctl - TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;0,99", main.SeccompRetKill},
 		{"ioctl - !TIOCSTI", "ioctl;native;0,TIOCSTI", main.SeccompRetKill},
