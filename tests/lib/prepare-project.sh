@@ -273,6 +273,3 @@ eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 # Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
 go get ./tests/lib/systemd-escape
-
-# Install the tests dependencies
-install_test_dependencies
