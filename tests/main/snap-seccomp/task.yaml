@@ -5,6 +5,11 @@ environment:
     SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
 
 execute: |
+    if [ "$(snap debug confinement)" != strict ] ; then
+        echo "SKIP: these tests are only useful on systems with working seccomp"
+        exit 0
+    fi
+
     echo "Install test-snapd-tools and verify it works"
     snap install test-snapd-tools
     test-snapd-tools.echo hello | MATCH hello
