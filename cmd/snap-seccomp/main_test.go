@@ -180,7 +180,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"@unrestricted", "execve", main.SeccompRetAllow},
 		{"@complain", "execve", main.SeccompRetAllow},
 
-		// trivial alllow
+		// trivial allow
 		{"read", "read", main.SeccompRetAllow},
 		{"read\nwrite\nexecve\n", "write", main.SeccompRetAllow},
 
@@ -251,7 +251,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"setns - CLONE_NEWPID", "setns;native;0,99", main.SeccompRetKill},
 		{"setns - CLONE_NEWUSER", "setns;native;0,99", main.SeccompRetKill},
 		{"setns - CLONE_NEWUTS", "setns;native;0,99", main.SeccompRetKill},
-		// test_restrictions_working_args_mkdnor
+		// test_restrictions_working_args_mknod
 		{"mknod - S_IFREG", "mknod;native;0,S_IFREG", main.SeccompRetAllow},
 		{"mknod - S_IFCHR", "mknod;native;0,S_IFCHR", main.SeccompRetAllow},
 		{"mknod - S_IFBLK", "mknod;native;0,S_IFBLK", main.SeccompRetAllow},
