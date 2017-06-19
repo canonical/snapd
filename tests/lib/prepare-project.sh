@@ -194,7 +194,6 @@ create_test_user
 
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-. "$TESTSLIB/dependencies.sh"
 
 distro_update_package_db
 

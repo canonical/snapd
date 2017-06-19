@@ -19,7 +19,6 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
-    distro_install_package upower
 restore: |
     rm -f upower.error
 
