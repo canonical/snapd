@@ -536,14 +536,23 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
+func hasLine(content []byte, needle string) bool {
+	for _, line := range bytes.Split(content, []byte("\n")) {
+		if bytes.Equal(bytes.TrimSpace(line), []byte(needle)) {
+			return true
+
+		}
+	}
+	return false
+}
+
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
 	// FIXME: right now complain mode is the equivalent to unrestricted.
 	// We'll want to change this once we seccomp logging is in order.
-
-	if bytes.Contains(content, []byte("@unrestricted")) || bytes.Contains(content, []byte("@complain")) {
+	if hasLine(content, "@unrestricted") || hasLine(content, "@complain") {
 		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
 		if err != nil {
 			return fmt.Errorf("cannot create seccomp filter: %s", err)
