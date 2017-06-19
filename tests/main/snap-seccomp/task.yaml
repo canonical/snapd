@@ -78,13 +78,13 @@ execute: |
         exit 1
     fi
 
-    echo "Break snapd.test-snapd-tools.bpf to ensure validation works"
+    echo "Break snapd.test-snapd-tools.bpf to ensure (kernel) validation works"
     dd if=/dev/urandom of=${PROFILE}.bpf count=1 bs=1024
     if output=$(test-snapd-tools.echo hello 2>&1 ); then
         echo "test-snapd-tools.echo should fail with invalid seccomp profile"
         exit 1
     fi
-    echo $output | MATCH "opcode .* is unknown"
+    echo $output | MATCH "prctl.*Invalid argument"
 
     echo "Add huge snapd.test-snapd-tools.bpf to ensure size limit works"
     dd if=/dev/zero of=${PROFILE}.bpf count=50 bs=1M
