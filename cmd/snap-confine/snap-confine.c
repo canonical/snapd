@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 			}
 			sc_close_ns_group(group);
 			// older versions of snap-confine created incorrect
-			// 777 permissons for /var/lib and we need to fixup
+			// 777 permissions for /var/lib and we need to fixup
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
