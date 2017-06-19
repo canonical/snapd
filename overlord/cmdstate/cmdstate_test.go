@@ -17,7 +17,7 @@
  *
  */
 
-package oddjobstate_test
+package cmdstate_test
 
 import (
 	"path/filepath"
@@ -30,27 +30,27 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/oddjobstate"
+	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 // hook up gocheck to testing
-func TestOddJob(t *testing.T) { check.TestingT(t) }
+func TestCommand(t *testing.T) { check.TestingT(t) }
 
-type oddjobSuite struct {
+type cmdSuite struct {
 	rootdir string
 	state   *state.State
 	manager overlord.StateManager
 	restore func()
 }
 
-var _ = check.Suite(&oddjobSuite{})
+var _ = check.Suite(&cmdSuite{})
 
 type statr interface {
 	Status() state.Status
 }
 
-func (s *oddjobSuite) waitfor(thing statr) {
+func (s *cmdSuite) waitfor(thing statr) {
 	s.state.Unlock()
 	for i := 0; i < 5; i++ {
 		s.manager.Ensure()
@@ -64,24 +64,24 @@ func (s *oddjobSuite) waitfor(thing statr) {
 	s.state.Lock()
 }
 
-func (s *oddjobSuite) SetUpTest(c *check.C) {
+func (s *cmdSuite) SetUpTest(c *check.C) {
 	d := c.MkDir()
 	dirs.SetRootDir(d)
 	s.rootdir = d
 	s.state = state.New(nil)
-	s.manager = oddjobstate.Manager(s.state)
-	s.restore = oddjobstate.MockExecTimeout(time.Second / 10)
+	s.manager = cmdstate.Manager(s.state)
+	s.restore = cmdstate.MockExecTimeout(time.Second / 10)
 }
 
-func (s *oddjobSuite) TearDownTest(c *check.C) {
+func (s *cmdSuite) TearDownTest(c *check.C) {
 	s.restore()
 }
 
-func (s *oddjobSuite) TestExecTask(c *check.C) {
+func (s *cmdSuite) TestExecTask(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	argvIn := []string{"/bin/echo", "hello"}
-	tasks := oddjobstate.Exec(s.state, "this is the summary", argvIn).Tasks()
+	tasks := cmdstate.Exec(s.state, "this is the summary", argvIn).Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	task := tasks[0]
 	c.Check(task.Kind(), check.Equals, "exec-command")
@@ -91,12 +91,12 @@ func (s *oddjobSuite) TestExecTask(c *check.C) {
 	c.Check(argvOut, check.DeepEquals, argvIn)
 }
 
-func (s *oddjobSuite) TestExecHappy(c *check.C) {
+func (s *cmdSuite) TestExecHappy(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	fn := filepath.Join(s.rootdir, "flag")
-	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"touch", fn})
+	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"touch", fn})
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -106,11 +106,11 @@ func (s *oddjobSuite) TestExecHappy(c *check.C) {
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 }
 
-func (s *oddjobSuite) TestExecSad(c *check.C) {
+func (s *cmdSuite) TestExecSad(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"})
+	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"})
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -119,11 +119,11 @@ func (s *oddjobSuite) TestExecSad(c *check.C) {
 	c.Check(chg.Status(), check.Equals, state.ErrorStatus)
 }
 
-func (s *oddjobSuite) TestExecAbort(c *check.C) {
+func (s *cmdSuite) TestExecAbort(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
+	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -141,11 +141,11 @@ func (s *oddjobSuite) TestExecAbort(c *check.C) {
 	c.Check(strings.Join(chg.Tasks()[0].Log(), "\n"), check.Matches, `(?s).*ERROR aborted`)
 }
 
-func (s *oddjobSuite) TestExecStop(c *check.C) {
+func (s *cmdSuite) TestExecStop(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
+	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -159,11 +159,11 @@ func (s *oddjobSuite) TestExecStop(c *check.C) {
 	chg.Abort()
 }
 
-func (s *oddjobSuite) TestExecTimesOut(c *check.C) {
+func (s *cmdSuite) TestExecTimesOut(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := oddjobstate.Exec(s.state, "Doing the thing", []string{"sleep", "1m"})
+	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1m"})
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
