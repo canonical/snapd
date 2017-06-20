@@ -129,6 +129,18 @@ func nativeEndian() binary.ByteOrder {
 	}
 }
 
+// simulateBpf:
+//  1. runs main.Compile() which will catch syntax errors and output to a file
+//  2. takes the output file from main.Compile and loads it via decodeBpfFromFIle
+//  3. parses the decoded bpf
+//  4. runs the parsed bpf through a bpf VM
+//
+// In this manner, in addition to verifying policy syntax we are able to
+// unit test the resulting bpf in several ways approximating the kernels
+// behaviour (approximating because this parser is not the kernel seccomp
+// parser.
+//
+// Full testing of applied policy is done elsewhere via spread tests.
 func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	outPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(seccompWhitelist), outPath)
