@@ -17,30 +17,17 @@
  *
  */
 
-package hookstate
+// Package cmdstate implements a overlord.StateManager that excutes
+// arbitrary commands as tasks.
+package cmdstate
 
 import (
-	"time"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-func MockReadlink(f func(string) (string, error)) func() {
-	oldReadlink := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = oldReadlink
-	}
-}
-
-func MockDefaultHookTimeout(timeout time.Duration) func() {
-	oldDefaultTimeout := defaultHookTimeout
-	defaultHookTimeout = timeout
-	return func() {
-		defaultHookTimeout = oldDefaultTimeout
-	}
-}
-
-func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReport
-	errtrackerReport = mock
-	return func() { errtrackerReport = prev }
+// Exec creates a task that will execute the given command.
+func Exec(st *state.State, summary string, argv []string) *state.TaskSet {
+	t := st.NewTask("exec-command", summary)
+	t.Set("argv", argv)
+	return state.NewTaskSet(t)
 }
