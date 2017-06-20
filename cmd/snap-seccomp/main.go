@@ -87,9 +87,9 @@ package main
 //#define PR_MPX_DISABLE_MANAGEMENT 44
 //#endif
 //
-// FIXME: ARCH_BAD is defined as ~0 in libseccomp internally, however
-//        this leads to a build failure on 14.04. the important part
-//        is that its an invalid id for libseccomp.
+// //FIXME: ARCH_BAD is defined as ~0 in libseccomp internally, however
+// //       this leads to a build failure on 14.04. the important part
+// //       is that its an invalid id for libseccomp.
 //
 //#define ARCH_BAD 0x7FFFFFFF
 //#ifndef SCMP_ARCH_AARCH64
