@@ -229,19 +229,12 @@ func (s *snapmgrTestSuite) TestGenerateCookies(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(contexts, HasLen, 2)
 
-	var cookie, snapName string
-	for cookie, snapName = range contexts {
-		if snapName == "some-snap" {
-			break
-		}
-	}
-
 	cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
-	c.Assert(snapName, Equals, "some-snap")
 	c.Assert(osutil.FileExists(cookieFile), Equals, true)
 	data, err := ioutil.ReadFile(cookieFile)
 	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, cookie)
+	c.Assert(contexts[string(data)], NotNil)
+	c.Assert(contexts[string(data)], Equals, "some-snap")
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
