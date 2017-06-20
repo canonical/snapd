@@ -2,4 +2,4 @@ name: snap-install-hooks
 version: 1.0
 apps:
     app:
-        command: bin/app
+        command: true
