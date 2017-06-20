@@ -86,7 +86,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
-		out := filepath.Join(dirs.SnapSeccompDir, baseName[:len(baseName)-3]+".bpf")
+		out := filepath.Join(dirs.SnapSeccompDir, baseName+".bpf")
 		// FIXME: figure out what base path for the tool by checking
 		//        /proc/self/exe, i.e. deal with re-exec
 		seccompToBpf := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
@@ -151,8 +151,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(bindSyscallWorkaround)
 	}
 
-	path := fmt.Sprintf("%s.in", securityTag)
-	content[path] = &osutil.FileState{
+	content[securityTag] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
