@@ -28,7 +28,7 @@ execute: |
     snap remove --revision=x1 snap-install-hooks
     if test -f $REMOVE_HOOK_FILE
     then
-      echo "Remove hook was exectued. It shouldn't."
+      echo "Remove hook was executed. It shouldn't."
       exit 1
     fi
 

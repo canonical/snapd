@@ -171,10 +171,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// only run install hook if installing the snap for the first time
 	if !snapst.HasCurrent() {
 		installHook := InstallHookSetup(st, snapsup.Name())
-		if installHook != nil {
-			addTask(installHook)
-			prev = installHook
-		}
+		addTask(installHook)
+		prev = installHook
 	}
 
 	// run new serices
