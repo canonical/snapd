@@ -259,7 +259,7 @@ func apiURL() string {
 	// to be "Click Package Index".  Remove this once people have got
 	// used to SNAPPY_FORCE_API_URL instead.
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
-		return u[:len(u)-len("api/v1/")]
+		return strings.TrimSuffix(u, "api/v1/")
 	}
 	if u := os.Getenv("SNAPPY_FORCE_API_URL"); u != "" {
 		return u
