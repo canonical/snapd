@@ -100,6 +100,10 @@ package main
 //#define SCMP_ARCH_PPC64LE ARCH_BAD
 //#endif
 //
+//#ifndef SCMP_ARCH_PPC64
+//#define SCMP_ARCH_PPC64 ARCH_BAD
+//#endif
+//
 //#ifndef SCMP_ARCH_S390X
 //#define SCMP_ARCH_S390X ARCH_BAD
 //#endif
@@ -414,7 +418,7 @@ func ScmpArchToSeccompNativeArch(scmpArch seccomp.ScmpArch) uint32 {
 	case seccomp.ArchS390X:
 		return C.SCMP_ARCH_S390X
 	case seccomp.ArchPPC:
-		return C.SCMP_ARCH_PPC64
+		return C.SCMP_ARCH_PPC
 	}
 	panic(fmt.Sprintf("cannot map scmpArch %q to a native seccomp arch", scmpArch))
 }
@@ -525,6 +529,12 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	return err
 }
 
+// used to mock in tests
+var (
+	archUbuntuArchitecture       = arch.UbuntuArchitecture
+	archUbuntuKernelArchitecture = arch.UbuntuKernelArchitecture
+)
+
 // For architectures that support a compat architecture, when the
 // kernel and userspace match, add the compat arch, otherwise add
 // the kernel arch to support the kernel's arch (eg, 64bit kernels with
@@ -538,12 +548,12 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// add a compat architecture for some architectures that
 	// support it, e.g. on amd64 kernel and userland, we add
 	// compat i386 syscalls.
-	if arch.UbuntuArchitecture() == arch.UbuntuKernelArchitecture() {
-		switch arch.UbuntuArchitecture() {
+	if archUbuntuArchitecture() == archUbuntuKernelArchitecture() {
+		switch archUbuntuArchitecture() {
 		case "amd64":
 			compatArch = seccomp.ArchX86
 		case "arm64":
-			compatArch = seccomp.ArchARM64
+			compatArch = seccomp.ArchARM
 		case "ppc64":
 			compatArch = seccomp.ArchPPC
 		}
@@ -557,7 +567,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// 64bit code that would have to detect at runtime if
 		// it can be used or not. But we are told this is not
 		// rare with certain classes of embedded devices.
-		compatArch = UbuntuArchToScmpArch(arch.UbuntuKernelArchitecture())
+		compatArch = UbuntuArchToScmpArch(archUbuntuKernelArchitecture())
 	}
 
 	if compatArch != seccomp.ArchInvalid {
