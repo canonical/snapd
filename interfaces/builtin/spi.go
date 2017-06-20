@@ -53,7 +53,7 @@ func (iface *spiInterface) String() string {
 // Pattern to match allowed spi device nodes. It is gonna be used to check the
 // validity of the path attributes in case the udev is not used for
 // identification
-var spiControlDeviceNodePattern = regexp.MustCompile("^/dev/spi-[0-9]+$")
+var spiControlDeviceNodePattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -100,7 +100,7 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.spi/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/soc/**.spi/spi_master/spi0/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
