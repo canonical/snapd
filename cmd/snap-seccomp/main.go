@@ -366,17 +366,58 @@ var seccompResolver = map[string]uint64{
 }
 
 const (
-	ScmpArchX86     = C.SCMP_ARCH_X86
-	ScmpArchX86_64  = C.SCMP_ARCH_X86_64
-	ScmpArchARM     = C.SCMP_ARCH_ARM
-	ScmpArchAARCH64 = C.SCMP_ARCH_AARCH64
-	ScmpArchPPC     = C.SCMP_ARCH_PPC
-	ScmpArchPPC64LE = C.SCMP_ARCH_PPC64LE
-	ScmpArchS390X   = C.SCMP_ARCH_S390X
-
 	SeccompRetAllow = C.SECCOMP_RET_ALLOW
 	SeccompRetKill  = C.SECCOMP_RET_KILL
 )
+
+// UbuntuArchToScmpArch takes a dpkg architecture and converts it to
+// the seccomp.ScmpArch as used in the libseccomp-golang library
+func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
+	switch ubuntuArch {
+	case "i386":
+		return seccomp.ArchX86
+	case "amd64":
+		return seccomp.ArchAMD64
+	case "armhf":
+		return seccomp.ArchARM
+	case "arm64":
+		return seccomp.ArchARM64
+	case "ppc64":
+		return seccomp.ArchPPC64
+	case "ppc64el":
+		return seccomp.ArchPPC64LE
+	case "s390x":
+		return seccomp.ArchS390X
+	case "powerpc":
+		return seccomp.ArchPPC
+	}
+	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
+}
+
+// ScmpArchToSeccompAnativeArch takes a seccomp.ScmpArch and converts
+// it into the native kernel architecture uint32. This is required for
+// the tests to simulate the bpf kernel behaviour.
+func ScmpArchToSeccompNativeArch(scmpArch seccomp.ScmpArch) uint32 {
+	switch scmpArch {
+	case seccomp.ArchX86:
+		return C.SCMP_ARCH_X86
+	case seccomp.ArchAMD64:
+		return C.SCMP_ARCH_X86_64
+	case seccomp.ArchARM:
+		return C.SCMP_ARCH_ARM
+	case seccomp.ArchARM64:
+		return C.SCMP_ARCH_AARCH64
+	case seccomp.ArchPPC64:
+		return C.SCMP_ARCH_PPC64
+	case seccomp.ArchPPC64LE:
+		return C.SCMP_ARCH_PPC64LE
+	case seccomp.ArchS390X:
+		return C.SCMP_ARCH_S390X
+	case seccomp.ArchPPC:
+		return C.SCMP_ARCH_PPC64
+	}
+	panic(fmt.Sprintf("cannot map scmpArch %q to a native seccomp arch", scmpArch))
+}
 
 // important for unit testing
 type SeccompData C.kernel_seccomp_data
@@ -516,23 +557,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// 64bit code that would have to detect at runtime if
 		// it can be used or not. But we are told this is not
 		// rare with certain classes of embedded devices.
-		switch arch.UbuntuKernelArchitecture() {
-		case "amd64":
-			compatArch = seccomp.ArchAMD64
-		case "arm64":
-			compatArch = seccomp.ArchARM64
-		case "ppc64el":
-			compatArch = seccomp.ArchPPC64LE
-		case "ppc64":
-			compatArch = seccomp.ArchPPC64
-		case "i386":
-			compatArch = seccomp.ArchX86
-		case "armhf":
-			compatArch = seccomp.ArchARM
-		case "powerpc":
-			compatArch = seccomp.ArchPPC
-
-		}
+		compatArch = UbuntuArchToScmpArch(arch.UbuntuKernelArchitecture())
 	}
 
 	if compatArch != seccomp.ArchInvalid {
