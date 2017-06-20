@@ -26,7 +26,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -40,6 +39,7 @@ import (
 	// until https://github.com/golang/go/issues/20556
 	"github.com/mvo5/net/bpf"
 
+	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 )
 
@@ -49,26 +49,6 @@ func Test(t *testing.T) { TestingT(t) }
 type snapSeccompSuite struct{}
 
 var _ = Suite(&snapSeccompSuite{})
-
-func goArchToScmpArch(goarch string) uint32 {
-	switch goarch {
-	case "386":
-		return main.ScmpArchX86
-	case "amd64":
-		return main.ScmpArchX86_64
-	case "arm":
-		return main.ScmpArchARM
-	case "arm64":
-		return main.ScmpArchAARCH64
-	case "ppc64le":
-		return main.ScmpArchPPC64LE
-	case "s390x":
-		return main.ScmpArchS390X
-	case "ppc":
-		return main.ScmpArchPPC
-	}
-	panic(fmt.Sprintf("cannot map goarch %q to a seccomp arch", goarch))
-}
 
 func decodeBpfFromFile(p string) ([]bpf.Instruction, error) {
 	var ops []bpf.Instruction
@@ -94,20 +74,20 @@ func decodeBpfFromFile(p string) ([]bpf.Instruction, error) {
 	return ops, nil
 }
 
-func parseBpfInput(s string) (*main.SeccompData /* *seccompData */, error) {
+func parseBpfInput(s string) (*main.SeccompData, error) {
 	// syscall;arch;arg1,arg2...
 	l := strings.Split(s, ";")
 
-	sc, err := seccomp.GetSyscallFromName(l[0])
-	if err != nil {
-		return nil, err
+	var scmpArch seccomp.ScmpArch
+	if len(l) < 2 || l[1] == "native" {
+		scmpArch = main.UbuntuArchToScmpArch(arch.UbuntuArchitecture())
+	} else {
+		scmpArch = main.UbuntuArchToScmpArch(l[1])
 	}
 
-	var arch uint32
-	if len(l) < 2 || l[1] == "native" {
-		arch = goArchToScmpArch(runtime.GOARCH)
-	} else {
-		arch = goArchToScmpArch(l[1])
+	sc, err := seccomp.GetSyscallFromNameByArch(l[0], scmpArch)
+	if err != nil {
+		return nil, err
 	}
 
 	var syscallArgs [6]uint64
@@ -125,7 +105,7 @@ func parseBpfInput(s string) (*main.SeccompData /* *seccompData */, error) {
 		}
 	}
 	sd := &main.SeccompData{}
-	sd.SetArch(arch)
+	sd.SetArch(main.ScmpArchToSeccompNativeArch(scmpArch))
 	sd.SetNr(sc)
 	sd.SetArgs(syscallArgs)
 	return sd, nil
@@ -515,6 +495,69 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		// bad input
 		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
+	} {
+		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+	}
+}
+
+func (s *snapSeccompSuite) TestCompatArchWorksOnAmd64(c *C) {
+	if arch.UbuntuArchitecture() != "amd64" {
+		c.Skip("only works on amd64")
+		return
+	}
+
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+		// syscalls on amd64 and i386 work fine
+		{"read", "read;amd64", main.SeccompRetAllow},
+		{"read", "read;i386", main.SeccompRetAllow},
+		// but armhf is rejected
+		{"read", "read;armhf", main.SeccompRetKill},
+	} {
+		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+	}
+}
+
+func (s *snapSeccompSuite) TestCompatArchWorksOnArm64(c *C) {
+	if arch.UbuntuArchitecture() != "arm64" {
+		c.Skip("only works on arm64")
+		return
+	}
+
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+		// syscalls on arm64 and armhf work fine
+		{"read", "read;arm64", main.SeccompRetAllow},
+		{"read", "read;armhf", main.SeccompRetAllow},
+		// but i386 is rejected
+		{"read", "read;i386", main.SeccompRetKill},
+	} {
+		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+	}
+}
+
+func (s *snapSeccompSuite) TestCompatArchWorksOnPPC64(c *C) {
+	if arch.UbuntuArchitecture() != "ppc64" {
+		c.Skip("only works on ppc64")
+		return
+	}
+
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+		// syscalls on ppc64 and powerpc work fine
+		{"read", "read;ppc64", main.SeccompRetAllow},
+		{"read", "read;powerpc", main.SeccompRetAllow},
+		// but i386 is rejected
+		{"read", "read;i386", main.SeccompRetKill},
 	} {
 		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
