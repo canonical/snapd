@@ -639,14 +639,12 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // from snap-confine).
 func (m *SnapManager) GenerateCookies(st *state.State) error {
 	var snapNames map[string]*json.RawMessage
-	err := st.Get("snaps", &snapNames)
-	if err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {
 		return err
 	}
 
 	var contexts map[string]string
-	err = st.Get("snap-cookies", &contexts)
-	if err != nil {
+	if err := st.Get("snap-cookies", &contexts); err != nil {
 		if err != state.ErrNoState {
 			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
