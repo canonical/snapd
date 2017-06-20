@@ -125,6 +125,9 @@ quiet apt-get purge -y snapd
 # fails with unmet dependency on "build-essential:native"
 quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git
 
+# ensure systemd is up-to-date, if there is a mismatch libudev-dev
+# will fail to install because the poor apt resolver does not get it
+apt-get install -y --only-upgrade systemd
 # in 16.04: apt build-dep -y ./
 quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
