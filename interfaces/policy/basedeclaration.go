@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
+w// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -586,10 +586,10 @@ slots:
         - core
     deny-auto-connection: true
   spi:
-    allow-installtion:
+    allow-installation:
       slot-snap-type:
-        - gadget
         - core
+        - gadget
     deny-auto-connection: true
   storage-framework-service:
     allow-installation:
