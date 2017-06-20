@@ -402,7 +402,7 @@ func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
 }
 
-// ScmpArchToSeccompAnativeArch takes a seccomp.ScmpArch and converts
+// ScmpArchToSeccompNativeArch takes a seccomp.ScmpArch and converts
 // it into the native kernel architecture uint32. This is required for
 // the tests to simulate the bpf kernel behaviour.
 func ScmpArchToSeccompNativeArch(scmpArch seccomp.ScmpArch) uint32 {
