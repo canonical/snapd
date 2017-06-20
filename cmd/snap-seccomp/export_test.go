@@ -23,3 +23,19 @@ var (
 	Compile         = compile
 	SeccompResolver = seccompResolver
 )
+
+func MockArchUbuntuArchitecture(f func() string) (restore func()) {
+	realArchUbuntuArchitecture := archUbuntuArchitecture
+	archUbuntuArchitecture = f
+	return func() {
+		archUbuntuArchitecture = realArchUbuntuArchitecture
+	}
+}
+
+func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
+	realArchUbuntuKernelArchitecture := archUbuntuKernelArchitecture
+	archUbuntuKernelArchitecture = f
+	return func() {
+		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
+	}
+}
