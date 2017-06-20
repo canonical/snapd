@@ -92,8 +92,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	oldInstallHookSetup := snapstate.InstallHookSetup
 	oldRemoveHookSetup := snapstate.RemoveHookSetup
-	snapstate.InstallHookSetup = snaphooks.InstallHookSetup
-	snapstate.RemoveHookSetup = snaphooks.RemoveHookSetup
+	snapstate.InstallHookSetup = hooks.InstallHookSetup
+	snapstate.RemoveHookSetup = hooks.RemoveHookSetup
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
