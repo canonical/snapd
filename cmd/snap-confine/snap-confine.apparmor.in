@@ -89,7 +89,7 @@
     # change_profile unsafe /** -> **,
 
     # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/* r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles.bpf/* r,
 
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
