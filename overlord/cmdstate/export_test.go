@@ -17,30 +17,16 @@
  *
  */
 
-package hookstate
+package cmdstate
 
 import (
 	"time"
 )
 
-func MockReadlink(f func(string) (string, error)) func() {
-	oldReadlink := osReadlink
-	osReadlink = f
+func MockExecTimeout(t time.Duration) func() {
+	ot := execTimeout
+	execTimeout = t
 	return func() {
-		osReadlink = oldReadlink
+		execTimeout = ot
 	}
-}
-
-func MockDefaultHookTimeout(timeout time.Duration) func() {
-	oldDefaultTimeout := defaultHookTimeout
-	defaultHookTimeout = timeout
-	return func() {
-		defaultHookTimeout = oldDefaultTimeout
-	}
-}
-
-func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReport
-	errtrackerReport = mock
-	return func() { errtrackerReport = prev }
 }
