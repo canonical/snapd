@@ -385,6 +385,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionGreengrassSupportOverride(c *C) {
+	cand := s.connectCand(c, "greengrass-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"greengrass-support\"")
+
+	plugsSlots := `
+plugs:
+  greengrass-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -446,6 +464,7 @@ var (
 		"docker-support":          {"core"},
 		"fwupd":                   {"app"},
 		"gpio":                    {"core", "gadget"},
+		"greengrass-support":      {"core"},
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
 		"iio":                     {"core", "gadget"},
@@ -557,6 +576,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	restricted := map[string]bool{
 		"classic-support":       true,
 		"docker-support":        true,
+		"greengrass-support":    true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
@@ -683,6 +703,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,
+		"greengrass-support":    true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,

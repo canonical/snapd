@@ -156,6 +156,9 @@ plugs:
   docker-support:
     allow-installation: false
     deny-auto-connection: true
+  greengrass-support:
+    allow-installation: false
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
@@ -299,6 +302,11 @@ slots:
       slot-snap-type:
         - core
         - gadget
+    deny-auto-connection: true
+  greengrass-support:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
   gsettings:
     allow-installation:

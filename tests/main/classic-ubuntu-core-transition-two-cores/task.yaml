@@ -9,7 +9,7 @@ kill-timeout: 5m
 execute: |
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure we have two cores"
-    apt install -y jq
+    distro_install_package jq
 
     echo "install a snap"
     snap install test-snapd-python-webserver
