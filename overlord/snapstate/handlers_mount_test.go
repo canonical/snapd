@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -136,7 +138,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: "/snap/core/1",
+			old: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/1"),
 		},
 		{
 			op:    "setup-snap",
@@ -145,7 +147,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/core/2",
+			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/2"),
 			stype: "os",
 		},
 	})

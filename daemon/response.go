@@ -95,11 +95,11 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
-		status = http.StatusInternalServerError
+		status = 500
 	}
 
 	hdr := w.Header()
-	if r.Status == http.StatusAccepted || r.Status == http.StatusCreated {
+	if r.Status == 202 || r.Status == 201 {
 		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
@@ -159,7 +159,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 		Result: result,
 		Meta:   meta,
 	}
@@ -169,7 +169,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,
-		Status: http.StatusAccepted,
+		Status: 202,
 		Result: result,
 		Meta:   meta,
 	}
@@ -181,7 +181,7 @@ func makeErrorResponder(status int) errorResponder {
 		res := &errorResult{
 			Message: fmt.Sprintf(format, v...),
 		}
-		if status == http.StatusUnauthorized {
+		if status == 401 {
 			res.Kind = errorKindLoginRequired
 		}
 		return &resp{
@@ -222,7 +222,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", t)
 	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(200)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
@@ -240,14 +240,14 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	Unauthorized   = makeErrorResponder(http.StatusUnauthorized)
-	NotFound       = makeErrorResponder(http.StatusNotFound)
-	BadRequest     = makeErrorResponder(http.StatusBadRequest)
-	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)
-	InternalError  = makeErrorResponder(http.StatusInternalServerError)
-	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
-	Forbidden      = makeErrorResponder(http.StatusForbidden)
-	Conflict       = makeErrorResponder(http.StatusConflict)
+	Unauthorized     = makeErrorResponder(401)
+	NotFound         = makeErrorResponder(404)
+	BadRequest       = makeErrorResponder(400)
+	MethodNotAllowed = makeErrorResponder(405)
+	InternalError    = makeErrorResponder(500)
+	NotImplemented   = makeErrorResponder(501)
+	Forbidden        = makeErrorResponder(403)
+	Conflict         = makeErrorResponder(409)
 )
 
 func SnapNotFound(err error) Response {
