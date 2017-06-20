@@ -585,6 +585,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  spi:
+    allow-installtion:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   storage-framework-service:
     allow-installation:
       slot-snap-type:
