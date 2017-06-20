@@ -79,12 +79,12 @@ func (s *backendSuite) TestName(c *C) {
 func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	// file called "snap.sambda.smbd.in" was created
-	_, err := os.Stat(profile + ".in")
+	// file called "snap.sambda.smbd" was created
+	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// and got compiled
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "compile", profile + ".in", profile + ".bpf"},
+		{"snap-seccomp", "compile", profile, profile + ".bpf"},
 	})
 }
 
@@ -92,12 +92,12 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.HookYaml, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.hook.configure")
 
-	// Verify that profile named "snap.foo.hook.configure.in" was created.
-	_, err := os.Stat(profile + ".in")
+	// Verify that profile named "snap.foo.hook.configure" was created.
+	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// and got compiled
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "compile", profile + ".in", profile + ".bpf"},
+		{"snap-seccomp", "compile", profile, profile + ".bpf"},
 	})
 }
 
@@ -105,7 +105,7 @@ func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd.in")
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
@@ -116,7 +116,7 @@ func (s *backendSuite) TestRemovingSnapRemovesHookProfiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
 		s.RemoveSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.hook.configure.in")
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.hook.configure")
 
 		// Verify that profile "snap.foo.hook.configure" was removed.
 		_, err := os.Stat(profile)
@@ -129,11 +129,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1WithNmbd, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
-		_, err := os.Stat(profile + ".in")
+		_, err := os.Stat(profile)
 		// file called "snap.sambda.nmbd" was created
 		c.Check(err, IsNil)
 		// and got compiled
-		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".in", profile + ".bpf"})
+		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile, profile + ".bpf"})
 		s.snapSeccomp.ForgetCalls()
 
 		s.RemoveSnap(c, snapInfo)
@@ -146,11 +146,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithHooks(c *C) {
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlWithHook, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.configure")
 
-		_, err := os.Stat(profile + ".in")
+		_, err := os.Stat(profile)
 		// Verify that profile "snap.samba.hook.configure" was created.
 		c.Check(err, IsNil)
 		// and got compiled
-		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".in", profile + ".bpf"})
+		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile, profile + ".bpf"})
 		s.snapSeccomp.ForgetCalls()
 
 		s.RemoveSnap(c, snapInfo)
@@ -161,7 +161,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1WithNmbd, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd.in")
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
@@ -173,7 +173,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithNoHooks(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlWithHook, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.configure.in")
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.configure")
 
 		// Verify that profile snap.samba.hook.configure was removed.
 		_, err := os.Stat(profile)
@@ -187,7 +187,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	// NOTE: we don't call seccomp.MockTemplate()
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
-	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd.in")
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
 	c.Assert(err, IsNil)
 	for _, line := range []string{
@@ -244,7 +244,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		}
 
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd.in")
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, scenario.content)
@@ -283,7 +283,7 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	}
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
-	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo.in")
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
 	data, err := ioutil.ReadFile(profile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "default\naaa\nzzz\n")
@@ -300,7 +300,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	// NOTE: we don't call seccomp.MockTemplate()
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
-	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd.in")
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), testutil.Contains, "\nbind\n")
