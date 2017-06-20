@@ -36,3 +36,11 @@ func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
 		fetchRetryStrategy = originalFetchRetryStrategy
 	}
 }
+
+func MockPeekRetryStrategy(strategy retry.Strategy) (restore func()) {
+	originalPeekRetryStrategy := peekRetryStrategy
+	peekRetryStrategy = strategy
+	return func() {
+		peekRetryStrategy = originalPeekRetryStrategy
+	}
+}

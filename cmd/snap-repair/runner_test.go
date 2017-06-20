@@ -58,6 +58,8 @@ architectures:
   - arm64
 series:
   - 16
+models:
+  - xyz/frobinator
 timestamp: 2017-03-30T12:22:16Z
 body-length: 7
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -67,6 +69,8 @@ script
 
 AXNpZw==
 `
+	testHeadersResp = `{"headers":
+{"architectures":["amd64","arm64"],"authority-id":"canonical","body-length":"7","brand-id":"canonical","models":["xyz/frobinator"],"repair-id":"2","series":["16"],"sign-key-sha3-384":"KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj","timestamp":"2017-03-30T12:22:16Z","type":"repair"}}`
 )
 
 func MustParseURL(s string) *url.URL {
@@ -246,4 +250,102 @@ func (r *repairSuite) TestFetchRepairPlusKey(c *C) {
 	c.Check(ok, Equals, true)
 	_, ok = a[1].(*asserts.AccountKey)
 	c.Check(ok, Equals, true)
+}
+
+func (r *repairSuite) TestPeek(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/json")
+		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
+		io.WriteString(w, testHeadersResp)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = MustParseURL(mockServer.URL)
+
+	h, err := runner.Peek("canonical", "2")
+	c.Assert(err, IsNil)
+	c.Check(h["series"], DeepEquals, []interface{}{"16"})
+	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
+	c.Check(h["models"], DeepEquals, []interface{}{"xyz/frobinator"})
+}
+
+func (r *repairSuite) TestPeek500(c *C) {
+	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(500)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = MustParseURL(mockServer.URL)
+
+	_, err := runner.Peek("canonical", "2")
+	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
+	c.Assert(n, Equals, 5)
+}
+
+func (r *repairSuite) TestPeekInvalid(c *C) {
+	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(200)
+		io.WriteString(w, "{")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = MustParseURL(mockServer.URL)
+
+	_, err := runner.Peek("canonical", "2")
+	c.Assert(err, Equals, io.ErrUnexpectedEOF)
+	c.Assert(n, Equals, 5)
+}
+
+func (r *repairSuite) TestPeekNotFound(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(404)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = MustParseURL(mockServer.URL)
+
+	_, err := runner.Peek("canonical", "2")
+	c.Assert(err, Equals, repair.ErrRepairNotFound)
+	c.Assert(n, Equals, 1)
+}
+
+func (r *repairSuite) TestPeekIdMismatch(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/json")
+		io.WriteString(w, testHeadersResp)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = MustParseURL(mockServer.URL)
+
+	_, err := runner.Peek("canonical", "4")
+	c.Assert(err, ErrorMatches, `cannot peek repair headers, id mismatch canonical/2 != canonical/4`)
+
 }
