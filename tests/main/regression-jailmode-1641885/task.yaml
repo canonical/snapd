@@ -25,4 +25,4 @@ debug: |
     echo "Apparmor profile (first 30 lines)"
     head -n 30 /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode || true
     echo "Seccomp profile (first 30 lines)"
-    head -n 30 /var/lib/snapd/seccomp/profiles.bpf/snap.test-snapd-devmode.test-snapd-devmode.in || true
+    head -n 30 /var/lib/snapd/seccomp/profiles.bpf/snap.test-snapd-devmode.test-snapd-devmode || true
