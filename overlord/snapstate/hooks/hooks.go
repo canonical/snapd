@@ -15,7 +15,7 @@
  *
  */
 
-package snaphooks
+package hooks
 
 import (
 	"fmt"

@@ -109,7 +109,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	oldInstallHookSetup := snapstate.InstallHookSetup
 	oldRemoveHookSetup := snapstate.RemoveHookSetup
-	snapstate.RemoveHookSetup = snaphooks.RemoveHookSetup
+	snapstate.RemoveHookSetup = hooks.RemoveHookSetup
 
 	ms.restore = func() {
 		snapstate.RemoveHookSetup = oldRemoveHookSetup
