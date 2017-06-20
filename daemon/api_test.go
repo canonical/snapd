@@ -5700,6 +5700,10 @@ func (s *svcSuite) TestPosetServicesReload(c *check.C) {
 	s.testPostServices(c, "reload", []string{"snap-a.app2"}, "Reloading service snap-a.app2.", []string{"systemctl", "reload", "snap.snap-a.app2.service"})
 }
 
+func (s *svcSuite) TestPosetServicesReloadOrRestart(c *check.C) {
+	s.testPostServices(c, "try-reload-or-restart", []string{"snap-a.app2"}, "Trying to reload or restart service snap-a.app2.", []string{"systemctl", "try-reload-or-restart", "snap.snap-a.app2.service"})
+}
+
 func (s *svcSuite) TestPosetServicesEnable(c *check.C) {
 	s.testPostServices(c, "enable", []string{"snap-a.app2"}, "Enabling service snap-a.app2.", []string{"systemctl", "enable", "snap.snap-a.app2.service"})
 }

@@ -2691,6 +2691,8 @@ func changeServices(c *Command, r *http.Request, user *auth.UserState) Response 
 			}
 		}
 		presentParticiple = "Reloading"
+	case "try-reload-or-restart":
+		presentParticiple = "Trying to reload or restart"
 	case "start":
 		presentParticiple = "Starting"
 	case "stop":
