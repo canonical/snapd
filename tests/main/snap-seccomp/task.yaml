@@ -17,17 +17,17 @@ execute: |
     # from the old test_complain
     echo "Test that the @complain keyword works"
     rm -f ${PROFILE}.bpf
-    cat >"${PROFILE}.in" <<EOF
+    cat >"${PROFILE}" <<EOF
     # some comment
     @complain
     EOF
-    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    $SNAP_SECCOMP compile ${PROFILE} ${PROFILE}.bpf
     echo "Ensure the code still runs"
     test-snapd-tools.echo hello | MATCH hello
 
     # from the old test_complain_missed
     rm -f ${PROFILE}.bpf
-    cat >"${PROFILE}.in" <<EOF
+    cat >"${PROFILE}" <<EOF
     # super strict filter
     @complai
     @complaim
@@ -35,7 +35,7 @@ execute: |
     @COMPLAIN
     complain
     EOF
-    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    $SNAP_SECCOMP compile ${PROFILE} ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-tools.echo hello; then
         echo "filtering broken: program should have failed to run"
@@ -45,17 +45,17 @@ execute: |
     # from the old test_unrestricted
     echo "Test that the @unrestricted keyword works"
     rm -f ${PROFILE}.bpf
-    cat >"${PROFILE}.in" <<EOF
+    cat >"${PROFILE}" <<EOF
     # some comment
     @unrestricted
     EOF
-    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    $SNAP_SECCOMP compile ${PROFILE} ${PROFILE}.bpf
     echo "Ensure the code still runs"
     test-snapd-tools.echo hello | MATCH hello
 
     # from the old test_unrestricted_missed
     rm -f ${PROFILE}.bpf
-    cat >"${PROFILE}.in" <<EOF
+    cat >"${PROFILE}" <<EOF
     # super strict filter
     @unrestricte
     @unrestrictes
@@ -63,7 +63,7 @@ execute: |
     @UNRESTRICTED
     unrestricted
     EOF
-    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    $SNAP_SECCOMP compile ${PROFILE} ${PROFILE}.bpf
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-tools.echo hello; then
         echo "filtering broken: program should have failed to run"
@@ -104,8 +104,8 @@ execute: |
 
     echo "Ensure the code cannot not run with an empty seccomp profile"
     rm -f ${PROFILE}.bpf
-    echo "" > ${PROFILE}.in
-    $SNAP_SECCOMP compile ${PROFILE}.in ${PROFILE}.bpf
+    echo "" > ${PROFILE}
+    $SNAP_SECCOMP compile ${PROFILE} ${PROFILE}.bpf
     if test-snapd-tools.echo hello; then
         echo "filtering broken: program should have failed to run"
         exit 1
