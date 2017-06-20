@@ -1,7 +1,7 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
 environment:
-    PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-tools.echo
+    PROFILE: /var/lib/snapd/seccomp/profiles.bpf/snap.test-snapd-tools.echo
     SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
 
 execute: |
