@@ -28,7 +28,7 @@
 // There is no binary cache for seccomp, each time the launcher starts an
 // application the profile is parsed and re-compiled.
 //
-// The actual profiles are stored in /var/lib/snappy/seccomp/bpf.
+// The actual profiles are stored in /var/lib/snappy/seccomp/profiles.bpf.
 // This directory is hard-coded in ubuntu-core-launcher.
 package seccomp
 
