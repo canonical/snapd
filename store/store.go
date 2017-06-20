@@ -255,7 +255,9 @@ func useStaging() bool {
 
 func apiURL() string {
 	// FIXME: this will become a store-url assertion
-	// backward-compatibility: this used to be "Click Package Index"
+	// XXX: Deprecated but present for backward-compatibility: this used
+	// to be "Click Package Index".  Remove this once people have got
+	// used to SNAPPY_FORCE_API_URL instead.
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
 		return u[:len(u)-len("api/v1/")]
 	}
