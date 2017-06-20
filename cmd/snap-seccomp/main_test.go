@@ -500,65 +500,35 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 	}
 }
 
-func (s *snapSeccompSuite) TestCompatArchWorksOnAmd64(c *C) {
-	if arch.UbuntuArchitecture() != "amd64" {
-		c.Skip("only works on amd64")
-		return
-	}
-
+func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 	for _, t := range []struct {
+		arch             string
 		seccompWhitelist string
 		bpfInput         string
 		expected         int
 	}{
-		// syscalls on amd64 and i386 work fine
-		{"read", "read;amd64", main.SeccompRetAllow},
-		{"read", "read;i386", main.SeccompRetAllow},
-		// but armhf is rejected
-		{"read", "read;armhf", main.SeccompRetKill},
+		// on amd64 we add compat i386
+		{"amd64", "read", "read;i386", main.SeccompRetAllow},
+		{"amd64", "read", "read;amd64", main.SeccompRetAllow},
+		// on arm64 we add compat armhf
+		{"arm64", "read", "read;armhf", main.SeccompRetAllow},
+		{"arm64", "read", "read;arm64", main.SeccompRetAllow},
+		// on ppc64 we add compat powerpc
+		{"ppc64", "read", "read;powerpc", main.SeccompRetAllow},
+		{"ppc64", "read", "read;ppc64", main.SeccompRetAllow},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
-	}
-}
-
-func (s *snapSeccompSuite) TestCompatArchWorksOnArm64(c *C) {
-	if arch.UbuntuArchitecture() != "arm64" {
-		c.Skip("only works on arm64")
-		return
-	}
-
-	for _, t := range []struct {
-		seccompWhitelist string
-		bpfInput         string
-		expected         int
-	}{
-		// syscalls on arm64 and armhf work fine
-		{"read", "read;arm64", main.SeccompRetAllow},
-		{"read", "read;armhf", main.SeccompRetAllow},
-		// but i386 is rejected
-		{"read", "read;i386", main.SeccompRetKill},
-	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
-	}
-}
-
-func (s *snapSeccompSuite) TestCompatArchWorksOnPPC64(c *C) {
-	if arch.UbuntuArchitecture() != "ppc64" {
-		c.Skip("only works on ppc64")
-		return
-	}
-
-	for _, t := range []struct {
-		seccompWhitelist string
-		bpfInput         string
-		expected         int
-	}{
-		// syscalls on ppc64 and powerpc work fine
-		{"read", "read;ppc64", main.SeccompRetAllow},
-		{"read", "read;powerpc", main.SeccompRetAllow},
-		// but i386 is rejected
-		{"read", "read;i386", main.SeccompRetKill},
-	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		// It is tricky to mock the architecture here because
+		// seccomp is always adding the native arch to the seccomp
+		// filter and it will silently discard arches that have
+		// an endian mismatch:
+		// https://github.com/seccomp/libseccomp/issues/86
+		//
+		// This means we can not just
+		//    main.MockArchUbuntuArchitecture(t.arch)
+		// here because on endian mismatch the arch will *not* be
+		// added
+		if arch.UbuntuArchitecture() == t.arch {
+			simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		}
 	}
 }
