@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +55,13 @@ func NewRunner() *Runner {
 
 var (
 	fetchRetryStrategy = retry.LimitCount(10, retry.LimitTime(1*time.Minute,
+		retry.Exponential{
+			Initial: 100 * time.Millisecond,
+			Factor:  2.5,
+		},
+	))
+
+	peekRetryStrategy = retry.LimitCount(7, retry.LimitTime(30*time.Second,
 		retry.Exponential{
 			Initial: 100 * time.Millisecond,
 			Factor:  2.5,
@@ -122,4 +130,54 @@ func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err e
 	}
 
 	return r, nil
+}
+
+type peekResp struct {
+	Headers map[string]interface{} `json:"headers"`
+}
+
+// Peek retrieves the headers for the repair with the given ids.
+func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{}, err error) {
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+	if err != nil {
+		return nil, err
+	}
+
+	var rsp peekResp
+
+	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		req, err := http.NewRequest("GET", u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		return run.cli.Do(req)
+	}, func(resp *http.Response) error {
+		rsp.Headers = nil
+		if resp.StatusCode == 200 {
+			dec := json.NewDecoder(resp.Body)
+			return dec.Decode(&rsp)
+		}
+		return nil
+	}, peekRetryStrategy)
+
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		// ok
+	case 404:
+		return nil, ErrRepairNotFound
+	default:
+		return nil, fmt.Errorf("cannot peek repair headers, unexpected status %d", resp.StatusCode)
+	}
+
+	headers = rsp.Headers
+	if headers["brand-id"] != brandID || headers["repair-id"] != repairID {
+		return nil, fmt.Errorf("cannot peek repair headers, id mismatch %s/%s != %s/%s", headers["brand-id"], headers["repair-id"], brandID, repairID)
+	}
+
+	return headers, nil
 }
