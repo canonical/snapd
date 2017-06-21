@@ -23,8 +23,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,7 +48,9 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type snapSeccompSuite struct{}
+type snapSeccompSuite struct {
+	seccompHelper string
+}
 
 var _ = Suite(&snapSeccompSuite{})
 
@@ -129,6 +133,169 @@ func nativeEndian() binary.ByteOrder {
 	}
 }
 
+var seccompHelperContent = []byte(`
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <fcntl.h>
+#include <sys/prctl.h>
+
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+
+#define MAX_BPF_SIZE 32 * 1024
+
+int sc_apply_seccomp_bpf(const char *profile_path)
+{
+	unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
+	FILE *fp;
+	fp = fopen(profile_path, "rb");
+	if (fp == NULL) {
+		fprintf(stderr, "cannot read %s\n", profile_path);
+		exit(1);
+	}
+
+	// set 'size' to '1; to get bytes transferred
+	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
+
+	if (ferror(fp) != 0) {
+		perror("fread()");
+		exit(1);
+	} else if (feof(fp) == 0) {
+		fprintf(stderr, "file too big\n");
+		exit(1);
+	}
+	fclose(fp);
+
+	struct sock_fprog prog = {
+		.len = num_read / sizeof(struct sock_filter),
+		.filter = (struct sock_filter *)bpf,
+	};
+
+	// Set NNP to allow loading seccomp policy into the kernel without
+	// root
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+		perror("prctl(PR_NO_NEW_PRIVS, 1, 0, 0, 0)");
+		exit(1);
+	}
+
+	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+		perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
+		exit(1);
+	}
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	int rc = 0;
+	if (argc < 2) {
+		fprintf(stderr, "Usage: %s <bpf file> [prog ...]\n", argv[0]);
+		return 1;
+	}
+
+	rc = sc_apply_seccomp_bpf(argv[1]);
+	if (rc || argc == 2)
+		return rc;
+
+	execv(argv[2], (char *const *)&argv[2]);
+	perror("execv failed");
+	return 1;
+}
+`)
+
+func (s *snapSeccompSuite) SetUpSuite(c *C) {
+	// FIXME: we currently use a fork of x/net/bpf because of:
+	//   https://github.com/golang/go/issues/20556
+	// switch to x/net/bpf once we can simulate seccomp bpf there
+	bpf.VmEndianness = nativeEndian()
+
+	s.seccompHelper = filepath.Join(c.MkDir(), "seccomp_helper")
+	err := ioutil.WriteFile(s.seccompHelper+".c", seccompHelperContent, 0644)
+	c.Assert(err, IsNil)
+
+	// build seccomp helper
+	cmd := exec.Command("gcc", "-Wall", s.seccompHelper+".c", "-o", s.seccompHelper)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
+}
+
+func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput string, expected int) {
+	common := `
+execve
+exit
+`
+
+	bpfPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	c.Assert(err, IsNil)
+
+	// syscall;arch;arg1,arg2...
+	l := strings.Split(bpfInput, ";")
+	if len(l) > 1 && l[1] != "native" {
+		c.Skip("cannot use non-native in runBpfInKernel")
+		return
+	}
+	var syscallArgs [6]uint64
+	if len(l) > 2 {
+		args := strings.Split(l[2], ",")
+		for i := range args {
+			// init with random number argument
+			syscallArgs[i] = (uint64)(rand.Uint32())
+			// override if the test specifies a specific number
+			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
+				syscallArgs[i] = nr
+			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
+				syscallArgs[i] = nr
+			}
+		}
+	}
+
+	content := fmt.Sprintf(`
+#define _GNU_SOURCE
+#include<unistd.h>
+#include<sys/syscall.h>
+void __syscall_error() {};
+void _start() {
+syscall(SYS_%v, %v, %v, %v, %v, %v, %v);
+syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+}
+`, l[0], syscallArgs[0], syscallArgs[1], syscallArgs[2], syscallArgs[3], syscallArgs[4], syscallArgs[5])
+
+	testC := filepath.Join(c.MkDir(), "test")
+	err = ioutil.WriteFile(testC+".c", []byte(content), 0644)
+	c.Assert(err, IsNil)
+	cmd := exec.Command("gcc", "-Wall", "-Werror", testC+".c", "-o", testC, "-static", "-static-libgcc", "-nostdlib", "-lc")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
+
+	cmd = exec.Command(s.seccompHelper, bpfPath, testC)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	switch expected {
+	case main.SeccompRetAllow:
+		if err != nil {
+			c.Fatalf("unexpected error for %q (failed to run): %s", seccompWhitelist, err)
+		}
+	case main.SeccompRetKill:
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+		}
+	default:
+		c.Fatalf("unknown expected result %v", expected)
+	}
+}
+
 // simulateBpf:
 //  1. runs main.Compile() which will catch syntax errors and output to a file
 //  2. takes the output file from main.Compile and loads it via
@@ -143,7 +310,7 @@ func nativeEndian() binary.ByteOrder {
 // parser).
 //
 // Full testing of applied policy is done elsewhere via spread tests.
-func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
+func (s *snapSeccompSuite) simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	outPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(seccompWhitelist), outPath)
 	c.Assert(err, IsNil)
@@ -162,13 +329,8 @@ func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	out, err := vm.Run(buf2[:])
 	c.Assert(err, IsNil)
 	c.Check(out, Equals, expected, Commentf("unexpected result for %q (input %q), got %v expected %v", seccompWhitelist, bpfInput, out, expected))
-}
 
-func (s *snapSeccompSuite) SetUpSuite(c *C) {
-	// FIXME: we currently use a fork of x/net/bpf because of:
-	//   https://github.com/golang/go/issues/20556
-	// switch to x/net/bpf once we can simulate seccomp bpf there
-	bpf.VmEndianness = nativeEndian()
+	s.runBpfInKernel(c, seccompWhitelist, bpfInput, expected)
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
@@ -199,7 +361,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"read\nwrite\nexecve\n", "write", main.SeccompRetAllow},
 
 		// trivial denial
-		{"read", "execve", main.SeccompRetKill},
+		{"read", "ioctl", main.SeccompRetKill},
 
 		// test argument filtering syntax, we currently support:
 		//   >=, <=, !, <, >, |
@@ -285,7 +447,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -373,15 +535,15 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s_%s", pre, i)
 			bpfInputBad := "socket;native;99999"
-			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 
 			for _, j := range []string{"SOCK_STREAM", "SOCK_DGRAM", "SOCK_SEQPACKET", "SOCK_RAW", "SOCK_RDM", "SOCK_PACKET"} {
 				seccompWhitelist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
 				bpfInputGood := fmt.Sprintf("socket;native;%s_%s,%s", pre, i, j)
 				bpfInputBad := fmt.Sprintf("socket;native;%s_%s,9999", pre, i)
-				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-				simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+				s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 			}
 		}
 	}
@@ -391,8 +553,8 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s - %s", j, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s,0,%s", j, i)
 			bpfInputBad := fmt.Sprintf("socket;native;%s,0,99", j)
-			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 		}
 	}
 }
@@ -403,10 +565,10 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
-		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 		// bad input
-		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
-			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+		for _, bad := range []string{"quotactl;native;99999", "setpriority;native;"} {
+			s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 		}
 	}
 }
@@ -419,22 +581,22 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("prctl %s", arg)
 		bpfInputGood := fmt.Sprintf("prctl;native;%s", arg)
-		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 		// bad input
-		for _, bad := range []string{"prctl;native;99999", "read;native;"} {
-			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+		for _, bad := range []string{"prctl;native;99999", "setpriority;native;"} {
+			s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 		}
 
 		if arg == "PR_CAP_AMBIENT" {
 			for _, j := range []string{"PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL"} {
 				seccompWhitelist := fmt.Sprintf("prctl %s %s", arg, j)
 				bpfInputGood := fmt.Sprintf("prctl;native;%s,%s", arg, j)
-				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 				for _, bad := range []string{
 					fmt.Sprintf("prctl;native;%s,99999", arg),
-					"read;native;",
+					"setpriority;native;",
 				} {
-					simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+					s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 				}
 			}
 		}
@@ -463,7 +625,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsClone(c *C) {
 		{"setns - CLONE_NEWUSER", "setns;native;-,99", main.SeccompRetKill},
 		{"setns - CLONE_NEWUTS", "setns;native;-,99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -487,7 +649,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsMknod(c *C) {
 		{"mknod - S_IFIFO", "mknod;native;-,999", main.SeccompRetKill},
 		{"mknod - S_IFSOCK", "mknod;native;-,999", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -507,7 +669,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrio(c *C) {
 		{"setpriority PRIO_PGRP", "setpriority;native;99", main.SeccompRetKill},
 		{"setpriority PRIO_USER", "setpriority;native;99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -523,7 +685,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		// bad input
 		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -555,7 +717,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// here because on endian mismatch the arch will *not* be
 		// added
 		if arch.UbuntuArchitecture() == t.arch {
-			simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+			s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}
 }
