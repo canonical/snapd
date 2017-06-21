@@ -19,10 +19,22 @@
 
 package builtin
 
-const passwordManagerServiceSummary = `allows interacting with the Password Manager Service`
+const passwordManagerServiceSummary = `allows access to password manager services`
+
+const passwordManagerServiceDescription = `
+The password-manager-service interface allows connected plugs full access to
+common Desktop Environment password services (eg, gnome-keyring/secret-service
+and kwallet).
+
+The core snap provides the slot that is shared by all snaps on a classic
+system. This interface gives access to sensitive information in the user's
+session.
+`
 
 const passwordManagerServiceConnectedPlugAppArmor = `
-# Description: Allow access to the registry and storage framework services.
+# Description: Allow access to password manager services provided by popular
+# Desktop Environments. This interface gives access to sensitive information in
+# the user's session.
 
 #include <abstractions/dbus-session-strict>
 
@@ -44,6 +56,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "password-manager-service",
 		summary:               passwordManagerServiceSummary,
+		description:           passwordManagerServiceDescription,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: passwordManagerServiceConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
