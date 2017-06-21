@@ -291,17 +291,3 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
-
-func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
-	restore := release.MockForcedDevmode(true)
-	defer restore()
-
-	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
-	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
-	c.Assert(err, IsNil)
-	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "\nbind\n")
-}
