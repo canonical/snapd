@@ -528,6 +528,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  password-manager-service:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   physical-memory-control:
     allow-installation:
       slot-snap-type:
