@@ -20,12 +20,14 @@
 package snapenv
 
 import (
+	"path/filepath"
 	"fmt"
 	"os"
 	"os/user"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -76,7 +78,7 @@ func snapEnv(info *snap.Info) map[string]string {
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
 	return map[string]string{
-		"SNAP":          info.MountDir(),
+		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.Name(), info.Revision.String()),
 		"SNAP_COMMON":   info.CommonDataDir(),
 		"SNAP_DATA":     info.DataDir(),
 		"SNAP_NAME":     info.Name(),

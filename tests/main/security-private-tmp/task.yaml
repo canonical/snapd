@@ -23,8 +23,10 @@ restore: |
           $SNAP_INSTALL_DIR /tmp/foo *stat.error
 
 execute: |
+    . "$TESTSLIB/dirs.sh"
+
     echo "When a temporary file is created by one snap"
-    expect -d -f tmp-create.exp
+    expect -d -f tmp-create.exp $SNAPMOUNTDIR
 
     if [ -e /usr/lib/snapd/snap-discard-ns ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
