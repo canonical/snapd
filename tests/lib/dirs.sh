@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+
 export SNAPMOUNTDIR=/snap
 export LIBEXECDIR=/usr/lib
 

@@ -18,7 +18,7 @@ reset_classic() {
             ;;
         fedora-*|opensuse-*)
             sh -x "${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh" \
-                --snap-mount-dir=$SNAPMOUNTDIR \
+                --snap-mount-dir="$SNAPMOUNTDIR" \
                 --purge
             # The script above doesn't remove the snapd directory as this
             # is normally done by the rpm packaging system.

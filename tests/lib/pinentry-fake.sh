@@ -1,5 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
 set -e
+
 echo "OK Pleased to meet you"
 while true; do
     read -r line

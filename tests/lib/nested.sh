@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+# shellcheck source=tests/lib/systemd.sh
 . $TESTSLIB/systemd.sh
 
 wait_for_ssh(){
@@ -24,7 +26,7 @@ create_assertions_disk(){
     mkfs.ext4 -F assertions.disk
     mkdir /mnt/assertions
     mount -t ext4 -o loop assertions.disk /mnt/assertions
-    cp $TESTSLIB/assertions/auto-import.assert /mnt/assertions
+    cp "$TESTSLIB/assertions/auto-import.assert" /mnt/assertions
     umount /mnt/assertions && rm -rf /mnt/assertions
 }
 
@@ -45,7 +47,7 @@ create_nested_core_vm(){
 
     # create ubuntu-core image
     mkdir -p /tmp/work-dir
-    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
+    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
     create_assertions_disk
