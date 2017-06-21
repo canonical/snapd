@@ -120,7 +120,7 @@ execute: |
             cat owned-read.err | MATCH "Permission denied"
         done
         for readable_file in $READABLE_FILES; do
-            if su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-read.err" test; then
+            if [ -f "$readable_file" ] && su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-read.err" test; then
                 echo "Expected error with disconnected plug didn't happen"
                 exit 1
             fi
