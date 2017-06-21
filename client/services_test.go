@@ -114,3 +114,53 @@ func (cs *clientSuite) TestClientServiceOp(c *check.C) {
 		Action:   "an-action",
 	})
 }
+
+func (cs *clientSuite) TestServiceOpDescriptionStartOne(c *check.C) {
+	c.Check(client.ServiceOp{Action: "start", Services: []string{"foo"}}.Description(), check.Equals, "Start service foo.")
+}
+
+func (cs *clientSuite) TestServiceOpDescriptionStartTwo(c *check.C) {
+	c.Check(client.ServiceOp{Action: "start", Services: []string{"foo", "bar"}}.Description(), check.Equals, "Start services foo and bar.")
+}
+
+func (cs *clientSuite) TestServiceOpDescriptionStartThree(c *check.C) {
+	c.Check(client.ServiceOp{Action: "start", Services: []string{"foo", "bar", "baz"}}.Description(), check.Equals, "Start services foo, bar and baz.")
+}
+
+func (cs *clientSuite) TestPosetServicesStop(c *check.C) {
+	c.Check(client.ServiceOp{Action: "stop", Services: []string{"foo"}}.Description(), check.Equals, "Stop service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesRestart(c *check.C) {
+	c.Check(client.ServiceOp{Action: "restart", Services: []string{"foo"}}.Description(), check.Equals, "Restart service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesReload(c *check.C) {
+	c.Check(client.ServiceOp{Action: "reload", Services: []string{"foo"}}.Description(), check.Equals, "Reload service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesReloadOrRestart(c *check.C) {
+	c.Check(client.ServiceOp{Action: "try-reload-or-restart", Services: []string{"foo"}}.Description(), check.Equals, "Try to reload or restart service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesEnable(c *check.C) {
+	c.Check(client.ServiceOp{Action: "enable", Services: []string{"foo"}}.Description(), check.Equals, "Enable service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesDisable(c *check.C) {
+	c.Check(client.ServiceOp{Action: "disable", Services: []string{"foo"}}.Description(), check.Equals, "Disable service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesEnableNow(c *check.C) {
+	c.Check(client.ServiceOp{Action: "enable-now", Services: []string{"foo"}}.Description(), check.Equals, "Enable and start service foo.")
+}
+
+func (cs *clientSuite) TestPosetServicesDisableNow(c *check.C) {
+	c.Check(client.ServiceOp{Action: "disable-now", Services: []string{"foo"}}.Description(), check.Equals, "Stop and disable service foo.")
+
+}
+
+func (cs *clientSuite) TestPosetServicesPotato(c *check.C) {
+	c.Check(client.ServiceOp{Action: "potato", Services: []string{"foo"}}.Description(), check.Equals, "Potato service foo.")
+
+}

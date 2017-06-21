@@ -22,9 +22,11 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strings"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -32,6 +34,52 @@ import (
 type ServiceOp struct {
 	Services []string `json:"services,omitempty"`
 	Action   string   `json:"action"`
+}
+
+func (op ServiceOp) Description() string {
+	var verb string
+	switch op.Action {
+	case "enable-now":
+		verb = i18n.G("Enable and start")
+	case "disable-now":
+		verb = i18n.G("Stop and disable")
+	case "try-reload-or-restart":
+		verb = i18n.G("Try to reload or restart")
+	case "reload":
+		// the following are spelled out so xgettext finds them
+		verb = i18n.G("Reload")
+	case "start":
+		verb = i18n.G("Start")
+	case "stop":
+		verb = i18n.G("Stop")
+	case "enable":
+		verb = i18n.G("Enable")
+	case "disable":
+		verb = i18n.G("Disable")
+	case "restart":
+		verb = i18n.G("Restart")
+	default:
+		verb = strings.Title(op.Action)
+	}
+
+	if len(op.Services) == 0 {
+		// not currently supported
+		// TRANSLATORS: %s is the verb ("Stop", "Restart", etc)
+		return fmt.Sprintf(i18n.G("%s all services."), verb)
+	}
+
+	// TRANSLATORS: first %s is the verb ("Stop", "Restart", etc),
+	// second %s is list of service names ("a-snap.a-service, a-snap.b-service and %s")
+	tpl := i18n.NG("%s service %s.", "%s services %s.", uint32(len(op.Services)%1000000))
+
+	if len(op.Services) == 1 {
+		return fmt.Sprintf(tpl, verb, op.Services[0])
+	}
+
+	return fmt.Sprintf(tpl, verb,
+		// TRANSLATORS: first %s is a comma-separated list; second %s is the last element in the list
+		fmt.Sprintf(i18n.G("%s and %s"), strings.Join(op.Services[:len(op.Services)-1], ", "), op.Services[len(op.Services)-1]))
+
 }
 
 // A Service is a description of a service's status in the system

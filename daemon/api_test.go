@@ -5652,7 +5652,7 @@ EOF
 	})
 }
 
-func (s *svcSuite) testPostServices(c *check.C, action string, services []string, changeSummary string, systemctlCall []string) {
+func (s *svcSuite) testPostServices(c *check.C, action string, services []string, systemctlCall []string) *state.Change {
 	postBody, err := json.Marshal(client.ServiceOp{Action: action, Services: services})
 	c.Assert(err, check.IsNil)
 
@@ -5670,55 +5670,58 @@ func (s *svcSuite) testPostServices(c *check.C, action string, services []string
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Tasks(), check.HasLen, 1)
 	st.Unlock()
-	c.Check(chg.Summary(), check.Equals, changeSummary)
 	<-chg.Ready()
 
 	c.Check(s.cmd.Calls(), check.DeepEquals, [][]string{systemctlCall})
+	return chg
 }
 
 func (s *svcSuite) TestPostServicesStartOne(c *check.C) {
-	s.testPostServices(c, "start", []string{"snap-a.app2"}, "Starting service snap-a.app2.", []string{"systemctl", "start", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "start", []string{"snap-a.app2"}, []string{"systemctl", "start", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPostServicesStartTwo(c *check.C) {
-	s.testPostServices(c, "start", []string{"snap-a"}, "Starting services snap-a.app1 and snap-a.app2.", []string{"systemctl", "start", "snap.snap-a.app1.service", "snap.snap-a.app2.service"})
+	chg := s.testPostServices(c, "start", []string{"snap-a"}, []string{"systemctl", "start", "snap.snap-a.app1.service", "snap.snap-a.app2.service"})
+	// check the summary expands the snap into actual services
+	c.Check(chg.Summary(), check.Equals, "Start services snap-a.app1 and snap-a.app2.")
 }
 
 func (s *svcSuite) TestPostServicesStartThree(c *check.C) {
-	s.testPostServices(c, "start", []string{"snap-a", "snap-b"}, "Starting services snap-a.app1, snap-a.app2 and snap-b.app3.", []string{"systemctl", "start", "snap.snap-a.app1.service", "snap.snap-a.app2.service", "snap.snap-b.app3.service"})
+	chg := s.testPostServices(c, "start", []string{"snap-a", "snap-b"}, []string{"systemctl", "start", "snap.snap-a.app1.service", "snap.snap-a.app2.service", "snap.snap-b.app3.service"})
+	// check the summary expands the snap into actual services
+	c.Check(chg.Summary(), check.Equals, "Start services snap-a.app1, snap-a.app2 and snap-b.app3.")
 }
 
 func (s *svcSuite) TestPosetServicesStop(c *check.C) {
-	s.testPostServices(c, "stop", []string{"snap-a.app2"}, "Stopping service snap-a.app2.", []string{"systemctl", "stop", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "stop", []string{"snap-a.app2"}, []string{"systemctl", "stop", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesRestart(c *check.C) {
-	s.testPostServices(c, "restart", []string{"snap-a.app2"}, "Restarting service snap-a.app2.", []string{"systemctl", "restart", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "restart", []string{"snap-a.app2"}, []string{"systemctl", "restart", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesReload(c *check.C) {
-	s.testPostServices(c, "reload", []string{"snap-a.app2"}, "Reloading service snap-a.app2.", []string{"systemctl", "reload", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "reload", []string{"snap-a.app2"}, []string{"systemctl", "reload", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesReloadOrRestart(c *check.C) {
-	s.testPostServices(c, "try-reload-or-restart", []string{"snap-a.app2"}, "Trying to reload or restart service snap-a.app2.", []string{"systemctl", "try-reload-or-restart", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "try-reload-or-restart", []string{"snap-a.app2"}, []string{"systemctl", "try-reload-or-restart", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesEnable(c *check.C) {
-	s.testPostServices(c, "enable", []string{"snap-a.app2"}, "Enabling service snap-a.app2.", []string{"systemctl", "enable", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "enable", []string{"snap-a.app2"}, []string{"systemctl", "enable", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesDisable(c *check.C) {
-	s.testPostServices(c, "disable", []string{"snap-a.app2"}, "Disabling service snap-a.app2.", []string{"systemctl", "disable", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "disable", []string{"snap-a.app2"}, []string{"systemctl", "disable", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesEnableNow(c *check.C) {
-	s.testPostServices(c, "enable-now", []string{"snap-a.app2"}, "Enabling and starting service snap-a.app2.", []string{"systemctl", "enable", "--now", "snap.snap-a.app2.service"})
+	s.testPostServices(c, "enable-now", []string{"snap-a.app2"}, []string{"systemctl", "enable", "--now", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPosetServicesDisableNow(c *check.C) {
-	s.testPostServices(c, "disable-now", []string{"snap-a.app2"}, "Stopping and disabling service snap-a.app2.", []string{"systemctl", "disable", "--now", "snap.snap-a.app2.service"})
-
+	s.testPostServices(c, "disable-now", []string{"snap-a.app2"}, []string{"systemctl", "disable", "--now", "snap.snap-a.app2.service"})
 }
 
 func (s *svcSuite) TestPostServicesBadJSON(c *check.C) {

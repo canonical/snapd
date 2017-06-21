@@ -2670,7 +2670,6 @@ func changeServices(c *Command, r *http.Request, user *auth.UserState) Response 
 		return InternalError("no services found")
 	}
 
-	var presentParticiple string
 	argv := make([]string, 2, 3+len(appInfos))
 	argv[0] = "systemctl"
 	argv[1] = inst.Action
@@ -2679,30 +2678,17 @@ func changeServices(c *Command, r *http.Request, user *auth.UserState) Response 
 	case "enable-now":
 		argv[1] = "enable"
 		argv = append(argv, "--now")
-		presentParticiple = "Enabling and starting"
 	case "disable-now":
 		argv[1] = "disable"
 		argv = append(argv, "--now")
-		presentParticiple = "Stopping and disabling"
 	case "reload":
 		for _, appInfo := range appInfos {
 			if appInfo.ReloadCommand == "" {
 				return BadRequest("app %q from snap %q has no reload command", appInfo.Name, appInfo.Snap.Name())
 			}
 		}
-		presentParticiple = "Reloading"
-	case "try-reload-or-restart":
-		presentParticiple = "Trying to reload or restart"
-	case "start":
-		presentParticiple = "Starting"
-	case "stop":
-		presentParticiple = "Stopping"
-	case "enable":
-		presentParticiple = "Enabling"
-	case "disable":
-		presentParticiple = "Disabling"
-	case "restart":
-		presentParticiple = "Restarting"
+	case "try-reload-or-restart", "start", "stop", "enable", "disable", "restart":
+		// OK
 	default:
 		return BadRequest("unknown action %q", inst.Action)
 	}
@@ -2713,13 +2699,8 @@ func changeServices(c *Command, r *http.Request, user *auth.UserState) Response 
 		names[i] = svc.Snap.Name() + "." + svc.Name
 	}
 
-	var desc string
-	if len(names) == 1 {
-		desc = presentParticiple + " service " + names[0] + "."
-	} else {
-		names, last := names[:len(names)-1], names[len(names)-1]
-		desc = presentParticiple + " services " + strings.Join(names, ", ") + " and " + last + "."
-	}
+	// use the full names in the description
+	desc := client.ServiceOp{Action: inst.Action, Services: names}.Description()
 
 	st.Lock()
 	defer st.Unlock()
