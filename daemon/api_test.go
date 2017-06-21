@@ -5652,6 +5652,14 @@ EOF
 	})
 }
 
+func (s *svcSuite) TestGetServiceLogsFailsOnMulti(c *check.C) {
+	req, err := http.NewRequest("GET", "/v2/services?services=snap-a&logs=true", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getServices(aliasesCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 400)
+}
+
 func (s *svcSuite) testPostServices(c *check.C, action string, services []string, systemctlCall []string) *state.Change {
 	postBody, err := json.Marshal(client.ServiceOp{Action: action, Services: services})
 	c.Assert(err, check.IsNil)

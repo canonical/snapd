@@ -2616,6 +2616,10 @@ func getServices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
+	if withLogs && len(appInfos) != 1 {
+		return BadRequest("cannot get logs for more than one service")
+	}
+
 	services := make([]client.Service, len(appInfos))
 	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
 	for i, app := range appInfos {
