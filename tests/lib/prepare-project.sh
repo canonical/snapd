@@ -207,7 +207,7 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
 fi
 
 distro_purge_package snapd || true
-distro_install_package "${DISTRO_BUILD_DEPS[@]}"
+distro_install_package ${DISTRO_BUILD_DEPS[@]}
 
 # We take a special case for Debian/Ubuntu where we install additional build deps
 # base on the packaging. In Fedora/Suse this is handled via mock/osc
