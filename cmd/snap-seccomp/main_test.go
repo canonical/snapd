@@ -223,6 +223,15 @@ int main(int argc, char **argv) {
 }
 `)
 
+func lastKmsg() string {
+	output, err := exec.Command("dmesg").CombinedOutput()
+	if err != nil {
+		return err.Error()
+	}
+	l := strings.Split(string(output), "\n")
+	return l[len(l)-2]
+}
+
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// FIXME: we currently use a fork of x/net/bpf because of:
 	//   https://github.com/golang/go/issues/20556
@@ -284,7 +293,6 @@ exit
 	syscallNr, err := seccomp.GetSyscallFromName(l[0])
 	c.Assert(err, IsNil)
 	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
-
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
 		for i := range args {
@@ -308,7 +316,7 @@ exit
 	switch expected {
 	case main.SeccompRetAllow:
 		if err != nil {
-			c.Fatalf("unexpected error for %q (failed to run): %s", seccompWhitelist, err)
+			c.Fatalf("unexpected error for %q (failed to run %q): %s", seccompWhitelist, lastKmsg(), err)
 		}
 	case main.SeccompRetKill:
 		if err == nil {
