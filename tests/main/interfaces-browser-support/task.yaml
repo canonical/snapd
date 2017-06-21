@@ -72,8 +72,12 @@ execute: |
     for readable_file in $READABLE_FILES; do
         parent_dir=$(dirname $readable_file)
         if [ ! -d $parent_dir ]; then
-            mkdir -p $parent_dir
-            echo "$parent_dir" >> created_dirs
+            if mkdir -p $parent_dir; then
+                echo "$parent_dir" >> created_dirs
+            else
+                echo "$parent_dir couldn't be created, write-only partition?"
+                continue
+            fi
         fi
         echo "test" | tee $readable_file
         su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file" test | MATCH test
