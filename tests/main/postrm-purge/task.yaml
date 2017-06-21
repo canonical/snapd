@@ -15,7 +15,7 @@ execute: |
     # as we have a generic one we can use cross-distro we need to
     # change this.
     if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
-        ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
+        sh ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
             --snap-mount-dir=$SNAPMOUNTDIR \
             --purge
     else
