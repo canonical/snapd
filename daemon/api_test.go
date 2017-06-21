@@ -2424,7 +2424,9 @@ func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 		"status":      "Not Found",
 		"result": map[string]interface{}{
 			"message": "no state entry for key",
-			"kind":    "snap-not-found"},
+			"kind":    "snap-not-found",
+			"value":   "config-snap",
+		},
 		"type": "error"})
 }
 

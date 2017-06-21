@@ -461,7 +461,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 
 		return InternalError("%v", err)
@@ -613,7 +613,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
 		if err == store.ErrSnapNotFound {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1111,7 +1111,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	switch err {
 	case store.ErrSnapNotFound:
-		return SnapNotFound(err)
+		return SnapNotFound(inst.Snaps[0], err)
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1491,7 +1491,7 @@ func iconGet(st *state.State, name string) Response {
 	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1573,7 +1573,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		if err == state.ErrNoState {
-			return SnapNotFound(err)
+			return SnapNotFound(snapName, err)
 		} else {
 			return InternalError("%v", err)
 		}
@@ -2594,7 +2594,7 @@ func appInfosFor(st *state.State, names []string) ([]*snap.AppInfo, Response) {
 	for k := range requested {
 		if !found[k] {
 			if snapNames[k] {
-				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
 			} else {
 				snap, svc := splitSvcName(k)
 				return nil, AppNotFound("snap %q has no service %q", snap, svc)
