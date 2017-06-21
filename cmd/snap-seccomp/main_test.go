@@ -252,6 +252,9 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 }
 
 func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput string, expected int) {
+	// Common syscalls we need to allow for a minimal statically linked
+	// c program.
+	//
 	// If we compile a test program for each test we can get aways with
 	// a even smaller set of syscalls: execve,exit essentially. But it
 	// means a much longer test run (30s vs 2s). Commit d288d89 contains
@@ -266,36 +269,38 @@ access
 sysinfo
 exit
 `
-
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
-	// syscall;arch;arg1,arg2...
+	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
 	if len(l) > 1 && l[1] != "native" {
 		c.Skip("cannot use non-native in runBpfInKernel")
 		return
 	}
-	var syscallArgs [6]uint64
+
+	var syscallRunnerArgs [7]string
+	syscallNr, err := seccomp.GetSyscallFromName(l[0])
+	c.Assert(err, IsNil)
+	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
+
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
 		for i := range args {
 			// init with random number argument
-			syscallArgs[i] = (uint64)(rand.Uint32())
+			syscallArg := (uint64)(rand.Uint32())
 			// override if the test specifies a specific number
 			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
-				syscallArgs[i] = nr
+				syscallArg = nr
 			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
-				syscallArgs[i] = nr
+				syscallArg = nr
 			}
+			syscallRunnerArgs[i+1] = strconv.FormatUint(syscallArg, 10)
 		}
 	}
 
-	syscallNr, err := seccomp.GetSyscallFromName(l[0])
-	c.Assert(err, IsNil)
-
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, strconv.FormatInt(int64(syscallNr), 10), strconv.FormatUint(syscallArgs[0], 10), strconv.FormatUint(syscallArgs[1], 10), strconv.FormatUint(syscallArgs[2], 10), strconv.FormatUint(syscallArgs[3], 10), strconv.FormatUint(syscallArgs[4], 10), strconv.FormatUint(syscallArgs[5], 10))
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
