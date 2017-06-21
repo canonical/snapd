@@ -149,6 +149,7 @@ import (
 	"github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h
@@ -382,22 +383,22 @@ const (
 // the seccomp.ScmpArch as used in the libseccomp-golang library
 func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 	switch ubuntuArch {
-	case "i386":
-		return seccomp.ArchX86
 	case "amd64":
 		return seccomp.ArchAMD64
-	case "armhf":
-		return seccomp.ArchARM
 	case "arm64":
 		return seccomp.ArchARM64
+	case "armhf":
+		return seccomp.ArchARM
+	case "i386":
+		return seccomp.ArchX86
+	case "powerpc":
+		return seccomp.ArchPPC
 	case "ppc64":
 		return seccomp.ArchPPC64
 	case "ppc64el":
 		return seccomp.ArchPPC64LE
 	case "s390x":
 		return seccomp.ArchS390X
-	case "powerpc":
-		return seccomp.ArchPPC
 	}
 	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
 }
@@ -407,22 +408,22 @@ func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 // the tests to simulate the bpf kernel behaviour.
 func ScmpArchToSeccompNativeArch(scmpArch seccomp.ScmpArch) uint32 {
 	switch scmpArch {
-	case seccomp.ArchX86:
-		return C.SCMP_ARCH_X86
 	case seccomp.ArchAMD64:
 		return C.SCMP_ARCH_X86_64
-	case seccomp.ArchARM:
-		return C.SCMP_ARCH_ARM
 	case seccomp.ArchARM64:
 		return C.SCMP_ARCH_AARCH64
+	case seccomp.ArchARM:
+		return C.SCMP_ARCH_ARM
 	case seccomp.ArchPPC64:
 		return C.SCMP_ARCH_PPC64
 	case seccomp.ArchPPC64LE:
 		return C.SCMP_ARCH_PPC64LE
-	case seccomp.ArchS390X:
-		return C.SCMP_ARCH_S390X
 	case seccomp.ArchPPC:
 		return C.SCMP_ARCH_PPC
+	case seccomp.ArchS390X:
+		return C.SCMP_ARCH_S390X
+	case seccomp.ArchX86:
+		return C.SCMP_ARCH_X86
 	}
 	panic(fmt.Sprintf("cannot map scmpArch %q to a native seccomp arch", scmpArch))
 }
@@ -562,15 +563,15 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 			compatArch = seccomp.ArchPPC
 		}
 	} else {
-		// less common case, kernel and userspace
-		// different. This can happen when running e.g. a
-		// amd64 kernel with a i386 userland. However in this
-		// case snapd would also only request i386 snaps. So
-		// the use-case is even stranger (from a distro
-		// perspective), a i386 snap would have to ship some
-		// 64bit code that would have to detect at runtime if
-		// it can be used or not. But we are told this is not
-		// rare with certain classes of embedded devices.
+		// less common case: kernel and userspace have different archs
+		// so add a compat architecture that matches the kernel. E.g.
+		// an amd64 kernel with i386 userland needs the amd64 secondary
+		// arch added to support specialized snaps that might
+		// conditionally call 64bit code when the kernel supports it.
+		// Note that in this case snapd requests i386 (or arch 'all')
+		// snaps. While unusual from a traditional Linux distribution
+		// perspective, certain classes of embedded devices are known
+		// to use this configuration.
 		compatArch = UbuntuArchToScmpArch(archUbuntuKernelArchitecture())
 	}
 
@@ -585,7 +586,6 @@ func hasLine(content []byte, needle string) bool {
 	for _, line := range bytes.Split(content, []byte("\n")) {
 		if bytes.Equal(bytes.TrimSpace(line), []byte(needle)) {
 			return true
-
 		}
 	}
 	return false
@@ -611,6 +611,7 @@ func compile(content []byte, out string) error {
 		if err := addSecondaryArches(secFilter); err != nil {
 			return err
 		}
+
 		scanner := bufio.NewScanner(bytes.NewBuffer(content))
 		for scanner.Scan() {
 			if err := parseLine(scanner.Text(), secFilter); err != nil {
@@ -628,12 +629,14 @@ func compile(content []byte, out string) error {
 	}
 	defer fout.Close()
 
-	//secFilter.ExportPFC(os.Stdout)
+	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
+		secFilter.ExportPFC(os.Stdout)
+	}
 
 	return secFilter.ExportBPF(fout)
 }
 
-func showVersion() error {
+func showSeccompLibraryVersion() error {
 	major, minor, micro := seccomp.GetLibraryVersion()
 	fmt.Fprintf(os.Stdout, "seccomp version: %d.%d.%d\n", major, minor, micro)
 	return nil
@@ -651,8 +654,8 @@ func main() {
 			break
 		}
 		err = compile(content, os.Args[3])
-	case "version":
-		err = showVersion()
+	case "library-version":
+		err = showSeccompLibraryVersion()
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}

@@ -131,14 +131,16 @@ func nativeEndian() binary.ByteOrder {
 
 // simulateBpf:
 //  1. runs main.Compile() which will catch syntax errors and output to a file
-//  2. takes the output file from main.Compile and loads it via decodeBpfFromFIle
-//  3. parses the decoded bpf
+//  2. takes the output file from main.Compile and loads it via
+//     decodeBpfFromFile
+//  3. parses the decoded bpf using the seccomp library and various
+//     snapd functions
 //  4. runs the parsed bpf through a bpf VM
 //
 // In this manner, in addition to verifying policy syntax we are able to
 // unit test the resulting bpf in several ways approximating the kernels
-// behaviour (approximating because this parser is not the kernel seccomp
-// parser.
+// behaviour (approximating because this parser is not the kernel's seccomp
+// parser).
 //
 // Full testing of applied policy is done elsewhere via spread tests.
 func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
@@ -169,13 +171,19 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	bpf.VmEndianness = nativeEndian()
 }
 
-// TestCompile will test the input from our textual seccomp whitelist
-// against a kernel syscall input that may contain arguments. The test
-// is performed by running the compiled bpf program on a virtual bpf
-// machine. Each test needs to declare what output from the VM it expects.
+// TestCompile iterates over a range of textual seccomp whitelist rules and
+// mocked kernel syscall input. For each rule, the test consists of compiling
+// the rule into a bpf program and then running that program on a virtual bpf
+// machine and comparing the bpf machine output to the specified expected
+// output and seccomp operation. Eg:
+//    {"<rule>", "<mocked kernel input>", <seccomp result>}
 //
-// This output is usually main.SeccompRet{Allow,Kill}. It is recommended
-// to test the allow and kill case for each new syscall and each argument.
+// Eg to test that the rule 'read >=2' is allowed with 'read(2)' and 'read(3)'
+// and denied with 'read(1)' and 'read(0)', add the following tests:
+//    {"read >=2", "read;native;2", main.SeccompRetAllow},
+//    {"read >=2", "read;native;3", main.SeccompRetAllow},
+//    {"read >=2", "read;native;1", main.SeccompRetKill},
+//    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	for _, t := range []struct {
 		seccompWhitelist string
@@ -344,6 +352,13 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"ioctl - TIOCST", `cannot parse line: cannot parse token "TIOCST" .*`},
 		{"ioctl - TIOCSTII", `cannot parse line: cannot parse token "TIOCSTII" .*`},
 		{"ioctl - TIOCST1", `cannot parse line: cannot parse token "TIOCST1" .*`},
+		// ensure missing numbers are caught
+		{"setpriority >", `cannot parse line: cannot parse token ">" .*`},
+		{"setpriority >=", `cannot parse line: cannot parse token ">=" .*`},
+		{"setpriority <", `cannot parse line: cannot parse token "<" .*`},
+		{"setpriority <=", `cannot parse line: cannot parse token "<=" .*`},
+		{"setpriority |", `cannot parse line: cannot parse token "|" .*`},
+		{"setpriority !", `cannot parse line: cannot parse token "!" .*`},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.inp), outPath)
