@@ -27,7 +27,7 @@ check-syntax-c:
 
 # Check for common shell errors
 .PHONY: check-syntax-sh
-check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*)) snap-confine/tests/common.sh
+check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*))
 if HAVE_SHELLCHECK
 	$(HAVE_SHELLCHECK) -x --format=gcc $^
 else
