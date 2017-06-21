@@ -117,7 +117,7 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	      ref_dir);
 	sc_quirk_setup_tmpfs(mimic_dir);
 
-        // Now copy the ownership and permissions of the mimicked directory
+	// Now copy the ownership and permissions of the mimicked directory
 	struct stat stat_buf;
 	if (stat(ref_dir, &stat_buf) < 0) {
 		die("cannot stat %s", ref_dir);
