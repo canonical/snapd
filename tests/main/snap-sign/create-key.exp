@@ -1,9 +1,11 @@
 spawn snap create-key
 
 expect "Passphrase: "
+sleep .5
 send "pass\n"
 
 expect "Confirm passphrase: "
+sleep .5
 send "pass\n"
 
 set status [wait]
