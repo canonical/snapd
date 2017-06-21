@@ -38,7 +38,7 @@ execute: |
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    distro_install_local_package --allow-downgrades $GOHOME/snapd*.deb
+    distro_install_local_package --allow-downgrades "$GOHOME"/snapd*.deb
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
@@ -54,7 +54,9 @@ execute: |
     # plumbing for that into the snap command.
     if [ -e /sys/kernel/security/apparmor ]; then
         echo Hello > /var/tmp/myevil.txt
-        test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+        if test-snapd-tools.cat /var/tmp/myevil.txt; then
+            exit 1
+        fi
     fi
 
     # check that automatic aliases survived
