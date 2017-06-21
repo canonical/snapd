@@ -49,7 +49,8 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type snapSeccompSuite struct {
-	seccompHelper string
+	seccompBpfLoader     string
+	seccompSyscallRunner string
 }
 
 var _ = Suite(&snapSeccompSuite{})
@@ -133,7 +134,7 @@ func nativeEndian() binary.ByteOrder {
 	}
 }
 
-var seccompHelperContent = []byte(`
+var seccompBpfLoaderContent = []byte(`
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -208,27 +209,61 @@ int main(int argc, char *argv[])
 }
 `)
 
+var seccompSyscallRunnerContent = []byte(`
+#define _GNU_SOURCE
+#include<unistd.h>
+#include<sys/syscall.h>
+#include<stdlib.h>
+int main(int argc, char **argv) {
+   int l[7];
+   for (int i=0; i<7;i++)
+      l[i] = atoi(argv[i+1]);
+   syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+   syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+}
+`)
+
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// FIXME: we currently use a fork of x/net/bpf because of:
 	//   https://github.com/golang/go/issues/20556
 	// switch to x/net/bpf once we can simulate seccomp bpf there
 	bpf.VmEndianness = nativeEndian()
 
-	s.seccompHelper = filepath.Join(c.MkDir(), "seccomp_helper")
-	err := ioutil.WriteFile(s.seccompHelper+".c", seccompHelperContent, 0644)
+	// build seccomp-load helper
+	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
+	err := ioutil.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
 	c.Assert(err, IsNil)
-
-	// build seccomp helper
-	cmd := exec.Command("gcc", "-Wall", s.seccompHelper+".c", "-o", s.seccompHelper)
+	cmd := exec.Command("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	c.Assert(err, IsNil)
+
+	// build syscall-runner helper
+	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
+	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
+	c.Assert(err, IsNil)
+	cmd = exec.Command("gcc", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
+
 }
 
 func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput string, expected int) {
+	// If we compile a test program for each test we can get aways with
+	// a even smaller set of syscalls: execve,exit essentially. But it
+	// means a much longer test run (30s vs 2s). Commit d288d89 contains
+	// the code for this.
 	common := `
 execve
+uname
+brk
+arch_prctl
+readlink
+access
+sysinfo
 exit
 `
 
@@ -257,27 +292,10 @@ exit
 		}
 	}
 
-	content := fmt.Sprintf(`
-#define _GNU_SOURCE
-#include<unistd.h>
-#include<sys/syscall.h>
-void __syscall_error() {};
-void _start() {
-syscall(SYS_%v, %v, %v, %v, %v, %v, %v);
-syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
-}
-`, l[0], syscallArgs[0], syscallArgs[1], syscallArgs[2], syscallArgs[3], syscallArgs[4], syscallArgs[5])
-
-	testC := filepath.Join(c.MkDir(), "test")
-	err = ioutil.WriteFile(testC+".c", []byte(content), 0644)
-	c.Assert(err, IsNil)
-	cmd := exec.Command("gcc", "-Wall", "-Werror", testC+".c", "-o", testC, "-static", "-static-libgcc", "-nostdlib", "-lc")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	syscallNr, err := seccomp.GetSyscallFromName(l[0])
 	c.Assert(err, IsNil)
 
-	cmd = exec.Command(s.seccompHelper, bpfPath, testC)
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, strconv.FormatInt(int64(syscallNr), 10), strconv.FormatUint(syscallArgs[0], 10), strconv.FormatUint(syscallArgs[1], 10), strconv.FormatUint(syscallArgs[2], 10), strconv.FormatUint(syscallArgs[3], 10), strconv.FormatUint(syscallArgs[4], 10), strconv.FormatUint(syscallArgs[5], 10))
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
