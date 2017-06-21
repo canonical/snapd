@@ -277,6 +277,8 @@ readlink
 access
 sysinfo
 exit
+# i386
+set_thread_area
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
@@ -285,7 +287,11 @@ exit
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
 	if len(l) > 1 && l[1] != "native" {
-		c.Skip("cannot use non-native in runBpfInKernel")
+		c.Logf("cannot use non-native in runBpfInKernel")
+		return
+	}
+	if strings.Contains(bpfInput, "PR_SET_ENDIAN") {
+		c.Logf("cannot run PR_SET_ENDIAN in runBpfInKernel, this actually switches the endianess and the program crashes")
 		return
 	}
 
@@ -320,7 +326,7 @@ exit
 		}
 	case main.SeccompRetKill:
 		if err == nil {
-			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+			c.Fatalf("unexpected success for %q %q (ran but should have failed %s)", seccompWhitelist, bpfInput, lastKmsg())
 		}
 	default:
 		c.Fatalf("unknown expected result %v", expected)
