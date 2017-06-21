@@ -236,7 +236,7 @@ func (s *systemd) Status(serviceName string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState), nil
+	return status.StatusString(), nil
 }
 
 // A ServiceStatus holds structured service status information.
@@ -246,6 +246,10 @@ type ServiceStatus struct {
 	ActiveState     string `json:"active-state"`
 	SubState        string `json:"sub-state"`
 	UnitFileState   string `json:"unit-file-state"`
+}
+
+func (status *ServiceStatus) StatusString() string {
+	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState)
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {

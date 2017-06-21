@@ -129,6 +129,7 @@ const (
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
@@ -250,13 +251,30 @@ var (
 	Conflict         = makeErrorResponder(409)
 )
 
-func SnapNotFound(err error) Response {
+// SnapNotFound is an error responder used when an operation is
+// requested on a snap that doesn't exist.
+func SnapNotFound(snapName string, err error) Response {
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
 		},
+		Status: 404,
+	}
+}
+
+// AppNotFound is an error responder used when an operation is
+// requested on a app that doesn't exist.
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
 		Status: 404,
 	}
 }
