@@ -100,19 +100,17 @@ func (cs *clientSuite) TestClientServiceGetSad(c *check.C) {
 
 func (cs *clientSuite) TestClientServiceOp(c *check.C) {
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
-	id, err := cs.cli.ServiceOp("an-action", []string{"foo", "bar"})
+	op := &client.ServiceOp{Action: "an-action", Services: []string{"foo", "bar"}}
+	id, err := cs.cli.RunServiceOp(op)
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "24")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/services")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Query(), check.HasLen, 0)
 
-	var svcOp client.ServiceOp
-	c.Assert(json.NewDecoder(cs.req.Body).Decode(&svcOp), check.IsNil)
-	c.Check(svcOp, check.DeepEquals, client.ServiceOp{
-		Services: []string{"foo", "bar"},
-		Action:   "an-action",
-	})
+	var reqOp client.ServiceOp
+	c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil)
+	c.Check(reqOp, check.DeepEquals, *op)
 }
 
 func (cs *clientSuite) TestServiceOpDescriptionStartOne(c *check.C) {

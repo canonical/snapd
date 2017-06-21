@@ -116,8 +116,8 @@ func (client *Client) ServiceLogs(serviceNames []string) ([]Service, error) {
 }
 
 // ServiceOp asks to perform an operation on a series of services, by name.
-func (client *Client) ServiceOp(action string, services []string) (changeID string, err error) {
-	buf, err := json.Marshal(&ServiceOp{Action: action, Services: services})
+func (client *Client) RunServiceOp(op *ServiceOp) (changeID string, err error) {
+	buf, err := json.Marshal(op)
 	if err != nil {
 		return "", err
 	}
