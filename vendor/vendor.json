@@ -85,12 +85,6 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
-			"checksumSHA1": "eH7CaLQnq+73vvqU0MxppwtV8lA=",
-			"path": "github.com/seccomp/libseccomp-golang",
-			"revision": "84e90a91acea0f4e51e62bc1a75de18b1fc0790f",
-			"revisionTime": "2017-04-20T15:08:39Z"
-		},
-		{
 			"checksumSHA1": "G1Zy6KNKWSz6Nx6GAgaKM2yPDLg=",
 			"path": "github.com/testing-cabal/subunit-go",
 			"revision": "00b258565a5cf3adaa24b68d31c9e6ec3d2cdbe7",
