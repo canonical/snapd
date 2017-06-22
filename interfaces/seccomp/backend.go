@@ -28,7 +28,7 @@
 // There is no binary cache for seccomp, each time the launcher starts an
 // application the profile is parsed and re-compiled.
 //
-// The actual profiles are stored in /var/lib/snappy/seccomp/profiles.
+// The actual profiles are stored in /var/lib/snappy/seccomp/bpf/*.{src,bin}.
 // This directory is hard-coded in ubuntu-core-launcher.
 package seccomp
 
@@ -36,13 +36,39 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+var osReadlink = os.Readlink
+
+func seccompToBpfPath() string {
+	// FIXME: use cmd.InternalToolPath here once:
+	//   https://github.com/snapcore/snapd/pull/3512
+	// is merged
+	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
+		return snapSeccomp
+	}
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return snapSeccomp
+	}
+
+	// if we are re-execed, then snap-seccomp is at the same location
+	// as snapd
+	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
+}
 
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
@@ -81,6 +107,18 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
+
+	for baseName := range content {
+		in := filepath.Join(dirs.SnapSeccompDir, baseName)
+		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
+
+		seccompToBpf := seccompToBpfPath()
+		cmd := exec.Command(seccompToBpf, "compile", in, out)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
 	return nil
 }
 
@@ -136,7 +174,8 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(bindSyscallWorkaround)
 	}
 
-	content[securityTag] = &osutil.FileState{
+	path := fmt.Sprintf("%s.src", securityTag)
+	content[path] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
