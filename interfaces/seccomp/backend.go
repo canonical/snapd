@@ -28,7 +28,7 @@
 // There is no binary cache for seccomp, each time the launcher starts an
 // application the profile is parsed and re-compiled.
 //
-// The actual profiles are stored in /var/lib/snappy/seccomp/profiles.bpf.
+// The actual profiles are stored in /var/lib/snappy/seccomp/bpf/*.{src,bin}.
 // This directory is hard-coded in ubuntu-core-launcher.
 package seccomp
 
@@ -110,7 +110,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
-		out := filepath.Join(dirs.SnapSeccompDir, baseName+".bpf")
+		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
 
 		seccompToBpf := seccompToBpfPath()
 		cmd := exec.Command(seccompToBpf, "compile", in, out)
@@ -174,7 +174,8 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(bindSyscallWorkaround)
 	}
 
-	content[securityTag] = &osutil.FileState{
+	path := fmt.Sprintf("%s.src", securityTag)
+	content[path] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
