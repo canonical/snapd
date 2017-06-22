@@ -36,6 +36,7 @@ type spiInterfaceSuite struct {
 
 	// OS Snap
 	testSlot1 *interfaces.Slot
+	testSlot2 *interfaces.Slot
 
 	// Gadget Snap
 	testUDev1             *interfaces.Slot
@@ -130,6 +131,7 @@ apps:
     plugs: [spi]
 `, nil)
 	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
+	s.testPlugPort2 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-2"]}
 }
 
 func (s *spiInterfaceSuite) TestName(c *C) {
@@ -149,8 +151,6 @@ func (s *spiInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
 	err = s.iface.SanitizeSlot(s.testUDev2)
 	c.Assert(err, IsNil)
 
-	err = s.iface.SanitizeSlot(s.testUDev3)
-	c.Assert(err, IsNil)
 }
 
 func (s *spiInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
