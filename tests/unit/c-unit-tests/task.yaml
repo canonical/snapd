@@ -22,7 +22,7 @@ execute: |
         EXTRA_CONF="--disable-apparmor --disable-seccomp"
     fi
     "$SPREAD_PATH/cmd/configure" \
-        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu "$EXTRA_CONF"
+        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu $EXTRA_CONF
     # Build and run unit tests
     make check
 restore: |
