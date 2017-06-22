@@ -870,8 +870,19 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{wr: w}
 }
 
-// append emits an already encoded assertion into the stream with a proper required separator.
-func (enc *Encoder) append(encoded []byte) error {
+func (enc *Encoder) writeSep(last byte) error {
+	if last != '\n' {
+		_, err := enc.wr.Write(nl)
+		if err != nil {
+			return err
+		}
+	}
+	enc.nextSep = nl
+	return nil
+}
+
+// WriteEncoded writes the encoded assertion into the stream with the required separator.
+func (enc *Encoder) WriteEncoded(encoded []byte) error {
 	sz := len(encoded)
 	if sz == 0 {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
@@ -887,22 +898,45 @@ func (enc *Encoder) append(encoded []byte) error {
 		return err
 	}
 
-	if encoded[sz-1] != '\n' {
-		_, err = enc.wr.Write(nl)
-		if err != nil {
-			return err
-		}
-	}
-	enc.nextSep = nl
+	return enc.writeSep(encoded[sz-1])
+}
 
-	return nil
+// WriteContentSignature writes the content and signature of an assertion into the stream with all the required separators.
+func (enc *Encoder) WriteContentSignature(content, signature []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("internal error: content cannot be empty")
+	}
+
+	sz := len(signature)
+	if sz == 0 {
+		return fmt.Errorf("internal error: signature cannot be empty")
+	}
+
+	_, err := enc.wr.Write(enc.nextSep)
+	if err != nil {
+		return err
+	}
+
+	_, err = enc.wr.Write(content)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(nlnl)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(signature)
+	if err != nil {
+		return err
+	}
+
+	return enc.writeSep(signature[sz-1])
 }
 
 // Encode emits the assertion into the stream with the required separator.
 // Errors here are always about writing given that Encode() itself cannot error.
 func (enc *Encoder) Encode(assert Assertion) error {
-	encoded := Encode(assert)
-	return enc.append(encoded)
+	return enc.WriteContentSignature(assert.Signature())
 }
 
 // SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.
