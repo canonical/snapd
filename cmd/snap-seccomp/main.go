@@ -640,7 +640,7 @@ func compile(content []byte, out string) error {
 
 func showSeccompLibraryVersion() error {
 	major, minor, micro := seccomp.GetLibraryVersion()
-	fmt.Fprintf(os.Stdout, "seccomp version: %d.%d.%d\n", major, minor, micro)
+	fmt.Fprintf(os.Stdout, "%d.%d.%d\n", major, minor, micro)
 	return nil
 }
 
@@ -648,9 +648,18 @@ func main() {
 	var err error
 	var content []byte
 
+	if len(os.Args) < 2 {
+		fmt.Printf("%s: need a command\n", os.Args[0])
+		os.Exit(1)
+	}
+
 	cmd := os.Args[1]
 	switch cmd {
 	case "compile":
+		if len(os.Args) < 4 {
+			fmt.Println("compile needs an input and output file")
+			os.Exit(1)
+		}
 		content, err = ioutil.ReadFile(os.Args[2])
 		if err != nil {
 			break
