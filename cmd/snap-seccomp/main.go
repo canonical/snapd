@@ -454,8 +454,6 @@ func readNumber(token string) (uint64, error) {
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
-	line = strings.TrimSpace(line)
-
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
@@ -587,45 +585,44 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
-func hasLine(content []byte, needle string) bool {
-	for _, line := range bytes.Split(content, []byte("\n")) {
-		if bytes.Equal(bytes.TrimSpace(line), []byte(needle)) {
-			return true
-		}
-	}
-	return false
-}
-
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	// FIXME: right now complain mode is the equivalent to unrestricted.
-	// We'll want to change this once we seccomp logging is in order.
-	if hasLine(content, "@unrestricted") || hasLine(content, "@complain") {
-		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
-	} else {
-		secFilter, err = seccomp.NewFilter(seccomp.ActKill)
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
+	secFilter, err = seccomp.NewFilter(seccomp.ActKill)
+	if err != nil {
+		return fmt.Errorf("cannot create seccomp filter: %s", err)
+	}
 
-		if err := addSecondaryArches(secFilter); err != nil {
-			return err
-		}
+	if err := addSecondaryArches(secFilter); err != nil {
+		return err
+	}
 
-		scanner := bufio.NewScanner(bytes.NewBuffer(content))
-		for scanner.Scan() {
-			if err := parseLine(scanner.Text(), secFilter); err != nil {
-				return fmt.Errorf("cannot parse line: %s", err)
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// FIXME: right now complain mode is the equivalent to
+		// unrestricted.  We'll want to change this once we
+		// seccomp logging is in order.
+		//
+		// special case: unrestricted means we switch to an allow-all
+		//               filter and are done
+		if line == "@unrestricted" || line == "@complain" {
+			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+			if err != nil {
+				return fmt.Errorf("cannot create seccomp filter: %s", err)
 			}
+			break
 		}
-		if scanner.Err(); err != nil {
-			return err
+
+		// look for regular syscall/arg rule
+		if err := parseLine(line, secFilter); err != nil {
+			return fmt.Errorf("cannot parse line: %s", err)
 		}
+	}
+	if scanner.Err(); err != nil {
+		return err
 	}
 
 	fout, err := os.Create(out)
