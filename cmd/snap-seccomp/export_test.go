@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,25 @@
  *
  */
 
-package seccomp
+package main
 
-// MockTemplate replaces seccomp template.
-//
-// NOTE: The real seccomp template is long. For testing it is convenient for
-// replace it with a shorter snippet.
-func MockTemplate(fakeTemplate []byte) (restore func()) {
-	orig := defaultTemplate
-	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+var (
+	Compile         = compile
+	SeccompResolver = seccompResolver
+)
+
+func MockArchUbuntuArchitecture(f func() string) (restore func()) {
+	realArchUbuntuArchitecture := archUbuntuArchitecture
+	archUbuntuArchitecture = f
+	return func() {
+		archUbuntuArchitecture = realArchUbuntuArchitecture
+	}
 }
 
-func MockOsReadlink(f func(string) (string, error)) (restore func()) {
-	realOsReadlink := osReadlink
-	osReadlink = f
+func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
+	realArchUbuntuKernelArchitecture := archUbuntuKernelArchitecture
+	archUbuntuKernelArchitecture = f
 	return func() {
-		osReadlink = realOsReadlink
+		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
 	}
 }
