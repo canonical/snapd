@@ -91,8 +91,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	oldInstallHookSetup := snapstate.InstallHookSetup
+	oldRefreshHookSetup := snapstate.RefreshHookSetup
 	oldRemoveHookSetup := snapstate.RemoveHookSetup
 	snapstate.InstallHookSetup = hooks.InstallHookSetup
+	snapstate.RefreshHookSetup = hooks.RefreshHookSetup
 	snapstate.RemoveHookSetup = hooks.RemoveHookSetup
 
 	var err error
@@ -107,6 +109,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.reset = func() {
 		snapstate.InstallHookSetup = oldInstallHookSetup
+		snapstate.RefreshHookSetup = oldRefreshHookSetup
 		snapstate.RemoveHookSetup = oldRemoveHookSetup
 		restore2()
 		restore1()
@@ -186,8 +189,11 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
+	expected = append(expected, "run-hook")
 	if opts&install != 0 {
-		expected = append(expected, "run-hook")
+		c.Assert(ts.Tasks()[len(expected)-1].Summary(), Matches, `Install hook of snap.*`)
+	} else {
+		c.Assert(ts.Tasks()[len(expected)-1].Summary(), Matches, `Refresh hook of snap.*`)
 	}
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -1523,6 +1529,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 	})
 
+	// check refresh hook
+	task = ts.Tasks()[11]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Summary(), Matches, `Refresh hook of snap "services-snap"`)
+
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "services-snap", &snapst)
@@ -2429,7 +2440,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 14
+			j += 15
 			c.Check(first.Kind(), Equals, "download-snap")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -2459,7 +2470,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				c.Check(aliasTask.WaitTasks(), HasLen, 0)
 			}
 		}
-		c.Assert(j, Equals, len(tasks), Commentf("%#v", scenario))
+		c.Assert(len(tasks), Equals, j, Commentf("%#v", scenario))
 
 		// conflict checks are triggered
 		chg := s.state.NewChange("update", "...")
@@ -4412,6 +4423,7 @@ link-snap: Error
  ERROR fail
 set-auto-aliases: Hold
 setup-aliases: Hold
+run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
@@ -4425,6 +4437,7 @@ link-snap: Error
  ERROR fail
 set-auto-aliases: Hold
 setup-aliases: Hold
+run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)

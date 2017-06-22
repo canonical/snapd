@@ -8,10 +8,19 @@ execute: |
     snap get snap-install-hooks installed | MATCH 1
     snap get snap-install-hooks foo | MATCH bar
 
+    echo "Verify that refresh hook was not executed"
+    if snap get snap-install-hooks refreshed; then
+        echo "'refreshed' config value not expected on first install"
+        exit 1
+    fi
+
     echo "Verify that install hook is run only once"
     snap set snap-install-hooks installed=2
     install_local snap-install-hooks
     snap get snap-install-hooks installed | MATCH 2
+
+    echo "Verify that refresh hook was executed"
+    snap get snap-install-hooks refreshed | MATCH 1
 
     REMOVE_HOOK_FILE=/root/snap/snap-install-hooks/current/remove-hook-executed
 
