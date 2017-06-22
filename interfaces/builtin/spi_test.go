@@ -192,7 +192,7 @@ func (s *spiInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	c.Assert(snippet, Equals, expectedSnippet1)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev2, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	snippet := spec.Snippets()[0]
+	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 }
 
@@ -206,11 +206,11 @@ func (s *spiInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 	expectedSnippet2 := `/dev/spidev0.1 rw,/sys/devices/platform/**.spi/spi_master/spi0/** rw,`
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev2, nil)
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev2, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-port"})
-	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
+	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
 
