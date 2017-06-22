@@ -168,7 +168,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// only run install hook if installing the snap for the first time
+	// run refresh hook when updating existing snap, otherwise run install hook
+	if snapst.HasCurrent() && !snapsup.Flags.Revert {
+		refreshHook := RefreshHookSetup(st, snapsup.Name())
+		addTask(refreshHook)
+		prev = refreshHook
+	}
 	if !snapst.HasCurrent() {
 		installHook := InstallHookSetup(st, snapsup.Name())
 		addTask(installHook)
@@ -265,6 +270,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 
 var InstallHookSetup = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.InstallHookSetup is unset")
+}
+
+var RefreshHookSetup = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.RefreshHookSetup is unset")
 }
 
 var RemoveHookSetup = func(st *state.State, snapName string) *state.Task {
