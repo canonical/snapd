@@ -101,6 +101,33 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 	})
 }
 
+func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
+
+	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+		// simulate that we run snapd from core
+		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	// ensure we have a mocked snap-seccomp on core
+	snapSeccompOnCorePath := filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snap-seccomp")
+	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
+	c.Assert(err, IsNil)
+	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, "")
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	// file called "snap.sambda.smbd" was created
+	_, err = os.Stat(profile)
+	c.Check(err, IsNil)
+	// ensure the snap-seccomp from the regular path was *not* used
+	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
+	// ensure the snap-seccomp from the core snap was used instead
+	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "compile", profile, profile + ".bpf"},
+	})
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
