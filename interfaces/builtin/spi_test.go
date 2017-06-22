@@ -201,6 +201,7 @@ func (s *spiInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+
 }
 
 func (s *spiInterfaceSuite) TestAutoConnect(c *C) {
