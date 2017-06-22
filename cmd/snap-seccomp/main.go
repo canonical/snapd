@@ -143,7 +143,7 @@ import (
 	"strings"
 	"syscall"
 
-	// FIXME: we want github.com/mvo5/libseccomp-golang but that
+	// FIXME: we want github.com/seccomp/libseccomp-golang but that
 	// will not work with trusty because libseccomp-golang checks
 	// for the seccomp version and errors if it find one < 2.2.0
 	"github.com/mvo5/libseccomp-golang"
@@ -540,6 +540,11 @@ var (
 	archUbuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 )
 
+var (
+	ubuntuArchitecture       = archUbuntuArchitecture()
+	ubuntuKernelArchitecture = archUbuntuKernelArchitecture()
+)
+
 // For architectures that support a compat architecture, when the
 // kernel and userspace match, add the compat arch, otherwise add
 // the kernel arch to support the kernel's arch (eg, 64bit kernels with
@@ -553,7 +558,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// add a compat architecture for some architectures that
 	// support it, e.g. on amd64 kernel and userland, we add
 	// compat i386 syscalls.
-	if archUbuntuArchitecture() == archUbuntuKernelArchitecture() {
+	if ubuntuArchitecture == ubuntuKernelArchitecture {
 		switch archUbuntuArchitecture() {
 		case "amd64":
 			compatArch = seccomp.ArchX86
