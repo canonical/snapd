@@ -18,7 +18,7 @@ execute: |
     echo "Ensure that the apparmor profile doesn't use the complain mode"
     cat /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | grep attach_disconnected | grep -v complain
     echo "Ensure that the seccomp profile doesn't use the complain mode"
-    cat /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode.src | grep -v '@complain'
+    cat /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src | grep -v '@complain'
 restore: |
     rm -f ./test-snapd-devmode_1.0_all.snap
 debug: |
