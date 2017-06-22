@@ -903,6 +903,10 @@ func (enc *Encoder) WriteEncoded(encoded []byte) error {
 
 // WriteContentSignature writes the content and signature of an assertion into the stream with all the required separators.
 func (enc *Encoder) WriteContentSignature(content, signature []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("internal error: content cannot be empty")
+	}
+
 	sz := len(signature)
 	if sz == 0 {
 		return fmt.Errorf("internal error: signature cannot be empty")
