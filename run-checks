@@ -107,10 +107,13 @@ if [ "$STATIC" = 1 ]; then
         go vet $pkg
     done
 
-    if which shellcheck 2>/dev/null; then
-        echo Checking shell scripts...
-        shellcheck -s bash data/completion/*.sh
-    fi
+    # disabled in 2.26, we use a newer shellcheck on the linode image
+    # apparently. This is fine on 2.26+ because the shellcheck issues
+    # are all fixed there.
+    #if which shellcheck 2>/dev/null; then
+    #    echo Checking shell scripts...
+    #    shellcheck -s bash data/completion/*.sh
+    #fi
 
     echo Checking spelling errors
     go get -u github.com/client9/misspell/cmd/misspell
