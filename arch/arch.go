@@ -20,11 +20,9 @@
 package arch
 
 import (
-	"bytes"
 	"log"
 	"runtime"
 	"syscall"
-	"unsafe"
 )
 
 // ArchitectureType is the type for a supported snappy architecture
@@ -90,8 +88,18 @@ func UbuntuKernelArchitecture() string {
 		log.Panicf("cannot get kernel architecture: %v", err)
 	}
 
-	p := (*[len(utsname.Machine)]byte)(unsafe.Pointer(&utsname.Machine))
-	kernelArch := bytes.SplitN(p[:], []byte("\x00"), 2)[0]
+	// syscall.Utsname{} is using [65]int8 for all char[] inside it,
+	// this makes converting it so awkward. The alternative would be
+	// to use a unsafe.Pointer() to cast it to a [65]byte slice.
+	// see https://github.com/golang/go/issues/20753
+	kernelArch := make([]byte, 0, len(utsname.Machine))
+	for _, c := range utsname.Machine {
+		if c == 0 {
+			break
+		}
+		kernelArch = append(kernelArch, byte(c))
+	}
+
 	return ubuntuArchFromKernelArch(string(kernelArch))
 }
 
