@@ -88,16 +88,16 @@ slots:
     path: /dev/spidev0.1
   test-udev-bad-value-1:
     interface: spi
-    path: /dev/spidev0.0
+    path: /dev/spev0.0
   test-udev-bad-value-2:
     interface: spi
-    path: /dev/spidev0.0
+    path: /dev/sidv0.0
   test-udev-bad-value-3:
     interface: spi
-    path: /dev/spidev0.0
+    path: /dev/spiv0.0
   test-udev-bad-value-4:
     interface: spi
-    path: /dev/spidev-00
+    path: /dev/sdev-00
   test-udev-bad-value-5:
     interface: spi
     path: /dev/spi-foo
@@ -125,6 +125,8 @@ slots:
 name: client-snap
 plugs:
   plug-for-port-1:
+    interface: spi
+  plug-for-port-2:
     interface: spi
 apps:
   app-accessing-1-port:
