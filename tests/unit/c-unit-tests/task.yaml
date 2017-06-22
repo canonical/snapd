@@ -6,7 +6,7 @@ prepare: |
     snap info core | MATCH "installed:"
     # Install build dependencies for the test
     dpkg --get-selections > pkg-list
-    apt-get install --yes "$EXTRA_PKGS"
+    apt-get install --yes $EXTRA_PKGS
     # Remove any autogarbage from sent by developer
     rm -rf "$SPREAD_PATH/cmd/"{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     make -C "$SPREAD_PATH/cmd" distclean || true
