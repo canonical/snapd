@@ -52,6 +52,7 @@ type spiInterfaceSuite struct {
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
+	testPlugPort2 *interfaces.Plug
 }
 
 var _ = Suite(&spiInterfaceSuite{
