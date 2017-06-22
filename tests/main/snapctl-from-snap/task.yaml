@@ -1,6 +1,7 @@
 summary: Check that `snapctl` can be run from the snap
 
 prepare: |
+    snap install --devmode jq
     echo "Build basic test package"
     snapbuild $TESTSLIB/snaps/snapctl-from-snap .
   
