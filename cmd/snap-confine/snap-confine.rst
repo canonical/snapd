@@ -47,13 +47,17 @@ extensive dbus mediation. Refer to apparmor documentation for more details.
 Seccomp profiles
 ----------------
 
-`snap-confine` looks for the `/var/lib/snapd/seccomp/profiles.bpf/$SECURITY_TAG.bpf`
-file. This file is **mandatory** and `snap-confine` will refuse to run without
-it.
+`snap-confine` looks for the
+`/var/lib/snapd/seccomp/bpf/$SECURITY_TAG.bin` file. This file is
+**mandatory** and `snap-confine` will refuse to run without it. This
+file contains the seccomp bpf binary program that is loaded into the
+kernel by snap-confine.
 
-The file is read and parsed using a custom syntax that describes the set of
-allowed system calls and optionally their arguments. The profile is then used
-to confine the started application.
+The file is generated with the /usr/lib/snapd/snap-seccomp compiler
+from the `$SECURITY_TAG.src` file that uses a custom syntax that
+describes the set of allowed system calls and optionally their
+arguments. The profile is then used to confine the started
+application.
 
 As a security precaution disallowed system calls cause the started application
 executable to be killed by the kernel. In the future this restriction may be
@@ -129,11 +133,13 @@ FILES
 
 	Description of the mount profile.
 
-`/var/lib/snapd/seccomp/profiles.bpf/*`:
+`/var/lib/snapd/seccomp/bpf/*.src`:
 
 	Input for the /usr/lib/snapd/snap-seccomp profile compiler.
 
-	Compiled seccomp profile program have the extension .bpf.
+`/var/lib/snapd/seccomp/bpf/*.bin`:
+
+	Compiled seccomp bpf profile programs.
 
 `/run/snapd/ns/`:
 

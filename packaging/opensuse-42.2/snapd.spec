@@ -192,7 +192,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 # shutdown process and thus can be left out of the distribution package.
 rm -f %{?buildroot}/usr/lib/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/profiles.bpf,snaps}
+install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -256,7 +256,7 @@ esac
 %dir /var/lib/snapd/hostfs
 %dir /var/lib/snapd/mount
 %dir /var/lib/snapd/seccomp
-%dir /var/lib/snapd/seccomp/profiles.bpf
+%dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
 %verify(not user group mode) %attr(04755,root,root) /usr/lib/snapd/snap-confine
 %{_mandir}/man5/snap-confine.5.gz

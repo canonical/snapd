@@ -33,7 +33,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles.bpf/";
+static char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
 const int MAX_BPF_SIZE = 32 * 1024;
@@ -106,7 +106,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	debug("loading bpf program for security tag %s", filter_profile);
 
 	char profile_path[512];	// arbitrary path name limit
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bpf",
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
 	// validate '/' down to profile_path are root-owned and not
