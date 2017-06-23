@@ -72,13 +72,13 @@ dbus (receive, send)
 #
 dbus (receive, send)
     bus=session
-    path=/modules/kwalletd
+    path=/modules/kwalletd{,5}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
 
 dbus (receive, send)
     bus=session
-    path=/modules/kwalletd
+    path=/modules/kwalletd{,5}
     interface=org.kde.KWallet
     peer=(label=unconfined),
 `
