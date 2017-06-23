@@ -11,17 +11,15 @@ import (
 var _ = Suite(&enterpriseStoreSuite{})
 
 type enterpriseStoreSuite struct {
-	exampleAddress string
-	validExample   string
+	validExample string
 }
 
 func (estores *enterpriseStoreSuite) SetUpSuite(c *C) {
-	estores.exampleAddress = "address:\n  - foo.example.com\n  - bar.example.com\n"
 	estores.validExample = "type: enterprise-store\n" +
 		"authority-id: canonical\n" +
 		"operator-id: op-id1\n" +
 		"store: store1\n" +
-		estores.exampleAddress +
+		"address: store.example.com\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
 		"AXNpZw=="
@@ -35,7 +33,7 @@ func (estores *enterpriseStoreSuite) TestDecodeOK(c *C) {
 
 	c.Check(estore.OperatorID(), Equals, "op-id1")
 	c.Check(estore.Store(), Equals, "store1")
-	c.Check(estore.Address(), DeepEquals, []string{"foo.example.com", "bar.example.com"})
+	c.Check(estore.Address(), Equals, "store.example.com")
 }
 
 var eStoreErrPrefix = "assertion enterprise-store: "
@@ -46,9 +44,8 @@ func (estores *enterpriseStoreSuite) TestDecodeInvalidHeaders(c *C) {
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"store: store1\n", "", `"store" header is mandatory`},
 		{"store: store1\n", "store: \n", `"store" header should not be empty`},
-		{estores.exampleAddress, "", `"address" header is mandatory`},
-		{estores.exampleAddress, "address: foo\n", `"address" header must be a list of strings`},
-		{estores.exampleAddress, "address:\n  -\n    - foo\n", `"address" header must be a list of strings`},
+		{"address: store.example.com\n", "", `"address" header is mandatory`},
+		{"address: store.example.com\n", "address: \n", `"address" header should not be empty`},
 	}
 
 	for _, test := range tests {
@@ -75,7 +72,7 @@ func (estores *enterpriseStoreSuite) TestCheckAuthority(c *C) {
 	estoreHeaders := map[string]interface{}{
 		"operator-id": operator.HeaderString("account-id"),
 		"store":       "store1",
-		"address":     []interface{}{"foo.example.com"},
+		"address":     "store.example.com",
 	}
 
 	// enterprise-store signed by some other account fails.
@@ -98,7 +95,7 @@ func (estores *enterpriseStoreSuite) TestCheckOperatorAccount(c *C) {
 	assert, err := storeDB.Sign(asserts.EnterpriseStoreType, map[string]interface{}{
 		"operator-id": "op-id1",
 		"store":       "store1",
-		"address":     []interface{}{"foo.example.com"},
+		"address":     "store.example.com",
 	}, nil, "")
 	c.Assert(err, IsNil)
 
