@@ -168,13 +168,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// run refresh hook when updating existing snap, otherwise run install hook
-	if snapst.HasCurrent() && !snapsup.Flags.Revert {
-		refreshHook := RefreshHookSetup(st, snapsup.Name())
-		addTask(refreshHook)
-		prev = refreshHook
-	}
-	if !snapst.HasCurrent() {
+	// run refresh, revert or install hook
+	if snapst.HasCurrent() {
+		if snapsup.Flags.Revert {
+			revertHook := RevertHookSetup(st, snapsup.Name())
+			addTask(revertHook)
+			prev = revertHook
+		} else {
+			refreshHook := RefreshHookSetup(st, snapsup.Name())
+			addTask(refreshHook)
+			prev = refreshHook
+		}
+	} else {
 		installHook := InstallHookSetup(st, snapsup.Name())
 		addTask(installHook)
 		prev = installHook
@@ -274,6 +279,10 @@ var InstallHookSetup = func(st *state.State, snapName string) *state.Task {
 
 var RefreshHookSetup = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.RefreshHookSetup is unset")
+}
+
+var RevertHookSetup = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.RevertHookSetup is unset")
 }
 
 var RemoveHookSetup = func(st *state.State, snapName string) *state.Task {

@@ -30,6 +30,7 @@ import (
 func init() {
 	snapstate.InstallHookSetup = InstallHookSetup
 	snapstate.RefreshHookSetup = RefreshHookSetup
+	snapstate.RevertHookSetup = RevertHookSetup
 	snapstate.RemoveHookSetup = RemoveHookSetup
 }
 
@@ -54,6 +55,19 @@ func RefreshHookSetup(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Refresh hook of snap %q"), hooksup.Snap)
+	task := hookstate.HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func RevertHookSetup(st *state.State, snapName string) *state.Task {
+	hooksup := &hookstate.HookSetup{
+		Snap:     snapName,
+		Hook:     "revert",
+		Optional: true,
+	}
+
+	summary := fmt.Sprintf(i18n.G("Revert hook of snap %q"), hooksup.Snap)
 	task := hookstate.HookTask(st, summary, hooksup, nil)
 
 	return task
@@ -95,5 +109,6 @@ func SetupHooks(hookMgr *hookstate.HookManager) {
 
 	hookMgr.Register(regexp.MustCompile("^install$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^refresh$"), handlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^revert$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
 }

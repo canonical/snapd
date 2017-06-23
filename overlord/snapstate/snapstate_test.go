@@ -350,9 +350,15 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"link-snap",
 		"set-auto-aliases",
 		"setup-aliases",
+		"run-hook",
 		"start-snap-services",
 		"run-hook",
 	})
+
+	// check revert hook
+	task := ts.Tasks()[8]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Summary(), Matches, `Revert hook of snap "some-snap"`)
 
 	chg := s.state.NewChange("revert", "revert snap")
 	chg.AddAll(ts)
@@ -659,6 +665,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"link-snap",
 		"set-auto-aliases",
 		"setup-aliases",
+		"run-hook",
 		"start-snap-services",
 		"run-hook",
 	})
