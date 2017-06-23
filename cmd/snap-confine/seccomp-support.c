@@ -115,10 +115,11 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// snapd so for such snaps, the profiles may not be generated
 	// yet
 	int max_wait = 120;
-	if (getenv("SNAP_CONFINE_MAX_PROFILE_WAIT") != 0)
-		if (atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT")) > 0)
-			max_wait =
-			    atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT"));
+	const char *MAX_PROFILE_WAIT = getenv("SNAP_CONFINE_MAX_PROFILE_WAIT");
+	if (MAX_PROFILE_WAIT != NULL) {
+		int env_max_wait = atoi(MAX_PROFILE_WAIT);
+		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;
+	}
 	struct stat buf;
 	for (int i = 0; i < max_wait; i++) {
 		if (stat(profile_path, &buf) == 0) {
