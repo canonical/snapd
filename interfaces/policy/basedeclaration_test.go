@@ -484,6 +484,7 @@ var (
 		"ppp":                       {"core"},
 		"pulseaudio":                {"app", "core"},
 		"serial-port":               {"core", "gadget"},
+		"spi":                     {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
