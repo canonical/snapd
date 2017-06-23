@@ -143,7 +143,7 @@ import (
 	"strings"
 	"syscall"
 
-	// FIXME: we want github.com/mvo5/libseccomp-golang but that
+	// FIXME: we want github.com/seccomp/libseccomp-golang but that
 	// will not work with trusty because libseccomp-golang checks
 	// for the seccomp version and errors if it find one < 2.2.0
 	"github.com/mvo5/libseccomp-golang"
@@ -454,8 +454,6 @@ func readNumber(token string) (uint64, error) {
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
-	line = strings.TrimSpace(line)
-
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
@@ -540,6 +538,11 @@ var (
 	archUbuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 )
 
+var (
+	ubuntuArchitecture       = archUbuntuArchitecture()
+	ubuntuKernelArchitecture = archUbuntuKernelArchitecture()
+)
+
 // For architectures that support a compat architecture, when the
 // kernel and userspace match, add the compat arch, otherwise add
 // the kernel arch to support the kernel's arch (eg, 64bit kernels with
@@ -553,7 +556,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// add a compat architecture for some architectures that
 	// support it, e.g. on amd64 kernel and userland, we add
 	// compat i386 syscalls.
-	if archUbuntuArchitecture() == archUbuntuKernelArchitecture() {
+	if ubuntuArchitecture == ubuntuKernelArchitecture {
 		switch archUbuntuArchitecture() {
 		case "amd64":
 			compatArch = seccomp.ArchX86
@@ -582,45 +585,44 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
-func hasLine(content []byte, needle string) bool {
-	for _, line := range bytes.Split(content, []byte("\n")) {
-		if bytes.Equal(bytes.TrimSpace(line), []byte(needle)) {
-			return true
-		}
-	}
-	return false
-}
-
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	// FIXME: right now complain mode is the equivalent to unrestricted.
-	// We'll want to change this once we seccomp logging is in order.
-	if hasLine(content, "@unrestricted") || hasLine(content, "@complain") {
-		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
-	} else {
-		secFilter, err = seccomp.NewFilter(seccomp.ActKill)
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
+	secFilter, err = seccomp.NewFilter(seccomp.ActKill)
+	if err != nil {
+		return fmt.Errorf("cannot create seccomp filter: %s", err)
+	}
 
-		if err := addSecondaryArches(secFilter); err != nil {
-			return err
-		}
+	if err := addSecondaryArches(secFilter); err != nil {
+		return err
+	}
 
-		scanner := bufio.NewScanner(bytes.NewBuffer(content))
-		for scanner.Scan() {
-			if err := parseLine(scanner.Text(), secFilter); err != nil {
-				return fmt.Errorf("cannot parse line: %s", err)
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// FIXME: right now complain mode is the equivalent to
+		// unrestricted.  We'll want to change this once we
+		// seccomp logging is in order.
+		//
+		// special case: unrestricted means we switch to an allow-all
+		//               filter and are done
+		if line == "@unrestricted" || line == "@complain" {
+			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+			if err != nil {
+				return fmt.Errorf("cannot create seccomp filter: %s", err)
 			}
+			break
 		}
-		if scanner.Err(); err != nil {
-			return err
+
+		// look for regular syscall/arg rule
+		if err := parseLine(line, secFilter); err != nil {
+			return fmt.Errorf("cannot parse line: %s", err)
 		}
+	}
+	if scanner.Err(); err != nil {
+		return err
 	}
 
 	fout, err := os.Create(out)
@@ -638,7 +640,7 @@ func compile(content []byte, out string) error {
 
 func showSeccompLibraryVersion() error {
 	major, minor, micro := seccomp.GetLibraryVersion()
-	fmt.Fprintf(os.Stdout, "seccomp version: %d.%d.%d\n", major, minor, micro)
+	fmt.Fprintf(os.Stdout, "%d.%d.%d\n", major, minor, micro)
 	return nil
 }
 
@@ -646,9 +648,18 @@ func main() {
 	var err error
 	var content []byte
 
+	if len(os.Args) < 2 {
+		fmt.Printf("%s: need a command\n", os.Args[0])
+		os.Exit(1)
+	}
+
 	cmd := os.Args[1]
 	switch cmd {
 	case "compile":
+		if len(os.Args) < 4 {
+			fmt.Println("compile needs an input and output file")
+			os.Exit(1)
+		}
 		content, err = ioutil.ReadFile(os.Args[2])
 		if err != nil {
 			break
