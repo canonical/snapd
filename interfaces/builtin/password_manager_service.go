@@ -19,7 +19,7 @@
 
 package builtin
 
-const passwordManagerServiceSummary = `allows access to common password manager services`
+const passwordManagerServiceSummary = `allow access to common password manager services`
 
 const passwordManagerServiceDescription = `
 The password-manager-service interface allows connected plugs full access to
