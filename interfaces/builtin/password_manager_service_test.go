@@ -93,6 +93,7 @@ func (s *passwordManagerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "interface=org.freedesktop.Secret")
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "interface=org.kde.KWallet")
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestInterfaces(c *C) {
