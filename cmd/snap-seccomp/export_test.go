@@ -17,30 +17,25 @@
  *
  */
 
-package hookstate
+package main
 
-import (
-	"time"
+var (
+	Compile         = compile
+	SeccompResolver = seccompResolver
 )
 
-func MockReadlink(f func(string) (string, error)) func() {
-	oldReadlink := osReadlink
-	osReadlink = f
+func MockArchUbuntuArchitecture(f func() string) (restore func()) {
+	realArchUbuntuArchitecture := archUbuntuArchitecture
+	archUbuntuArchitecture = f
 	return func() {
-		osReadlink = oldReadlink
+		archUbuntuArchitecture = realArchUbuntuArchitecture
 	}
 }
 
-func MockDefaultHookTimeout(timeout time.Duration) func() {
-	oldDefaultTimeout := defaultHookTimeout
-	defaultHookTimeout = timeout
+func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
+	realArchUbuntuKernelArchitecture := archUbuntuKernelArchitecture
+	archUbuntuKernelArchitecture = f
 	return func() {
-		defaultHookTimeout = oldDefaultTimeout
+		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
 	}
-}
-
-func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReport
-	errtrackerReport = mock
-	return func() { errtrackerReport = prev }
 }

@@ -67,6 +67,8 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
 
+#include <abstractions/dbus-strict>
+
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1

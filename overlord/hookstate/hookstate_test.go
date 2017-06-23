@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -342,62 +341,6 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 150ms`)
 }
 
-func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
-	var hooksup hookstate.HookSetup
-
-	s.state.Lock()
-	s.task.Get("hook-setup", &hooksup)
-	hooksup.Timeout = time.Duration(200 * time.Millisecond)
-	s.task.Set("hook-setup", &hooksup)
-	s.state.Unlock()
-
-	// Force the snap command to hang
-	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
-	defer cmd.Restore()
-
-	pgrp := 0
-	// simulate a process that can not be killed
-	restore := hookstate.MockSyscallKill(func(pid int, _ syscall.Signal) error {
-		pgrp = pid
-		return nil
-	})
-	defer restore()
-	defer func() {
-		// do kill the processes
-		if pgrp != 0 {
-			syscall.Kill(pgrp, syscall.SIGKILL)
-		}
-	}()
-
-	restore = hookstate.MockCmdWaitTimeout(100 * time.Millisecond)
-	defer restore()
-
-	s.manager.Ensure()
-	completed := make(chan struct{})
-	go func() {
-		s.manager.Wait()
-		close(completed)
-	}()
-
-	s.state.Lock()
-	s.state.Unlock()
-	s.manager.Ensure()
-	<-completed
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(s.mockHandler.BeforeCalled, Equals, true)
-	c.Check(s.mockHandler.DoneCalled, Equals, false)
-	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms, but did not stop`)
-
-	c.Check(s.task.Kind(), Equals, "run-hook")
-	c.Check(s.task.Status(), Equals, state.ErrorStatus)
-	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms, but did not stop`)
-}
-
 func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 	var hooksup hookstate.HookSetup
 
@@ -464,12 +407,12 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, ".*hook aborted.*")
+	c.Check(s.mockHandler.Err, ErrorMatches, "<aborted>")
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*hook aborted.*`)
+	checkTaskLogContains(c, s.task, `run hook "[^"]*": <aborted>`)
 }
 
 func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
