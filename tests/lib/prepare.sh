@@ -8,8 +8,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/entropy.sh
-. "$TESTSLIB/entropy.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -218,7 +216,16 @@ EOF
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
         apt-get install -y -q rng-tools
-        feed_kernel_entropy_pool --force
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+
+        mkdir -p /etc/systemd/system/rng-tools.service.d/
+        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+[Service]
+Restart=always
+RestartSec=5
+EOF
+        systemctl daemon-reload
     fi
 
     disable_kernel_rate_limiting

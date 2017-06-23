@@ -3,9 +3,14 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 systems: [ubuntu-16.04-64, ubuntu-16.04-32]
 
 prepare: |
-    . $TESTSLIB/prepare.sh
+    # FIXME: until https://github.com/snapcore/snapd/pull/3263 is available from
+    # the archive we need to build snapd from branch so that it can be used by
+    # ubuntu-image
+    . "$TESTSLIB/prepare.sh"
     prepare_classic
     prepare_each_classic
+
+    snap install --classic --beta ubuntu-image
 
     # determine arch related vars
     case "$NESTED_ARCH" in
@@ -23,30 +28,29 @@ prepare: |
 
     # create ubuntu-core image
     mkdir -p /tmp/work-dir
-    # bind mount the snap binary installed from the package built with the branch to the binary used by ubuntu-image
-    mount -o bind /usr/bin/snap /snap/ubuntu-image/current/bin/snap
 
     snap download core
 
-    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img --extra-snaps core_*.snap
+    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img --extra-snaps core_*.snap
     mv ubuntu-core.img /tmp/work-dir
 
+    . "$TESTSLIB/nested.sh"
     create_assertions_disk
 
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
     systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
 
 restore: |
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
     systemd_stop_and_destroy_unit nested-vm
     rm -rf /tmp/work-dir
 
 execute: |
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
     wait_for_ssh
     prepare_ssh
 
-    cd $SPREAD_PATH
+    cd "$SPREAD_PATH"
 
     echo "Wait for first boot to be done"
     while ! execute_remote "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done

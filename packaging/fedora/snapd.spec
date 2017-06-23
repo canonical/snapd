@@ -6,10 +6,15 @@
 %bcond_without vendorized
 %endif
 
+# A switch to allow building the package with support for testkeys which
+# are used for the spread test suite of snapd.
+%bcond_with testkeys
+
 %global with_devel 1
 %global with_debug 1
 %global with_check 0
 %global with_unit_test 0
+%global with_test_keys 0
 
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
@@ -18,6 +23,12 @@
 %global with_bundled 0
 %else
 %global with_bundled 1
+%endif
+
+%if ! %{with testkeys}
+%global with_test_keys 0
+%else
+%global with_test_keys 1
 %endif
 
 %if 0%{?with_debug}
@@ -320,11 +331,19 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-%gobuild -o bin/snap %{import_path}/cmd/snap
-%gobuild -o bin/snap-exec %{import_path}/cmd/snap-exec
-%gobuild -o bin/snapctl %{import_path}/cmd/snapctl
-%gobuild -o bin/snapd %{import_path}/cmd/snapd
-%gobuild -o bin/snap-update-ns %{import_path}/cmd/snap-update-ns
+GOFLAGS=
+%if 0%{?with_test_keys}
+GOFLAGS="$GOFLAGS -tags withtestkeys"
+%endif
+
+# We have to build snapd first to prevent the build from
+# building various things from the tree without additional
+# set tags.
+%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
+%gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
+%gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+%gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+%gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 
 # Build SELinux module
 pushd ./data/selinux
@@ -371,7 +390,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
-install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/profiles
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
@@ -517,7 +536,7 @@ popd
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
-%dir %{_sharedstatedir}/snapd/seccomp/profiles
+%dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
@@ -532,6 +551,7 @@ popd
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
 %attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
 %{_mandir}/man5/snap-confine.5*
