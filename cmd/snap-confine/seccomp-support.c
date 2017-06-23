@@ -120,9 +120,8 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		int env_max_wait = atoi(MAX_PROFILE_WAIT);
 		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;
 	}
-	struct stat buf;
-	for (int i = 0; i < max_wait; i++) {
-		if (stat(profile_path, &buf) == 0) {
+	for (int i = 0; i < max_wait; ++i) {
+		if (access(profile_path, F_OK) == 0) {
 			break;
 		}
 		sleep(1);
