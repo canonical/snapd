@@ -1,0 +1,5 @@
+name: test-snapd-revert-hook
+version: 1.0
+apps:
+    app:
+        command: true
