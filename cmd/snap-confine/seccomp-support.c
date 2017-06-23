@@ -44,23 +44,26 @@ typedef struct sock_filter bpf_instr;
 static void validate_path_has_strict_perms(const char *path)
 {
 	struct stat stat_buf;
-	if (stat(path, &stat_buf) < 0)
+	if (stat(path, &stat_buf) < 0) {
 		die("cannot stat %s", path);
+	}
 
 	errno = 0;
-	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
+	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0) {
 		die("%s not root-owned %i:%i", path, stat_buf.st_uid,
 		    stat_buf.st_gid);
+	}
 
-	if (stat_buf.st_mode & S_IWOTH)
+	if (stat_buf.st_mode & S_IWOTH) {
 		die("%s has 'other' write %o", path, stat_buf.st_mode);
+	}
 }
 
 static void validate_bpfpath_is_safe(const char *path)
 {
-	if (path == NULL || strlen(path) == 0 || path[0] != '/')
+	if (path == NULL || strlen(path) == 0 || path[0] != '/') {
 		die("valid_bpfpath_is_safe needs an absolute path as input");
-
+	}
 	// strtok_r() modifies its first argument, so work on a copy
 	char *tokenized = strdup(path);
 
@@ -68,8 +71,9 @@ static void validate_bpfpath_is_safe(const char *path)
 	// '/'
 	size_t checked_path_size = sizeof(char) * strlen(path) + 1;
 	char *checked_path = malloc(checked_path_size);
-	if (checked_path == NULL)
+	if (checked_path == NULL) {
 		die("Out of memory creating checked_path");
+	}
 
 	checked_path[0] = '/';
 	checked_path[1] = '\0';
@@ -86,12 +90,13 @@ static void validate_bpfpath_is_safe(const char *path)
 	while (buf_token != NULL) {
 		char *prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
 		// append '<buf_token>' if checked_path is '/', otherwise '/<buf_token>'
-		if (strlen(checked_path) == 1)
+		if (strlen(checked_path) == 1) {
 			sc_must_snprintf(checked_path, checked_path_size,
 					 "%s%s", prev, buf_token);
-		else
+		} else {
 			sc_must_snprintf(checked_path, checked_path_size,
 					 "%s/%s", prev, buf_token);
+		}
 		free(prev);
 		validate_path_has_strict_perms(checked_path);
 
@@ -137,28 +142,33 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// load bpf
 	unsigned char bpf[MAX_BPF_SIZE + 1];	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
-	if (fp == NULL)
+	if (fp == NULL) {
 		die("cannot read %s", profile_path);
+	}
 	// set 'size' to 1 to get bytes transferred
 	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
-	if (ferror(fp) != 0)
+	if (ferror(fp) != 0) {
 		die("cannot fread() %s", profile_path);
-	else if (feof(fp) == 0)
+	} else if (feof(fp) == 0) {
 		die("profile %s exceeds %zu bytes", profile_path, sizeof(bpf));
+	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
 	uid_t real_uid, effective_uid, saved_uid;
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
 		die("could not find user IDs");
+	}
 	// If we can, raise privileges so that we can load the BPF into the
 	// kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
 	debug("raising privileges to load seccomp profile");
 	if (effective_uid != 0 && saved_uid == 0) {
-		if (seteuid(0) != 0)
+		if (seteuid(0) != 0) {
 			die("seteuid failed");
-		if (geteuid() != 0)
+		}
+		if (geteuid() != 0) {
 			die("raising privs before seccomp_load did not work");
+		}
 	}
 	// Load filter into the kernel. Importantly we are
 	// intentionally *not* setting NO_NEW_PRIVS because it
@@ -182,10 +192,12 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	debug("dropping privileges after loading seccomp profile");
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
-		if (seteuid(real_uid) != 0)
+		if (seteuid(real_uid) != 0) {
 			die("seteuid failed");
-		if (real_uid != 0 && geteuid() == 0)
+		}
+		if (real_uid != 0 && geteuid() == 0) {
 			die("dropping privs after seccomp_load did not work");
+		}
 	}
 
 	return 0;
