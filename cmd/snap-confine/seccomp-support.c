@@ -73,7 +73,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
-	size_t checked_path_size = sizeof(char) * strlen(path) + 1;
+	size_t checked_path_size = strlen(path) + 1;
 	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	checked_path = malloc(checked_path_size);
 	if (checked_path == NULL) {
