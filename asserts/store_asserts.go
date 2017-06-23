@@ -6,7 +6,6 @@ import "fmt"
 // configuration needed to connect a device to the enterprise store.
 type EnterpriseStore struct {
 	assertionBase
-	address []string
 }
 
 // OperatorID returns the account id of the enterprise store's operator.
@@ -19,10 +18,9 @@ func (estore *EnterpriseStore) Store() string {
 	return estore.HeaderString("store")
 }
 
-// Address returns the ordered list of addresses for the enterprise store's
-// API. There is always at least one address.
-func (estore *EnterpriseStore) Address() []string {
-	return estore.address
+// Address returns the address of the enterprise store's API.
+func (estore *EnterpriseStore) Address() string {
+	return estore.HeaderString("address")
 }
 
 func (estore *EnterpriseStore) checkConsistency(db RODatabase, acck *AccountKey) error {
@@ -55,15 +53,12 @@ func (estore *EnterpriseStore) Prerequisites() []*Ref {
 
 func assembleEnterpriseStore(assert assertionBase) (Assertion, error) {
 	// TODO:
-	// - check address items look sane?
-	// - convert address items to full URLs?
-	address, err := checkStringList(assert.headers, "address")
+	// - check address looks sane?
+	// - convert address to full URL?
+	_, err := checkNotEmptyString(assert.headers, "address")
 	if err != nil {
 		return nil, err
 	}
-	if len(address) == 0 {
-		return nil, fmt.Errorf(`"address" header is mandatory`)
-	}
 
-	return &EnterpriseStore{assertionBase: assert, address: address}, nil
+	return &EnterpriseStore{assertionBase: assert}, nil
 }
