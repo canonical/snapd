@@ -625,17 +625,23 @@ func compile(content []byte, out string) error {
 		return err
 	}
 
-	fout, err := os.Create(out)
-	if err != nil {
-		return err
-	}
-	defer fout.Close()
-
 	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
 		secFilter.ExportPFC(os.Stdout)
 	}
 
-	return secFilter.ExportBPF(fout)
+	// write atomically
+	fout, err := os.Create(out + ".tmp")
+	if err != nil {
+		return err
+	}
+	defer fout.Close()
+	if err := secFilter.ExportBPF(fout); err != nil {
+		return err
+	}
+	if err := fout.Sync(); err != nil {
+		return err
+	}
+	return os.Rename(out+".tmp", out)
 }
 
 func showSeccompLibraryVersion() error {
