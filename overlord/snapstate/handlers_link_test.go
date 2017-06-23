@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -181,7 +182,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/foo/35"
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35")
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -203,11 +204,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/foo/35",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/foo/35",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
 		},
 	})
 }

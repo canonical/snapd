@@ -98,7 +98,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -126,7 +126,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
@@ -135,7 +135,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -163,7 +163,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
@@ -172,7 +172,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -199,7 +199,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--command=my-command", "snapname.app", "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -225,7 +225,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -252,7 +252,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -261,7 +261,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -288,7 +288,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -297,7 +297,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// Create both revisions 41 and 42
 	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
@@ -326,7 +326,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
@@ -398,14 +398,14 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 
 func (s *SnapSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "not-there"})
-	c.Assert(err, check.ErrorMatches, "cannot find current revision for snap not-there: readlink /snap/not-there/current: no such file or directory")
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf("cannot find current revision for snap not-there: readlink %s/not-there/current: no such file or directory", dirs.SnapMountDir))
 }
 
 func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -451,8 +451,8 @@ func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
 		readlink string
 		expected bool
 	}{
-		{filepath.Join(dirs.SnapMountDir, "/usr/lib/snapd/snapd"), true},
-		{"/usr/lib/snapd/snapd", false},
+		{filepath.Join(dirs.SnapMountDir, dirs.CoreLibExecDir, "snapd"), true},
+		{filepath.Join(dirs.DistroLibExecDir, "snapd"), false},
 	} {
 		osReadlinkResult = t.readlink
 		c.Check(snaprun.IsReexeced(), check.Equals, t.expected)
@@ -463,7 +463,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "current", dirs.CoreLibExecDir))()
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -473,7 +473,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 
 	// pretend to be running from core
 	restorer := snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "/core/111//usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
 	})
 	defer restorer()
 
@@ -493,11 +493,11 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/current", dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/current", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.SnapMountDir, "/core/current", dirs.DistroLibExecDir, "snap-confine"),
+		filepath.Join(dirs.SnapMountDir, "/core/current", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
@@ -507,7 +507,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	// below /tmp which the Xauthority migration expects.
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
-	defer mockSnapConfine()()
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	u, err := user.Current()
 	c.Assert(err, check.IsNil)
@@ -553,7 +553,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app"})
 
 	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
