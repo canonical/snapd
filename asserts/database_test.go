@@ -811,7 +811,7 @@ func (safs *signAddFindSuite) TestFindManyTrusted(c *C) {
 	c.Assert(tAccts, HasLen, 1)
 	c.Assert(tAccts[0].(*asserts.Account).AccountID(), Equals, "canonical")
 
-	// find the trusted key
+	// find the multiple trusted keys
 	tKeys, err := db.FindManyTrusted(asserts.AccountKeyType, map[string]string{
 		"account-id": "canonical",
 	})
