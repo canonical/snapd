@@ -94,7 +94,7 @@ slots:
     path: /dev/sidv0.0
   test-udev-bad-value-3:
     interface: spi
-    path: /dev/spiv0.0
+    path: /dev/slpiv0.3
   test-udev-bad-value-4:
     interface: spi
     path: /dev/sdev-00
