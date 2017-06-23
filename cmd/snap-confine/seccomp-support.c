@@ -190,9 +190,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.filter = (struct sock_filter *)bpf,
 	};
 	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		perror
-		    ("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
-		die("aborting");
+		die("cannot apply seccomp profile");
 	}
 	// drop privileges again
 	debug("dropping privileges after loading seccomp profile");
