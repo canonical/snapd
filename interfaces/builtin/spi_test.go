@@ -39,13 +39,13 @@ type spiInterfaceSuite struct {
 	testSlot2 *interfaces.Slot
 
 	// Gadget Snap
-	testUDev1             *interfaces.Slot
-	testUDev2             *interfaces.Slot
-	testUDevBadValue1     *interfaces.Slot
-	testUDevBadValue2     *interfaces.Slot
-	testUDevBadValue3     *interfaces.Slot
-	testUDevBadValue4     *interfaces.Slot
-	testUDevBadValue5     *interfaces.Slot
+	testUDev1         *interfaces.Slot
+	testUDev2         *interfaces.Slot
+	testUDevBadValue1 *interfaces.Slot
+	testUDevBadValue2 *interfaces.Slot
+	testUDevBadValue3 *interfaces.Slot
+	testUDevBadValue4 *interfaces.Slot
+	testUDevBadValue5 *interfaces.Slot
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
