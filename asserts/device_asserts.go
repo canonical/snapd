@@ -273,15 +273,18 @@ func (ser *Serial) Timestamp() time.Time {
 	return ser.timestamp
 }
 
-// TODO: implement further consistency checks for Serial but first review approach
-
-func assembleSerial(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
+func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
+	authorityID := ser.AuthorityID()
+	brandID := ser.BrandID()
+	if authorityID != brandID && !db.IsTrustedAccount(authorityID) {
+		return fmt.Errorf("serial must be signed by the brand or a trusted authority but got authority %q and brand %q", authorityID, brandID)
 	}
 
-	_, err = checkModel(assert.headers)
+	return nil
+}
+
+func assembleSerial(assert assertionBase) (Assertion, error) {
+	_, err := checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}

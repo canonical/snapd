@@ -228,6 +228,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
 	}
 
+	// TODO: support a stream of assertions instead of just the serial
+
 	// decode body with serial assertion
 	dec := asserts.NewDecoder(resp.Body)
 	got, err := dec.Decode()
@@ -285,6 +287,13 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	}
 	if err != nil { // errors & retries
 		return nil, err
+	}
+
+	if serial.AuthorityID() != serial.BrandID() {
+		db := assertstate.DB(t.State())
+		if !db.IsTrustedAccount(serial.AuthorityID()) {
+			return nil, fmt.Errorf("obtained serial assertion is not signed by the brand or a trusted authoritym but has authority %q and brand %q", serial.AuthorityID(), serial.BrandID())
+		}
 	}
 
 	keyID := privKey.PublicKey().ID()
