@@ -48,11 +48,6 @@ func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSi
 	}).initBuffer()
 }
 
-// Encoder.append exposed for tests
-func EncoderAppend(enc *Encoder, encoded []byte) error {
-	return enc.append(encoded)
-}
-
 func BootstrapAccountForTest(authorityID string) *Account {
 	return &Account{
 		assertionBase: assertionBase{
