@@ -1,4 +1,4 @@
-name: test-snapd-revert-hook
+name: snap-revert-hook
 version: 1.0
 apps:
     app:
