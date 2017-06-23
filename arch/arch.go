@@ -110,7 +110,7 @@ func ubuntuArchFromKernelArch(utsMachine string) string {
 		// kernel  ubuntu
 		"i686":    "i386",
 		"x86_64":  "amd64",
-		"armv7":   "armhf",
+		"armv7l":  "armhf",
 		"aarch64": "arm64",
 		"ppc64le": "ppc64el",
 		"s390x":   "s390x",
