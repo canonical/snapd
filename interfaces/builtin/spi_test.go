@@ -46,9 +46,6 @@ type spiInterfaceSuite struct {
 	testUDevBadValue3     *interfaces.Slot
 	testUDevBadValue4     *interfaces.Slot
 	testUDevBadValue5     *interfaces.Slot
-	testUDevBadValue6     *interfaces.Slot
-	testUDevBadValue7     *interfaces.Slot
-	testUDevBadInterface1 *interfaces.Slot
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
@@ -165,7 +162,6 @@ func (s *spiInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	err = s.iface.SanitizeSlot(s.testUDevBadValue5)
 	c.Assert(err, ErrorMatches, "spi path attribute must be a valid device node")
 
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "spi"`)
 }
 
 func (s *spiInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
