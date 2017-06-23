@@ -30,6 +30,7 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 
+#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -65,15 +66,16 @@ static void validate_bpfpath_is_safe(const char *path)
 		die("valid_bpfpath_is_safe needs an absolute path as input");
 	}
 	// strtok_r() modifies its first argument, so work on a copy
-	char *tokenized = strdup(path);
+	char *tokenized __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	tokenized = strdup(path);
 	if (tokenized == NULL) {
 		die("cannot allocate memory for copy of path");
 	}
-
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
 	size_t checked_path_size = sizeof(char) * strlen(path) + 1;
-	char *checked_path = malloc(checked_path_size);
+	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	checked_path = malloc(checked_path_size);
 	if (checked_path == NULL) {
 		die("Out of memory creating checked_path");
 	}
@@ -91,7 +93,8 @@ static void validate_bpfpath_is_safe(const char *path)
 	// reconstruct the path from '/' down to profile_name
 	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
 	while (buf_token != NULL) {
-		char *prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
+		char *prev __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
 		if (prev == NULL) {
 			die("cannot allocate memory for copy of checked_path");
 		}
@@ -103,14 +106,10 @@ static void validate_bpfpath_is_safe(const char *path)
 			sc_must_snprintf(checked_path, checked_path_size,
 					 "%s/%s", prev, buf_token);
 		}
-		free(prev);
 		validate_path_has_strict_perms(checked_path);
 
 		buf_token = strtok_r(NULL, "/", &buf_saveptr);
 	}
-
-	free(tokenized);
-	free(checked_path);
 }
 
 int sc_apply_seccomp_bpf(const char *filter_profile)
