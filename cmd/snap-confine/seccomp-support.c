@@ -77,7 +77,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	checked_path = malloc(checked_path_size);
 	if (checked_path == NULL) {
-		die("Out of memory creating checked_path");
+		die("cannot allocate memory for checked_path");
 	}
 
 	checked_path[0] = '/';
