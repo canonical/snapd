@@ -109,6 +109,24 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
+	// Wait some time for the security profile to show up. When
+	// the system boots snapd will created security profiles, but
+	// a service snap (e.g. network-manager) starts in parallel with
+	// snapd so for such snaps, the profiles may not be generated
+	// yet
+	int max_wait = 120;
+	if (getenv("SNAP_CONFINE_MAX_PROFILE_WAIT") != 0)
+		if (atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT")) > 0)
+			max_wait =
+			    atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT"));
+	struct stat buf;
+	for (int i = 0; i < max_wait; i++) {
+		if (stat(profile_path, &buf) == 0) {
+			break;
+		}
+		sleep(1);
+	}
+
 	// validate '/' down to profile_path are root-owned and not
 	// 'other' writable to avoid possibility of privilege
 	// escalation via bpf program load when paths are incorrectly
