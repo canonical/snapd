@@ -66,6 +66,9 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 	// strtok_r() modifies its first argument, so work on a copy
 	char *tokenized = strdup(path);
+	if (tokenized == NULL) {
+		die("cannot allocate memory for copy of path");
+	}
 
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
@@ -89,6 +92,9 @@ static void validate_bpfpath_is_safe(const char *path)
 	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
 	while (buf_token != NULL) {
 		char *prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
+		if (prev == NULL) {
+			die("cannot allocate memory for copy of checked_path");
+		}
 		// append '<buf_token>' if checked_path is '/', otherwise '/<buf_token>'
 		if (strlen(checked_path) == 1) {
 			sc_must_snprintf(checked_path, checked_path_size,
