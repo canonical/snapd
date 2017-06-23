@@ -153,16 +153,17 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// set 'size' to 1 to get bytes transferred
 	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
 	if (ferror(fp) != 0) {
-		die("cannot fread() %s", profile_path);
+		die("cannot read seccomp profile %s", profile_path);
 	} else if (feof(fp) == 0) {
-		die("profile %s exceeds %zu bytes", profile_path, sizeof(bpf));
+		die("seccomp profile %s exceeds %zu bytes", profile_path,
+		    sizeof(bpf));
 	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
 	uid_t real_uid, effective_uid, saved_uid;
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
-		die("could not find user IDs");
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
+		die("cannot call getresuid");
 	}
 	// If we can, raise privileges so that we can load the BPF into the
 	// kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
