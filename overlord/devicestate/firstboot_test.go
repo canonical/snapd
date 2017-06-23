@@ -56,6 +56,7 @@ type FirstBootTestSuite struct {
 	aa          *testutil.MockCmd
 	systemctl   *testutil.MockCmd
 	mockUdevAdm *testutil.MockCmd
+	snapSeccomp *testutil.MockCmd
 
 	storeSigning *assertstest.StoreStack
 	restore      func()
@@ -88,6 +89,11 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
 	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
 
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
@@ -109,6 +115,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	s.aa.Restore()
 	s.systemctl.Restore()
 	s.mockUdevAdm.Restore()
+	s.snapSeccomp.Restore()
 
 	s.restore()
 	s.restoreOnClassic()

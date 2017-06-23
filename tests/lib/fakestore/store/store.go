@@ -94,9 +94,9 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/search", store.searchEndpoint)
-	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
-	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
+	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
+	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
+	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
 
@@ -251,7 +251,7 @@ func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
-	pkg := strings.TrimPrefix(req.URL.Path, "/snaps/details/")
+	pkg := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/details/")
 	if pkg == req.URL.Path {
 		panic("how?")
 	}
