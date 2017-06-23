@@ -39,6 +39,9 @@ func SetArchitecture(newArch ArchitectureType) {
 	arch = newArch
 }
 
+// FIXME: rename all Ubuntu*Architecture() to SnapdArchitecture()
+//        (or DpkgArchitecture)
+
 // UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
@@ -85,6 +88,10 @@ func UbuntuKernelArchitecture() string {
 		log.Panicf("cannot get kernel architecture: %v", err)
 	}
 
+	// syscall.Utsname{} is using [65]int8 for all char[] inside it,
+	// this makes converting it so awkward. The alternative would be
+	// to use a unsafe.Pointer() to cast it to a [65]byte slice.
+	// see https://github.com/golang/go/issues/20753
 	kernelArch := make([]byte, 0, len(utsname.Machine))
 	for _, c := range utsname.Machine {
 		if c == 0 {
