@@ -595,14 +595,15 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts.Database) {
+func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.Database) {
 	trustedPrivKey := testPrivKey0
 	storePrivKey := testPrivKey1
 
-	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
+	store = assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
 	cfg := &asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   store.Trusted,
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         store.Trusted,
+		OtherPredefined: store.Generic,
 	}
 	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -610,11 +611,14 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 	// add store key
 	err = checkDB.Add(store.StoreAccountKey(""))
 	c.Assert(err, IsNil)
+	// add generic key
+	err = checkDB.Add(store.GenericKey)
+	c.Assert(err, IsNil)
 
-	return store.SigningDB, checkDB
+	return store, checkDB
 }
 
-func setup3rdPartySigning(c *C, username string, storeDB *assertstest.SigningDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
+func setup3rdPartySigning(c *C, username string, storeDB assertstest.SignerDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
 	privKey := testPrivKey2
 
 	acct := assertstest.NewAccount(storeDB, username, map[string]interface{}{
