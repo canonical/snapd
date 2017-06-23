@@ -101,13 +101,6 @@ slots:
   test-udev-bad-value-5:
     interface: spi
     path: /dev/spi-foo
-  test-udev-bad-value-6:
-    interface: spi
-    path: ""
-  test-udev-bad-value-7:
-    interface: spi
-  test-udev-bad-interface-1:
-    interface: other-interface
 `, nil)
 	s.testUDev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
 	s.testUDev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
@@ -116,9 +109,6 @@ slots:
 	s.testUDevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
 	s.testUDevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-4"]}
 	s.testUDevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
-	s.testUDevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-6"]}
-	s.testUDevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-7"]}
-	s.testUDevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-interface-1"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -126,8 +116,10 @@ name: client-snap
 plugs:
   plug-for-port-1:
     interface: spi
+    path: /dev/spidev.0.0
   plug-for-port-2:
     interface: spi
+    path: /dev/spidev0.1
 apps:
   app-accessing-1-port:
     command: foo
@@ -173,18 +165,11 @@ func (s *spiInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	err = s.iface.SanitizeSlot(s.testUDevBadValue5)
 	c.Assert(err, ErrorMatches, "spi path attribute must be a valid device node")
 
-	err = s.iface.SanitizeSlot(s.testUDevBadValue6)
-	c.Assert(err, ErrorMatches, "spi slot must have a path attribute")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue7)
-	c.Assert(err, ErrorMatches, "spi slot must have a path attribute")
-
 	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "spi"`)
 }
 
 func (s *spiInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	expectedSnippet1 := `KERNEL=="spidev0.0", TAG+="snap_client-snap_app-accessing-1-port"`
-	expectedSnippet2 := `KERNEL=="spidev0.1", TAG+="snap_client-snap_app-accessing-2-port"`
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
