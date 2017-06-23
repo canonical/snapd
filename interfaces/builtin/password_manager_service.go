@@ -19,12 +19,12 @@
 
 package builtin
 
-const passwordManagerServiceSummary = `allows access to password manager services`
+const passwordManagerServiceSummary = `allows access to common password manager services`
 
 const passwordManagerServiceDescription = `
 The password-manager-service interface allows connected plugs full access to
-common Desktop Environment password services (eg, gnome-keyring/secret-service
-and kwallet).
+common Desktop Environment password services (eg, currently secret-service and
+kwallet).
 
 The core snap provides the slot that is shared by all snaps on a classic
 system. This interface gives access to sensitive information in the user's
@@ -33,22 +33,53 @@ session.
 
 const passwordManagerServiceConnectedPlugAppArmor = `
 # Description: Allow access to password manager services provided by popular
-# Desktop Environments. This interface gives access to sensitive information in
-# the user's session.
+# Desktop Environments. This interface gives access to sensitive information
+# available in the user's session.
 
 #include <abstractions/dbus-session-strict>
 
-dbus (send)
+# Provide full access to the secret-service API:
+# - https://standards.freedesktop.org/secret-service/)
+#
+# The secret-service allows managing (add/delete/lock/etc) collections and
+# (add/delete/etc) items within collections. The API also has the concept of
+# aliases for collections which is typically used to access the default
+# collection. While it would be possible for an application developer to use a
+# snap-specific collection and mediate by object path, application developers
+# are meant to instead to treat collections (typically the default collection)
+# as a database of key/value attributes each with an associated secret that
+# applications may query. Because AppArmor does not mediate member data,
+# typical and recommended usage of the API does not allow for application
+# isolation. For details, see:
+# - https://standards.freedesktop.org/secret-service/ch03.html
+#
+dbus (receive, send)
     bus=session
-    path=/org/freedesktop/secrets
-    interface=org.freedesktop.DBus.Properties
-    member="{Get,GetAll,PropertiesChanged}"
+    path=/org/freedesktop/secrets{,/**}
+    interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
 
 dbus (receive, send)
     bus=session
-    interface=org.freedesktop.Secret.*
     path=/org/freedesktop/secrets{,/**}
+    interface=org.freedesktop.Secret.{Collection,Item,Prompt,Service,Session}
+    peer=(label=unconfined),
+
+# KWallet's client API is still in use in KDE/Plasma. It's DBus API relies upon
+# member data for access to its 'folders' and 'entries' and is therefore does
+# not allow for application isolation via AppArmor. For details, see:
+# - https://cgit.kde.org/kdelibs.git/tree/kdeui/util/kwallet.h?h=v4.14.33
+#
+dbus (receive, send)
+    bus=session
+    path=/modules/kwalletd
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/modules/kwalletd
+    interface=org.kde.KWallet
     peer=(label=unconfined),
 `
 
