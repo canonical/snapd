@@ -1,0 +1,24 @@
+summary: Each snap process is moved to appropriate freezer cgroup
+details: |
+    This test creates a snap process that suspends itself and ensures that it
+    placed into the appropriate hierarchy under the freezer cgroup.
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-sh
+execute: |
+    test-snapd-sh -c 'sleep 30' &
+    pid=$!
+
+    # Give snap-confine a moment to start and perform its task.
+    sleep 3
+
+    # While the process is alive its PID can be seen in the tasks file of the
+    # control group.
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid"
+
+    # When the process is gone the control group is updated and the task no
+    # longer registers there.
+    kill "$pid"
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH -v "$pid"
+restore: |
+    rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true
