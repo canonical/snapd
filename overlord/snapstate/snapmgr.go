@@ -653,8 +653,7 @@ func (m *SnapManager) GenerateCookies(st *state.State) error {
 
 	for snap := range snapNames {
 		if _, ok := contexts[snap]; !ok {
-			err := m.createSnapCookie(st, snap)
-			if err != nil {
+			if err := m.createSnapCookie(st, snap); err != nil {
 				return err
 			}
 		}
