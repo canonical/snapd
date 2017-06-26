@@ -90,10 +90,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		state:               s.state,
 	}
 
-	oldInstallHookSetup := snapstate.InstallHookSetup
-	oldRemoveHookSetup := snapstate.RemoveHookSetup
-	snapstate.InstallHookSetup = hooks.InstallHookSetup
-	snapstate.RemoveHookSetup = hooks.RemoveHookSetup
+	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	snapstate.SetupInstallHook = hooks.SetupInstallHook
+	snapstate.SetupRemoveHook = hooks.SetupRemoveHook
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
@@ -106,8 +106,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
 
 	s.reset = func() {
-		snapstate.InstallHookSetup = oldInstallHookSetup
-		snapstate.RemoveHookSetup = oldRemoveHookSetup
+		snapstate.SetupInstallHook = oldSetupInstallHook
+		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		restore2()
 		restore1()
 		dirs.SetRootDir("/")
@@ -149,7 +149,6 @@ const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
 	maybeCore
-	install
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -160,7 +159,7 @@ func taskKinds(tasks []*state.Task) []string {
 	return kinds
 }
 
-func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
+func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
 	kinds := taskKinds(ts.Tasks())
 
 	expected := []string{
@@ -185,11 +184,54 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	}
 	expected = append(expected,
 		"set-auto-aliases",
-		"setup-aliases")
-	if opts&install != 0 {
-		expected = append(expected, "run-hook")
+		"setup-aliases",
+		"run-hook",
+		"start-snap-services")
+	for i := 0; i < discards; i++ {
+		expected = append(expected,
+			"clear-snap",
+			"discard-snap",
+		)
 	}
-	expected = append(expected, "start-snap-services")
+	if opts&cleanupAfter != 0 {
+		expected = append(expected,
+			"cleanup",
+		)
+	}
+	expected = append(expected,
+		"run-hook",
+	)
+
+	c.Assert(kinds, DeepEquals, expected)
+}
+
+func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
+	kinds := taskKinds(ts.Tasks())
+
+	expected := []string{
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+	}
+	if opts&unlinkBefore != 0 {
+		expected = append(expected,
+			"stop-snap-services",
+			"remove-aliases",
+			"unlink-current-snap",
+		)
+	}
+	expected = append(expected,
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+	)
+	if opts&maybeCore != 0 {
+		expected = append(expected, "setup-profiles")
+	}
+	expected = append(expected,
+		"set-auto-aliases",
+		"setup-aliases",
+		"start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -291,8 +333,14 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallUpdateTasks(c, install, 0, ts, s.state)
+	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// one hook task for install, one for configure hook
+	c.Assert(runHooks, HasLen, 2)
+	c.Assert(runHooks[0].Summary(), Equals, `Run install hook of "some-snap" snap if present`)
+	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
@@ -302,7 +350,7 @@ func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
 	ts, err := snapstate.Install(s.state, "some-core", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallUpdateTasks(c, maybeCore|install, 0, ts, s.state)
+	verifyInstallTasks(c, maybeCore, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	var phase2 *state.Task
 	for _, t := range ts.Tasks() {
@@ -400,7 +448,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -423,7 +471,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -449,7 +497,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
 	ts := tts[0]
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -582,7 +630,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0], s.state)
 
 	c.Check(validateCalled, Equals, true)
 }
@@ -907,7 +955,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
@@ -5605,7 +5653,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
 
 	// and ensure that it will remove the revisions after "current"
 	// (si3, si4)
@@ -5740,7 +5788,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 
 	for _, ts := range tts {
-		verifyInstallUpdateTasks(c, install, 0, ts, s.state)
+		verifyInstallTasks(c, 0, 0, ts, s.state)
 	}
 }
 
@@ -5783,10 +5831,10 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	}
 }
 
-func findTasks(ts *state.TaskSet, pred func(task *state.Task) bool) []*state.Task {
+func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
 	var tasks []*state.Task
 	for _, task := range ts.Tasks() {
-		if pred(task) {
+		if task.Kind() == kind {
 			tasks = append(tasks, task)
 		}
 	}
@@ -5927,9 +5975,8 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
-	runHooks := findTasks(ts, func(task *state.Task) bool {
-		return task.Kind() == "run-hook"
-	})
+	runHooks := tasksWithKind(ts, "run-hook")
+
 	// two hooks expected - install and configure
 	c.Assert(runHooks, HasLen, 2)
 	c.Assert(runHooks[1].Kind(), Equals, "run-hook")
@@ -5956,13 +6003,6 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{SkipConfigure: true})
 	c.Assert(err, IsNil)
-
-	runHooks := findTasks(ts, func(task *state.Task) bool {
-		return task.Kind() == "run-hook"
-	})
-	// only one hook task for install, no configure hook
-	c.Assert(runHooks, HasLen, 1)
-	c.Assert(runHooks[0].Summary(), Equals, `Install hook of snap "some-snap"`)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -5996,9 +6036,8 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
-	runHooks := findTasks(ts, func(task *state.Task) bool {
-		return task.Kind() == "run-hook"
-	})
+	runHooks := tasksWithKind(ts, "run-hook")
+
 	c.Assert(runHooks[0].Kind(), Equals, "run-hook")
 	err = runHooks[0].Get("hook-context", &m)
 	c.Assert(err, Equals, state.ErrNoState)
@@ -6051,7 +6090,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallUpdateTasks(c, maybeCore|install, 0, tsl[0], s.state)
+	verifyInstallTasks(c, maybeCore, 0, tsl[0], s.state)
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
