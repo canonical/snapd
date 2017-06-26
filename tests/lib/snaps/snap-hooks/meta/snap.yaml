@@ -1,4 +1,4 @@
-name: snap-install-hooks
+name: snap-hooks
 version: 1.0
 apps:
     app:

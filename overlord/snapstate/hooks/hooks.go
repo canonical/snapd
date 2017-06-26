@@ -28,32 +28,32 @@ import (
 )
 
 func init() {
-	snapstate.InstallHookSetup = InstallHookSetup
-	snapstate.RefreshHookSetup = RefreshHookSetup
-	snapstate.RemoveHookSetup = RemoveHookSetup
+	snapstate.SetupInstallHook = SetupInstallHook
+	snapstate.SetupRefreshHook = SetupRefreshHook
+	snapstate.SetupRemoveHook = SetupRemoveHook
 }
 
-func InstallHookSetup(st *state.State, snapName string) *state.Task {
+func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	hooksup := &hookstate.HookSetup{
 		Snap:     snapName,
 		Hook:     "install",
 		Optional: true,
 	}
 
-	summary := fmt.Sprintf(i18n.G("Install hook of snap %q"), hooksup.Snap)
+	summary := fmt.Sprintf(i18n.G("Run install hook of %q snap if present"), hooksup.Snap)
 	task := hookstate.HookTask(st, summary, hooksup, nil)
 
 	return task
 }
 
-func RefreshHookSetup(st *state.State, snapName string) *state.Task {
+func SetupRefreshHook(st *state.State, snapName string) *state.Task {
 	hooksup := &hookstate.HookSetup{
 		Snap:     snapName,
 		Hook:     "refresh",
 		Optional: true,
 	}
 
-	summary := fmt.Sprintf(i18n.G("Refresh hook of snap %q"), hooksup.Snap)
+	summary := fmt.Sprintf(i18n.G("Run refresh hook of %q snap if present"), hooksup.Snap)
 	task := hookstate.HookTask(st, summary, hooksup, nil)
 
 	return task
@@ -74,7 +74,7 @@ func (h *snapHookHandler) Error(err error) error {
 	return nil
 }
 
-func RemoveHookSetup(st *state.State, snapName string) *state.Task {
+func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "remove",
@@ -82,7 +82,7 @@ func RemoveHookSetup(st *state.State, snapName string) *state.Task {
 		IgnoreError: true,
 	}
 
-	summary := fmt.Sprintf(i18n.G("Remove hook of snap %q"), hooksup.Snap)
+	summary := fmt.Sprintf(i18n.G("Run remove hook of %q snap if present"), hooksup.Snap)
 	task := hookstate.HookTask(st, summary, hooksup, nil)
 
 	return task

@@ -2,11 +2,11 @@ summary: Check install and remove hooks.
 
 execute: |
     . $TESTSLIB/snaps.sh
-    install_local snap-install-hooks
+    install_local snap-hooks
 
     echo "Verify configuration value with snap get"
-    snap get snap-install-hooks installed | MATCH 1
-    snap get snap-install-hooks foo | MATCH bar
+    snap get snap-hooks installed | MATCH 1
+    snap get snap-hooks foo | MATCH bar
 
     echo "Verify that refresh hook was not executed"
     if snap get snap-install-hooks refreshed; then
@@ -15,24 +15,24 @@ execute: |
     fi
 
     echo "Verify that install hook is run only once"
-    snap set snap-install-hooks installed=2
-    install_local snap-install-hooks
-    snap get snap-install-hooks installed | MATCH 2
+    snap set snap-hooks installed=2
+    install_local snap-hooks
+    snap get snap-hooks installed | MATCH 2
 
     echo "Verify that refresh hook was executed"
-    snap get snap-install-hooks refreshed | MATCH 1
+    snap get snap-hooks refreshed | MATCH 1
 
-    REMOVE_HOOK_FILE=/root/snap/snap-install-hooks/current/remove-hook-executed
+    REMOVE_HOOK_FILE=/root/snap/snap-hooks/current/remove-hook-executed
 
     echo "Verify that remove hook is not executed when removing single revision"
-    snap remove --revision=x1 snap-install-hooks
+    snap remove --revision=x1 snap-hooks
     if test -f $REMOVE_HOOK_FILE; then
         echo "Remove hook was executed. It shouldn't."
         exit 1
     fi
 
     echo "Verify that remove hook is executed"
-    snap remove snap-install-hooks
+    snap remove snap-hooks
     if ! test -f $REMOVE_HOOK_FILE; then
         echo "Remove hook was not executed"
         exit 1
@@ -40,18 +40,18 @@ execute: |
 
     echo "Installing a snap with hooks again"
     rm -rf "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
-    install_local snap-install-hooks
+    install_local snap-hooks
 
     echo "Forcing remove script to fail"
-    snap set snap-install-hooks exitcode=1
-    snap remove snap-install-hooks
+    snap set snap-hooks exitcode=1
+    snap remove snap-hooks
     if ! test -f $REMOVE_HOOK_FILE; then
         echo "Remove hook was not executed"
         exit 1
     fi
 
     echo "Installing a snap with broken install hook aborts the installation"
-    if install_local snap-install-hooks-broken1; then
+    if install_local snap-hook-broken; then
         echo "Expected installation to fail"
         exit 1
     fi
