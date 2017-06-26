@@ -89,10 +89,13 @@
     # change_profile unsafe /** -> **,
 
     # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
+
+    # ensuring correct permissions in sc_quirk_create_writable_mimic
+    /{tmp/snap.rootfs_*/,}var/lib/ rw,
 
     # LP: #1668659
     mount options=(rw rbind) /snap/ -> /snap/,
