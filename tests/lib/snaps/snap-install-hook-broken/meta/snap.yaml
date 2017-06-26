@@ -1,4 +1,4 @@
-name: snap-install-hooks-broken1
+name: snap-install-hook-broken
 version: 1.0
 apps:
     app:

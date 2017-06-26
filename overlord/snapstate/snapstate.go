@@ -171,16 +171,16 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// run refresh, revert or install hook
 	if snapst.HasCurrent() {
 		if snapsup.Flags.Revert {
-			revertHook := RevertHookSetup(st, snapsup.Name())
+			revertHook := SetupRevertHook(st, snapsup.Name())
 			addTask(revertHook)
 			prev = revertHook
 		} else {
-			refreshHook := RefreshHookSetup(st, snapsup.Name())
+			refreshHook := SetupRefreshHook(st, snapsup.Name())
 			addTask(refreshHook)
 			prev = refreshHook
 		}
 	} else {
-		installHook := InstallHookSetup(st, snapsup.Name())
+		installHook := SetupInstallHook(st, snapsup.Name())
 		addTask(installHook)
 		prev = installHook
 	}
@@ -273,20 +273,20 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 	panic("internal error: snapstate.Configure is unset")
 }
 
-var InstallHookSetup = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.InstallHookSetup is unset")
+var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupInstallHook is unset")
 }
 
-var RefreshHookSetup = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.RefreshHookSetup is unset")
+var SetupRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupRefreshHook is unset")
 }
 
-var RevertHookSetup = func(st *state.State, snapName string) *state.Task {
+var SetupRevertHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.RevertHookSetup is unset")
 }
 
-var RemoveHookSetup = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.RemoveHookSetup is unset")
+var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupRemoveHook is unset")
 }
 
 // snapTopicalTasks are tasks that characterize changes on a snap that
@@ -1176,7 +1176,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	var removeHook *state.Task
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
-		removeHook = RemoveHookSetup(st, snapsup.Name())
+		removeHook = SetupRemoveHook(st, snapsup.Name())
 	}
 
 	if active { // unlink
@@ -1207,10 +1207,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		tasks = append(tasks, removeAliases, unlink, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
-	} else {
-		if removeHook != nil {
-			addNext(state.NewTaskSet(removeHook))
-		}
+	} else if removeHook != nil {
+		addNext(state.NewTaskSet(removeHook))
 	}
 
 	if removeAll {
