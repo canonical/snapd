@@ -541,18 +541,26 @@ func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *Conn
 		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
 	}
 	type validatePlug interface {
-		ValidatePlug(plug *Plug, plugAttrs map[string]interface{}) error
+		ValidatePlug(attrs *Attrs) error
 	}
 	type validateSlot interface {
-		ValidateSlot(slot *Slot, slotAttrs map[string]interface{}) error
+		ValidateSlot(attrs *Attrs) error
 	}
 	if validate, ok := iface.(validatePlug); ok {
-		if err := validate.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
+		attrData, err := newPlugAttrs(plug, attributes.PlugAttrs)
+		if err != nil {
+			return err
+		}
+		if err := validate.ValidatePlug(attrData); err != nil {
 			return err
 		}
 	}
 	if validate, ok := iface.(validateSlot); ok {
-		if err := validate.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
+		attrData, err := newSlotAttrs(slot, attributes.SlotAttrs)
+		if err != nil {
+			return err
+		}
+		if err := validate.ValidateSlot(attrData); err != nil {
 			return err
 		}
 	}
