@@ -261,10 +261,10 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
-			"schedule": refreshScheduleStr,
-			"last":     formatRefreshTime(lastRefresh),
-			"next":     formatRefreshTime(nextRefresh),
+		"refresh": client.RefreshInfo{
+			Schedule: refreshScheduleStr,
+			Last:     formatRefreshTime(lastRefresh),
+			Next:     formatRefreshTime(nextRefresh),
 		},
 	}
 
