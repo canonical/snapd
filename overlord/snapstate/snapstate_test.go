@@ -343,6 +343,30 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
+func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(7)},
+		},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0`)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// no hook task for install, only for configure hook
+	c.Assert(runHooks, HasLen, 1)
+	c.Assert(runHooks[0].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+}
+
 func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -958,6 +982,11 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
+	runHooks := tasksWithKind(ts, "run-hook")
+	// no 'install' hook task, only configure hook
+	c.Assert(runHooks, HasLen, 1)
+	c.Assert(runHooks[0].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+
 	c.Check(validateCalled, Equals, true)
 
 	var snapsup snapstate.SnapSetup
@@ -1256,6 +1285,32 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// hook task for 'remove'
+	c.Assert(runHooks, HasLen, 1)
+	c.Assert(runHooks[0].Summary(), Equals, `Run remove hook of "foo" snap if present`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+			{RealName: "foo", Revision: snap.R(12)},
+		},
+		Current: snap.R(12),
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(11))
+	c.Assert(err, IsNil)
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// no 'remove' hook task
+	c.Assert(runHooks, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
