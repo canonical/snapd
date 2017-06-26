@@ -139,6 +139,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -630,6 +631,12 @@ func compile(content []byte, out string) error {
 	}
 
 	// write atomically
+	dir, err := os.Open(filepath.Dir(out))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
 	fout, err := os.Create(out + ".tmp")
 	if err != nil {
 		return err
@@ -641,7 +648,10 @@ func compile(content []byte, out string) error {
 	if err := fout.Sync(); err != nil {
 		return err
 	}
-	return os.Rename(out+".tmp", out)
+	if err := os.Rename(out+".tmp", out); err != nil {
+		return err
+	}
+	return dir.Sync()
 }
 
 func showSeccompLibraryVersion() error {
