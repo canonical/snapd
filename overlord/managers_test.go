@@ -107,13 +107,13 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	oldInstallHookSetup := snapstate.InstallHookSetup
-	oldRemoveHookSetup := snapstate.RemoveHookSetup
-	snapstate.RemoveHookSetup = hooks.RemoveHookSetup
+	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	snapstate.SetupRemoveHook = hooks.SetupRemoveHook
 
 	ms.restore = func() {
-		snapstate.RemoveHookSetup = oldRemoveHookSetup
-		snapstate.InstallHookSetup = oldInstallHookSetup
+		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SetupInstallHook = oldSetupInstallHook
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
