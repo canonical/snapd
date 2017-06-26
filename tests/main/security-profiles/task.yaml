@@ -10,7 +10,7 @@ restore: |
     rm basic-hooks_1.0_all.snap
 
 execute: |
-    seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
+    seccomp_profile_directory="/var/lib/snapd/seccomp/bpf"
 
     echo "Security profiles are generated and loaded for apps"
     . $TESTSLIB/snaps.sh
@@ -20,7 +20,7 @@ execute: |
     for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success
     do
         echo "$loaded_profiles" | grep -zq "$profile (enforce)"
-        [ -f "$seccomp_profile_directory/$profile" ]
+        [ -f "$seccomp_profile_directory/${profile}.bin" ]
     done
 
     echo "Security profiles are generated and loaded for hooks"
@@ -28,4 +28,4 @@ execute: |
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
     echo "$loaded_profiles" | grep -zq "snap.basic-hooks.hook.configure (enforce)"
-    [ -f "$seccomp_profile_directory/snap.basic-hooks.hook.configure" ]
+    [ -f "$seccomp_profile_directory/snap.basic-hooks.hook.configure.bin" ]
