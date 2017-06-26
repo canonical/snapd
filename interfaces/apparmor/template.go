@@ -276,6 +276,7 @@ var defaultTemplate = `
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
+  owner @{PROC}/@{pid}/loginuid r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
