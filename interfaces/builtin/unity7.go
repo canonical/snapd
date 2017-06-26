@@ -309,6 +309,13 @@ dbus (receive)
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
 
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
 # app-indicators
 dbus (send)
     bus=session
