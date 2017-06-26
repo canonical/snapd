@@ -24,6 +24,7 @@ const opticalDriveSummary = `allows read access to optical drives`
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
+@{PROC}/sys/dev/cdrom/info r,
 `
 
 func init() {
