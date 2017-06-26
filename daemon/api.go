@@ -232,9 +232,9 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func formatRefreshTime(t time.Time) string {
 	if t.IsZero() {
-		return "n/a"
+		return ""
 	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
