@@ -208,6 +208,12 @@ dbus (send)
     interface=org.a11y.Bus
     member=GetAddress
     peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
 
 # unfortunate, but org.a11y.atspi is not designed for separation
 dbus (receive, send)
