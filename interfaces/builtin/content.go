@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -130,7 +131,11 @@ func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
-		return strings.Replace(path, "$SNAP", snapInfo.MountDir(), 1)
+		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+		// inside the mount namespace snap-confine creates and there we will
+		// always have a /snap directory available regardless if the system
+		// we're running on supports this or not.
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
 	}
 	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
 		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
@@ -139,7 +144,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.MountDir(), path)
+	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {

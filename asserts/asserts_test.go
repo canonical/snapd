@@ -312,9 +312,9 @@ func checkContent(c *C, a asserts.Assertion, encoded string) {
 func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 	stream := new(bytes.Buffer)
 	enc := asserts.NewEncoder(stream)
-	asserts.EncoderAppend(enc, []byte(exampleEmptyBody2NlNl))
-	asserts.EncoderAppend(enc, []byte(exampleBodyAndExtraHeaders))
-	asserts.EncoderAppend(enc, []byte(exampleEmptyBodyAllDefaults))
+	enc.WriteEncoded([]byte(exampleEmptyBody2NlNl))
+	enc.WriteEncoded([]byte(exampleBodyAndExtraHeaders))
+	enc.WriteEncoded([]byte(exampleEmptyBodyAllDefaults))
 
 	decoder := asserts.NewDecoder(stream)
 	a, err := decoder.Decode()

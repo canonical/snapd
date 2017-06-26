@@ -51,32 +51,6 @@
  **/
 #define SC_VOID_DIR "/var/lib/snapd/void"
 
-/**
- * Get the path to the mounted core snap on the host distribution.
- *
- * The core snap may be named just "core" (preferred) or "ubuntu-core"
- * (legacy).  The mount point dependes on build-time configuration and may
- * differ from distribution to distribution.
- **/
-static const char *sc_get_outer_core_mount_point()
-{
-	const char *core_path = SNAP_MOUNT_DIR "/core/current/";
-	const char *ubuntu_core_path = SNAP_MOUNT_DIR "/ubuntu-core/current/";
-	static const char *result = NULL;
-	if (result == NULL) {
-		if (access(core_path, F_OK) == 0) {
-			// Use the "core" snap if available.
-			result = core_path;
-		} else if (access(ubuntu_core_path, F_OK) == 0) {
-			// If not try to fall back to the "ubuntu-core" snap.
-			result = ubuntu_core_path;
-		} else {
-			die("cannot locate the core snap");
-		}
-	}
-	return result;
-}
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -526,7 +500,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_populate_mount_ns(const char *snap_name)
+void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -562,8 +536,23 @@ void sc_populate_mount_ns(const char *snap_name)
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
 			{},
 		};
+		char rootfs_dir[PATH_MAX];
+ again:
+		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
+				 "%s/%s/current/", SNAP_MOUNT_DIR,
+				 base_snap_name);
+		if (access(rootfs_dir, F_OK) != 0) {
+			if (sc_streq(base_snap_name, "core")) {
+				// As a special fallback, allow the base snap to degrade from
+				// "core" to "ubuntu-core". This is needed for the migration
+				// tests.
+				base_snap_name = "ubuntu-core";
+				goto again;
+			}
+			die("cannot locate the base snap: %s", base_snap_name);
+		}
 		struct sc_mount_config classic_config = {
-			.rootfs_dir = sc_get_outer_core_mount_point(),
+			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.on_classic_distro = true,
 		};

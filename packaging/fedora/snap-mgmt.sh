@@ -8,6 +8,20 @@
 set -e
 
 SNAP_MOUNT_DIR="/var/lib/snapd/snap"
+
+show_help() {
+    exec cat <<'EOF'
+Usage: snap-mgmt.sh [OPTIONS]
+
+A simple script to cleanup snap installations.
+
+optional arguments:
+  --help                           Show this help message and exit
+  --snap-mount-dir=<path>          Provide a path to be used as $SNAP_MOUNT_DIR
+  --purge                          Purge all data from $SNAP_MOUNT_DIR
+EOF
+}
+
 SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
@@ -18,7 +32,7 @@ systemctl_stop() {
     fi
 }
 
-if [ "$1" = "purge" ]; then
+purge() {
     # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
     if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
         umount -l "${SNAP_MOUNT_DIR}" || true
@@ -88,8 +102,29 @@ if [ "$1" = "purge" ]; then
 
     echo "Removing leftover snap shared state data"
     rm -rf /var/lib/snapd/desktop/applications/*
-    rm -rf /var/lib/snapd/seccomp/profiles/*
+    rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+}
 
-fi
+while [ -n "$1" ]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --snap-mount-dir=*)
+            SNAP_MOUNT_DIR=${1#*=}
+            SNAP_UNIT_PREFIX="$(systemd-escape -p $SNAP_MOUNT_DIR)"
+            shift
+            ;;
+        --purge)
+            purge
+            shift
+            ;;
+        *)
+            echo "Unknown command: $1"
+            exit 1
+            ;;
+    esac
+done

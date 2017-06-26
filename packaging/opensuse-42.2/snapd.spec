@@ -13,12 +13,22 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+%bcond_with testkeys
+
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
 %global repo            snapd
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
+
+%global with_test_keys  0
+
+%if %{with testkeys}
+%global with_test_keys 1
+%else
+%global with_test_keys 0
+%endif
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
@@ -99,9 +109,11 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening
-CFLAGS="$RPM_OPT_FLAGS -fPIC -pie -Wl,-z,relro -Wl,-z,now"
-CXXFLAGS="$RPM_OPT_FLAGS -fPIC -pie -Wl,-z,relro -Wl,-z,now"
+# Enable hardening; We can't use -pie here as this conflicts with
+# our build of static binaries for snap-confine. Also see
+# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
+CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
+CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 export CFLAGS
 export CXXFLAGS
 
@@ -115,10 +127,28 @@ export CXXFLAGS
 %build
 # Build golang executables
 %goprep %{import_path}
+
+%if 0%{?with_test_keys}
+# The %gobuild macro doesn't allow us to pass any additional parameters
+# so we we have to invoke `go install` here manually.
+export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
+export GOBIN=%{_builddir}/go/bin
+# Options used are the same as the %gobuild macro does but as it
+# doesn't allow us to amend new flags we have to repeat them here:
+# -s: tell long running tests to shorten their build time
+# -v: be verbose
+# -p 4: allow parallel execution of tests
+# -x: print commands
+go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
+%else
+%gobuild cmd/snapd
+%endif
+
 %gobuild cmd/snap
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
-%gobuild cmd/snapd
+%gobuild cmd/snap-update-ns
+
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -133,10 +163,11 @@ make %{?_smp_mflags} -C cmd check
 rm -rf %{buildroot}/usr/lib64/go
 rm -rf %{buildroot}/usr/lib/go
 find %{buildroot}
-# Move snapd and snap-exec into /usr/lib/snapd
+# Move snapd, snap-exec and snap-update-ns into /usr/lib/snapd
 install -m 755 -d %{buildroot}/usr/lib/snapd
 mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
+mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -161,7 +192,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 # shutdown process and thus can be left out of the distribution package.
 rm -f %{?buildroot}/usr/lib/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/profiles,snaps}
+install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -171,7 +202,7 @@ install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
 make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service; do
+for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service; do
     rm %buildroot/%{_unitdir}/$s
 done
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
@@ -225,7 +256,7 @@ esac
 %dir /var/lib/snapd/hostfs
 %dir /var/lib/snapd/mount
 %dir /var/lib/snapd/seccomp
-%dir /var/lib/snapd/seccomp/profiles
+%dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
 %verify(not user group mode) %attr(04755,root,root) /usr/lib/snapd/snap-confine
 %{_mandir}/man5/snap-confine.5.gz
@@ -241,7 +272,9 @@ esac
 /usr/sbin/rcsnapd.refresh
 /usr/lib/snapd/info
 /usr/lib/snapd/snap-discard-ns
+/usr/lib/snapd/snap-update-ns
 /usr/lib/snapd/snap-exec
+/usr/lib/snapd/snap-seccomp
 /usr/lib/snapd/snapd
 /usr/lib/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap

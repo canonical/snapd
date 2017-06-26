@@ -1,14 +1,26 @@
 #!/bin/bash
 
+. "$TESTSLIB/quiet.sh"
+
 create_test_user(){
    if ! id test >& /dev/null; then
-        # manually setting the UID and GID to 12345 because we need to
-        # know the numbers match for when we set up the user inside
-        # the all-snap, which has its own user & group database.
-        # Nothing special about 12345 beyond it being high enough it's
-        # unlikely to ever clash with anything, and easy to remember.
-        addgroup --quiet --gid 12345 test
-        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+        quiet groupadd --gid 12345 test
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*)
+                # manually setting the UID and GID to 12345 because we need to
+                # know the numbers match for when we set up the user inside
+                # the all-snap, which has its own user & group database.
+                # Nothing special about 12345 beyond it being high enough it's
+                # unlikely to ever clash with anything, and easy to remember.
+                quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
+                ;;
+            debian-*|fedora-*|opensuse-*)
+                quiet useradd -m --uid 12345 --gid 12345 test
+                ;;
+            *)
+                echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
+                exit 1
+        esac
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -30,6 +42,73 @@ build_deb(){
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+}
+
+build_rpm() {
+    distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
+    release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    arch=x86_64
+    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    version="1337.$base_version"
+    packaging_path=packaging/$distro-$release
+    archive_name=snapd-$version.tar.gz
+    archive_compression=z
+    extra_tar_args=
+    rpm_dir=$(rpm --eval "%_topdir")
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            extra_tar_args="$extra_tar_args --exclude=vendor/"
+            ;;
+        opensuse-*)
+            archive_name=snapd_$version.vendor.tar.xz
+            archive_compression=J
+            ;;
+        *)
+            echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
+            exit 1
+    esac
+
+    sed -i -e "s/^Version:.*$/Version: $version/g" $packaging_path/snapd.spec
+
+    # Create a source tarball for the current snapd sources
+    mkdir -p /tmp/pkg/snapd-$version
+    cp -rav * /tmp/pkg/snapd-$version/
+    mkdir -p $rpm_dir/SOURCES
+    (cd /tmp/pkg; tar c${archive_compression}f $rpm_dir/SOURCES/$archive_name snapd-$version $extra_tar_args)
+    cp $packaging_path/* $rpm_dir/SOURCES/
+
+    # Cleanup all artifacts from previous builds
+    rm -rf $rpm_dir/BUILD/*
+
+    # Build our source package
+    rpmbuild --with testkeys -bs $packaging_path/snapd.spec
+
+    # .. and we need all necessary build dependencies available
+    deps=()
+    n=0
+    IFS=$'\n'
+    for dep in $(rpm -qpR $rpm_dir/SRPMS/snapd-1337.*.src.rpm); do
+      if [[ "$dep" = rpmlib* ]]; then
+         continue
+      fi
+      deps[$n]=$dep
+      n=$((n+1))
+    done
+    distro_install_package "${deps[@]}"
+
+    # And now build our binary package
+    rpmbuild \
+        --with testkeys \
+        --nocheck \
+        -ba \
+        $packaging_path/snapd.spec
+
+    cp $rpm_dir/RPMS/$arch/snap*.rpm $GOPATH
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        # On Fedora we have an additional package for SELinux
+        cp $rpm_dir/RPMS/noarch/snap*.rpm $GOPATH
+    fi
 }
 
 download_from_published(){
@@ -133,22 +212,34 @@ distro_install_package "${DISTRO_BUILD_DEPS[@]}"
 # base on the packaging. In Fedora/Suse this is handled via mock/osc
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
+        # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+        # will fail to install because the poor apt resolver does not get it
+        apt-get install -y --only-upgrade systemd
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
-        ;;
-    *)
         ;;
 esac
 
 # update vendoring
-if [ "$(which govendor)" = "" ]; then
-    rm -rf "$GOHOME/src/github.com/kardianos/govendor"
+if [ -z "$(which govendor)" ]; then
+    rm -rf $GOPATH/src/github.com/kardianos/govendor
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
 
 if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
-    build_deb
+    case "$SPREAD_SYSTEM" in
+      ubuntu-*|debian-*)
+         build_deb
+         ;;
+      fedora-*|opensuse-*)
+         build_rpm
+         ;;
+      *)
+         echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
+         exit 1
+         ;;
+   esac
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
@@ -162,8 +253,9 @@ fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
-# shellcheck disable=SC2086
-go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
+
+# eval to prevent expansion errors on opensuse (the variable keeps quotes)
+eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
 # Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc

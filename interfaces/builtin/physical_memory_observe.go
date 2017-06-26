@@ -51,7 +51,9 @@ func (iface *physicalMemoryObserveInterface) String() string {
 
 func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: physicalMemoryObserveSummary,
+		Summary:           physicalMemoryObserveSummary,
+		ImplicitOnCore:    true,
+		ImplicitOnClassic: true,
 	}
 }
 

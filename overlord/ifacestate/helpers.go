@@ -94,7 +94,7 @@ func (m *InterfaceManager) addSnaps() error {
 		return err
 	}
 	for _, snapInfo := range snaps {
-		snap.AddImplicitSlots(snapInfo)
+		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("%s", err)
 		}
@@ -121,7 +121,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	}
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		snap.AddImplicitSlots(snapInfo)
+		addImplicitSlots(snapInfo)
 	}
 
 	// For each snap:
