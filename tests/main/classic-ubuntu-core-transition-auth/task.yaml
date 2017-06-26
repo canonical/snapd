@@ -9,8 +9,7 @@ kill-timeout: 5m
 execute: |
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge --force-depends snapd
-    apt-get install -f -y
+    distro_purge_package snapd
     distro_install_build_snapd
 
     snap download --${CORE_CHANNEL} ubuntu-core

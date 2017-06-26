@@ -13,12 +13,22 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+%bcond_with testkeys
+
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
 %global repo            snapd
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
+
+%global with_test_keys  0
+
+%if %{with testkeys}
+%global with_test_keys 1
+%else
+%global with_test_keys 0
+%endif
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
@@ -117,11 +127,28 @@ export CXXFLAGS
 %build
 # Build golang executables
 %goprep %{import_path}
+
+%if 0%{?with_test_keys}
+# The %gobuild macro doesn't allow us to pass any additional parameters
+# so we we have to invoke `go install` here manually.
+export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
+export GOBIN=%{_builddir}/go/bin
+# Options used are the same as the %gobuild macro does but as it
+# doesn't allow us to amend new flags we have to repeat them here:
+# -s: tell long running tests to shorten their build time
+# -v: be verbose
+# -p 4: allow parallel execution of tests
+# -x: print commands
+go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
+%else
+%gobuild cmd/snapd
+%endif
+
 %gobuild cmd/snap
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
-%gobuild cmd/snapd
 %gobuild cmd/snap-update-ns
+
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -165,7 +192,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 # shutdown process and thus can be left out of the distribution package.
 rm -f %{?buildroot}/usr/lib/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/profiles,snaps}
+install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -229,7 +256,7 @@ esac
 %dir /var/lib/snapd/hostfs
 %dir /var/lib/snapd/mount
 %dir /var/lib/snapd/seccomp
-%dir /var/lib/snapd/seccomp/profiles
+%dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
 %verify(not user group mode) %attr(04755,root,root) /usr/lib/snapd/snap-confine
 %{_mandir}/man5/snap-confine.5.gz
@@ -247,6 +274,7 @@ esac
 /usr/lib/snapd/snap-discard-ns
 /usr/lib/snapd/snap-update-ns
 /usr/lib/snapd/snap-exec
+/usr/lib/snapd/snap-seccomp
 /usr/lib/snapd/snapd
 /usr/lib/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap

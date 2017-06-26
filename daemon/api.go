@@ -2257,17 +2257,25 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	switch a.Action {
 	case "ensure-state-soon":
-		st := c.d.overlord.State()
-		st.Lock()
-		defer st.Unlock()
 		ensureStateSoon(st)
+		return SyncResponse(true, nil)
+	case "get-base-declaration":
+		bd, err := assertstate.BaseDeclaration(st)
+		if err != nil {
+			return InternalError("cannot get base declaration: %s", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"base-declaration": string(asserts.Encode(bd)),
+		}, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
-
-	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
