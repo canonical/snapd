@@ -1,3 +1,11 @@
+snapd (2.26.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - interfaces: allow snaps to use the timedatectl utility in
+      time-control
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 27 Jun 2017 08:38:15 +0100
+
 snapd (2.26.5~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
