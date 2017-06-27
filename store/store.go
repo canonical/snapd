@@ -289,7 +289,15 @@ func assertsURL() string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
-	return apiURL() + "api/v1/snaps/"
+	storeBaseURI, err := url.Parse(apiURL())
+	if err != nil {
+		panic(err)
+	}
+	assertsURI, err := storeBaseURI.Parse("api/v1/snaps/")
+	if err != nil {
+		panic(err)
+	}
+	return assertsURI.String()
 }
 
 func myappsURL() string {
