@@ -22,9 +22,11 @@ execute: |
     echo "Verify that refresh hook was executed"
     snap get snap-hooks refreshed | MATCH 1
 
-    REMOVE_HOOK_FILE=/root/snap/snap-hooks/current/remove-hook-executed
+    REMOVE_HOOK_FILE=$HOME/remove-hook-executed
+    snap connect snap-hooks:home
 
     echo "Verify that remove hook is not executed when removing single revision"
+    snap set snap-hooks exitcode=0
     snap remove --revision=x1 snap-hooks
     if test -f $REMOVE_HOOK_FILE; then
         echo "Remove hook was executed. It shouldn't."
@@ -32,6 +34,7 @@ execute: |
     fi
 
     echo "Verify that remove hook is executed"
+    snap set snap-hooks exitcode=0
     snap remove snap-hooks
     if ! test -f $REMOVE_HOOK_FILE; then
         echo "Remove hook was not executed"
@@ -41,11 +44,13 @@ execute: |
     echo "Installing a snap with hooks again"
     rm -rf "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
     install_local snap-hooks
+    snap connect snap-hooks:home
 
     echo "Forcing remove script to fail"
     snap set snap-hooks exitcode=1
     snap remove snap-hooks
-    if ! test -f $REMOVE_HOOK_FILE; then
+    EXITCODE_VALUE=$(cat $REMOVE_HOOK_FILE)
+    if test "x$EXITCODE_VALUE" != "x1"; then
         echo "Remove hook was not executed"
         exit 1
     fi
