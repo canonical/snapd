@@ -66,6 +66,12 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=unconfined),
+
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus method for controlling network time synchronization via
+# timedatectl's set-ntp command.
+/usr/bin/timedatectl{,.real} ixr,
 `
 
 // NewTimeserverControlInterface returns a new "timeserver-control" interface.
