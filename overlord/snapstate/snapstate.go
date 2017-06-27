@@ -168,6 +168,23 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	// run refresh, revert or install hook
+	if snapst.HasCurrent() {
+		if snapsup.Flags.Revert {
+			revertHook := SetupRevertHook(st, snapsup.Name())
+			addTask(revertHook)
+			prev = revertHook
+		} else {
+			refreshHook := SetupRefreshHook(st, snapsup.Name())
+			addTask(refreshHook)
+			prev = refreshHook
+		}
+	} else {
+		installHook := SetupInstallHook(st, snapsup.Name())
+		addTask(installHook)
+		prev = installHook
+	}
+
 	// run new serices
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.Name(), revisionStr))
 	addTask(startSnapServices)
@@ -254,6 +271,22 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 
 var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	panic("internal error: snapstate.Configure is unset")
+}
+
+var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupInstallHook is unset")
+}
+
+var SetupRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupRefreshHook is unset")
+}
+
+var SetupRevertHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.RevertHookSetup is unset")
+}
+
+var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupRemoveHook is unset")
 }
 
 // snapTopicalTasks are tasks that characterize changes on a snap that
@@ -1140,12 +1173,28 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
+	var removeHook *state.Task
+	// only run remove hook if uninstalling the snap completely
+	if removeAll {
+		removeHook = SetupRemoveHook(st, snapsup.Name())
+	}
+
 	if active { // unlink
+		var prev *state.Task
+
 		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
+		prev = stopSnapServices
+
+		tasks := []*state.Task{stopSnapServices}
+		if removeHook != nil {
+			tasks = append(tasks, removeHook)
+			removeHook.WaitFor(prev)
+			prev = removeHook
+		}
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
-		removeAliases.WaitFor(stopSnapServices)
+		removeAliases.WaitFor(prev)
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
@@ -1156,7 +1205,10 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		removeSecurity.WaitFor(unlink)
 		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
-		addNext(state.NewTaskSet(stopSnapServices, removeAliases, unlink, removeSecurity))
+		tasks = append(tasks, removeAliases, unlink, removeSecurity)
+		addNext(state.NewTaskSet(tasks...))
+	} else if removeHook != nil {
+		addNext(state.NewTaskSet(removeHook))
 	}
 
 	if removeAll {

@@ -1,0 +1,26 @@
+summary: Check revert hook.
+
+execute: |
+    . $TESTSLIB/snaps.sh
+
+    echo "Given a snap is installed"
+    install_local snap-revert-hook
+
+    snap list | MATCH 'snap-revert-hook +[0-9]+\.[0-9]+\s+x1'
+
+    echo "Make sure the configuration is clean"
+    if snap get snap-revert-hook reverted; then
+        echo "Expected `snap get` to fail, 'reverted' option shouldn't exist"
+    fi
+
+    echo "When a new version is installed"
+    install_local snap-revert-hook
+
+    echo "Then the new version is installed"
+    snap list | MATCH 'snap-revert-hook +[0-9]+\.[0-9]+\s+x2'
+
+    echo "And revert is made"
+    snap revert --devmode snap-revert-hook
+
+    echo "Verify that revert hook was executed"
+    snap get snap-revert-hook reverted | MATCH "x1"
