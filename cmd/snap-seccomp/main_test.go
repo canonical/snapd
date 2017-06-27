@@ -89,6 +89,20 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 	if err != nil {
 		return nil, err
 	}
+	// libseccomp may return negative numbers here for syscalls that
+	// are "special" for some reason. there is no "official" way to
+	// resolve them using the API to the real number. this is why
+	// we workaround there.
+	if sc < 0 {
+		/* -101 is __PNR_socket */
+		if sc == -101 && scmpArch == seccomp.ArchX86 {
+			sc = 359 /* see src/arch-x86.c socket */
+		} else if sc == -101 && scmpArch == seccomp.ArchS390X {
+			sc = 359 /* see src/arch-s390x.c socket */
+		} else {
+			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
+		}
+	}
 
 	var syscallArgs [6]uint64
 	if len(l) > 2 {
