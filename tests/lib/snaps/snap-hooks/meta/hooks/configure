@@ -1,4 +1,3 @@
 #!/bin/sh
 
 snapctl set foo=bar
-snapctl set exitcode=0
