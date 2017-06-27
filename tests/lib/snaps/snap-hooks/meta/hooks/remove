@@ -1,7 +1,5 @@
 #!/bin/sh
 
-touch $SNAP_USER_DATA/remove-hook-executed
-
 RETVAL=$(snapctl get exitcode)
-echo "Remove hook status: $RETVAL"
+echo "$RETVAL" > /root/remove-hook-executed
 exit $RETVAL
