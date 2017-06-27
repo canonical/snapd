@@ -62,9 +62,10 @@ func SetupRefreshHook(st *state.State, snapName string) *state.Task {
 
 func SetupRevertHook(st *state.State, snapName string) *state.Task {
 	hooksup := &hookstate.HookSetup{
-		Snap:     snapName,
-		Hook:     "revert",
-		Optional: true,
+		Snap:        snapName,
+		Hook:        "revert",
+		Optional:    true,
+		IgnoreError: true,
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run revert hook of %q snap if present"), hooksup.Snap)
