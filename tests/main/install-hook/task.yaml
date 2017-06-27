@@ -13,7 +13,8 @@ execute: |
     install_local snap-hooks
     snap get snap-hooks installed | MATCH 2
 
-    REMOVE_HOOK_FILE=/root/snap/snap-hooks/current/remove-hook-executed
+    REMOVE_HOOK_FILE=$HOME/remove-hook-executed
+    snap connect snap-hooks:home
 
     echo "Verify that remove hook is not executed when removing single revision"
     snap set snap-hooks exitcode=0
@@ -34,6 +35,7 @@ execute: |
     echo "Installing a snap with hooks again"
     rm -rf "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
     install_local snap-hooks
+    snap connect snap-hooks:home
 
     echo "Forcing remove script to fail"
     snap set snap-hooks exitcode=1
