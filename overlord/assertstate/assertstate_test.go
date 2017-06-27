@@ -918,7 +918,7 @@ func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
 	defer r1()
 
 	baseDecl, err := assertstate.BaseDeclaration(s.state)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 	c.Check(baseDecl, IsNil)
 
 	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -950,7 +950,7 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 
 	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
 	c.Assert(err, IsNil)
@@ -979,7 +979,7 @@ func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
 			SnapID:   "baz-id",
 		},
 	})
-	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	info := snaptest.MockInfo(c, `
 name: foo
@@ -1039,7 +1039,7 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 			SnapID:   "baz-id",
 		},
 	})
-	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	// empty list
 	// have a declaration in the system db
@@ -1098,7 +1098,7 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 
 	acct, err := assertstate.Publisher(s.state, "foo-id")
 	c.Assert(err, IsNil)

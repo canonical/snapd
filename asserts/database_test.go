@@ -636,6 +636,21 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, true)
 }
 
+func (safs *signAddFindSuite) TestNotFoundError(c *C) {
+	err1 := &asserts.NotFoundError{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id"},
+	}
+	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(err1.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
+
+	err2 := &asserts.NotFoundError{
+		Type: asserts.SnapRevisionType,
+	}
+	c.Check(asserts.IsNotFound(err1), Equals, true)
+	c.Check(err2.Error(), Equals, "snap-revision(s) not found")
+}
+
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
@@ -650,7 +665,10 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
 		"primary-key": "b",
 	})
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type:       asserts.TestOnlyType,
+		PrimaryKey: []string{"b"},
+	})
 	c.Check(retrieved1, IsNil)
 
 	// checking also extra headers
@@ -658,7 +676,9 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 		"primary-key":  "a",
 		"authority-id": "other-auth-id",
 	})
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+	})
 	c.Check(retrieved1, IsNil)
 }
 
@@ -731,7 +751,9 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"other":       "other-x",
 	})
 	c.Assert(res, HasLen, 0)
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+	})
 }
 
 func (safs *signAddFindSuite) TestFindFindsPredefined(c *C) {
@@ -813,18 +835,23 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
 		"account-id": acct1.AccountID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{acct1.AccountID()},
+	})
 
 	_, err = safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.AccountKeyType,
+	})
 
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
 		"account-id": "predefined",
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestFindPredefined(c *C) {
@@ -871,13 +898,18 @@ func (safs *signAddFindSuite) TestFindPredefined(c *C) {
 	_, err = safs.db.FindPredefined(asserts.AccountType, map[string]string{
 		"account-id": acct1.AccountID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{acct1.AccountID()},
+	})
 
 	_, err = safs.db.FindPredefined(asserts.AccountKeyType, map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.AccountKeyType,
+	})
 }
 
 func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
@@ -959,13 +991,15 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 	_, err = db.FindManyPredefined(asserts.AccountType, map[string]string{
 		"account-id": acct1.AccountID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.AccountType,
+	})
 
 	_, err = db.FindManyPredefined(asserts.AccountKeyType, map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
@@ -1039,7 +1073,10 @@ func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 		PrimaryKey: []string{"kb", "ka"},
 	}
 	_, err = ref.Resolve(safs.db.Find)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type:       ref.Type,
+		PrimaryKey: ref.PrimaryKey,
+	})
 }
 
 func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
@@ -1125,7 +1162,7 @@ func (s *isUnacceptedUpdateSuite) TestIsUnacceptedUpdate(c *C) {
 		{&asserts.RevisionError{Used: 1, Current: 5}, true},
 		{&asserts.RevisionError{Used: 3, Current: 1}, false},
 		{errors.New("other error"), false},
-		{asserts.ErrNotFound, false},
+		{&asserts.NotFoundError{Type: asserts.TestOnlyType}, false},
 	}
 
 	for _, t := range tests {

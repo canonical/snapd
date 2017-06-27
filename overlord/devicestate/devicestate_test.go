@@ -736,7 +736,7 @@ version: gadget
 		"model":    "pc",
 		"serial":   "9999",
 	})
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	s.state.Unlock()
 	s.mgr.Ensure()

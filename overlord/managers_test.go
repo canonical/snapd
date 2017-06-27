@@ -412,7 +412,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				PrimaryKey: comps[3:],
 			}
 			a, err := ref.Resolve(ms.storeSigning.Find)
-			if err == asserts.ErrNotFound {
+			if asserts.IsNotFound(err) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(404)
 				w.Write([]byte(`{"status": 404}`))

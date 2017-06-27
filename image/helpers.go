@@ -207,7 +207,10 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 		// convert store error to something that the asserts would
 		// return
 		if _, ok := err.(*store.AssertionNotFoundError); ok {
-			return nil, asserts.ErrNotFound
+			return nil, &asserts.NotFoundError{
+				Type:       at,
+				PrimaryKey: pk,
+			}
 		}
 		return nil, err
 	}
