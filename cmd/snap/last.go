@@ -26,23 +26,23 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type lastMixin struct {
+type changeIDMixin struct {
 	LastChangeType string `long:"last"`
 	Positional     struct {
 		ID changeID `positional-arg-name:"<id>"`
 	} `positional-args:"yes"`
 }
 
-var lastMixinOptDesc = map[string]string{
+var changeIDMixinOptDesc = map[string]string{
 	"last": i18n.G("Select last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
 }
 
-var lastMixinArgDesc = []argDesc{{
+var changeIDMixinArgDesc = []argDesc{{
 	name: i18n.G("<change-id>"),
 	desc: i18n.G("Change ID"),
 }}
 
-func (l *lastMixin) GetChangeID(cli *client.Client) (changeID, error) {
+func (l *changeIDMixin) GetChangeID(cli *client.Client) (changeID, error) {
 	if l.Positional.ID == "" && l.LastChangeType == "" {
 		return "", fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
 	}

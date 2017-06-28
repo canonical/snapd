@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdWatch struct{ lastMixin }
+type cmdWatch struct{ changeIDMixin }
 
 var shortWatchHelp = i18n.G("Watch a change in progress")
 var longWatchHelp = i18n.G(`
@@ -36,7 +36,7 @@ The watch command waits for the given change-id to finish and shows progress
 func init() {
 	addCommand("watch", shortWatchHelp, longWatchHelp, func() flags.Commander {
 		return &cmdWatch{}
-	}, lastMixinOptDesc, lastMixinArgDesc)
+	}, changeIDMixinOptDesc, changeIDMixinArgDesc)
 }
 
 func (x *cmdWatch) Execute(args []string) error {
