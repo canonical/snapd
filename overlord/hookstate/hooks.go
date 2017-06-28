@@ -15,14 +15,13 @@
  *
  */
 
-package hooks
+package hookstate
 
 import (
 	"fmt"
 	"regexp"
 
 	"github.com/snapcore/snapd/i18n/dumb"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -33,14 +32,14 @@ func init() {
 }
 
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
-	hooksup := &hookstate.HookSetup{
+	hooksup := &HookSetup{
 		Snap:     snapName,
 		Hook:     "install",
 		Optional: true,
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run install hook of %q snap if present"), hooksup.Snap)
-	task := hookstate.HookTask(st, summary, hooksup, nil)
+	task := HookTask(st, summary, hooksup, nil)
 
 	return task
 }
@@ -61,7 +60,7 @@ func (h *snapHookHandler) Error(err error) error {
 }
 
 func SetupRemoveHook(st *state.State, snapName string) *state.Task {
-	hooksup := &hookstate.HookSetup{
+	hooksup := &HookSetup{
 		Snap:        snapName,
 		Hook:        "remove",
 		Optional:    true,
@@ -69,13 +68,13 @@ func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run remove hook of %q snap if present"), hooksup.Snap)
-	task := hookstate.HookTask(st, summary, hooksup, nil)
+	task := HookTask(st, summary, hooksup, nil)
 
 	return task
 }
 
-func SetupHooks(hookMgr *hookstate.HookManager) {
-	handlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+func setupHooks(hookMgr *HookManager) {
+	handlerGenerator := func(context *Context) Handler {
 		return &snapHookHandler{}
 	}
 
