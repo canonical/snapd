@@ -44,11 +44,15 @@ type cmdChanges struct {
 	} `positional-args:"yes"`
 }
 
-type cmdTasks struct{ lastMixin }
+type cmdTasks struct{ changeIDMixin }
 
 func init() {
-	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("tasks", shortTasksHelp, longTasksHelp, func() flags.Commander { return &cmdTasks{} }, lastMixinOptDesc, lastMixinArgDesc).alias = "change"
+	addCommand("changes", shortChangesHelp, longChangesHelp,
+		func() flags.Commander { return &cmdChanges{} }, nil, nil)
+	addCommand("tasks", shortTasksHelp, longTasksHelp,
+		func() flags.Commander { return &cmdTasks{} },
+		changeIDMixinOptDesc,
+		changeIDMixinArgDesc).alias = "change"
 }
 
 type changesByTime []*client.Change

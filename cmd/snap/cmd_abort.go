@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdAbort struct{ lastMixin }
+type cmdAbort struct{ changeIDMixin }
 
 var shortAbortHelp = i18n.G("Abort a pending change")
 
@@ -40,8 +40,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdAbort{}
 		},
-		lastMixinOptDesc,
-		lastMixinArgDesc,
+		changeIDMixinOptDesc,
+		changeIDMixinArgDesc,
 	)
 }
 
