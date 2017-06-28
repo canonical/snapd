@@ -22,6 +22,7 @@ prepare: |
     mkfs.vfat /dev/ram0
     mount /dev/ram0 /mnt
     cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
+    sync
     umount /mnt
     echo "Create new block device to trigger auto-import mount"
     # wait for all udev events to be handled, sometimes we are getting an error:
