@@ -1,5 +1,3 @@
-#!/bin/bash
-
 NAME="Ubuntu Core"
 VERSION="16"
 ID=ubuntu-core
