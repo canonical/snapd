@@ -14,7 +14,8 @@ environment:
 systems: [-ubuntu-core-16-*]
 
 prepare: |
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/pkgdb.sh"
 
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider

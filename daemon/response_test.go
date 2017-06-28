@@ -38,7 +38,7 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusAccepted,
+		Status: 202,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},
@@ -53,7 +53,7 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusCreated,
+		Status: 201,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},
@@ -68,7 +68,7 @@ func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusTeapot,
+		Status: 418, // I'm a teapot
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},

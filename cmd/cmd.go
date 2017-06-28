@@ -76,7 +76,7 @@ func distroSupportsReExec() bool {
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
 func coreSupportsReExec(corePath string) bool {
-	fullInfo := filepath.Join(corePath, "/usr/lib/snapd/info")
+	fullInfo := filepath.Join(corePath, filepath.Join(dirs.CoreLibExecDir, "info"))
 	if !osutil.FileExists(fullInfo) {
 		return false
 	}

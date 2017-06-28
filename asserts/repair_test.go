@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
@@ -36,6 +37,8 @@ var (
 
 type repairSuite struct {
 	modelsLine string
+	ts         time.Time
+	tsLine     string
 
 	repairStr string
 }
@@ -70,7 +73,8 @@ var repairExample = fmt.Sprintf("type: repair\n"+
 	"repair-id: 42\n"+
 	"series:\n"+
 	"  - 16\n"+
-	"MODELSLINE\n"+
+	"MODELSLINE"+
+	"TSLINE"+
 	"body-length: %v\n"+
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"+
 	"\n\n"+
@@ -79,8 +83,11 @@ var repairExample = fmt.Sprintf("type: repair\n"+
 
 func (s *repairSuite) SetUpTest(c *C) {
 	s.modelsLine = "models:\n  - acme/frobinator\n"
-	s.repairStr = strings.Replace(repairExample, "MODELSLINE\n", s.modelsLine, 1)
-	s.repairStr = strings.Replace(s.repairStr, "SCRIPT\n", script, 1)
+	s.ts = time.Now().Truncate(time.Second).UTC()
+	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
+
+	s.repairStr = strings.Replace(repairExample, "MODELSLINE", s.modelsLine, 1)
+	s.repairStr = strings.Replace(s.repairStr, "TSLINE", s.tsLine, 1)
 }
 
 func (s *repairSuite) TestDecodeOK(c *C) {
@@ -88,6 +95,7 @@ func (s *repairSuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
+	c.Check(repair.Timestamp(), Equals, s.ts)
 	c.Check(repair.BrandID(), Equals, "acme")
 	c.Check(repair.RepairID(), Equals, "42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
@@ -100,6 +108,31 @@ const (
 	repairErrPrefix = "assertion repair: "
 )
 
+func (s *repairSuite) TestDisabled(c *C) {
+	disabledTests := []struct {
+		disabled, expectedErr string
+		dis                   bool
+	}{
+		{"true", "", true},
+		{"false", "", false},
+		{"foo", `"disabled" header must be 'true' or 'false'`, false},
+	}
+
+	for _, test := range disabledTests {
+		repairStr := strings.Replace(repairExample, "MODELSLINE", fmt.Sprintf("disabled: %s\n", test.disabled), 1)
+		repairStr = strings.Replace(repairStr, "TSLINE", s.tsLine, 1)
+
+		a, err := asserts.Decode([]byte(repairStr))
+		if test.expectedErr != "" {
+			c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
+		} else {
+			c.Assert(err, IsNil)
+			repair := a.(*asserts.Repair)
+			c.Check(repair.Disabled(), Equals, test.dis)
+		}
+	}
+}
+
 func (s *repairSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series:\n  - 16\n", "series: \n", `"series" header must be a list of strings`},
@@ -111,6 +144,9 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" header contains invalid characters: "0"`},
 		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header contains invalid characters: "01"`},
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
+		{s.tsLine, "", `"timestamp" header is mandatory`},
+		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {

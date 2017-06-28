@@ -81,6 +81,8 @@ type mgrsSuite struct {
 	serveRevision map[string]string
 
 	hijackServeSnap func(http.ResponseWriter)
+
+	snapSeccomp *testutil.MockCmd
 }
 
 var (
@@ -141,6 +143,11 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -152,6 +159,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.aa.Restore()
 	ms.umount.Restore()
 	ms.snapDiscardNs.Restore()
+	ms.snapSeccomp.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -200,10 +208,10 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/x1")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
+	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
 
 }
@@ -242,7 +250,7 @@ apps:
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
-	mup := systemd.MountUnitPath("/snap/foo/x1")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
@@ -371,7 +379,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write(asserts.Encode(a))
 			return
 		case "details":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, fillHit(comps[2]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
@@ -393,7 +401,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				hits = append(hits, json.RawMessage(fillHit(name)))
 			}
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			output, err := json.Marshal(map[string]interface{}{
 				"_embedded": map[string]interface{}{
 					"clickindex:package": hits,
@@ -634,10 +642,10 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/55")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/55"))
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
+	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/55", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
 }
 
