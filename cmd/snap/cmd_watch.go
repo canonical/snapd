@@ -48,7 +48,7 @@ func (x *cmdWatch) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = wait(cli, string(id))
+	_, err = wait(cli, id)
 
 	return err
 }

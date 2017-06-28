@@ -123,8 +123,8 @@ func (c *cmdTasks) Execute([]string) error {
 	return showChange(cli, id)
 }
 
-func showChange(cli *client.Client, chid changeID) error {
-	chg, err := cli.Change(string(chid))
+func showChange(cli *client.Client, chid string) error {
+	chg, err := cli.Change(chid)
 	if err != nil {
 		return err
 	}
