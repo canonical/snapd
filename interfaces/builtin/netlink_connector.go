@@ -34,6 +34,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-connector",
 		summary:              netlinkConnectorSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
 		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
 		reservedForOS:        true,
 	})

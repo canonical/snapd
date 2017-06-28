@@ -137,10 +137,20 @@ type MetaData struct {
 	Summary          string `json:"summary,omitempty"`
 	Description      string `json:"description,omitempty"`
 	DocumentationURL string `json:"documentation-url,omitempty"`
+
+	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
+	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
+	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationPlugs string
+	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationSlots string
 }
 
-// ifaceMetaData returns the meta-data of the given interface.
-func ifaceMetaData(iface Interface) (md MetaData) {
+// IfaceMetaData returns the meta-data of the given interface.
+func IfaceMetaData(iface Interface) (md MetaData) {
 	type metaDataProvider interface {
 		MetaData() MetaData
 	}

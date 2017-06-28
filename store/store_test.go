@@ -685,11 +685,13 @@ func (nopeSeeker) Seek(int64, int) (int64, error) {
 	return -1, errors.New("what is this, quidditch?")
 }
 
-func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
+func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusUnauthorized)
+		// XXX: the server doesn't behave correctly ATM
+		// but 401 for paid snaps is the unlikely case so far
+		w.WriteHeader(402)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -698,7 +700,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	var buf bytes.Buffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Please buy foo before installing it.")
+	c.Check(err.Error(), Equals, "please buy foo before installing it.")
 	c.Check(n, Equals, 1)
 }
 
@@ -706,7 +708,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -716,7 +718,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, http.StatusNotFound)
+	c.Check(err.(*DownloadError).Code, Equals, 404)
 	c.Check(n, Equals, 1)
 }
 
@@ -724,7 +726,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -734,7 +736,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, http.StatusInternalServerError)
+	c.Check(err.(*DownloadError).Code, Equals, 500)
 	c.Check(n, Equals, 5)
 }
 
@@ -743,7 +745,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		if n == 1 {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		} else {
 			io.WriteString(w, "response-data")
 		}
@@ -1319,7 +1321,7 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 			io.WriteString(w, "response-data")
 		} else {
 			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(401)
 		}
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1357,7 +1359,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 				c.Fatalf("device authentication missing")
 			} else if authorization == expiredAuth {
 				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
+				w.WriteHeader(401)
 			} else {
 				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
 				io.WriteString(w, "response-data")
@@ -1445,7 +1447,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1457,7 +1459,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, serializedDischarge))
 	}))
 	c.Assert(mockSSOServer, NotNil)
@@ -1473,7 +1475,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 
 func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1493,7 +1495,7 @@ func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
 	}))
 	c.Assert(mockServer, NotNil)
@@ -1527,7 +1529,7 @@ const (
 
 /* acquired via
 
-http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
 
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
@@ -1539,15 +1541,8 @@ the http snap instead).
 */
 const MockDetailsJSON = `{
     "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
+            "href": "https://api.snapcraft.io/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
         }
     },
     "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
@@ -1625,15 +1620,8 @@ const MockDetailsJSON = `{
 // FIXME: this can go once the store always provides a channel_map_list
 const MockDetailsJSONnoChannelMapList = `{
     "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
+            "href": "https://api.snapcraft.io/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
         }
     },
     "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
@@ -1733,7 +1721,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -1797,7 +1785,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsSt
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "stable")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, strings.Replace(MockDetailsJSON, "edge", "stable", -1))
 	}))
@@ -1830,7 +1818,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -1864,10 +1852,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 		n++
 		if n > 1 {
 			w.Header().Set("X-Suggested-Currency", "GBP")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, MockDetailsJSON)
 		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		}
 	}))
 
@@ -1906,7 +1894,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			c.Check(r.URL.Path, Equals, "/details/hello-world")
 			c.Check(r.URL.Query().Get("channel"), Equals, "")
 			w.Header().Set("X-Suggested-Currency", "GBP")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 
 			io.WriteString(w, MockDetailsJSON)
 		default:
@@ -1996,7 +1984,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
 		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -2029,7 +2017,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "my-brand-store-id")
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -2060,7 +2048,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, ordersPath) {
-			w.WriteHeader(http.StatusNotFound)
+			w.WriteHeader(404)
 			return
 		}
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
@@ -2069,14 +2057,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 			"revision": []string{"26"},
 		})
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 	}))
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
@@ -2110,7 +2098,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
 
 		w.Header().Set("X-Oops-Id", "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 
 		io.WriteString(w, `{"oops": "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f"}`)
 	}))
@@ -2139,7 +2127,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 /*
 acquired via
 
-http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/no:such:package X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/no:such:package X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
 
 on 2016-07-03
 
@@ -2195,18 +2183,13 @@ func (t *remoteRepoTestSuite) TestStructFields(c *C) {
 }
 
 /* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=hello' | python -m json.tool | xsel -b
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=hello' | python -m json.tool | xsel -b
 Screenshot URLS set manually.
 */
 const MockSearchJSON = `{
     "_embedded": {
         "clickindex:package": [
             {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-                    }
-                },
                 "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25.snap",
                 "architecture": [
                     "all"
@@ -2235,21 +2218,14 @@ const MockSearchJSON = `{
         ]
     },
     "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
         "first": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
+            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
         },
         "last": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
+            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
         },
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
+            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
         }
     }
 }
@@ -2322,7 +2298,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 }
 
 /* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/snaps/sections'
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/sections'
 */
 const MockSectionsJSON = `{
   "_embedded": {
@@ -2336,16 +2312,8 @@ const MockSectionsJSON = `{
     ]
   }, 
   "_links": {
-    "curies": [
-      {
-        "href": "https://search.apps.ubuntu.com/docs/#reltype-{rel}", 
-        "name": "clickindex", 
-        "templated": true, 
-        "type": "text/html"
-      }
-    ], 
     "self": {
-      "href": "http://search.apps.ubuntu.com/api/v1/snaps/sections"
+      "href": "http://api.snapcraft.io/api/v1/snaps/sections"
     }
   }
 }
@@ -2362,7 +2330,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 		}
 
 		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, MockSectionsJSON)
 		n++
 	}))
@@ -2401,7 +2369,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 		}
 
 		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 
 		n++
@@ -2438,7 +2406,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
-		http.Error(w, http.StatusText(http.StatusTeapot), http.StatusTeapot)
+		http.Error(w, http.StatusText(418), 418) // I'm a teapot
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -2507,7 +2475,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -2531,10 +2499,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		if n == 1 {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 		} else {
 			w.Header().Set("Content-Type", "application/hal+json")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 		}
 	}))
@@ -2579,7 +2547,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockPurchasesServer, NotNil)
@@ -2673,18 +2641,13 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 
 /* acquired via:
 (against production "hello-world")
-$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"epoch":"0","confinement":"strict"}],"fields":["anon_download_url","architecture","channel","download_sha512","summary","description","binary_filesize","download_url","icon_url","last_updated","package_name","prices","publisher","ratings_average","revision","snap_id","support_url","title","content","version","origin","developer_id","private","confinement"]}'  -H 'content-type: application/json' -H 'X-Ubuntu-Release: 16' -H 'X-Ubuntu-Wire-Protocol: 1' -H "accept: application/hal+json" https://search.apps.ubuntu.com/api/v1/snaps/metadata | python3 -m json.tool --sort-keys | xsel -b
+$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"epoch":"0","confinement":"strict"}],"fields":["anon_download_url","architecture","channel","download_sha512","summary","description","binary_filesize","download_url","icon_url","last_updated","package_name","prices","publisher","ratings_average","revision","snap_id","support_url","title","content","version","origin","developer_id","private","confinement"]}'  -H 'content-type: application/json' -H 'X-Ubuntu-Release: 16' -H 'X-Ubuntu-Wire-Protocol: 1' -H "accept: application/hal+json" https://api.snapcraft.io/api/v1/snaps/metadata | python3 -m json.tool --sort-keys | xsel -b
 */
 var MockUpdatesJSON = `
 {
     "_embedded": {
         "clickindex:package": [
             {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-                    }
-                },
                 "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
                 "architecture": [
                     "all"
@@ -2710,15 +2673,6 @@ var MockUpdatesJSON = `
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
                 "title": "hello-world",
                 "version": "6.1"
-            }
-        ]
-    },
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
             }
         ]
     }
@@ -2935,7 +2889,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *
 		Revision: snap.R(1),
 	}, nil)
 	c.Assert(result, IsNil)
-	c.Check(err, FitsTypeOf, &snap.NoUpdateAvailableError{})
+	c.Check(err, Equals, ErrNoUpdateAvailable)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
@@ -3189,7 +3143,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnaut
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "")
 	}))
 
@@ -3240,7 +3194,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -3269,7 +3223,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		time.Sleep(time.Duration(2) * time.Second)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -3405,11 +3359,6 @@ var MockUpdatesWithDeltasJSON = `
     "_embedded": {
         "clickindex:package": [
             {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-                    }
-                },
                 "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
                 "architecture": [
                     "all"
@@ -3452,15 +3401,6 @@ var MockUpdatesWithDeltasJSON = `
                     "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta",
                     "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta"
                 }]
-            }
-        ]
-    },
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
             }
         ]
     }
@@ -3669,11 +3609,11 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 
 func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := cpiURL()
+	before := apiURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := cpiURL()
+	after := apiURL()
 
 	c.Check(before, Not(Equals), after)
 }
@@ -3723,8 +3663,8 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
-	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/search"), Equals, true)
-	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/metadata"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://api.snapcraft.io/api/v1/snaps/search"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://api.snapcraft.io/api/v1/snaps/metadata"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
 }
 
@@ -3819,7 +3759,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -3842,7 +3782,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Suggested-Currency", suggestedCurrency)
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -3935,7 +3875,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "{}")
 	}))
 
@@ -4101,7 +4041,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(404)
 		io.WriteString(w, "{}")
 	}))
 
@@ -4135,7 +4075,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(401)
 		io.WriteString(w, "")
 	}))
 
@@ -4211,7 +4151,7 @@ var buyTests = []struct {
 		// failure due to invalid price
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
-		buyStatus:         http.StatusBadRequest,
+		buyStatus:         400,
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
@@ -4221,7 +4161,7 @@ var buyTests = []struct {
 		// failure due to unknown snap ID
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
-		buyStatus:         http.StatusNotFound,
+		buyStatus:         404,
 		buyErrorCode:      "not-found",
 		buyErrorMessage:   "Not found",
 		snapID:            "invalid snap ID",
@@ -4233,7 +4173,7 @@ var buyTests = []struct {
 		// failure due to "Purchase failed"
 		suggestedCurrency: "USD",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
-		buyStatus:         http.StatusPaymentRequired,
+		buyStatus:         402, // Payment Required
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
 		expectedError:     "payment declined",
@@ -4244,7 +4184,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -4285,7 +4225,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 			c.Check(r.URL.Path, Equals, "/hello-world")
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.Header().Set("X-Suggested-Currency", test.suggestedCurrency)
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, MockDetailsJSON)
 			searchServerCalled = true
 		}))
@@ -4521,7 +4461,7 @@ var readyToBuyTests = []struct {
 	{
 		// No user account exists
 		Input: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusNotFound)
+			w.WriteHeader(404)
 			io.WriteString(w, "{}")
 		},
 		Test: func(c *C, err error) {
@@ -4533,7 +4473,7 @@ var readyToBuyTests = []struct {
 	{
 		// An unknown set of errors occurs
 		Input: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(500)
 			io.WriteString(w, `
 {
 	"error_list": [

@@ -104,7 +104,7 @@ func (s *storeTestSuite) TestTrivialGetWorks(c *C) {
 }
 
 func (s *storeTestSuite) TestSearchEndpoint(c *C) {
-	resp, err := s.StoreGet("/search")
+	resp, err := s.StoreGet("/api/v1/snaps/search")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -119,7 +119,7 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 7")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 77)
 
-	resp, err := s.StoreGet(`/snaps/details/foo`)
+	resp, err := s.StoreGet(`/api/v1/snaps/details/foo`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -143,7 +143,7 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 
 func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
-	resp, err := s.StoreGet(`/snaps/details/foo`)
+	resp, err := s.StoreGet(`/api/v1/snaps/details/foo`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -169,7 +169,7 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
 	// note that we send the test-snapd-tools snapID here
-	resp, err := s.StorePostJSON("/snaps/metadata", []byte(`{
+	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
 "snaps": [{"snap_id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","channel":"stable","revision":1}]
 }`))
 	c.Assert(err, IsNil)
@@ -201,7 +201,7 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
 
-	resp, err := s.StorePostJSON("/snaps/metadata", []byte(`{
+	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
 "snaps": [{"snap_id":"xidididididididididididididididid","channel":"stable","revision":1}]
 }`))
 	c.Assert(err, IsNil)

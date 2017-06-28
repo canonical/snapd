@@ -22,14 +22,15 @@ prepare: |
         echo "And a snap providing a upower-observe slot is installed"
         snap install upower
     else
-        apt-get install -y upower
+        . "$TESTSLIB/pkgdb.sh"
+        distro_install_package upower
     fi
 
 restore: |
     rm -f upower.error
     if [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
-        apt-get remove --purge -y upower
-        apt-get autoremove --purge -y
+        . "$TESTSLIB/pkgdb.sh"
+        distro_purge_package upower
     fi
 
 execute: |

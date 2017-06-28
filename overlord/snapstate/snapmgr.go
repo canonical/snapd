@@ -22,10 +22,12 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -299,6 +301,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
+	}
+
+	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 
 	// this handler does nothing

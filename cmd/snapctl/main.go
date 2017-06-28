@@ -56,8 +56,13 @@ func main() {
 func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
+	cookie := os.Getenv("SNAP_COOKIE")
+	// for compatibility, if re-exec is not enabled and facing older snapd.
+	if cookie == "" {
+		cookie = os.Getenv("SNAP_CONTEXT")
+	}
 	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: os.Getenv("SNAP_CONTEXT"),
+		ContextID: cookie,
 		Args:      os.Args[1:],
 	})
 }
