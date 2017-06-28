@@ -42,7 +42,7 @@ var changeIDMixinArgDesc = []argDesc{{
 	desc: i18n.G("Change ID"),
 }}
 
-func (l *changeIDMixin) GetChangeID(cli *client.Client) (changeID, error) {
+func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 	if l.Positional.ID == "" && l.LastChangeType == "" {
 		return "", fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
 	}
@@ -52,7 +52,7 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (changeID, error) {
 			return "", fmt.Errorf(i18n.G("cannot use change ID and type together"))
 		}
 
-		return l.Positional.ID, nil
+		return string(l.Positional.ID), nil
 	}
 
 	kind := l.LastChangeType
@@ -72,7 +72,7 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (changeID, error) {
 		return "", fmt.Errorf(i18n.G("no changes of type %q found"), l.LastChangeType)
 	}
 
-	return changeID(chg.ID), nil
+	return chg.ID, nil
 }
 
 func findLatestChangeByKind(changes []*client.Change, kind string) (latest *client.Change) {

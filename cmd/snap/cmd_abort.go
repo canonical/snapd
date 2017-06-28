@@ -55,6 +55,6 @@ func (x *cmdAbort) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = cli.Abort(string(id))
+	_, err = cli.Abort(id)
 	return err
 }
