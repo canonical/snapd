@@ -549,6 +549,11 @@ NextLaneTask:
 }
 
 func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool) {
+	seen := make(map[string]struct{}, len(tasks))
+	marker := struct{}{}
+	for _, task := range tasks {
+		seen[task.id] = marker
+	}
 	var lanes []int
 	for i := 0; i < len(tasks); i++ {
 		t := tasks[i]
@@ -571,7 +576,10 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool) {
 		}
 
 		for _, halted := range t.HaltTasks() {
-			tasks = append(tasks, halted)
+			if _, ok := seen[halted.id]; !ok {
+				seen[halted.id] = marker
+				tasks = append(tasks, halted)
+			}
 		}
 	}
 	if len(lanes) > 0 {
