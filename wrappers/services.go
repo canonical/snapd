@@ -199,6 +199,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart={{.App.LauncherCommand}}
+SyslogIdentifier={{.App.Snap.Name}}.{{.App.Name}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
