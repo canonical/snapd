@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -386,6 +387,58 @@ func (cs *changeSuite) TestAbort(c *C) {
 		default:
 			c.Assert(t.Status(), Equals, s)
 		}
+	}
+}
+
+func (cs *changeSuite) TestAbortCircular(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("circular", "...")
+
+	t1 := st.NewTask("one", "one")
+	t2 := st.NewTask("two", "two")
+	t1.WaitFor(t2)
+	t2.WaitFor(t1)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		c.Assert(t.Status(), Equals, state.HoldStatus)
+	}
+}
+
+func (cs *changeSuite) TestAbortKⁿ(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("Kⁿ", "...")
+
+	var prev *state.TaskSet
+	for i := 0; i < 100; i++ {
+		ts := make([]*state.Task, 100)
+		for j := range ts {
+			name := fmt.Sprintf("task-%d", j)
+			ts[j] = st.NewTask(name, name)
+		}
+		t := state.NewTaskSet(ts...)
+		if prev != nil {
+			t.WaitAll(prev)
+		}
+		prev = t
+		chg.AddAll(t)
+	}
+
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		c.Assert(t.Status(), Equals, state.HoldStatus)
 	}
 }
 
