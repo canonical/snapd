@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 echo "setup fake gpg pinentry environment"
 mkdir -p ~/.snap/gnupg/
