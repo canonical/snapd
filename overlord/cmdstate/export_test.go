@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef SNAP_CONFINE_SECCOMP_SUPPORT_H
-#define SNAP_CONFINE_SECCOMP_SUPPORT_H
 
-#include <seccomp.h>
+package cmdstate
 
-/** 
- * Load and apply the given bpf program
- *
- **/
-int sc_apply_seccomp_bpf(const char *filter_profile);
+import (
+	"time"
+)
 
-#endif
+func MockExecTimeout(t time.Duration) func() {
+	ot := execTimeout
+	execTimeout = t
+	return func() {
+		execTimeout = ot
+	}
+}

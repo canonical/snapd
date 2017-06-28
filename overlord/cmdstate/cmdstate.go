@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef SNAP_CONFINE_SECCOMP_SUPPORT_H
-#define SNAP_CONFINE_SECCOMP_SUPPORT_H
 
-#include <seccomp.h>
+// Package cmdstate implements a overlord.StateManager that excutes
+// arbitrary commands as tasks.
+package cmdstate
 
-/** 
- * Load and apply the given bpf program
- *
- **/
-int sc_apply_seccomp_bpf(const char *filter_profile);
+import (
+	"github.com/snapcore/snapd/overlord/state"
+)
 
-#endif
+// Exec creates a task that will execute the given command.
+func Exec(st *state.State, summary string, argv []string) *state.TaskSet {
+	t := st.NewTask("exec-command", summary)
+	t.Set("argv", argv)
+	return state.NewTaskSet(t)
+}
