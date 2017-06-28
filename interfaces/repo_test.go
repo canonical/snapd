@@ -1232,7 +1232,7 @@ func (s *RepositorySuite) TestConnectedFindsConnections(c *C) {
 func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "slot",
 			Interface: "interface",
 		},
@@ -1818,7 +1818,7 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) {
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	slotSnap.Type = snap.TypeOS
+	slotSnap.Type = snap.TypeCore
 
 	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)

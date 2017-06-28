@@ -227,7 +227,7 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 }
 
 func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
-	if snapInfo.Type != snap.TypeOS {
+	if snapInfo.Type != snap.TypeCore {
 		// not a relevant check
 		return nil
 	}

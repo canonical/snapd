@@ -374,7 +374,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 
 		// kernel/os are required for booting
-		if typ == snap.TypeKernel || typ == snap.TypeOS {
+		if typ == snap.TypeKernel || typ == snap.TypeCore {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			if err := osutil.CopyFile(fn, dst, 0); err != nil {
 				return err
@@ -466,7 +466,7 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 
 		info := downloadedSnapsInfo[fn]
 		switch info.Type {
-		case snap.TypeOS:
+		case snap.TypeCore:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"

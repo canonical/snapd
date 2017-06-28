@@ -115,8 +115,6 @@ func (n *Notes) String() string {
 	switch n.SnapType {
 	case "", snap.TypeApp:
 		// nothing
-	case snap.TypeOS:
-		ns = append(ns, "core")
 	default:
 		ns = append(ns, string(n.SnapType))
 	}

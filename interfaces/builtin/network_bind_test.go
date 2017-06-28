@@ -52,7 +52,7 @@ var _ = Suite(&NetworkBindInterfaceSuite{
 func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "network-bind",
 			Interface: "network-bind",
 		},

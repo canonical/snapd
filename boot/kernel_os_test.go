@@ -164,7 +164,7 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeOS
+	info.Type = snap.TypeCore
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 

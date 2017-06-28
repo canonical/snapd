@@ -32,6 +32,7 @@ var _ = check.Suite(&notesSuite{})
 
 func (notesSuite) TestNoNotes(c *check.C) {
 	c.Check((&snap.Notes{}).String(), check.Equals, "-")
+	c.Check((&snap.Notes{SnapType: client.TypeApp}).String(), check.Equals, "-")
 }
 
 func (notesSuite) TestNotesPrice(c *check.C) {
@@ -80,10 +81,6 @@ func (notesSuite) TestNotesBroken(c *check.C) {
 	c.Check((&snap.Notes{
 		Broken: true,
 	}).String(), check.Equals, "broken")
-}
-
-func (notesSuite) TestNotesNothing(c *check.C) {
-	c.Check((&snap.Notes{}).String(), check.Equals, "-")
 }
 
 func (notesSuite) TestNotesTwo(c *check.C) {

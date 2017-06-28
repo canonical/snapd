@@ -562,7 +562,7 @@ func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
+	if !(slot.Snap.Type == snap.TypeCore) {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
 	}
 

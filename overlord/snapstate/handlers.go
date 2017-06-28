@@ -611,7 +611,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 // snap with info if it's a core or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
-	if release.OnClassic && info.Type == snap.TypeOS {
+	if release.OnClassic && info.Type == snap.TypeCore {
 		t.Logf("Requested daemon restart.")
 		st.RequestRestart(state.RestartDaemon)
 	}

@@ -916,7 +916,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	oldConfigure := snapstate.Configure
@@ -4839,7 +4839,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 		},
 		{
 			snapName: "core",
-			snapType: snap.TypeOS,
+			snapType: snap.TypeCore,
 			getInfo:  snapstate.CoreInfo,
 		},
 		{
@@ -4914,7 +4914,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 			}
 			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
 			snapstate.Set(st, snapName, &snapstate.SnapState{
-				SnapType: string(snap.TypeOS),
+				SnapType: string(snap.TypeCore),
 				Active:   true,
 				Sequence: []*snap.SideInfo{sideInfo},
 				Current:  sideInfo.Revision,
@@ -4927,7 +4927,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 		} else {
 			c.Assert(info, NotNil)
 			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
-			c.Check(info.Type, Equals, snap.TypeOS)
+			c.Check(info.Type, Equals, snap.TypeCore)
 		}
 	}
 }
@@ -5229,7 +5229,7 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
-		Type: snap.TypeOS,
+		Type: snap.TypeCore,
 	}
 	os.RealName = "os"
 	kernel := &snap.Info{
@@ -5978,7 +5978,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	_, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
@@ -6009,7 +6009,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
@@ -6032,13 +6032,13 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
@@ -6059,7 +6059,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	chg := s.state.NewChange("transition-ubuntu-core", "...")
@@ -6173,7 +6173,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:    "remove-snap-files",
 			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "ubuntu-core/1"),
-			stype: "os",
+			stype: snap.TypeCore,
 		},
 		{
 			op:   "discard-namespace",
@@ -6201,13 +6201,13 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	chg := s.state.NewChange("transition-ubuntu-core", "...")
@@ -6260,7 +6260,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:    "remove-snap-files",
 			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "ubuntu-core/1"),
-			stype: "os",
+			stype: snap.TypeCore,
 		},
 		{
 			op:   "discard-namespace",
@@ -6285,7 +6285,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	s.state.Unlock()
@@ -6305,7 +6305,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	// tried 3h ago, no retry
@@ -6340,7 +6340,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 	chg := s.state.NewChange("unrelated-change", "unfinished change blocks core transition")
 	chg.SetStatus(state.DoStatus)
@@ -6400,7 +6400,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 			SnapID:   "id-id-id",
 			Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Flags:    snapstate.Flags{DevMode: true},
 	})
 
@@ -6454,7 +6454,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 			SnapID:   "id-id-id",
 			Revision: snap.R(1)}},
 		Current:  snap.R(1),
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Flags:    snapstate.Flags{DevMode: true},
 	})
 
@@ -6645,7 +6645,7 @@ func (s *canDisableSuite) TestCanDisable(c *C) {
 		{snap.TypeApp, true},
 		{snap.TypeGadget, false},
 		{snap.TypeKernel, false},
-		{snap.TypeOS, false},
+		{snap.TypeCore, false},
 	} {
 		info := &snap.Info{Type: tt.typ}
 		c.Check(snapstate.CanDisable(info), Equals, tt.canDisable)

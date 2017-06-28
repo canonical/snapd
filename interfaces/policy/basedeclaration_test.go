@@ -504,7 +504,7 @@ var (
 	}
 
 	snapTypeMap = map[string]snap.Type{
-		"core":   snap.TypeOS,
+		"core":   snap.TypeCore,
 		"app":    snap.TypeApp,
 		"kernel": snap.TypeKernel,
 		"gadget": snap.TypeGadget,

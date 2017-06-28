@@ -124,7 +124,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 
 	typ := snap.TypeApp
 	if spec.Name == "some-core" {
-		typ = snap.TypeOS
+		typ = snap.TypeCore
 	}
 
 	info := &snap.Info{
@@ -340,7 +340,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	case "gadget":
 		info.Type = snap.TypeGadget
 	case "core":
-		info.Type = snap.TypeOS
+		info.Type = snap.TypeCore
 	case "services-snap":
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap

@@ -54,7 +54,7 @@ func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "core",
-				Type:          snap.TypeOS},
+				Type:          snap.TypeCore},
 			Name:      "docker-support",
 			Interface: "docker-support",
 		},

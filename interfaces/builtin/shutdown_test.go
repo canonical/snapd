@@ -51,7 +51,7 @@ apps:
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["shutdown"]}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "shutdown",
 			Interface: "shutdown",
 		},

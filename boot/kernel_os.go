@@ -106,7 +106,7 @@ func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
 		return nil
 	}
-	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
+	if s.Type != snap.TypeCore && s.Type != snap.TypeKernel {
 		return nil
 	}
 
@@ -117,7 +117,7 @@ func SetNextBoot(s *snap.Info) error {
 
 	var nextBoot, goodBoot string
 	switch s.Type {
-	case snap.TypeOS:
+	case snap.TypeCore:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	case snap.TypeKernel:
@@ -144,7 +144,7 @@ func SetNextBoot(s *snap.Info) error {
 
 // KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
 func KernelOrOsRebootRequired(s *snap.Info) bool {
-	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS {
+	if s.Type != snap.TypeKernel && s.Type != snap.TypeCore {
 		return false
 	}
 
@@ -159,7 +159,7 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
-	case snap.TypeOS:
+	case snap.TypeCore:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	}

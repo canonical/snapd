@@ -52,7 +52,7 @@ var _ = Suite(&KubernetesSupportInterfaceSuite{
 func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "kubernetes-support",
 			Interface: "kubernetes-support",
 		},

@@ -31,8 +31,9 @@ type Type string
 const (
 	TypeApp    Type = "app"
 	TypeGadget Type = "gadget"
-	TypeOS     Type = "os"
+	typeOS     Type = "os"
 	TypeKernel Type = "kernel"
+	TypeCore   Type = "core"
 )
 
 // UnmarshalJSON sets *m to a copy of data.
@@ -43,6 +44,14 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 	}
 
 	return m.fromString(str)
+}
+
+// MarshalJSON only needed so we don't have an os/core flag day.
+func (m Type) MarshalJSON() ([]byte, error) {
+	if m == TypeCore {
+		m = typeOS
+	}
+	return json.Marshal(string(m))
 }
 
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
@@ -59,13 +68,18 @@ func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (m *Type) fromString(str string) error {
 	t := Type(str)
 
-	// this is a workaround as the store sends "application" but snappy uses
-	// "app" for TypeApp
-	if str == "application" {
+	switch t {
+	case "application",
+		// this is a workaround as the store sends "application" but
+		// snappy uses "app" for TypeApp
+		"":
+		// this is to support not setting type at all
 		t = TypeApp
-	}
-
-	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel {
+	case typeOS:
+		t = TypeCore
+	case TypeCore, TypeApp, TypeGadget, TypeKernel:
+		// nothing to do
+	default:
 		return fmt.Errorf("invalid snap type: %q", str)
 	}
 

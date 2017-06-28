@@ -46,7 +46,7 @@ func (s *typeSuite) TestJsonMarshalTypes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"gadget\"")
 
-	out, err = json.Marshal(TypeOS)
+	out, err = json.Marshal(TypeCore)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"os\"")
 
@@ -72,7 +72,7 @@ func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
 
 	err = json.Unmarshal([]byte("\"os\""), &st)
 	c.Assert(err, IsNil)
-	c.Check(st, Equals, TypeOS)
+	c.Check(st, Equals, TypeCore)
 
 	err = json.Unmarshal([]byte("\"kernel\""), &st)
 	c.Assert(err, IsNil)
@@ -97,9 +97,9 @@ func (s *typeSuite) TestYamlMarshalTypes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "gadget\n")
 
-	out, err = yaml.Marshal(TypeOS)
+	out, err = yaml.Marshal(TypeCore)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "os\n")
+	c.Check(string(out), Equals, "core\n")
 
 	out, err = yaml.Marshal(TypeKernel)
 	c.Assert(err, IsNil)
@@ -121,9 +121,13 @@ func (s *typeSuite) TestYamlUnmarshalTypes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeGadget)
 
+	err = yaml.Unmarshal([]byte("core"), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeCore)
+
 	err = yaml.Unmarshal([]byte("os"), &st)
 	c.Assert(err, IsNil)
-	c.Check(st, Equals, TypeOS)
+	c.Check(st, Equals, TypeCore)
 
 	err = yaml.Unmarshal([]byte("kernel"), &st)
 	c.Assert(err, IsNil)

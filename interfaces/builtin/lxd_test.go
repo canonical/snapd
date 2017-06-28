@@ -40,7 +40,7 @@ var _ = Suite(&LxdInterfaceSuite{
 	iface: builtin.MustInterface("lxd"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "lxd",
 			Interface: "lxd",
 		},

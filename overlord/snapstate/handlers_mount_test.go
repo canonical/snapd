@@ -110,7 +110,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1},
 		Current:  si1.Revision,
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 
 	t := s.state.NewTask("mount-snap", "test")
@@ -148,7 +148,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		{
 			op:    "undo-setup-snap",
 			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/2"),
-			stype: "os",
+			stype: snap.TypeCore,
 		},
 	})
 

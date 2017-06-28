@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const framebufferSummary = `allows access to universal framebuffer devices`
@@ -66,7 +67,7 @@ func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// Creation of the slot of this type
 	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeCore) {
 		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
 	}
 	return nil
