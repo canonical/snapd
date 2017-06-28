@@ -51,7 +51,7 @@ var _ = Suite(&NetlinkAuditInterfaceSuite{
 func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "netlink-audit",
 			Interface: "netlink-audit",
 		},

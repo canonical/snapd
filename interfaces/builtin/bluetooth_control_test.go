@@ -52,7 +52,7 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "bluetooth-control",
 			Interface: "bluetooth-control",
 			Apps: map[string]*snap.AppInfo{

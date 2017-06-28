@@ -39,7 +39,7 @@ var _ = Suite(&OpenvSwitchSupportInterfaceSuite{
 	iface: builtin.MustInterface("openvswitch-support"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "openvswitch-support",
 			Interface: "openvswitch-support",
 		},

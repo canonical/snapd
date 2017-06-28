@@ -122,7 +122,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 		cur  snap.Revision
 	}{
 		{"foo", snap.TypeApp, snap.R(22)},
-		{"core", snap.TypeOS, snap.R(111)},
+		{"core", snap.TypeCore, snap.R(111)},
 		{"borken", snap.TypeApp, snap.R(-2)},
 		{"wip", "", snap.R(0)},
 	}
@@ -131,7 +131,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 		var snapst snapstate.SnapState
 		err := snapstate.Get(st, exp.name, &snapst)
 		c.Assert(err, IsNil)
-		c.Check(snap.Type(snapst.SnapType), Equals, exp.typ)
+		c.Check(snapst.SnapType, Equals, string(exp.typ))
 		c.Check(snapst.Current, Equals, exp.cur)
 	}
 
@@ -151,7 +151,7 @@ func (s *patch1Suite) readType(name string, rev snap.Revision) (snap.Type, error
 		return snap.TypeGadget, nil
 	}
 	if name == "core" {
-		return snap.TypeOS, nil
+		return snap.TypeCore, nil
 	}
 
 	return snap.TypeApp, nil

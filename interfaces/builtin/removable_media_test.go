@@ -50,7 +50,7 @@ apps:
 `, nil)
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "removable-media",
 			Interface: "removable-media",
 		},

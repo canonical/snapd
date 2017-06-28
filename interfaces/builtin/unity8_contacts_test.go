@@ -61,7 +61,7 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "unity8-contacts",
 			Interface: "unity8-contacts",
 		},

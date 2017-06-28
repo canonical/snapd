@@ -52,7 +52,7 @@ const (
 )
 
 func needsMaybeCore(typ snap.Type) int {
-	if typ == snap.TypeOS {
+	if typ == snap.TypeCore {
 		return maybeCore
 	}
 	return 0
@@ -1008,7 +1008,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
-	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeCore} {
 		if importantSnapType == si.Type {
 			return false
 		}
@@ -1048,13 +1048,13 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	//
 	// Once the ubuntu-core -> core transition has landed for some
 	// time we can remove the two lines below.
-	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
+	if si.Name() == "ubuntu-core" && si.Type == snap.TypeCore {
 		return true
 	}
 
 	// You never want to remove a kernel or OS. Do not remove their
 	// last revision left.
-	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
+	if si.Type == snap.TypeKernel || si.Type == snap.TypeCore {
 		return false
 	}
 
@@ -1513,7 +1513,7 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 // from ubuntu-core to core we can simplify this again
 // and make it the same as the above "KernelInfo".
 func CoreInfo(st *state.State) (*snap.Info, error) {
-	res, err := infosForTypes(st, snap.TypeOS)
+	res, err := infosForTypes(st, snap.TypeCore)
 	if err != nil {
 		return nil, err
 	}

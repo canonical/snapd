@@ -62,7 +62,7 @@ func (iface *hardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot)
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
-	if slot.Snap.Type != snap.TypeOS {
+	if slot.Snap.Type != snap.TypeCore {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
 	}
 	return nil

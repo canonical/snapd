@@ -87,7 +87,7 @@ const (
 	TypeApp    = "app"
 	TypeKernel = "kernel"
 	TypeGadget = "gadget"
-	TypeOS     = "os"
+	TypeCore   = "core"
 
 	StrictConfinement  = "strict"
 	DevModeConfinement = "devmode"

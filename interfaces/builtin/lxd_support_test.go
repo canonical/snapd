@@ -52,7 +52,7 @@ var _ = Suite(&LxdSupportInterfaceSuite{
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "lxd-support",
 			Interface: "lxd-support",
 		},

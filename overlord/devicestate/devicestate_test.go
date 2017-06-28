@@ -274,7 +274,7 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string)
 	}
 	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
-		SnapType: "gadget",
+		SnapType: string(snap.TypeGadget),
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
 		Current:  sideInfoGadget.Revision,
@@ -288,7 +288,7 @@ func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents str
 	}
 	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoCore},
 		Current:  sideInfoCore.Revision,
@@ -1015,7 +1015,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	defer s.state.Unlock()
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Active:   true,
 		Sequence: []*snap.SideInfo{siCore1},
 		Current:  siCore1.Revision,
@@ -1047,7 +1047,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	defer s.state.Unlock()
 	siKernel1 := &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)}
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
-		SnapType: "kernel",
+		SnapType: string(snap.TypeKernel),
 		Active:   true,
 		Sequence: []*snap.SideInfo{siKernel1},
 		Current:  siKernel1.Revision,
@@ -1056,7 +1056,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
 	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Active:   true,
 		Sequence: []*snap.SideInfo{siCore1, siCore2},
 		Current:  siCore2.Revision,

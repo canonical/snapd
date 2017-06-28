@@ -95,7 +95,7 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", "", osSI1)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", "", osSI2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Active:   true,
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
 		Current:  snap.R(2),
@@ -104,7 +104,7 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 1", "", kernelSI1)
 	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 2", "", kernelSI2)
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
-		SnapType: "kernel",
+		SnapType: string(snap.TypeKernel),
 		Active:   true,
 		Sequence: []*snap.SideInfo{kernelSI1, kernelSI2},
 		Current:  snap.R(2),
@@ -212,7 +212,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	// have a kernel
 	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 2", "", kernelSI2)
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
-		SnapType: "kernel",
+		SnapType: string(snap.TypeKernel),
 		Active:   true,
 		Sequence: []*snap.SideInfo{kernelSI2},
 		Current:  snap.R(2),
@@ -221,7 +221,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	// put core into the state but add no files on disk
 	// will break in the tasks
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 		Active:   true,
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
 		Current:  snap.R(2),
@@ -256,7 +256,7 @@ func (bs *bootedSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
 }
 
 func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
-	name, revision, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+	name, revision, err := snapstate.CurrentBootNameAndRevision(snap.TypeCore)
 	c.Check(err, IsNil)
 	c.Check(name, Equals, "core")
 	c.Check(revision, Equals, snap.R(2))

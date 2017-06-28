@@ -80,13 +80,8 @@ func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo)
 }
 
 func maybePrintType(w io.Writer, t string) {
-	// XXX: using literals here until we reshuffle snap & client properly
-	// (and os->core rename happens, etc)
-	switch t {
-	case "", "app", "application":
+	if t == "" || t == client.TypeApp {
 		return
-	case "os":
-		t = "core"
 	}
 
 	fmt.Fprintf(w, "type:\t%s\n", t)

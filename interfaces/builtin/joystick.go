@@ -67,7 +67,7 @@ func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
+	if !(slot.Snap.Type == snap.TypeCore) {
 		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
 	}
 

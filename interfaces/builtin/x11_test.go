@@ -52,7 +52,7 @@ var _ = Suite(&X11InterfaceSuite{
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "x11",
 			Interface: "x11",
 		},

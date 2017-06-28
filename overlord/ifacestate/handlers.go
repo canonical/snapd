@@ -93,7 +93,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 	if corePhase2 {
-		if snapInfo.Type != snap.TypeOS {
+		if snapInfo.Type != snap.TypeCore {
 			// not core, nothing to do
 			return nil
 		}
@@ -107,7 +107,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			// TODO: double check that we really rebooted
 			// otherwise this could be just a spurious restart
 			// of snapd
-			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeCore)
 			if err == snapstate.ErrBootNameAndRevisionAgain {
 				return &state.Retry{After: 5 * time.Second}
 			}

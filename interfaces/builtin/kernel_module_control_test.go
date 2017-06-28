@@ -52,7 +52,7 @@ var _ = Suite(&KernelModuleControlInterfaceSuite{
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "kernel-module-control",
 			Interface: "kernel-module-control",
 		},

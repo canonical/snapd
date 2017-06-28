@@ -53,7 +53,7 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeCore},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
 		},

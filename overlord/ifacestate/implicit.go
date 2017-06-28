@@ -33,7 +33,7 @@ import (
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
 func addImplicitSlots(snapInfo *snap.Info) {
-	if snapInfo.Type != snap.TypeOS {
+	if snapInfo.Type != snap.TypeCore {
 		return
 	}
 	// Ask each interface if it wants to be implcitly added.

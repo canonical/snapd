@@ -35,9 +35,6 @@ func checkSnapType(snapType snap.Type, types []string) error {
 		return nil
 	}
 	s := string(snapType)
-	if s == "os" { // we use "core" in the assertions
-		s = "core"
-	}
 	for _, t := range types {
 		if t == s {
 			return nil

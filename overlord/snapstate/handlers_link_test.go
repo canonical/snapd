@@ -242,7 +242,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeOS)
+	c.Check(typ, Equals, snap.TypeCore)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, Equals, state.RestartDaemon)
@@ -356,7 +356,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 		Sequence: []*snap.SideInfo{si1},
 		Current:  si1.Revision,
 		Active:   true,
-		SnapType: "os",
+		SnapType: string(snap.TypeCore),
 	})
 	t := s.state.NewTask("unlink-current-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
