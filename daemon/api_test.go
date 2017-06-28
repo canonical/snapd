@@ -386,7 +386,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	meta := &Meta{}
 	expected := &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 		Result: map[string]interface{}{
 			"id":               "foo-id",
 			"name":             "foo",
@@ -441,7 +441,7 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
-	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, 404)
 }
 
 func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
@@ -449,7 +449,7 @@ func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
-	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, 404)
 }
 
 func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
@@ -461,7 +461,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	rsp := getSnapInfo(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+	c.Check(rsp.Status, check.Equals, 404)
 	c.Check(rsp.Result, check.NotNil)
 }
 
@@ -586,8 +586,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"refresh": map[string]interface{}{
 			"schedule": "",
-			"last":     "n/a",
-			"next":     "n/a",
 		},
 	}
 	var rsp resp
@@ -887,7 +885,7 @@ func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.NotNil)
 }
 
@@ -902,7 +900,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get snap access permission")
 }
 
@@ -925,7 +923,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorRequired)
 }
 
@@ -948,7 +946,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorFailed)
 }
 
@@ -971,7 +969,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
 }
 
@@ -1113,7 +1111,7 @@ func (s *apiSuite) checkSnapInfoOnePerIntegration(c *check.C, all bool, names []
 	c.Assert(ok, check.Equals, true)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.NotNil)
 
 	snaps := snapList(rsp.Result)
@@ -1368,7 +1366,7 @@ func (s *apiSuite) TestFindOneNotFound(c *check.C) {
 	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
-	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+	c.Check(rsp.Status, check.Equals, 404)
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -1377,7 +1375,7 @@ func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
 }
 
@@ -1649,7 +1647,7 @@ func (s *apiSuite) TestPostSnapBadRequest(c *check.C) {
 	rsp := postSnap(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.NotNil)
 }
 
@@ -1661,7 +1659,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 	rsp := postSnap(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.NotNil)
 }
 
@@ -1720,7 +1718,7 @@ func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
 	rsp := postSnap(snapCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
@@ -1792,7 +1790,7 @@ func (s *apiSuite) TestPostSnapEnableDisableRevision(c *check.C) {
 		rsp := postSnap(snapCmd, req, nil).(*resp)
 
 		c.Check(rsp.Type, check.Equals, ResponseTypeError)
-		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "takes no revision")
 	}
 }
@@ -2295,12 +2293,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	return chg.Summary()
 }
 
-func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+func (s *apiSuite) runGetConf(c *check.C, keys []string, statusCode int) map[string]interface{} {
 	s.vars = map[string]string{"name": "test-snap"}
 	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, statusCode)
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -2319,11 +2318,27 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 	tr.Commit()
 	d.overlord.State().Unlock()
 
-	result := s.runGetConf(c, []string{"test-key1"})
+	result := s.runGetConf(c, []string{"test-key1"}, 200)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
 
-	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"}, 200)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+}
+
+func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
+	result := s.runGetConf(c, []string{"test-key2"}, 400)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+}
+
+func (s *apiSuite) TestGetConfNoKey(c *check.C) {
+	result := s.runGetConf(c, nil, 400)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": "cannot obtain configuration: no keys supplied"})
+}
+
+func (s *apiSuite) TestGetConfBadKey(c *check.C) {
+	// TODO: this one in particular should really be a 400 also
+	result := s.runGetConf(c, []string{"."}, 500)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `invalid option name: ""`})
 }
 
 func (s *apiSuite) TestSetConf(c *check.C) {
@@ -2352,7 +2367,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
 
 	st := d.overlord.State()
@@ -2372,6 +2387,41 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
+}
+
+func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
+	d := s.daemon(c)
+
+	// Mock the hook runner
+	hookRunner := testutil.MockCommand(c, "snap", "")
+	defer hookRunner.Restore()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 404.,
+		"status":      "Not Found",
+		"result": map[string]interface{}{
+			"message": "no state entry for key",
+			"kind":    "snap-not-found"},
+		"type": "error"})
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -3694,7 +3744,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	rsp := doAssert(assertsCmd, req, nil).(*resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
 	st.Lock()
 	defer st.Unlock()
@@ -3723,7 +3773,7 @@ func (s *apiSuite) TestAssertStreamOK(c *check.C) {
 	rsp := doAssert(assertsCmd, req, nil).(*resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
 	st.Lock()
 	defer st.Unlock()
@@ -3780,7 +3830,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
-	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "3")
 	dec := asserts.NewDecoder(rec.Body)
@@ -3818,7 +3868,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
-	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
@@ -3846,7 +3896,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
-	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
 	dec := asserts.NewDecoder(rec.Body)
 	_, err = dec.Decode()
@@ -3900,7 +3950,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
 	res, err := rsp.MarshalJSON()
@@ -3927,7 +3977,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
 	res, err := rsp.MarshalJSON()
@@ -3953,7 +4003,7 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	rsp := getChanges(stateChangesCmd, req, nil).(*resp)
 
 	// Verify
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 2)
 
 	res, err := rsp.MarshalJSON()
@@ -3980,7 +4030,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	rsp := getChanges(stateChangesCmd, req, nil).(*resp)
 
 	// Verify
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
 	res, err := rsp.MarshalJSON()
@@ -4007,7 +4057,7 @@ func (s *apiSuite) TestStateChangesForSnapName(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.FitsTypeOf, []*changeInfo(nil))
 
 	res := rsp.Result.([]*changeInfo)
@@ -4041,7 +4091,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.NotNil)
 
@@ -4111,7 +4161,7 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.NotNil)
 
@@ -4174,7 +4224,7 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result, check.NotNil)
 
@@ -4214,7 +4264,7 @@ var buyTests = []struct {
 		result: &store.BuyResult{
 			State: "Complete",
 		},
-		expectedStatus: http.StatusOK,
+		expectedStatus: 200,
 		expectedResult: &store.BuyResult{
 			State: "Complete",
 		},
@@ -4229,7 +4279,7 @@ var buyTests = []struct {
 		  "currency": "EUR"
 		}`,
 		err:                  fmt.Errorf("internal error banana"),
-		expectedStatus:       http.StatusInternalServerError,
+		expectedStatus:       500,
 		expectedResponseType: ResponseTypeError,
 		expectedResult: &errorResult{
 			Message: "internal error banana",
@@ -4244,7 +4294,7 @@ var buyTests = []struct {
 		// Fail with unauthenticated error
 		input:                validBuyInput,
 		err:                  store.ErrUnauthenticated,
-		expectedStatus:       http.StatusBadRequest,
+		expectedStatus:       400,
 		expectedResponseType: ResponseTypeError,
 		expectedResult: &errorResult{
 			Message: "you need to log in first",
@@ -4256,7 +4306,7 @@ var buyTests = []struct {
 		// Fail with TOS not accepted
 		input:                validBuyInput,
 		err:                  store.ErrTOSNotAccepted,
-		expectedStatus:       http.StatusBadRequest,
+		expectedStatus:       400,
 		expectedResponseType: ResponseTypeError,
 		expectedResult: &errorResult{
 			Message: "terms of service not accepted",
@@ -4268,7 +4318,7 @@ var buyTests = []struct {
 		// Fail with no payment methods
 		input:                validBuyInput,
 		err:                  store.ErrNoPaymentMethods,
-		expectedStatus:       http.StatusBadRequest,
+		expectedStatus:       400,
 		expectedResponseType: ResponseTypeError,
 		expectedResult: &errorResult{
 			Message: "no payment methods",
@@ -4280,7 +4330,7 @@ var buyTests = []struct {
 		// Fail with payment declined
 		input:                validBuyInput,
 		err:                  store.ErrPaymentDeclined,
-		expectedStatus:       http.StatusBadRequest,
+		expectedStatus:       400,
 		expectedResponseType: ResponseTypeError,
 		expectedResult: &errorResult{
 			Message: "payment declined",
@@ -4339,14 +4389,14 @@ var readyToBuyTests = []struct {
 	{
 		// Success
 		input:    nil,
-		status:   http.StatusOK,
+		status:   200,
 		respType: ResponseTypeSync,
 		response: true,
 	},
 	{
 		// Not accepted TOS
 		input:    store.ErrTOSNotAccepted,
-		status:   http.StatusBadRequest,
+		status:   400,
 		respType: ResponseTypeError,
 		response: &errorResult{
 			Message: "terms of service not accepted",
@@ -4356,7 +4406,7 @@ var readyToBuyTests = []struct {
 	{
 		// No payment methods
 		input:    store.ErrNoPaymentMethods,
-		status:   http.StatusBadRequest,
+		status:   400,
 		respType: ResponseTypeError,
 		response: &errorResult{
 			Message: "no payment methods",
@@ -4973,7 +5023,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 
 		rsp := changeAliases(aliasesCmd, req, nil).(*resp)
 		c.Check(rsp.Type, check.Equals, ResponseTypeError)
-		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
 	}
 }
@@ -5342,7 +5392,7 @@ func (s *apiSuite) TestAliases(c *check.C) {
 
 	rsp := getAliases(aliasesCmd, req, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]aliasStatus{
 		"alias-snap1": {
 			"alias1": {
@@ -5410,6 +5460,14 @@ func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(calledFlags.Unaliased, check.Equals, true)
 }
 
+func (s *apiSuite) TestSplitQS(c *check.C) {
+	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
+	c.Check(splitQS(""), check.HasLen, 0)
+	c.Check(splitQS(","), check.HasLen, 0)
+}
+
 var _ = check.Suite(&postDebugSuite{})
 
 type postDebugSuite struct {
@@ -5436,4 +5494,18 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "get-base-declaration"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
+		testutil.Contains, "type: base-declaration")
 }

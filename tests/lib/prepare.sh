@@ -4,10 +4,10 @@ set -eux
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
-# shellcheck source=tests/lib/apt.sh
-. "$TESTSLIB/apt.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB/pkgdb.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -44,12 +44,17 @@ update_core_snap_for_classic_reexec() {
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
-    # and snap-confine's apparmor
-    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    else
-        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    fi
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # and snap-confine's apparmor
+            if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            else
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            fi
+            ;;
+    esac
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
@@ -57,7 +62,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    /usr/lib/snapd/snap-discard-ns core
+    $LIBEXECDIR/snapd/snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -93,32 +98,51 @@ EOF
 }
 
 prepare_classic() {
-    install_build_snapd
+    distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
-        apt-cache policy snapd
+        distro_query_package_info snapd
         exit 1
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        apt-cache policy snap-confine
-        "$LIBEXECDIR/snapd/snap-confine" --version
+        $LIBEXECDIR/snapd/snap-confine --version
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-cache policy snapd
+                ;;
+            fedora-*)
+                dnf info snapd
+                ;;
+        esac
         exit 1
+    fi
+
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
     fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
-StartLimitInterval=0
+$START_LIMIT_INTERVAL
 EOF
+
+    # We change the service configuration so reload and restart
+    # the snapd socket unit to get them applied
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -145,10 +169,17 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output is empty on classic"
-        output=$(grub-editenv list)
-        if [ -n "$output" ]; then
-            echo "Expected empty grub environment, got:"
+        GRUB_EDITENV=grub-editenv
+        case "$SPREAD_SYSTEM" in
+            fedora-*|opensuse-*)
+                GRUB_EDITENV=grub2-editenv
+                ;;
+        esac
+
+        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
+        output=$($GRUB_EDITENV list)
+        if echo $output | MATCH snap_ ; then
+            echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
         fi
@@ -161,7 +192,8 @@ EOF
         for unit in $services $mounts; do
             systemctl stop "$unit"
         done
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount
+        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -186,6 +218,15 @@ EOF
         apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
+
+        mkdir -p /etc/systemd/system/rng-tools.service.d/
+        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+[Service]
+Restart=always
+RestartSec=2
+RemainAfterExit=no
+EOF
+        systemctl daemon-reload
     fi
 
     disable_kernel_rate_limiting

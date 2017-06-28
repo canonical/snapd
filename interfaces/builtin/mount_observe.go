@@ -60,6 +60,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "mount-observe",
 		summary:               mountObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,

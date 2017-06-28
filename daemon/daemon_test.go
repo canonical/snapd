@@ -103,14 +103,14 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, http.StatusUnauthorized, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
 		req.RemoteAddr = "uid=0;" + req.RemoteAddr
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
-		c.Check(rec.Code, check.Equals, http.StatusOK)
+		c.Check(rec.Code, check.Equals, 200)
 	}
 
 	req, err := http.NewRequest("POTATO", "", nil)
@@ -119,7 +119,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, http.StatusMethodNotAllowed)
+	c.Check(rec.Code, check.Equals, 405)
 }
 
 func (s *daemonSuite) TestGuestAccess(c *check.C) {

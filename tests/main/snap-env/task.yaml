@@ -28,7 +28,10 @@ execute: |
     MATCH '^SNAP_USER_COMMON=/root/snap/test-snapd-tools/common$'         < snap-vars.txt
     MATCH '^SNAP_USER_DATA=/root/snap/test-snapd-tools/x1$'               < snap-vars.txt
     MATCH '^SNAP_VERSION=1.0$'                                            < snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 10
+    CTX=$(cat /var/lib/snapd/cookie/snap.test-snapd-tools)
+    MATCH "^SNAP_COOKIE=$CTX"                                             < snap-vars.txt
+    MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
+    test $(wc -l < snap-vars.txt) -eq 12
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt
@@ -41,8 +44,10 @@ execute: |
     MATCH "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" < extra-vars.txt
     test $(wc -l < extra-vars.txt) -eq 4
 
+    . "$TESTSLIB/dirs.sh"
+
     echo "Ensure that SNAP, PATH and HOME are what we expect"
-    MATCH '^SNAP=/snap/test-snapd-tools/x1$'                                                                < misc-vars.txt
+    MATCH "^SNAP=$SNAPMOUNTDIR/test-snapd-tools/x1$"                                                                < misc-vars.txt
     MATCH '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' < misc-vars.txt
     MATCH '^HOME=/root/snap/test-snapd-tools/x1$'                                                           < misc-vars.txt
     test $(wc -l < misc-vars.txt) -eq 3

@@ -106,6 +106,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "classic-support",
 		summary:               classicSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: classicSupportPlugAppArmor,
 		connectedPlugSecComp:  classicSupportPlugSecComp,
 	})

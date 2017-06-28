@@ -71,7 +71,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	link := filepath.Join(s.tempdir, "/snap/bin/hello-snap.hello")
+	link := filepath.Join(dirs.SnapBinariesDir, "hello-snap.hello")
 	target, err := os.Readlink(link)
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, "/usr/bin/snap")
