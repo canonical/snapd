@@ -47,8 +47,8 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/hooks"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
@@ -109,7 +109,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
-	snapstate.SetupRemoveHook = hooks.SetupRemoveHook
+	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
