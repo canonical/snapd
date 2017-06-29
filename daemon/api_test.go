@@ -364,7 +364,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// we have v0 [r5] installed
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), false, "")
 	// and v1 [r10] is current
-	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "description: description\nsummary: summary\napps:\n cmd:\n  command: some.cmd\n cmd2:\n  command: other.cmd\n")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "title: title\ndescription: description\nsummary: summary\napps:\n cmd:\n  command: some.cmd\n cmd2:\n  command: other.cmd\n")
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
@@ -394,6 +394,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"version":          "v1",
 			"channel":          "stable",
 			"tracking-channel": "beta",
+			"title":            "title",
 			"summary":          "summary",
 			"description":      "description",
 			"developer":        "bar",

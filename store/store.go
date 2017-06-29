@@ -87,6 +87,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
+	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.PublisherID = d.DeveloperID
