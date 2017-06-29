@@ -229,6 +229,10 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		result["title"] = localSnap.Title()
 	}
 
+	if localSnap.License != "" {
+		result["license"] = localSnap.License
+	}
+
 	return result
 }
 
@@ -272,6 +276,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 
 	if remoteSnap.Title() != "" {
 		result["title"] = remoteSnap.Title()
+	}
+
+	if remoteSnap.License != "" {
+		result["license"] = remoteSnap.License
 	}
 
 	if len(screenshots) > 0 {

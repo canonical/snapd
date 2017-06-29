@@ -1058,6 +1058,7 @@ summary: foo app
 type: app
 epoch: 1*
 confinement: devmode
+license: GPL-3.0
 description: |
     Foo provides useful services
 apps:
@@ -1101,6 +1102,7 @@ slots:
 	c.Check(info.Publisher, Equals, "")
 	c.Check(info.PublisherID, Equals, "")
 	c.Check(info.Channel, Equals, "")
+	c.Check(info.License, Equals, "GPL-3.0")
 
 	app1 := info.Apps["daemon"]
 	app2 := info.Apps["foo"]

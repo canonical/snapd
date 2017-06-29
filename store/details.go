@@ -44,6 +44,7 @@ type snapDetails struct {
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
+	License          string             `json:"license,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url

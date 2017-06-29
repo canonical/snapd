@@ -156,6 +156,7 @@ type Info struct {
 
 	LicenseAgreement string
 	LicenseVersion   string
+	License          string
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
