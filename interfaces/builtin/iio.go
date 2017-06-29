@@ -32,6 +32,15 @@ import (
 
 const iioSummary = `allows access to a specific IIO device`
 
+const iioBaseDeclarationSlots = `
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 const iioConnectedPlugAppArmor = `
 # Description: Give access to a specific IIO device on the system.
 
@@ -50,7 +59,8 @@ func (iface *iioInterface) Name() string {
 
 func (iface *iioInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: iioSummary,
+		Summary:              iioSummary,
+		BaseDeclarationSlots: iioBaseDeclarationSlots,
 	}
 }
 

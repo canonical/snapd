@@ -32,6 +32,15 @@ import (
 
 const spiSummary = `allows access to specific spi controller`
 
+const spiBaseDeclarationSlots = `
+  spi:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // The type for spi interface
 type spiInterface struct{}
 
@@ -42,7 +51,8 @@ func (iface *spiInterface) Name() string {
 
 func (iface *spiInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: spiSummary,
+		Summary:              spiSummary,
+		BaseDeclarationSlots: spiBaseDeclarationSlots,
 	}
 }
 

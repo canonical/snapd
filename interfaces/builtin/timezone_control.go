@@ -21,6 +21,14 @@ package builtin
 
 const timezoneControlSummary = `allows setting system timezone`
 
+const timezoneControlBaseDeclarationSlots = `
+  timezone-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
@@ -80,6 +88,7 @@ func init() {
 		summary:               timezoneControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

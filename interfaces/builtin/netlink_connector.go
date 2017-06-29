@@ -21,6 +21,14 @@ package builtin
 
 const netlinkConnectorSummary = `allows communication through the kernel netlink connector`
 
+const netlinkConnectorBaseDeclarationSlots = `
+  netlink-connector:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const netlinkConnectorConnectedPlugSecComp = `
 # Description: Can use netlink to communicate with kernel connector. Because
 # NETLINK_CONNECTOR is not finely mediated and app-specific, use of this
@@ -36,6 +44,7 @@ func init() {
 		summary:              netlinkConnectorSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
+		baseDeclarationSlots: netlinkConnectorBaseDeclarationSlots,
 		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
 		reservedForOS:        true,
 	})
