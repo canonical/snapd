@@ -99,6 +99,10 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 			sc = 359 /* see src/arch-x86.c socket */
 		} else if sc == -101 && scmpArch == seccomp.ArchS390X {
 			sc = 359 /* see src/arch-s390x.c socket */
+		} else if sc == -10165 && scmpArch == seccomp.ArchARM64 {
+			// -10165 is mknod on aarch64 and it is translated
+			// to mknodat. for our simulation -10165 is fine
+			// though
 		} else {
 			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
 		}
