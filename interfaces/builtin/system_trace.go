@@ -21,6 +21,14 @@ package builtin
 
 const systemTraceSummary = `allows using kernel tracing facilities`
 
+const systemTraceBaseDeclarationSlots = `
+  system-trace:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const systemTraceConnectedPlugAppArmor = `
 # Description: Can use kernel tracing facilities. This is restricted because it
 # gives privileged access to all processes on the system and should only be
@@ -59,6 +67,7 @@ func init() {
 		summary:               systemTraceSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemTraceBaseDeclarationSlots,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,

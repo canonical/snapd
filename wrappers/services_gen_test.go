@@ -48,6 +48,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
 Restart=%s
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
@@ -81,6 +82,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run xkcd-webserver
+SyslogIdentifier=xkcd-webserver.xkcd-webserver
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver

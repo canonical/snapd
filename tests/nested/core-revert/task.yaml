@@ -5,13 +5,13 @@ systems: [ubuntu-16.04-64]
 prepare: |
     apt install -y --no-install-recommends kpartx
 
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
     create_nested_core_vm
 
 restore: |
     apt autoremove -y --purge kpartx
 
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
     destroy_nested_core_vm
 
 debug: |
@@ -22,21 +22,21 @@ debug: |
         part=$(echo "$loops" | tail -1)
 
         tmp=$(mktemp -d)
-        mount /dev/mapper/$part $tmp
+        mount "/dev/mapper/$part" "$tmp"
 
-        grep --text "hsearch_r failed for.* No such process" $tmp/system-data/var/log/syslog
+        grep --text "hsearch_r failed for.* No such process" "$tmp/system-data/var/log/syslog"
 
-        umount $tmp
-        rm -rf $tmp
+        umount "$tmp"
+        rm -rf "$tmp"
         kpartx -ds /tmp/work-dir/ubuntu-core.img
     fi
 
 kill-timeout: 40m
 
 execute: |
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
 
-    cd $SPREAD_PATH
+    cd "$SPREAD_PATH"
     execute_remote "sudo snap install network-manager"
     execute_remote "sudo snap install bluez"
     execute_remote "sudo bluez.bluetoothctl -a"

@@ -29,6 +29,13 @@ import (
 
 const dockerSummary = `allows access to Docker socket`
 
+const dockerBaseDeclarationSlots = `
+  docker:
+    allow-installation: false
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const dockerConnectedPlugAppArmor = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
@@ -53,7 +60,8 @@ func (iface *dockerInterface) Name() string {
 
 func (iface *dockerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: dockerSummary,
+		Summary:              dockerSummary,
+		BaseDeclarationSlots: dockerBaseDeclarationSlots,
 	}
 }
 

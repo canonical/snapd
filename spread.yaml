@@ -300,8 +300,7 @@ prepare: |
     precedence ::ffff:0:0/96 100
     EOF
     if ! mv gai.conf /etc/gai.conf; then
-        # not writable, disable ipv6 through sysctl
-        sysctl -w net.ipv6.conf.all.disable_ipv6=1
+        echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
 
