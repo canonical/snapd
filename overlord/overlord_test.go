@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -148,6 +149,96 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	err = state.Get("patched", &b)
 	c.Assert(err, IsNil)
 	c.Check(b, Equals, true)
+}
+
+func (ovs *overlordSuite) TestNewStoreDefaultAPI(c *C) {
+	var config *store.Config
+	defer overlord.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
+		config = c
+		return nil
+	})()
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	c.Check(o, NotNil)
+	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
+}
+
+func (ovs *overlordSuite) TestNewStoreAPIFromState(c *C) {
+	var config *store.Config
+	defer overlord.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
+		config = c
+		return nil
+	})()
+
+	fakeState := []byte(`{"data":{"store":{"api": "http://example.com/"}}}`)
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	c.Check(o, NotNil)
+	c.Check(config.SearchURI.Host, Equals, "example.com")
+}
+
+func (ovs *overlordSuite) TestNewBadEnvironURLOverride(c *C) {
+	// We need store api state to trigger this.
+	fakeState := []byte(`{"data":{"store":{"api": "http://example.com/"}}}`)
+	c.Assert(ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600), IsNil)
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+
+	_, err := overlord.New()
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+}
+
+func (ovs *overlordSuite) TestNewStoreEmptyAPIFromState(c *C) {
+	var config *store.Config
+	defer overlord.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
+		config = c
+		return nil
+	})()
+
+	fakeState := []byte(`{"data":{"store":{"api": ""}}}`)
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	c.Check(o, NotNil)
+	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
+}
+
+func (ovs *overlordSuite) TestNewStoreInvalidAPIFromState(c *C) {
+	fakeState := []byte(`{"data":{"store":{"api": "://example.com/"}}}`)
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	_, err = overlord.New()
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "invalid store API URL: parse ://example.com/: missing protocol scheme")
+}
+
+func (ovs *overlordSuite) TestReplaceStore(c *C) {
+	var replacementStore store.Store
+	defer overlord.MockStoreNew(func(_ *store.Config, _ auth.AuthContext) *store.Store {
+		return &replacementStore
+	})()
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	s := o.State()
+	s.Lock()
+	defer s.Unlock()
+	o.ReplaceStore(s, store.DefaultConfig())
+
+	c.Check(snapstate.Store(s), Equals, &replacementStore)
 }
 
 type witnessManager struct {
