@@ -33,6 +33,16 @@ import (
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
 
+const upowerObserveBaseDeclarationSlots = `
+  upower-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - app
+    deny-connection:
+      on-classic: false
+`
+
 const upowerObservePermanentSlotAppArmor = `
 # Description: Allow operating as the UPower service.
 
@@ -213,8 +223,9 @@ func (iface *upowerObserveInterface) Name() string {
 
 func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           upowerObserveSummary,
-		ImplicitOnClassic: true,
+		Summary:              upowerObserveSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
 	}
 }
 

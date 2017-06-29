@@ -30,6 +30,14 @@ import (
 
 const ioPortsControlSummary = `allows access to all I/O ports`
 
+const ioPortsControlBaseDeclarationSlots = `
+  io-ports-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const ioPortsControlConnectedPlugAppArmor = `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
@@ -59,9 +67,10 @@ func (iface *iioPortsControlInterface) Name() string {
 
 func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           ioPortsControlSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              ioPortsControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ioPortsControlBaseDeclarationSlots,
 	}
 }
 

@@ -21,6 +21,14 @@ package builtin
 
 const networkSetupControlSummary = `allows access to netplan configuration`
 
+const networkSetupControlBaseDeclarationSlots = `
+  network-setup-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const networkSetupControlConnectedPlugAppArmor = `
 # Description: Can read/write netplan configuration files
 
@@ -34,6 +42,7 @@ func init() {
 		summary:               networkSetupControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkSetupControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
