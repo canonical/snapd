@@ -267,6 +267,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			Next:     formatRefreshTime(nextRefresh),
 		},
 	}
+	// NOTE: Right now we don't have a good way to differentiate if we
+	// only have partial confinement (ala AppArmor disabled and Seccomp
+	// enabled) or no confinement at all. Once we have a better system
+	// in place how we can dynamically retrieve these information from
+	// snapd we will use this here.
+	if release.ReleaseInfo.ForceDevMode() {
+		m["confinement"] = "none"
+	} else {
+		m["confinement"] = "strict"
+	}
 
 	return SyncResponse(m, nil)
 }
