@@ -1,4 +1,4 @@
-summary: check that the browser-support interface works
+summary: Check that the browser-support interface works
 
 environment:
     ALLOW_SANDBOX/allow: true
@@ -57,12 +57,12 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "And the snap is able to access tmp"
-    echo "test" | tee /var/tmp/test
+    echo "test" > /var/tmp/test
     su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd ls /var/tmp/" test | MATCH test
 
     echo "And the snap is able to access owned files"
     for owned_file in $OWNED_FILES; do
-        echo "test" | tee "$owned_file"
+        echo "test" > "$owned_file"
         chown test:12345 "$owned_file"
         su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $owned_file" test | MATCH test
         su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd touch $owned_file" test
@@ -79,7 +79,7 @@ execute: |
                 continue
             fi
         fi
-        echo "test" | tee $readable_file
+        echo "test" > "$readable_file"
         su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file" test | MATCH test
     done
 
@@ -90,7 +90,7 @@ execute: |
                 mkdir -p $parent_dir
                 echo "$parent_dir" >> created_dirs
             fi
-            echo "test" | tee $readable_file
+            echo "test" > "$readable_file"
             su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file" test | MATCH test
         done
     fi
