@@ -253,6 +253,20 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
+// Extend a base URL with additional unescaped paths.  (url.Parse handles
+// resolving relative links, which isn't quite what we want: that goes wrong if
+// the base URL doesn't end with a slash.)
+func urlJoin(base *url.URL, paths ...string) *url.URL {
+	if len(paths) == 0 {
+		return base
+	}
+	url := *base
+	url.RawQuery = ""
+	paths = append([]string{strings.TrimSuffix(url.Path, "/")}, paths...)
+	url.Path = strings.Join(paths, "/")
+	return &url
+}
+
 func apiURL() string {
 	// FIXME: this will become a store-url assertion
 	// XXX: Deprecated but present for backward-compatibility: this used
@@ -285,19 +299,11 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL() string {
+func assertsURL(storeBaseURI *url.URL) string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
-	storeBaseURI, err := url.Parse(apiURL())
-	if err != nil {
-		panic(err)
-	}
-	assertsURI, err := storeBaseURI.Parse("api/v1/snaps/")
-	if err != nil {
-		panic(err)
-	}
-	return assertsURI.String()
+	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
 }
 
 func myappsURL() string {
@@ -321,46 +327,24 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("api/v1/snaps/search")
+	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
 	if err != nil {
 		panic(err)
 	}
 
+	myappsBaseURI, err := url.Parse(myappsURL())
+	if err != nil {
+		panic(err)
+	}
+
+	defaultConfig.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
 	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("api/v1/snaps/details/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("api/v1/snaps/metadata")
-	if err != nil {
-		panic(err)
-	}
-
-	assertsBaseURI, err := url.Parse(assertsURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.AssertionsURI, err = assertsBaseURI.Parse("assertions/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("api/v1/snaps/sections")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
+	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
+	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
+	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
 }
 
 type searchResults struct {
