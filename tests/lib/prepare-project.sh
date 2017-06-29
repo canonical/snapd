@@ -212,6 +212,9 @@ distro_install_package "${DISTRO_BUILD_DEPS[@]}"
 # base on the packaging. In Fedora/Suse this is handled via mock/osc
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
+        # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+        # will fail to install because the poor apt resolver does not get it
+        apt-get install -y --only-upgrade systemd
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
         ;;

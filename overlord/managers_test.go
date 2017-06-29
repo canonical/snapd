@@ -83,6 +83,8 @@ type mgrsSuite struct {
 	serveRevision map[string]string
 
 	hijackServeSnap func(http.ResponseWriter)
+
+	snapSeccomp *testutil.MockCmd
 }
 
 var (
@@ -153,6 +155,11 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -165,6 +172,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.aa.Restore()
 	ms.umount.Restore()
 	ms.snapDiscardNs.Restore()
+	ms.snapSeccomp.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {

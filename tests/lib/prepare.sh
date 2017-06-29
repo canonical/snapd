@@ -223,6 +223,8 @@ EOF
         cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
 [Service]
 Restart=always
+RestartSec=2
+RemainAfterExit=no
 EOF
         systemctl daemon-reload
     fi

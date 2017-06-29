@@ -29,6 +29,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
+
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 )
@@ -133,4 +137,102 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
 	allArgs := append(ldSoArgs, cmdArgs...)
 	return exec.Command(coreLdSo, allArgs...), nil
+}
+
+var (
+	syscallKill    = syscall.Kill
+	syscallGetpgid = syscall.Getpgid
+
+	cmdWaitTimeout = 5 * time.Second
+)
+
+// killProcessGroup kills the process group associated with the given command.
+//
+// If the command hasn't had Setpgid set in its SysProcAttr, you'll probably end
+// up killing yourself.
+func killProcessGroup(cmd *exec.Cmd) error {
+	pgid, err := syscallGetpgid(cmd.Process.Pid)
+	if err != nil {
+		return err
+	}
+	if pgid == 1 {
+		return fmt.Errorf("cannot kill pgid 1")
+	}
+	return syscallKill(-pgid, syscall.SIGKILL)
+}
+
+// RunAndWait runs a command for the given argv with the given environ added to
+// os.Environ, killing it if it reaches timeout, or if the tomb is dying.
+func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs non-empty argv")
+	}
+	if timeout <= 0 {
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs positive timeout")
+	}
+	if tomb == nil {
+		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs non-nil tomb")
+	}
+
+	command := exec.Command(argv[0], argv[1:]...)
+
+	// setup a process group for the command so that we can kill parent
+	// and children on e.g. timeout
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Env = append(os.Environ(), env...)
+
+	// Make sure we can obtain stdout and stderror. Same buffer so they're
+	// combined.
+	var buffer bytes.Buffer
+	command.Stdout = &buffer
+	command.Stderr = &buffer
+
+	// Actually run the command.
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+
+	// add timeout handling
+	killTimerCh := time.After(timeout)
+
+	commandCompleted := make(chan struct{})
+	var commandError error
+	go func() {
+		// Wait for hook to complete
+		commandError = command.Wait()
+		close(commandCompleted)
+	}()
+
+	var abortOrTimeoutError error
+	select {
+	case <-commandCompleted:
+		// Command completed; it may or may not have been successful.
+		return buffer.Bytes(), commandError
+	case <-tomb.Dying():
+		// Hook was aborted, process will get killed below
+		abortOrTimeoutError = fmt.Errorf("aborted")
+	case <-killTimerCh:
+		// Max timeout reached, process will get killed below
+		abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
+	}
+
+	// select above exited which means that aborted or killTimeout
+	// was reached. Kill the command and wait for command.Wait()
+	// to clean it up (but limit the wait with the cmdWaitTimer)
+	if err := killProcessGroup(command); err != nil {
+		return nil, fmt.Errorf("cannot abort: %s", err)
+	}
+	select {
+	case <-time.After(cmdWaitTimeout):
+		// cmdWaitTimeout was reached, i.e. command.Wait() did not
+		// finish in a reasonable amount of time, we can not use
+		// buffer in this case so return without it.
+		return nil, fmt.Errorf("%v, but did not stop", abortOrTimeoutError)
+	case <-commandCompleted:
+		// cmd.Wait came back from waiting the killed process
+		break
+	}
+	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
+
+	return buffer.Bytes(), abortOrTimeoutError
 }
