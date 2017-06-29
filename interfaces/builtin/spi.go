@@ -56,10 +56,6 @@ func (iface *spiInterface) MetaData() interfaces.MetaData {
 	}
 }
 
-func (iface *spiInterface) String() string {
-	return iface.Name()
-}
-
 // Pattern to match allowed spi device nodes. It is gonna be used to check the
 // validity of the path attributes in case the udev is not used for
 // identification
@@ -69,7 +65,7 @@ var spiControlDeviceNodePattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$"
 func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 
 	// Creation of the slot of this type
@@ -96,7 +92,7 @@ func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 // Checks and possibly modifies a plug
 func (iface *spiInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	// Currently nothing is checked on the plug side
 	return nil
