@@ -3607,7 +3607,7 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := apiURL()
 
@@ -3641,14 +3641,19 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := assertsURL()
+	// This also depends on SNAPPY_USE_STAGING_STORE, but that's tested
+	// separately (see TestApiURLDependsOnEnviron).
+	storeBaseURI, _ := url.Parse(apiURL())
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := assertsURL()
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	before := assertsURL(storeBaseURI)
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	after := assertsURL(storeBaseURI)
 
 	c.Check(before, Not(Equals), after)
+	c.Check(after, Equals, "https://assertions.example.org/v1/")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
