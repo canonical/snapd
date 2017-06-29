@@ -22,6 +22,7 @@ package overlord
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -141,17 +142,49 @@ func New() (*Overlord, error) {
 	o.cmdMgr = cmdstate.Manager(s)
 	o.stateEng.AddManager(o.cmdMgr)
 
-	// setting up the store
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(nil, authContext)
 	s.Lock()
-	snapstate.ReplaceStore(s, sto)
+	defer s.Unlock()
+
+	// setting up the store
+	storeConfig, err := initialStoreConfig(s)
+	if err != nil {
+		return nil, err
+	}
+	replaceStore(o, s, storeConfig)
+
 	if err := o.snapMgr.GenerateCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
-	s.Unlock()
 
 	return o, nil
+}
+
+func initialStoreConfig(s *state.State) (*store.Config, error) {
+	var storeState store.State
+	s.Get("store", &storeState)
+	config := store.DefaultConfig()
+	if storeState.API != "" {
+		api, err := url.Parse(storeState.API)
+		if err != nil {
+			return nil, fmt.Errorf("invalid store API URL: %s", err)
+		}
+		err = config.SetAPI(api)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return config, nil
+}
+
+func replaceStore(o *Overlord, s *state.State, config *store.Config) {
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	sto := storeNew(config, authContext)
+	snapstate.ReplaceStore(s, sto)
+}
+
+// ReplaceStore installs a new store.
+func (o *Overlord) ReplaceStore(s *state.State, config *store.Config) {
+	replaceStore(o, s, config)
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
