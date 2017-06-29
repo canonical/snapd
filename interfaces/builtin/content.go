@@ -34,6 +34,22 @@ import (
 
 const contentSummary = `allows sharing code and data with other snaps`
 
+const contentBaseDeclarationSlots = `
+  content:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
+`
+
 // contentInterface allows sharing content between snaps
 type contentInterface struct{}
 
@@ -43,7 +59,8 @@ func (iface *contentInterface) Name() string {
 
 func (iface *contentInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: contentSummary,
+		Summary:              contentSummary,
+		BaseDeclarationSlots: contentBaseDeclarationSlots,
 	}
 }
 

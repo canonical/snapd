@@ -32,6 +32,15 @@ import (
 
 const i2cSummary = `allows access to specific I2C controller`
 
+const i2cBaseDeclarationSlots = `
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 // The type for i2c interface
 type i2cInterface struct{}
 
@@ -42,7 +51,8 @@ func (iface *i2cInterface) Name() string {
 
 func (iface *i2cInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: i2cSummary,
+		Summary:              i2cSummary,
+		BaseDeclarationSlots: i2cBaseDeclarationSlots,
 	}
 }
 

@@ -29,6 +29,14 @@ import (
 
 const physicalMemoryControlSummary = `allows write access to all physical memory`
 
+const physicalMemoryControlBaseDeclarationSlots = `
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const physicalMemoryControlConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical
 # memory.
@@ -51,9 +59,10 @@ func (iface *physicalMemoryControlInterface) Name() string {
 
 func (iface *physicalMemoryControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           physicalMemoryControlSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              physicalMemoryControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryControlBaseDeclarationSlots,
 	}
 }
 

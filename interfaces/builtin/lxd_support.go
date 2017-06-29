@@ -27,6 +27,20 @@ import (
 
 const lxdSupportSummary = `allows operating as the LXD service`
 
+const lxdSupportBaseDeclarationPlugs = `
+  lxd-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const lxdSupportBaseDeclarationSlots = `
+  lxd-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const lxdSupportConnectedPlugAppArmor = `
 # Description: Can change to any apparmor profile (including unconfined) thus
 # giving access to all resources of the system so LXD may manage what to give
@@ -49,9 +63,11 @@ func (iface *lxdSupportInterface) Name() string {
 
 func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           lxdSupportSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              lxdSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationPlugs: lxdSupportBaseDeclarationPlugs,
+		BaseDeclarationSlots: lxdSupportBaseDeclarationSlots,
 	}
 }
 
