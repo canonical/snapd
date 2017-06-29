@@ -54,6 +54,36 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestStore(t *testing.T) { TestingT(t) }
+
+type configTestSuite struct{}
+
+var _ = Suite(&configTestSuite{})
+
+func (suite *configTestSuite) TestSetAPI(c *C) {
+	// Sanity check to prove at least one URI changes.
+	cfg := DefaultConfig()
+	c.Assert(cfg.SectionsURI.Scheme, Equals, "https")
+	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
+	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
+
+	err := cfg.SetAPI("http://example.com/path/prefix/")
+	c.Assert(err, IsNil)
+
+	for _, uri := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI} {
+		c.Assert(uri.Scheme, Equals, "http")
+		c.Assert(uri.Host, Equals, "example.com")
+		c.Assert(uri.Path, Matches, "/path/prefix/api/v1/snaps/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIInvalidURL(c *C) {
+	cfg := DefaultConfig()
+	err := cfg.SetAPI("://example.com/")
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "invalid store API URL: parse ://example.com/: missing protocol scheme")
+}
+
 type remoteRepoTestSuite struct {
 	testutil.BaseTest
 	store     *Store
@@ -65,8 +95,6 @@ type remoteRepoTestSuite struct {
 	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
 }
-
-func TestStore(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&remoteRepoTestSuite{})
 

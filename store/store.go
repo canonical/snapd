@@ -182,6 +182,27 @@ type Config struct {
 	DeltaFormat  string
 }
 
+// SetAPI updates API URLs in the Config. Must not be used to change active config.
+func (cfg *Config) SetAPI(apiURL string) error {
+	// TODO: should SNAPPY_FORCE_API_URL take precedence over this? Probably
+	// not because, even though the user's env normally beats config, this
+	// could change at runtime and it would be really weird to just ignore it.
+
+	api, err := url.Parse(apiURL)
+	if err != nil {
+		return fmt.Errorf("invalid store API URL: %s", err)
+	}
+
+	// XXX: it's ok to ignore errors here because the refs are all hard-coded, valid paths.
+	cfg.SearchURI, _ = api.Parse("api/v1/snaps/search")
+	// slash at the end because snap name is appended to this with .Parse(snapName)
+	cfg.DetailsURI, _ = api.Parse("api/v1/snaps/details/")
+	cfg.BulkURI, _ = api.Parse("api/v1/snaps/metadata")
+	cfg.SectionsURI, _ = api.Parse("api/v1/snaps/sections")
+
+	return nil
+}
+
 // Store represents the ubuntu snap store
 type Store struct {
 	searchURI      *url.URL
@@ -313,23 +334,7 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	storeBaseURI, err := url.Parse(apiURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("api/v1/snaps/search")
-	if err != nil {
-		panic(err)
-	}
-
-	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("api/v1/snaps/details/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("api/v1/snaps/metadata")
+	err := defaultConfig.SetAPI(apiURL())
 	if err != nil {
 		panic(err)
 	}
@@ -350,11 +355,6 @@ func init() {
 	}
 
 	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("api/v1/snaps/sections")
 	if err != nil {
 		panic(err)
 	}
