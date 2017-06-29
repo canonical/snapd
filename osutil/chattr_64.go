@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 amd64 ppc64le s390x
+// +build arm64 amd64 ppc64le ppc64 s390x
 
 /*
  * Copyright (C) 2016 Canonical Ltd
