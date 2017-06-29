@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
-	"github.com/snapcore/snapd/overlord/snapstate/hooks"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -93,9 +92,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRefreshHook := snapstate.SetupRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
-	snapstate.SetupInstallHook = hooks.SetupInstallHook
-	snapstate.SetupRefreshHook = hooks.SetupRefreshHook
-	snapstate.SetupRemoveHook = hooks.SetupRemoveHook
+	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	snapstate.SetupRefreshHook = hookstate.SetupRefreshHook
+	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)

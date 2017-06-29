@@ -21,6 +21,13 @@ package builtin
 
 const gsettingsSummary = `allows access to any gsettings item of current user`
 
+const gsettingsBaseDeclarationSlots = `
+  gsettings:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
@@ -43,6 +50,7 @@ func init() {
 		summary:               gsettingsSummary,
 		implicitOnClassic:     true,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
+		baseDeclarationSlots:  gsettingsBaseDeclarationSlots,
 		reservedForOS:         true,
 	})
 }

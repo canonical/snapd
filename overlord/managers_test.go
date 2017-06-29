@@ -47,8 +47,8 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/hooks"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
@@ -83,6 +83,8 @@ type mgrsSuite struct {
 	serveRevision map[string]string
 
 	hijackServeSnap func(http.ResponseWriter)
+
+	snapSeccomp *testutil.MockCmd
 }
 
 var (
@@ -109,7 +111,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
-	snapstate.SetupRemoveHook = hooks.SetupRemoveHook
+	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
@@ -152,6 +155,11 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -164,6 +172,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.aa.Restore()
 	ms.umount.Restore()
 	ms.snapDiscardNs.Restore()
+	ms.snapSeccomp.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
