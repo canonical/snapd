@@ -30,6 +30,14 @@ import (
 
 const hardwareRandomControlSummary = `allows control over the hardware random number generator`
 
+const hardwareRandomControlBaseDeclarationSlots = `
+  hardware-random-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const hardwareRandomControlConnectedPlugAppArmor = `
 # Description: allow direct access to the hardware random number generator
 # device. Usually, the default access to /dev/random is sufficient, but this
@@ -56,9 +64,10 @@ func (iface *hardwareRandomControlInterface) Name() string {
 
 func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           hardwareRandomControlSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              hardwareRandomControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: hardwareRandomControlBaseDeclarationSlots,
 	}
 }
 

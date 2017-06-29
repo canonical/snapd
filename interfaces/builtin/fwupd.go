@@ -30,6 +30,15 @@ import (
 
 const fwupdSummary = `allows operating as the fwupd service`
 
+const fwupdBaseDeclarationSlots = `
+  fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
@@ -193,7 +202,8 @@ func (iface *fwupdInterface) Name() string {
 
 func (iface *fwupdInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: fwupdSummary,
+		Summary:              fwupdSummary,
+		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
 }
 
