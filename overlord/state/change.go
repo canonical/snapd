@@ -485,7 +485,7 @@ func (c *Change) Abort() {
 	for i, tid := range c.taskIDs {
 		tasks[i] = c.state.tasks[tid]
 	}
-	c.abortTasks(tasks, make(map[int]bool))
+	c.abortTasks(tasks, make(map[int]bool), make(map[string]bool))
 }
 
 // AbortLanes aborts all tasks in the provided lanes and any tasks waiting on them,
@@ -493,10 +493,10 @@ func (c *Change) Abort() {
 // on aborted).
 func (c *Change) AbortLanes(lanes []int) {
 	c.state.writing()
-	c.abortLanes(lanes, make(map[int]bool))
+	c.abortLanes(lanes, make(map[int]bool), make(map[string]bool))
 }
 
-func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool) {
+func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool, seenTasks map[string]bool) {
 	var hasLive = make(map[int]bool)
 	var hasDead = make(map[int]bool)
 	var laneTasks []*Task
@@ -544,19 +544,18 @@ NextLaneTask:
 		abortedLanes[lane] = true
 	}
 	if len(abortTasks) > 0 {
-		c.abortTasks(abortTasks, abortedLanes)
+		c.abortTasks(abortTasks, abortedLanes, seenTasks)
 	}
 }
 
-func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool) {
-	seen := make(map[string]struct{}, len(tasks))
-	marker := struct{}{}
-	for _, task := range tasks {
-		seen[task.id] = marker
-	}
+func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks map[string]bool) {
 	var lanes []int
 	for i := 0; i < len(tasks); i++ {
 		t := tasks[i]
+		if seenTasks[t.id] {
+			continue
+		}
+		seenTasks[t.id] = true
 		switch t.Status() {
 		case DoStatus:
 			// Still pending so don't even start.
@@ -576,13 +575,12 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool) {
 		}
 
 		for _, halted := range t.HaltTasks() {
-			if _, ok := seen[halted.id]; !ok {
-				seen[halted.id] = marker
+			if !seenTasks[halted.id] {
 				tasks = append(tasks, halted)
 			}
 		}
 	}
 	if len(lanes) > 0 {
-		c.abortLanes(lanes, abortedLanes)
+		c.abortLanes(lanes, abortedLanes, seenTasks)
 	}
 }

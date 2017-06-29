@@ -420,8 +420,9 @@ func (cs *changeSuite) TestAbortKⁿ(c *C) {
 	chg := st.NewChange("Kⁿ", "...")
 
 	var prev *state.TaskSet
-	for i := 0; i < 100; i++ {
-		ts := make([]*state.Task, 100)
+	N := 22 // ∛10,000
+	for i := 0; i < N; i++ {
+		ts := make([]*state.Task, N)
 		for j := range ts {
 			name := fmt.Sprintf("task-%d", j)
 			ts[j] = st.NewTask(name, name)
@@ -432,8 +433,18 @@ func (cs *changeSuite) TestAbortKⁿ(c *C) {
 		}
 		prev = t
 		chg.AddAll(t)
-	}
 
+		for j := 0; j < N; j++ {
+			lid := st.NewLane()
+			for k := range ts {
+				name := fmt.Sprintf("task-%d-%d", lid, k)
+				ts[k] = st.NewTask(name, name)
+			}
+			t := state.NewTaskSet(ts...)
+			t.WaitAll(prev)
+			chg.AddAll(t)
+		}
+	}
 	chg.Abort()
 
 	tasks := chg.Tasks()
