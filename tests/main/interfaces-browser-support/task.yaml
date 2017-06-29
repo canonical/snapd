@@ -105,26 +105,26 @@ execute: |
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat tmpdir-access.err | MATCH "Permission denied"
+        MATCH "Permission denied" < tmpdir-access.err
         if su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat /var/tmp/etilqs_test 2>${PWD}/tmpfile-read.err" test; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat tmpfile-read.err | MATCH "Permission denied"
+        MATCH "Permission denied" < tmpfile-read.err
 
         for owned_file in $OWNED_FILES; do
             if su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $owned_file 2>${PWD}/owned-read.err" test; then
                 echo "Expected error with disconnected plug didn't happen"
                 exit 1
             fi
-            cat owned-read.err | MATCH "Permission denied"
+            MATCH "Permission denied" < owned-read.err
         done
         for readable_file in $READABLE_FILES; do
             if [ -f "$readable_file" ] && su -l -c "$SNAPMOUNTDIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-read.err" test; then
                 echo "Expected error with disconnected plug didn't happen"
                 exit 1
             fi
-            cat readable-read.err | MATCH "Permission denied"
+            MATCH "Permission denied" < readable-read.err
         done
         if [ "$ALLOW_SANDBOX" = "true" ]; then
             for readable_file in $READABLE_WITH_SANDBOX_FILES; do
@@ -132,7 +132,7 @@ execute: |
                     echo "Expected error with disconnected plug didn't happen"
                     exit 1
                 fi
-                cat readable-with-sandbox-read.err | MATCH "Permission denied"
+                MATCH "Permission denied" < readable-with-sandbox-read.err
             done
         fi
     fi
