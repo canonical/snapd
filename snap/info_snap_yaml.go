@@ -40,6 +40,7 @@ type snapYaml struct {
 	Title            string                 `yaml:"title"`
 	Description      string                 `yaml:"description"`
 	Summary          string                 `yaml:"summary"`
+	License          string                 `yaml:"license,omitempty"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
@@ -158,6 +159,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		OriginalTitle:       y.Title,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
+		License:             y.License,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
 		Epoch:               epoch,
