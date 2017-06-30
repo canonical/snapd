@@ -273,7 +273,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	// in place how we can dynamically retrieve these information from
 	// snapd we will use this here.
 	if release.ReleaseInfo.ForceDevMode() {
-		m["confinement"] = "none"
+		m["confinement"] = "partial"
 	} else {
 		m["confinement"] = "strict"
 	}
