@@ -31,11 +31,25 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
+type assertTypeName string
+
+func (n assertTypeName) Complete(match string) []flags.Completion {
+	names := asserts.TypeNames()
+	ret := make([]flags.Completion, 0, len(names))
+	for _, name := range names {
+		if strings.HasPrefix(name, match) {
+			ret = append(ret, flags.Completion{Item: name})
+		}
+	}
+
+	return ret
+}
+
 type cmdKnown struct {
 	KnownOptions struct {
 		// XXX: how to get a list of assert types for completion?
-		AssertTypeName string   `required:"true"`
-		HeaderFilters  []string `required:"0"`
+		AssertTypeName assertTypeName `required:"true"`
+		HeaderFilters  []string       `required:"0"`
 	} `positional-args:"true" required:"true"`
 
 	Remote bool `long:"remote"`
@@ -112,9 +126,9 @@ func (x *cmdKnown) Execute(args []string) error {
 	var assertions []asserts.Assertion
 	var err error
 	if x.Remote {
-		assertions, err = downloadAssertion(x.KnownOptions.AssertTypeName, headers)
+		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	} else {
-		assertions, err = Client().Known(x.KnownOptions.AssertTypeName, headers)
+		assertions, err = Client().Known(string(x.KnownOptions.AssertTypeName), headers)
 	}
 	if err != nil {
 		return err
