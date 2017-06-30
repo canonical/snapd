@@ -31,6 +31,7 @@ const openvswitchBaseDeclarationSlots = `
 
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
+/run/uuidd/request rw,
 `
 
 func init() {
