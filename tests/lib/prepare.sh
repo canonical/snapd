@@ -219,8 +219,9 @@ EOF
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 
-        mkdir -p /etc/systemd/system/rng-tools.service.d/
-        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+        if systemctl list-units | MATCH "rng-tools.service"; then
+            mkdir -p /etc/systemd/system/rng-tools.service.d/
+            cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
 [Service]
 Restart=always
 RestartSec=2
@@ -229,6 +230,7 @@ PIDFile=/var/run/rngd.pid
 EOF
         systemctl daemon-reload
         systemctl restart rng-tools.service
+        fi
     fi
 
     disable_kernel_rate_limiting
