@@ -225,8 +225,10 @@ EOF
 Restart=always
 RestartSec=2
 RemainAfterExit=no
+PIDFile=/var/run/rngd.pid
 EOF
         systemctl daemon-reload
+        systemctl restart rng-tools.service
     fi
 
     disable_kernel_rate_limiting
