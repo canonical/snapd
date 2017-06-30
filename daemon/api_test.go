@@ -591,7 +591,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"refresh": map[string]interface{}{
 			"schedule": "",
 		},
-		"confinement": "none",
+		"confinement": "partial",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
