@@ -20,8 +20,10 @@
 package daemon
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -129,6 +131,7 @@ const (
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
@@ -202,6 +205,57 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
+// A JSONLineReaderSeqResponse's ServeHTTP method read lines (presumed
+// to be, each one on its own, valid JSON) from a reader, and adds the
+// RS and LF around it to make it a valid json-seq response.
+//
+// The reader is always closed when done (this is important for
+// osutil.WatingStdoutPipe).
+//
+// Tip: “jq --seq” knows how to read this.
+type JSONLineReaderSeqResponse struct {
+	io.ReadCloser
+	follow bool
+}
+
+func (rr *JSONLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	var err error
+	reader := bufio.NewReader(rr)
+	writer := bufio.NewWriter(w)
+	for {
+		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+
+		for {
+			buf, e := reader.ReadSlice('\n')
+			writer.Write(buf)
+			if e != bufio.ErrBufferFull {
+				err = e
+				break
+			}
+		}
+
+		writer.WriteByte('\n') // LF
+		if rr.follow {
+			if e := writer.Flush(); e != nil {
+				break
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		logger.Noticef("cannot stream response; problem writing: %v", err)
+	}
+	rr.Close()
+}
+
 type assertResponse struct {
 	assertions []asserts.Assertion
 	bundle     bool
@@ -250,13 +304,30 @@ var (
 	Conflict         = makeErrorResponder(409)
 )
 
-func SnapNotFound(err error) Response {
+// SnapNotFound is an error responder used when an operation is
+// requested on a snap that doesn't exist.
+func SnapNotFound(snapName string, err error) Response {
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
 		},
+		Status: 404,
+	}
+}
+
+// AppNotFound is an error responder used when an operation is
+// requested on a app that doesn't exist.
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
 		Status: 404,
 	}
 }
