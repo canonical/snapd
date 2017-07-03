@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -160,11 +161,10 @@ func New() (*Overlord, error) {
 }
 
 func initialStoreConfig(s *state.State) (*store.Config, error) {
-	var storeState store.State
-	s.Get("store", &storeState)
 	config := store.DefaultConfig()
-	if storeState.API != "" {
-		api, err := url.Parse(storeState.API)
+	apiState := storestate.API(s)
+	if apiState != "" {
+		api, err := url.Parse(apiState)
 		if err != nil {
 			return nil, fmt.Errorf("invalid store API URL: %s", err)
 		}

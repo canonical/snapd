@@ -163,12 +163,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	return info
 }
 
-// State holds the state for the store in the system.
-type State struct {
-	// API is the store's base API address.
-	API string `json:"api"`
-}
-
 // Config represents the configuration to access the snap store
 type Config struct {
 	SearchURI      *url.URL
