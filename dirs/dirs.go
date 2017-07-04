@@ -32,7 +32,10 @@ import (
 var (
 	GlobalRootDir string
 
-	SnapMountDir              string
+	SnapMountDir string
+
+	DistroLibExecDir string
+
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -71,9 +74,6 @@ var (
 
 	ClassicDir string
 
-	DistroLibExecDir string
-	CoreLibExecDir   string
-
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
 
@@ -82,6 +82,12 @@ var (
 
 const (
 	defaultSnapMountDir = "/snap"
+
+	// These are directories which are static inside the core snap and
+	// can never be prefixed as they will be always absolute once we
+	// are in the snap confinement environment.
+	CoreLibExecDir   = "/usr/lib/snapd"
+	CoreSnapMountDir = "/snap"
 )
 
 var (
@@ -178,8 +184,6 @@ func SetRootDir(rootdir string) {
 	default:
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
-
-	CoreLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
