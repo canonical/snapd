@@ -101,6 +101,29 @@ func (r *repairSuite) TestFetchJustRepair(c *C) {
 	c.Check(ok, Equals, true)
 }
 
+func (r *repairSuite) TestFetchScriptTooBig(c *C) {
+	restore := repair.MockMaxRepairScriptSize(4)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
+		io.WriteString(w, testRepair)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	_, err := runner.Fetch("canonical", "2")
+	c.Assert(err, ErrorMatches, `assertion body length 7 exceeds maximum body size 4 for "repair".*`)
+	c.Assert(n, Equals, 1)
+}
+
 var (
 	testRetryStrategy = retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
