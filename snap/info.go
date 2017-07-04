@@ -134,6 +134,7 @@ type SideInfo struct {
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Contact           string   `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -147,6 +148,7 @@ type Info struct {
 	Architectures []string
 	Assumes       []string
 
+	OriginalTitle       string
 	OriginalSummary     string
 	OriginalDescription string
 
@@ -204,6 +206,14 @@ func (s *Info) Name() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// Title returns the blessed title for the snap.
+func (s *Info) Title() string {
+	if s.EditedTitle != "" {
+		return s.EditedTitle
+	}
+	return s.OriginalTitle
 }
 
 // Summary returns the blessed summary for the snap.

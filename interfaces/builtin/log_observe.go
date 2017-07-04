@@ -21,6 +21,14 @@ package builtin
 
 const logObserveSummary = `allows read access to system logs`
 
+const logObserveBaseDeclarationSlots = `
+  log-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const logObserveConnectedPlugAppArmor = `
 # Description: Can read system logs and set kernel log rate-limiting
@@ -59,6 +67,7 @@ func init() {
 		summary:               logObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  logObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

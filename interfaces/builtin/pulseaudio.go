@@ -28,6 +28,16 @@ import (
 
 const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
 
+const pulseaudioBaseDeclarationSlots = `
+  pulseaudio:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const pulseaudioConnectedPlugAppArmor = `
 /{run,dev}/shm/pulse-shm-* mrwk,
 
@@ -121,8 +131,9 @@ func (iface *pulseAudioInterface) Name() string {
 
 func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           pulseaudioSummary,
-		ImplicitOnClassic: true,
+		Summary:              pulseaudioSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
 	}
 }
 
