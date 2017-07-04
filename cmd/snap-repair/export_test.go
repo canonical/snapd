@@ -44,3 +44,11 @@ func MockPeekRetryStrategy(strategy retry.Strategy) (restore func()) {
 		peekRetryStrategy = originalPeekRetryStrategy
 	}
 }
+
+func MockMaxRepairScriptSize(maxSize int) (restore func()) {
+	originalMaxSize := maxRepairScriptSize
+	maxRepairScriptSize = maxSize
+	return func() {
+		maxRepairScriptSize = originalMaxSize
+	}
+}

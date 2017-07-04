@@ -71,6 +71,10 @@ var (
 
 var ErrRepairNotFound = errors.New("repair not found")
 
+var (
+	maxRepairScriptSize = 24 * 1024 * 1024
+)
+
 // Fetch retrieves a stream with the repair with the given ids and any auxiliary assertions.
 func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
@@ -88,8 +92,9 @@ func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err e
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
 			// decode assertions
-			// TODO: use a decoder that can accept large repair bodies
-			dec := asserts.NewDecoder(resp.Body)
+			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
+				asserts.RepairType: maxRepairScriptSize,
+			})
 			for {
 				a, err := dec.Decode()
 				if err == io.EOF {
