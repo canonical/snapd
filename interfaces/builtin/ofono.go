@@ -32,6 +32,17 @@ import (
 
 const ofonoSummary = `allows operating as the ofono service`
 
+const ofonoBaseDeclarationSlots = `
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const ofonoPermanentSlotAppArmor = `
 # Description: Allow operating as the ofono service. This gives privileged
 # access to the system.
@@ -267,8 +278,9 @@ func (iface *ofonoInterface) Name() string {
 
 func (iface *ofonoInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           ofonoSummary,
-		ImplicitOnClassic: true,
+		Summary:              ofonoSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
 	}
 }
 

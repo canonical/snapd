@@ -390,7 +390,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
-install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/profiles
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
@@ -536,7 +536,7 @@ popd
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
-%dir %{_sharedstatedir}/snapd/seccomp/profiles
+%dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
@@ -551,6 +551,7 @@ popd
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
 %attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
 %{_mandir}/man5/snap-confine.5*

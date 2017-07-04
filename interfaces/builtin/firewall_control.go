@@ -21,6 +21,14 @@ package builtin
 
 const firewallControlSummary = `allows control over network firewall`
 
+const firewallControlBaseDeclarationSlots = `
+  firewall-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
@@ -127,6 +135,7 @@ func init() {
 		summary:                  firewallControlSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
+		baseDeclarationSlots:     firewallControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
