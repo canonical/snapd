@@ -121,9 +121,12 @@ func InternalToolPath(tool string) string {
 		return distroTool
 	}
 
+	// find the internal path relative to the running snapd, this
+	// ensure we don't rely on the state of the system (like
+	// having a valid "current" symlink).
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using default command", err)
+		logger.Noticef("cannot read /proc/self/exe: %v, using tool outside core", err)
 		return distroTool
 	}
 
@@ -136,7 +139,7 @@ func InternalToolPath(tool string) string {
 		return distroTool
 	}
 
-	// if we are re-execed, then snap-seccomp is at the same location
+	// if we are re-execed, then the tool is at the same location
 	// as snapd
 	return filepath.Join(filepath.Dir(exe), tool)
 }
