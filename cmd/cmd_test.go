@@ -199,7 +199,7 @@ func (s *cmdSuite) TestCoreSupportsReExec(c *C) {
 
 func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
 	restore := cmd.MockOsReadlink(func(string) (string, error) {
-		return "/usr/lib/snapd/snapd", nil
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
 	})
 	defer restore()
 
