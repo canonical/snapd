@@ -52,3 +52,11 @@ func MockMaxRepairScriptSize(maxSize int) (restore func()) {
 		maxRepairScriptSize = originalMaxSize
 	}
 }
+
+func (run *Runner) Brand() string {
+	return run.state.Device.Brand
+}
+
+func (run *Runner) Model() string {
+	return run.state.Device.Model
+}

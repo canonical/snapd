@@ -64,6 +64,11 @@ var (
 
 	SnapStateFile string
 
+	SnapRepairDir        string
+	SnapRepairStateFile  string
+	SnapRepairRunDir     string
+	SnapRepairAssertsDir string
+
 	SnapBinariesDir     string
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
@@ -165,6 +170,11 @@ func SetRootDir(rootdir string) {
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+
+	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
+	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair-state.json")
+	SnapRepairRunDir = filepath.Join(SnapRepairRunDir, "run")
+	SnapRepairAssertsDir = filepath.Join(SnapRepairRunDir, "assertions")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")

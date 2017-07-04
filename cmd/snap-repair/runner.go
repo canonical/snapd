@@ -26,18 +26,23 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Runner implements fetching, tracking and running repairs.
 type Runner struct {
 	BaseURL *url.URL
 	cli     *http.Client
+
+	state state
 }
 
 // NewRunner returns a Runner.
@@ -51,6 +56,7 @@ func NewRunner() *Runner {
 	return &Runner{
 		cli: cli,
 	}
+	// TODO: call LoadState implicitly?
 }
 
 var (
@@ -185,4 +191,75 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 	}
 
 	return headers, nil
+}
+
+// deviceInfo captures information about the device.
+type deviceInfo struct {
+	Brand string `json:"brand"`
+	Model string `json:"model"`
+}
+
+// repairStatus represents the possible statuses of a repair.
+type repairStatus int
+
+const (
+	RetryStatus repairStatus = iota
+	NotApplicableStatus
+	DoneStatus
+)
+
+// repairState holds the current revision and status of a repair in a sequence of repairs.
+type repairState struct {
+	Seq      int          `json:"seq"`
+	Revision int          `json:"revision"`
+	Status   repairStatus `json:"status"`
+}
+
+// state holds the atomically updated control state of the runner with sequences of repairs and their states.
+type state struct {
+	Device    deviceInfo                `json:"device"`
+	Sequences map[string][]*repairState `json:"sequences,omitempty"`
+}
+
+func (run *Runner) readState() error {
+	r, err := os.Open(dirs.SnapRepairStateFile)
+	if err != nil {
+		return err
+	}
+	dec := json.NewDecoder(r)
+	return dec.Decode(&run.state)
+}
+
+func (run *Runner) initState() error {
+	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
+		panic(fmt.Sprintf("cannot create repair state directory: %v", err))
+	}
+	// best-effort remove old
+	os.Remove(dirs.SnapRepairStateFile)
+	// TODO: init Device
+	run.SaveState()
+	return nil
+}
+
+// LoadState loads the repairs' state from disk, and (re)initializes it if it's missing or corrupted.
+func (run *Runner) LoadState() error {
+	err := run.readState()
+	if err == nil {
+		return nil
+	}
+	// error => initialize from scratch
+	// TODO: log error?
+	return run.initState()
+}
+
+// SaveState saves the repairs' state to disk.
+func (run *Runner) SaveState() {
+	m, err := json.Marshal(&run.state)
+	if err != nil {
+		panic(fmt.Sprintf("cannot marshal repair state: %v", err))
+	}
+	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0)
+	if err != nil {
+		panic(fmt.Sprintf("cannot save repair state: %v", err))
+	}
 }

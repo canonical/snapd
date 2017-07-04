@@ -21,9 +21,11 @@ package main_test
 
 import (
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -31,7 +33,20 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
+
+type runnerSuite struct {
+	tmpdir string
+}
+
+var _ = Suite(&runnerSuite{})
+
+func (s *runnerSuite) SetUpTest(c *C) {
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
+}
 
 var (
 	testKey = `type: account-key
@@ -81,7 +96,7 @@ func mustParseURL(s string) *url.URL {
 	return u
 }
 
-func (r *repairSuite) TestFetchJustRepair(c *C) {
+func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
@@ -101,7 +116,7 @@ func (r *repairSuite) TestFetchJustRepair(c *C) {
 	c.Check(ok, Equals, true)
 }
 
-func (r *repairSuite) TestFetchScriptTooBig(c *C) {
+func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
 	restore := repair.MockMaxRepairScriptSize(4)
 	defer restore()
 
@@ -133,7 +148,7 @@ var (
 	))
 )
 
-func (r *repairSuite) TestFetch500(c *C) {
+func (s *runnerSuite) TestFetch500(c *C) {
 	restore := repair.MockFetchRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -154,7 +169,7 @@ func (r *repairSuite) TestFetch500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (r *repairSuite) TestFetchEmpty(c *C) {
+func (s *runnerSuite) TestFetchEmpty(c *C) {
 	restore := repair.MockFetchRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -175,7 +190,7 @@ func (r *repairSuite) TestFetchEmpty(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (r *repairSuite) TestFetchBroken(c *C) {
+func (s *runnerSuite) TestFetchBroken(c *C) {
 	restore := repair.MockFetchRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -197,7 +212,7 @@ func (r *repairSuite) TestFetchBroken(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (r *repairSuite) TestFetchNotFound(c *C) {
+func (s *runnerSuite) TestFetchNotFound(c *C) {
 	restore := repair.MockFetchRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -218,7 +233,7 @@ func (r *repairSuite) TestFetchNotFound(c *C) {
 	c.Assert(n, Equals, 1)
 }
 
-func (r *repairSuite) TestFetchIdMismatch(c *C) {
+func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		io.WriteString(w, testRepair)
@@ -234,7 +249,7 @@ func (r *repairSuite) TestFetchIdMismatch(c *C) {
 	c.Assert(err, ErrorMatches, `cannot fetch repair, id mismatch canonical/2 != canonical/4`)
 }
 
-func (r *repairSuite) TestFetchWrongFirstType(c *C) {
+func (s *runnerSuite) TestFetchWrongFirstType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
@@ -251,7 +266,7 @@ func (r *repairSuite) TestFetchWrongFirstType(c *C) {
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
 }
 
-func (r *repairSuite) TestFetchRepairPlusKey(c *C) {
+func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
@@ -275,7 +290,7 @@ func (r *repairSuite) TestFetchRepairPlusKey(c *C) {
 	c.Check(ok, Equals, true)
 }
 
-func (r *repairSuite) TestPeek(c *C) {
+func (s *runnerSuite) TestPeek(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/json")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
@@ -295,7 +310,7 @@ func (r *repairSuite) TestPeek(c *C) {
 	c.Check(h["models"], DeepEquals, []interface{}{"xyz/frobinator"})
 }
 
-func (r *repairSuite) TestPeek500(c *C) {
+func (s *runnerSuite) TestPeek500(c *C) {
 	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -316,7 +331,7 @@ func (r *repairSuite) TestPeek500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (r *repairSuite) TestPeekInvalid(c *C) {
+func (s *runnerSuite) TestPeekInvalid(c *C) {
 	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
 	defer restore()
 
@@ -338,7 +353,7 @@ func (r *repairSuite) TestPeekInvalid(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (r *repairSuite) TestPeekNotFound(c *C) {
+func (s *runnerSuite) TestPeekNotFound(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -356,7 +371,7 @@ func (r *repairSuite) TestPeekNotFound(c *C) {
 	c.Assert(n, Equals, 1)
 }
 
-func (r *repairSuite) TestPeekIdMismatch(c *C) {
+func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/json")
 		io.WriteString(w, testHeadersResp)
@@ -370,5 +385,49 @@ func (r *repairSuite) TestPeekIdMismatch(c *C) {
 
 	_, err := runner.Peek("canonical", "4")
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, id mismatch canonical/2 != canonical/4`)
+}
 
+func (s *runnerSuite) TestLoadState(c *C) {
+	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`{"device": {"brand":"my-brand","model":"my-model"}}`), 0600)
+	c.Assert(err, IsNil)
+	runner := repair.NewRunner()
+	err = runner.LoadState()
+	c.Assert(err, IsNil)
+	c.Check(runner.Brand(), Equals, "my-brand")
+	c.Check(runner.Model(), Equals, "my-model")
+}
+
+func (s *runnerSuite) TestLoadStateInitState(c *C) {
+	// sanity
+	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
+	// TODO: init state will do more later
+	c.Check(runner.Brand(), Equals, "")
+	c.Check(runner.Model(), Equals, "")
+}
+
+func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	err := os.Chmod(s.tmpdir, 0555)
+	c.Assert(err, IsNil)
+
+	runner := repair.NewRunner()
+	c.Check(runner.LoadState, PanicMatches, `cannot create repair state directory:.*`)
+}
+
+func (s *runnerSuite) TestSaveStateFail(c *C) {
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+
+	err = os.Chmod(dirs.SnapRepairDir, 0555)
+	c.Assert(err, IsNil)
+	defer os.Chmod(dirs.SnapRepairDir, 0775)
+
+	c.Check(runner.SaveState, PanicMatches, `cannot save repair state:.*`)
 }
