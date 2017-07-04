@@ -73,7 +73,7 @@ AXNpZw==
 {"architectures":["amd64","arm64"],"authority-id":"canonical","body-length":"7","brand-id":"canonical","models":["xyz/frobinator"],"repair-id":"2","series":["16"],"sign-key-sha3-384":"KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj","timestamp":"2017-03-30T12:22:16Z","type":"repair"}}`
 )
 
-func MustParseURL(s string) *url.URL {
+func mustParseURL(s string) *url.URL {
 	u, err := url.Parse(s)
 	if err != nil {
 		panic(err)
@@ -92,7 +92,7 @@ func (r *repairSuite) TestFetchJustRepair(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	a, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
@@ -124,7 +124,7 @@ func (r *repairSuite) TestFetch500(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, "cannot fetch repair, unexpected status 500")
@@ -145,7 +145,7 @@ func (r *repairSuite) TestFetchEmpty(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
@@ -167,7 +167,7 @@ func (r *repairSuite) TestFetchBroken(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
@@ -188,7 +188,7 @@ func (r *repairSuite) TestFetchNotFound(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
@@ -205,7 +205,7 @@ func (r *repairSuite) TestFetchIdMismatch(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "4")
 	c.Assert(err, ErrorMatches, `cannot fetch repair, id mismatch canonical/2 != canonical/4`)
@@ -222,7 +222,7 @@ func (r *repairSuite) TestFetchWrongFirstType(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
@@ -241,7 +241,7 @@ func (r *repairSuite) TestFetchRepairPlusKey(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	a, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
@@ -263,7 +263,7 @@ func (r *repairSuite) TestPeek(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	h, err := runner.Peek("canonical", "2")
 	c.Assert(err, IsNil)
@@ -286,7 +286,7 @@ func (r *repairSuite) TestPeek500(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Peek("canonical", "2")
 	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
@@ -308,7 +308,7 @@ func (r *repairSuite) TestPeekInvalid(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Peek("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
@@ -326,7 +326,7 @@ func (r *repairSuite) TestPeekNotFound(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Peek("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
@@ -343,7 +343,7 @@ func (r *repairSuite) TestPeekIdMismatch(c *C) {
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
-	runner.BaseURL = MustParseURL(mockServer.URL)
+	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Peek("canonical", "4")
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, id mismatch canonical/2 != canonical/4`)
