@@ -19,9 +19,22 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const coreSupportSummary = `special permissions for the core snap`
+
+const coreSupportBaseDeclarationPlugs = `
+  core-support:
+    allow-installation:
+      plug-snap-type:
+        - core
+`
+
+const coreSupportBaseDeclarationSlots = `
+  core-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const coreSupportConnectedPlugAppArmor = `
 # Description: Can control all aspects of systemd via the systemctl command,
@@ -53,8 +66,8 @@ const coreSupportConnectedPlugAppArmor = `
 
 # Allow modifying logind configuration. For now, allow reading all logind
 # configuration but only allow modifying NN-snap*.conf and snap*.conf files
-# in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d 
-# directory as it may not be there for existing installs (wirtable-path 
+# in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d
+# directory as it may not be there for existing installs (wirtable-path
 # magic oddness).
 /etc/systemd/logind.conf                            r,
 /etc/systemd/logind.conf.d/                         rw,
@@ -78,17 +91,17 @@ owner /boot/uboot/config.txt rwk,
 owner /boot/uboot/config.txt.tmp rwk,
 `
 
-// NewShutdownInterface returns a new "shutdown" interface.
-func NewCoreSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "core-support",
-		// NOTE: cure-support implicitly contains the rules from network-bind.
+func init() {
+	registerIface(&commonInterface{
+		name:                 "core-support",
+		summary:              coreSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: coreSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: coreSupportBaseDeclarationSlots,
+		// NOTE: core-support implicitly contains the rules from network-bind.
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewCoreSupportInterface())
+	})
 }

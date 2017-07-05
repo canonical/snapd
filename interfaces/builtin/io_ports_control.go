@@ -28,6 +28,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const ioPortsControlSummary = `allows access to all I/O ports`
+
+const ioPortsControlBaseDeclarationSlots = `
+  io-ports-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const ioPortsControlConnectedPlugAppArmor = `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
@@ -48,19 +58,28 @@ iopl
 `
 
 // The type for io-ports-control interface
-type IioPortsControlInterface struct{}
+type iioPortsControlInterface struct{}
 
 // Getter for the name of the io-ports-control interface
-func (iface *IioPortsControlInterface) Name() string {
+func (iface *iioPortsControlInterface) Name() string {
 	return "io-ports-control"
 }
 
-func (iface *IioPortsControlInterface) String() string {
+func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              ioPortsControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ioPortsControlBaseDeclarationSlots,
+	}
+}
+
+func (iface *iioPortsControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *IioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *iioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -75,7 +94,7 @@ func (iface *IioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error
 }
 
 // Checks and possibly modifies a plug
-func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *iioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -83,12 +102,12 @@ func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error
 	return nil
 }
 
-func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *IioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="port", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -97,16 +116,16 @@ func (iface *IioPortsControlInterface) UDevConnectedPlug(spec *udev.Specificatio
 	return nil
 }
 
-func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *iioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&IioPortsControlInterface{})
+	registerIface(&iioPortsControlInterface{})
 }

@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const physicalMemoryControlSummary = `allows write access to all physical memory`
+
+const physicalMemoryControlBaseDeclarationSlots = `
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const physicalMemoryControlConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical
 # memory.
@@ -40,19 +50,28 @@ capability sys_rawio,
 `
 
 // The type for physical-memory-control interface
-type PhysicalMemoryControlInterface struct{}
+type physicalMemoryControlInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *PhysicalMemoryControlInterface) Name() string {
+func (iface *physicalMemoryControlInterface) Name() string {
 	return "physical-memory-control"
 }
 
-func (iface *PhysicalMemoryControlInterface) String() string {
+func (iface *physicalMemoryControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              physicalMemoryControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryControlBaseDeclarationSlots,
+	}
+}
+
+func (iface *physicalMemoryControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *PhysicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *physicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -67,7 +86,7 @@ func (iface *PhysicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot)
 }
 
 // Checks and possibly modifies a plug
-func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *physicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -75,12 +94,12 @@ func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-func (iface *PhysicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(physicalMemoryControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *PhysicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="mem", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -89,11 +108,11 @@ func (iface *PhysicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specif
 	return nil
 }
 
-func (iface *PhysicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *physicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&PhysicalMemoryControlInterface{})
+	registerIface(&physicalMemoryControlInterface{})
 }

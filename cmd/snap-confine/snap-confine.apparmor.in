@@ -106,7 +106,7 @@
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
     # the next line is for classic system
-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/ -> /tmp/snap.rootfs_*/,
     # the next line is for core system
     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
     # all of the constructed rootfs is a rslave
@@ -163,9 +163,11 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
     # /etc/alternatives (core)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
     # the /snap directory
     mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
@@ -264,6 +266,9 @@
 
     # Allow snap-confine to move to the void
     /var/lib/snapd/void/ r,
+
+    # Allow snap-confine to read snap contexts
+    /var/lib/snapd/context/snap.* r,
 
     # Support for the quirk system
     /var/ r,

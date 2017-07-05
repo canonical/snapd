@@ -25,24 +25,50 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
-// ContentInterface allows sharing content between snaps
-type ContentInterface struct{}
+const contentSummary = `allows sharing code and data with other snaps`
 
-func (iface *ContentInterface) Name() string {
+const contentBaseDeclarationSlots = `
+  content:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
+`
+
+// contentInterface allows sharing content between snaps
+type contentInterface struct{}
+
+func (iface *contentInterface) Name() string {
 	return "content"
+}
+
+func (iface *contentInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              contentSummary,
+		BaseDeclarationSlots: contentBaseDeclarationSlots,
+	}
 }
 
 func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
-func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -71,7 +97,7 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -96,7 +122,7 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // path is an internal helper that extract the "read" and "write" attribute
 // of the slot
-func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string {
+func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string {
 	if name != "read" && name != "write" {
 		panic("internal error, path can only be used with read/write")
 	}
@@ -122,7 +148,11 @@ func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
-		return strings.Replace(path, "$SNAP", snapInfo.MountDir(), 1)
+		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+		// inside the mount namespace snap-confine creates and there we will
+		// always have a /snap directory available regardless if the system
+		// we're running on supports this or not.
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
 	}
 	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
 		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
@@ -131,7 +161,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.MountDir(), path)
+	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
@@ -145,7 +175,7 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, ext
 	}
 }
 
-func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
 	if len(writePaths) > 0 {
@@ -179,14 +209,14 @@ func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 // Interactions with the mount backend.
 
-func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for _, r := range iface.path(slot, "read") {
 		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
 		if err != nil {
@@ -202,14 +232,14 @@ func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plu
 	return nil
 }
 
-func (iface *ContentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *contentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
-func (iface *ContentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *contentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&ContentInterface{})
+	registerIface(&contentInterface{})
 }

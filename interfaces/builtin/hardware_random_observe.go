@@ -28,6 +28,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const hardwareRandomObserveSummary = `allows reading from hardware random number generator`
+
+const hardwareRandomObserveBaseDeclarationSlots = `
+  hardware-random-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const hardwareRandomObserveConnectedPlugAppArmor = `
 # Description: allow direct read-only access to the hardware random number
 # generator device. In addition allow observing the available and
@@ -40,15 +50,24 @@ const hardwareRandomObserveConnectedPlugAppArmor = `
 `
 
 // The type for physical-memory-control interface
-type HardwareRandomObserveInterface struct{}
+type hardwareRandomObserveInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *HardwareRandomObserveInterface) Name() string {
+func (iface *hardwareRandomObserveInterface) Name() string {
 	return "hardware-random-observe"
 }
 
+func (iface *hardwareRandomObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              hardwareRandomObserveSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: hardwareRandomObserveBaseDeclarationSlots,
+	}
+}
+
 // Check validity of the defined slot
-func (iface *HardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
@@ -59,7 +78,7 @@ func (iface *HardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot)
 }
 
 // Checks and possibly modifies a plug
-func (iface *HardwareRandomObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *hardwareRandomObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -67,12 +86,12 @@ func (iface *HardwareRandomObserveInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(hardwareRandomObserveConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="hwrng", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -81,11 +100,11 @@ func (iface *HardwareRandomObserveInterface) UDevConnectedPlug(spec *udev.Specif
 	return nil
 }
 
-func (iface *HardwareRandomObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *hardwareRandomObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&HardwareRandomObserveInterface{})
+	registerIface(&hardwareRandomObserveInterface{})
 }

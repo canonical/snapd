@@ -20,8 +20,11 @@
 package snapstate_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -41,6 +44,9 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
+	oldDir := dirs.SnapCookieDir
+	dirs.SnapCookieDir = c.MkDir()
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
@@ -51,7 +57,11 @@ func (s *mountSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		reset1()
+		dirs.SnapCookieDir = oldDir
+	}
 }
 
 func (s *mountSnapSuite) TearDownTest(c *C) {
@@ -128,7 +138,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: "/snap/core/1",
+			old: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/1"),
 		},
 		{
 			op:    "setup-snap",
@@ -137,7 +147,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/core/2",
+			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/2"),
 			stype: "os",
 		},
 	})

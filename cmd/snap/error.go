@@ -61,7 +61,7 @@ func termSize() (width, height int) {
 	return width, height
 }
 
-func fill(para string) string {
+func fill(para string, indent int) string {
 	width, _ := termSize()
 
 	if width > 100 {
@@ -74,23 +74,19 @@ func fill(para string) string {
 	// work just for this.
 	width--
 
-	// 3 is the %v\n, which will be present in any locale
-	indent := len(errorPrefix) - 3
 	var buf bytes.Buffer
 	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width-indent)
 
 	return strings.TrimSpace(buf.String())
 }
 
-type filledError struct {
-	error
-}
+func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (string, error) {
+	// do this here instead of in the caller for more DRY
+	err, ok := e.(*client.Error)
+	if !ok {
+		return "", e
+	}
 
-func (e filledError) Error() string {
-	return fill(e.error.Error())
-}
-
-func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {
 	// FIXME: using err.Message in user-facing messaging is not
 	// l10n-friendly, and probably means we're missing ad-hoc messaging.
 
@@ -98,6 +94,23 @@ func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error)
 	usesSnapName := true
 	var msg string
 	switch err.Kind {
+	case client.ErrorKindSnapNotFound:
+		// FIXME: the snap store _is_ sending us a different message when a
+		// snap does not exist vs. when it does not exist for the current
+		// arch/channel/revision. Surface that here somehow!
+
+		msg = i18n.G("snap %q not found")
+		if opts != nil {
+			if opts.Revision != "" {
+				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
+				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least at revision %q)"), opts.Revision)
+			} else if opts.Channel != "" {
+				// (note --revision overrides --channel)
+
+				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
+				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least in channel %q)"), opts.Channel)
+			}
+		}
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see "snap refresh --help"`)
@@ -130,7 +143,12 @@ If you understand and want to proceed repeat the command including --classic.
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
-	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
+	case client.ErrorKindSnapLocal:
+		msg = i18n.G("snap %q is local")
+	case client.ErrorKindNoUpdateAvailable:
+		isError = false
+		msg = i18n.G("snap %q has no updates available")
+	case client.ErrorKindSnapNotInstalled:
 		isError = false
 		usesSnapName = false
 		msg = err.Message
@@ -142,7 +160,8 @@ If you understand and want to proceed repeat the command including --classic.
 	if usesSnapName {
 		msg = fmt.Sprintf(msg, snapName)
 	}
-	msg = fill(msg)
+	// 3 is the %v\n, which will be present in any locale
+	msg = fill(msg, len(errorPrefix)-3)
 	if isError {
 		return "", errors.New(msg)
 	}

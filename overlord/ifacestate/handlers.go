@@ -63,7 +63,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		snap.AddImplicitSlots(affectedSnapInfo)
+		addImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -125,7 +125,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	snap.AddImplicitSlots(snapInfo)
+	addImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
 	// The snap may have been updated so perform the following operation to
@@ -429,20 +429,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
-	m := make(map[string]bool)
-	for _, conn := range conns {
-		m[conn.PlugRef.Snap] = true
-		m[conn.SlotRef.Snap] = true
-	}
-	l := make([]string, 0, len(m))
-	for name := range m {
-		l = append(l, name)
-	}
-	sort.Strings(l)
-	return l
-}
-
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -458,18 +444,25 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
-	}
-	m.repo.DisconnectAll(affectedConns)
-	affectedSnaps := snapNamesFromConns(affectedConns)
-	for _, snapName := range affectedSnaps {
+	var snapStates []snapstate.SnapState
+	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				task.Logf("skipping disconnect operation for connection %s %s, snap %q doesn't exist", plugRef, slotRef, snapName)
+				return nil
+			}
 			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
-			continue
+		} else {
+			snapStates = append(snapStates, snapst)
 		}
+	}
+
+	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
+	}
+	for _, snapst := range snapStates {
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
@@ -479,9 +472,9 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	}
-	for _, conn := range affectedConns {
-		delete(conns, conn.ID())
-	}
+
+	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	delete(conns, conn.ID())
 
 	setConns(st, conns)
 	return nil

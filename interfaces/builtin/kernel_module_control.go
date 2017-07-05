@@ -19,9 +19,21 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
+
+const kernelModuleControlBaseDeclarationPlugs = `
+  kernel-module-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const kernelModuleControlBaseDeclarationSlots = `
+  kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const kernelModuleControlConnectedPlugAppArmor = `
 # Description: Allow insertion, removal and querying of modules.
@@ -49,16 +61,16 @@ finit_module
 delete_module
 `
 
-// NewKernelModuleControlInterface returns a new "kernel-module" interface.
-func NewKernelModuleControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "kernel-module-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "kernel-module-control",
+		summary:               kernelModuleControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewKernelModuleControlInterface())
+	})
 }

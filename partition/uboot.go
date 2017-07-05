@@ -24,12 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-
-	"github.com/mvo5/uboot-go/uenv"
+	"github.com/snapcore/snapd/partition/ubootenv"
 )
 
-type uboot struct {
-}
+type uboot struct{}
 
 // newUboot create a new Uboot bootloader object
 func newUboot() Bootloader {
@@ -58,7 +56,7 @@ func (u *uboot) envFile() string {
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
-	env, err := uenv.Open(u.envFile())
+	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
 		return err
 	}
@@ -83,7 +81,7 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
-	env, err := uenv.Open(u.envFile())
+	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
 	}

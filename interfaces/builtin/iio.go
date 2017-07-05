@@ -30,6 +30,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const iioSummary = `allows access to a specific IIO device`
+
+const iioBaseDeclarationSlots = `
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 const iioConnectedPlugAppArmor = `
 # Description: Give access to a specific IIO device on the system.
 
@@ -39,14 +50,21 @@ const iioConnectedPlugAppArmor = `
 `
 
 // The type for iio interface
-type IioInterface struct{}
+type iioInterface struct{}
 
 // Getter for the name of the iio interface
-func (iface *IioInterface) Name() string {
+func (iface *iioInterface) Name() string {
 	return "iio"
 }
 
-func (iface *IioInterface) String() string {
+func (iface *iioInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              iioSummary,
+		BaseDeclarationSlots: iioBaseDeclarationSlots,
+	}
+}
+
+func (iface *iioInterface) String() string {
 	return iface.Name()
 }
 
@@ -56,7 +74,7 @@ func (iface *IioInterface) String() string {
 var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *IioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -84,7 +102,7 @@ func (iface *IioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *IioInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *iioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -92,7 +110,7 @@ func (iface *IioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -112,7 +130,7 @@ func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -126,15 +144,15 @@ func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *IioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *iioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
-func (iface *IioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *iioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&IioInterface{})
+	registerIface(&iioInterface{})
 }

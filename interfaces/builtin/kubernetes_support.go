@@ -19,9 +19,21 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const kubernetesSupportSummary = `allows operating as the Kubernetes service`
+
+const kubernetesSupportBaseDeclarationPlugs = `
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const kubernetesSupportBaseDeclarationSlots = `
+  kubernetes-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const kubernetesSupportConnectedPlugAppArmor = `
 # Description: can use kubernetes to control Docker containers. This interface
@@ -72,16 +84,16 @@ ptrace (read, trace) peer=unconfined,
 
 var kubernetesSupportConnectedPlugKmod = []string{`llc`, `stp`}
 
-// NewKubernetesSupportInterface returns a new "openvswitch-support" interface.
-func NewKubernetesSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "kubernetes-support",
+func init() {
+	registerIface(&commonInterface{
+		name:                     "kubernetes-support",
+		summary:                  kubernetesSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
 		reservedForOS:            true,
-	}
-}
-
-func init() {
-	registerIface(NewKubernetesSupportInterface())
+	})
 }

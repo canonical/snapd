@@ -35,12 +35,32 @@
 #include "mount-support.h"
 #include "ns-support.h"
 #include "quirks.h"
+#include "udev-support.h"
+#include "user-support.h"
+#include "cookie-support.h"
+#include "snap-confine-args.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
-#include "udev-support.h"
-#include "user-support.h"
-#include "snap-confine-args.h"
+
+// sc_maybe_fixup_permissions fixes incorrect permissions
+// inside the mount namespace for /var/lib. Before 1ccce4
+// this directory was created with permissions 1777.
+void sc_maybe_fixup_permissions()
+{
+	struct stat buf;
+	if (stat("/var/lib", &buf) != 0) {
+		die("cannot stat /var/lib");
+	}
+	if ((buf.st_mode & 0777) == 0777) {
+		if (chmod("/var/lib", 0755) != 0) {
+			die("cannot chmod /var/lib");
+		}
+		if (chown("/var/lib", 0, 0) != 0) {
+			die("cannot chown /var/lib");
+		}
+	}
+}
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -74,14 +94,6 @@ int main(int argc, char **argv)
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;
 	}
-	// Collect and validate the security tag and a few other things passed on
-	// command line.
-	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag)) {
-		die("security tag %s not allowed", security_tag);
-	}
-	const char *executable = sc_args_executable(args);
-	bool classic_confinement = sc_args_is_classic_confinement(args);
 
 	const char *snap_name = getenv("SNAP_NAME");
 	if (snap_name == NULL) {
@@ -89,10 +101,23 @@ int main(int argc, char **argv)
 	}
 	sc_snap_name_validate(snap_name, NULL);
 
+	// Collect and validate the security tag and a few other things passed on
+	// command line.
+	const char *security_tag = sc_args_security_tag(args);
+	if (!verify_security_tag(security_tag, snap_name)) {
+		die("security tag %s not allowed", security_tag);
+	}
+	const char *executable = sc_args_executable(args);
+	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
+	bool classic_confinement = sc_args_is_classic_confinement(args);
+
+	sc_snap_name_validate(base_snap_name, NULL);
+
 	debug("security tag: %s", security_tag);
 	debug("executable:   %s", executable);
 	debug("confinement:  %s",
 	      classic_confinement ? "classic" : "non-classic");
+	debug("base snap:    %s", base_snap_name);
 
 	// Who are we?
 	uid_t real_uid = getuid();
@@ -105,6 +130,18 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 #endif
+
+	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
+	if (!sc_is_hook_security_tag(security_tag)) {
+		struct sc_error *err
+		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
+		if (err != NULL) {
+			error("%s", sc_error_msg(err));
+		}
+	}
+
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
 	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
@@ -120,12 +157,6 @@ int main(int argc, char **argv)
 	}
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
-		// ensure that "/" or "/snap" is mounted with the
-		// "shared" option, see LP:#1668659
-		int global_lock_fd = sc_lock_global();
-		sc_ensure_shared_snap_mount();
-		sc_unlock_global(global_lock_fd);
-
 		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
@@ -154,10 +185,12 @@ int main(int argc, char **argv)
 			sc_reassociate_with_pid1_mount_ns();
 			// Do global initialization:
 			int global_lock_fd = sc_lock_global();
+			// ensure that "/" or "/snap" is mounted with the
+			// "shared" option, see LP:#1668659
+			debug("ensuring that snap mount directory is shared");
+			sc_ensure_shared_snap_mount();
 			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
-			// TODO: implement this.
-			debug("share snap directory here...");
 			sc_unlock_global(global_lock_fd);
 
 			// Do per-snap initialization.
@@ -167,7 +200,7 @@ int main(int argc, char **argv)
 			group = sc_open_ns_group(snap_name, 0);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(snap_name);
+				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_close_ns_group(group);
@@ -225,13 +258,16 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
-
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	sc_apply_seccomp_bpf(security_tag);
 #endif				// ifdef HAVE_SECCOMP
-
+	if (snap_context != NULL) {
+		setenv("SNAP_COOKIE", snap_context, 1);
+		// for compatibility, if facing older snapd.
+		setenv("SNAP_CONTEXT", snap_context, 1);
+	}
 	// Permanently drop if not root
 	if (geteuid() == 0) {
 		// Note that we do not call setgroups() here because its ok

@@ -100,7 +100,7 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 	// unity extension
 	"^X-Ayatana-Desktop-Shortcuts=",
 	"^TargetEnvironment=",
-}, "|")).MatchString
+}, "|")).Match
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
 func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
@@ -123,33 +123,37 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 }
 
 func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
-	newContent := []string{}
-
+	var newContent bytes.Buffer
+	mountDir := []byte(s.MountDir())
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for i := 0; scanner.Scan(); i++ {
-		line := scanner.Text()
+		bline := scanner.Bytes()
 
-		if !isValidDesktopFileLine(line) {
-			logger.Debugf("ignoring line %d (%q) in source of desktop file %q", i, line, filepath.Base(desktopFile))
+		if !isValidDesktopFileLine(bline) {
+			logger.Debugf("ignoring line %d (%q) in source of desktop file %q", i, bline, filepath.Base(desktopFile))
 			continue
 		}
 
 		// rewrite exec lines to an absolute path for the binary
-		if strings.HasPrefix(line, "Exec=") {
+		if bytes.HasPrefix(bline, []byte("Exec=")) {
 			var err error
-			line, err = rewriteExecLine(s, desktopFile, line)
+			line, err := rewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
 			}
+			bline = []byte(line)
 		}
 
 		// do variable substitution
-		line = strings.Replace(line, "${SNAP}", s.MountDir(), -1)
-		newContent = append(newContent, line)
+		bline = bytes.Replace(bline, []byte("${SNAP}"), mountDir, -1)
+
+		newContent.Grow(len(bline) + 1)
+		newContent.Write(bline)
+		newContent.WriteByte('\n')
 	}
 
-	return []byte(strings.Join(newContent, "\n"))
+	return newContent.Bytes()
 }
 
 func updateDesktopDatabase(desktopFiles []string) error {
@@ -187,7 +191,7 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
-		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
 		}
 	}

@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const firewallControlSummary = `allows control over network firewall`
+
+const firewallControlBaseDeclarationSlots = `
+  firewall-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
@@ -120,19 +126,19 @@ var firewallControlConnectedPlugKmod = []string{
 	"arp_tables",
 	"br_netfilter",
 	"ip6table_filter",
-	"iptable_filter"}
+	"iptable_filter",
+}
 
-// NewFirewallControlInterface returns a new "firewall-control" interface.
-func NewFirewallControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "firewall-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                     "firewall-control",
+		summary:                  firewallControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     firewallControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
 		reservedForOS:            true,
-	}
-}
-
-func init() {
-	registerIface(NewFirewallControlInterface())
+	})
 }

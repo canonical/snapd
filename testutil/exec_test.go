@@ -31,6 +31,7 @@ var _ = Suite(&mockCommandSuite{})
 
 func (s *mockCommandSuite) TestMockCommand(c *C) {
 	mock := MockCommand(c, "cmd", "true")
+	defer mock.Restore()
 	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
 	c.Assert(err, IsNil)
 	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()

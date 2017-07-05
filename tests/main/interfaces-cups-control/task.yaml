@@ -2,8 +2,6 @@ summary: Ensure that the cups interface works.
 
 systems:
     - -ubuntu-core-16-*
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -26,18 +24,22 @@ prepare: |
     snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get install -y --no-install-recommends cups-pdf
-    else
-        apt-get install -y --no-install-recommends printer-driver-cups-pdf
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_package --no-install-recommends cups printer-driver-cups-pdf
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # Not all distributions are starting the cups service directly after
+        # the package was installed.
+        if ! systemctl is-enabled cups ; then
+            # We can't use --now as this isn't supported by all distributions
+            systemctl enable cups
+            systemctl start cups
+        fi
     fi
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get purge -y --auto-remove cups-pdf
-    else
-        apt-get purge -y --auto-remove printer-driver-cups-pdf
-    fi
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package cups printer-driver-cups-pdf
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
@@ -57,6 +59,10 @@ execute: |
     echo "Hello World" > $TEST_FILE
     test-snapd-cups-control-consumer.lpr $TEST_FILE
     while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
+
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
 
     echo "===================================="
 

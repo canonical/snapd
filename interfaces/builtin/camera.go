@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const cameraSummary = `allows access to all cameras`
+
+const cameraBaseDeclarationSlots = `
+  camera:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
@@ -34,15 +40,14 @@ const cameraConnectedPlugAppArmor = `
 /run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
 `
 
-// NewCameraInterface returns a new "camera" interface.
-func NewCameraInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "camera",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "camera",
+		summary:               cameraSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  cameraBaseDeclarationSlots,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewCameraInterface())
+	})
 }

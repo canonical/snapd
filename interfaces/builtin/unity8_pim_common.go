@@ -105,6 +105,8 @@ shutdown
 
 type unity8PimCommonInterface struct {
 	name                  string
+	summary               string
+	baseDeclarationSlots  string
 	permanentSlotAppArmor string
 	connectedSlotAppArmor string
 	connectedPlugAppArmor string
@@ -112,6 +114,13 @@ type unity8PimCommonInterface struct {
 
 func (iface *unity8PimCommonInterface) Name() string {
 	return iface.name
+}
+
+func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              iface.summary,
+		BaseDeclarationSlots: iface.baseDeclarationSlots,
+	}
 }
 
 func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {

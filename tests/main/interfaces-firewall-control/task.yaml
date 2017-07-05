@@ -1,9 +1,5 @@
 summary: Ensure that the firewall-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
@@ -49,23 +45,23 @@ restore: |
     rm -f firewall-control-consumer_1.0_all.snap firewall-create.error $SERVICE_FILE $REQUEST_FILE
 
 execute: |
-    CONNECTED_PATTERN=":firewall-control +firewall-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +firewall-control-consumer:firewall-control"
+    CONNECTED_PATTERN='^:firewall-control +firewall-control-consumer$'
+    DISCONNECTED_PATTERN='^- +firewall-control-consumer:firewall-control$'
 
     echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "==================================="
 
     echo "When the plug is connected"
     snap connect firewall-control-consumer:firewall-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "And the snap creates a firewall rule"
     firewall-control-consumer.create
 
     echo "Then the service listening on localhost is accessible through the destination IP in the rule"
-    nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
+    nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE | MATCH 'ok$'
 
     echo "When the snap deletes the firewall rule"
     firewall-control-consumer.delete
@@ -73,15 +69,19 @@ execute: |
     echo "Then the service listening on localhost is no longer accessible through the destination IP in the rule"
     ! nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE
 
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
+
     echo "==================================="
 
     echo "When the plug is disconnected"
     snap disconnect firewall-control-consumer:firewall-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"
-    if firewall-control-consumer.create 2>${PWD}/firewall-create.error; then
+    if firewall-control-consumer.create 2>firewall-create.error; then
         echo "Expected permission error creating firewall rules with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" firewall-create.error
+    MATCH "Permission denied" < firewall-create.error

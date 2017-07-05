@@ -34,7 +34,7 @@ func AddSnapBinaries(s *snap.Info) error {
 	}
 
 	for _, app := range s.Apps {
-		if app.Daemon != "" {
+		if app.IsService() {
 			continue
 		}
 

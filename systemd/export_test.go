@@ -38,3 +38,9 @@ func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
 		stopNotifyDelay = oldNotifyDelay
 	}
 }
+
+func MockOsGetenv(f func(string) string) func() {
+	oldOsGetenv := osGetenv
+	osGetenv = f
+	return func() { osGetenv = oldOsGetenv }
+}
