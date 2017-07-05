@@ -625,7 +625,10 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 			return nil, errSkip
 		}
 	}
-	// TODO: verify with signatures
+	// verify with signatures
+	if err := run.Verify(repair, aux); err != nil {
+		return nil, fmt.Errorf("cannot verify repair %q-%d: %v", brandID, state.Sequence, err)
+	}
 	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
 		return nil, err
 	}
@@ -675,4 +678,36 @@ func (run *Runner) Next(brandID string) (*Repair, error) {
 			sequence: sequenceNext - 1,
 		}, nil
 	}
+}
+
+// we use designated subroot keys so that we have a subtree of keys and make
+// sure not any trusted authority key can sign repairs, given that we lack
+// ATM a way to limit the purpose of keys
+var (
+	trustedRepairRootKeys []*asserts.AccountKey
+)
+
+// Verify verifies that the repair is properly signed taking into consideration account-key assertions from aux as needed.
+func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error {
+	workBS := asserts.NewMemoryBackstore()
+	for _, a := range aux {
+		if a.Type() != asserts.AccountKeyType {
+			continue
+		}
+		err := workBS.Put(asserts.AccountKeyType, a)
+		if err != nil {
+			return err
+		}
+	}
+	trustedBS := asserts.NewMemoryBackstore()
+	for _, t := range trustedRepairRootKeys {
+		trustedBS.Put(asserts.AccountKeyType, t)
+	}
+	for _, t := range sysdb.Trusted() {
+		if t.Type() == asserts.AccountType {
+			trustedBS.Put(asserts.AccountType, t)
+		}
+	}
+
+	return verifySignatures(repair, workBS, trustedBS)
 }
