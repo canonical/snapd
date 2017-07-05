@@ -128,7 +128,13 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	int max_wait = 120;
 	const char *MAX_PROFILE_WAIT = getenv("SNAP_CONFINE_MAX_PROFILE_WAIT");
 	if (MAX_PROFILE_WAIT != NULL) {
-		int env_max_wait = atoi(MAX_PROFILE_WAIT);
+		char *endptr = NULL;
+		errno = 0;
+		long env_max_wait = strtol(MAX_PROFILE_WAIT, &endptr, 10);
+		if (errno != 0 || MAX_PROFILE_WAIT == endptr || *endptr != '\0'
+		    || env_max_wait <= 0) {
+			die("SNAP_CONFINE_MAX_PROFILE_WAIT invalid");
+		}
 		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;
 	}
 	for (int i = 0; i < max_wait; ++i) {
