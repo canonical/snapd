@@ -44,6 +44,20 @@ execute: |
         exit 1
     fi
 
+    echo "Test number formats"
+    if ! snap set snapctl-hooks command=test-get-int intnumber=1234567890; then
+        echo "snap set unexpectedly failed"
+        exit 1
+    fi
+    if ! output=$(snap get snapctl-hooks intnumber); then
+        echo "snap get unexpectedly failed"
+    fi
+    expected="1234567890"
+    if [ "$output" != "$expected" ]; then
+        echo "Expected 'intnumber' to be '$expected', but it was '$output'"
+        exit 1
+    fi
+
     echo "Test that config values are not available once snap is removed"
     snap remove snapctl-hooks
     if output=$(snap get snapctl-hooks foo); then
