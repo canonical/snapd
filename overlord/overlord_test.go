@@ -83,9 +83,10 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
 
-	// store is setup
+	// store is setup, including its auth context.
 	sto := storestate.Store(s)
 	c.Check(sto, FitsTypeOf, &store.Store{})
+	c.Check(storestate.AuthContext(s), NotNil)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
@@ -223,23 +224,6 @@ func (ovs *overlordSuite) TestNewStoreInvalidAPIFromState(c *C) {
 	_, err = overlord.New()
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid store API URL: parse ://example.com/: missing protocol scheme")
-}
-
-func (ovs *overlordSuite) TestReplaceStore(c *C) {
-	var replacementStore store.Store
-	defer overlord.MockStoreNew(func(_ *store.Config, _ auth.AuthContext) *store.Store {
-		return &replacementStore
-	})()
-
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-
-	s := o.State()
-	s.Lock()
-	defer s.Unlock()
-	o.ReplaceStore(s, store.DefaultConfig())
-
-	c.Check(storestate.Store(s), Equals, &replacementStore)
 }
 
 type witnessManager struct {
