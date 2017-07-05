@@ -62,7 +62,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    $LIBEXECDIR/snapd/snap-discard-ns core
+    "$LIBEXECDIR/snapd/snap-discard-ns" core
     mount "$snap" "$core"
 
     check_file() {
@@ -107,7 +107,7 @@ prepare_classic() {
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        $LIBEXECDIR/snapd/snap-confine --version
+        "$LIBEXECDIR/snapd/snap-confine" --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
@@ -178,7 +178,7 @@ EOF
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
         output=$($GRUB_EDITENV list)
-        if echo $output | MATCH snap_ ; then
+        if echo "$output" | MATCH snap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
