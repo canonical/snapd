@@ -145,6 +145,13 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
 	}
 
+	// There is a known problem with json raw messages representing nulls when they are stored in nested structures, such as
+	// config map inside our state. These are turned into nils and need to be handled explicitly.
+	if raw == nil {
+		m := json.RawMessage("null")
+		raw = &m
+	}
+
 	if pos+1 == len(subkeys) {
 		err := json.Unmarshal([]byte(*raw), result)
 		if err != nil {
