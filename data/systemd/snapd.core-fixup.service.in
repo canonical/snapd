@@ -1,5 +1,5 @@
 [Unit]
-Description=Automatically repair incorrect owner/permissons on core devices
+Description=Automatically repair incorrect owner/permissions on core devices
 Before=snapd.service
 ConditionPathExists=/writable/system-data
 ConditionPathExists=!/var/lib/snapd/device/ownership-change.after
