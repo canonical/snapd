@@ -146,12 +146,20 @@ func New() (*Overlord, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	// setting up the store
+	// Setting up the store.
+	// The store's API address can be reconfigured at runtime but doing so
+	// requires an auth context. Unfortunately, an auth context is only
+	// available to the overlord (because of the device manager).
+	// For now, cache the auth context so it's possible for storestate to
+	// handle the store API change.
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	storestate.ReplaceAuthContext(s, authContext)
 	storeConfig, err := initialStoreConfig(s)
 	if err != nil {
 		return nil, err
 	}
-	replaceStore(o, s, storeConfig)
+	sto := storeNew(storeConfig, authContext)
+	storestate.ReplaceStore(s, sto)
 
 	if err := o.snapMgr.GenerateCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
@@ -174,17 +182,6 @@ func initialStoreConfig(s *state.State) (*store.Config, error) {
 		}
 	}
 	return config, nil
-}
-
-func replaceStore(o *Overlord, s *state.State, config *store.Config) {
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(config, authContext)
-	storestate.ReplaceStore(s, sto)
-}
-
-// ReplaceStore installs a new store.
-func (o *Overlord) ReplaceStore(s *state.State, config *store.Config) {
-	replaceStore(o, s, config)
 }
 
 func loadState(backend state.Backend) (*state.State, error) {

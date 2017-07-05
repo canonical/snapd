@@ -20,6 +20,8 @@
 package storestate
 
 import (
+	"net/url"
+
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
@@ -72,11 +74,46 @@ type StoreService interface {
 	ReadyToBuy(*auth.UserState) error
 }
 
+type cachedAuthContextKey struct{}
+
+// ReplaceAuthContext replaces the auth context used by the store.
+func ReplaceAuthContext(state *state.State, authContext auth.AuthContext) {
+	state.Cache(cachedAuthContextKey{}, authContext)
+}
+
+// AuthContext returns the auth context used by the store.
+func AuthContext(state *state.State) auth.AuthContext {
+	cached := state.Cached(cachedAuthContextKey{})
+	if cached != nil {
+		return cached.(auth.AuthContext)
+	}
+	panic("internal error: needing the auth context before managers have initialized it")
+}
+
 type cachedStoreKey struct{}
 
 // ReplaceStore replaces the store used by the system.
 func ReplaceStore(state *state.State, store StoreService) {
 	state.Cache(cachedStoreKey{}, store)
+}
+
+// ReplaceStoreAPI replaces the API of the store used by the system. If the API
+// URL is nil the store is reverted to the system's default.
+func ReplaceStoreAPI(state *state.State, api *url.URL) error {
+	apiState := ""
+	config := store.DefaultConfig()
+	if api != nil {
+		apiState = api.String()
+		err := config.SetAPI(api)
+		if err != nil {
+			return err
+		}
+	}
+	authContext := AuthContext(state)
+	store := store.New(config, authContext)
+	ReplaceStore(state, store)
+	updateAPI(state, apiState)
+	return nil
 }
 
 func cachedStore(st *state.State) StoreService {
