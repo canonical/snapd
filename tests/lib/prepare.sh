@@ -459,7 +459,7 @@ prepare_all_snap() {
         fi
 
         systemctl stop snapd.service snapd.socket
-        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT
+        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
         systemctl start snapd.socket
     fi
 
