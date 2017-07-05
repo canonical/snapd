@@ -12,27 +12,26 @@ execute: |
     # *current* edge also has .git. and a hash snippet, so add an optional .git.[0-9a-f]+ to the already optional timestamp
     if [ "$SPREAD_BACKEND" = "linode" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         echo "With customized images the ubuntu-core snap is sideloaded"
-        expected='^core .* [0-9]{2}-[0-9.]+(\+git[0-9]+\.[0-9a-f]+)? +x[0-9]+ +- *$'
+        expected='^core .* [0-9]{2}-[0-9.]+(\+git[0-9]+\.[0-9a-f]+)? +x[0-9]+ +core *$'
     else
-        expected='^core .* [0-9]{2}-[0-9.]+(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +canonical +- *$'
+        expected='^core .* [0-9]{2}-[0-9.]+(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +canonical +core *$'
     fi
-    snap list | grep -Pq "$expected"
+    snap list | MATCH "$expected"
 
     echo "List prints installed snap version"
-    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +x[0-9]+ +-"
-    snap list | grep -Pq "$expected"
+    snap list | MATCH '^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- *$'
 
     echo "Install test-snapd-tools again"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
     echo "And run snap list --all"
     output=$(snap list --all |grep test-snapd-tools)
-    if [ $(printf "$output" | grep test-snapd-tools | wc -l) != "2" ]; then
+    if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
         echo $output
         exit 1
     fi
-    if [ $(printf "$output" | grep disabled | wc -l) != "1" ]; then
+    if [ "$(grep -c disabled <<< "$output")" != "1" ]; then
         echo "Expected one disabled line in in the output, got:"
         echo $output
         exit 1

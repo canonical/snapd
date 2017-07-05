@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mirSummary = `allows operating as the Mir server`
+
+const mirBaseDeclarationSlots = `
+  mir:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const mirPermanentSlotAppArmor = `
 # Description: Allow operating as the Mir server. This gives privileged access
 # to the system.
@@ -77,13 +87,20 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /run/user/[0-9]*/mir_socket rw,
 `
 
-type MirInterface struct{}
+type mirInterface struct{}
 
-func (iface *MirInterface) Name() string {
+func (iface *mirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *MirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mirSummary,
+		BaseDeclarationSlots: mirBaseDeclarationSlots,
+	}
+}
+
+func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
@@ -91,7 +108,7 @@ func (iface *MirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *MirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
@@ -99,28 +116,28 @@ func (iface *MirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *MirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *MirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
 
 func init() {
-	registerIface(&MirInterface{})
+	registerIface(&mirInterface{})
 }

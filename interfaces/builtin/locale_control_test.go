@@ -36,7 +36,9 @@ type LocaleControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocaleControlInterfaceSuite{})
+var _ = Suite(&LocaleControlInterfaceSuite{
+	iface: builtin.MustInterface("locale-control"),
+})
 
 func (s *LocaleControlInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -46,7 +48,6 @@ apps:
   command: foo
   plugs: [locale-control]
 `
-	s.iface = builtin.NewLocaleControlInterface()
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["locale-control"]}
 	s.slot = &interfaces.Slot{

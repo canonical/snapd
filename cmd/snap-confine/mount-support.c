@@ -51,32 +51,6 @@
  **/
 #define SC_VOID_DIR "/var/lib/snapd/void"
 
-/**
- * Get the path to the mounted core snap on the host distribution.
- *
- * The core snap may be named just "core" (preferred) or "ubuntu-core"
- * (legacy).  The mount point dependes on build-time configuration and may
- * differ from distribution to distribution.
- **/
-static const char *sc_get_outer_core_mount_point()
-{
-	const char *core_path = SNAP_MOUNT_DIR "/core/current/";
-	const char *ubuntu_core_path = SNAP_MOUNT_DIR "/ubuntu-core/current/";
-	static const char *result = NULL;
-	if (result == NULL) {
-		if (access(core_path, F_OK) == 0) {
-			// Use the "core" snap if available.
-			result = core_path;
-		} else if (access(ubuntu_core_path, F_OK) == 0) {
-			// If not try to fall back to the "ubuntu-core" snap.
-			result = ubuntu_core_path;
-		} else {
-			die("cannot locate the core snap");
-		}
-	}
-	return result;
-}
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -341,20 +315,28 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
 	}
-	// Since we mounted /etc from the host filesystem to the scratch directory,
-	// we may need to put /etc/alternatives from the desired root filesystem
-	// (e.g. the core snap) back. This way the behavior of running snaps is not
-	// affected by the alternatives directory from the host, if one exists.
-	//
-	// https://bugs.launchpad.net/snap-confine/+bug/1580018
-	const char *etc_alternatives = "/etc/alternatives";
-	if (access(etc_alternatives, F_OK) == 0) {
-		sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
-				 etc_alternatives);
-		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
-				 etc_alternatives);
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+	if (config->on_classic_distro) {
+		// Since we mounted /etc from the host filesystem to the scratch directory,
+		// we may need to put certain directories from the desired root filesystem
+		// (e.g. the core snap) back. This way the behavior of running snaps is not
+		// affected by the alternatives directory from the host, if one exists.
+		//
+		// Fixes the following bugs:
+		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
+		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
+		const char *dirs_from_core[] =
+		    { "/etc/alternatives", "/etc/ssl", NULL };
+		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
+			const char *dir = *dirs;
+			if (access(dir, F_OK) == 0) {
+				sc_must_snprintf(src, sizeof src, "%s%s",
+						 config->rootfs_dir, dir);
+				sc_must_snprintf(dst, sizeof dst, "%s%s",
+						 scratch_dir, dir);
+				sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+				sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+			}
+		}
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -518,7 +500,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_populate_mount_ns(const char *snap_name)
+void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -554,8 +536,23 @@ void sc_populate_mount_ns(const char *snap_name)
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
 			{},
 		};
+		char rootfs_dir[PATH_MAX];
+ again:
+		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
+				 "%s/%s/current/", SNAP_MOUNT_DIR,
+				 base_snap_name);
+		if (access(rootfs_dir, F_OK) != 0) {
+			if (sc_streq(base_snap_name, "core")) {
+				// As a special fallback, allow the base snap to degrade from
+				// "core" to "ubuntu-core". This is needed for the migration
+				// tests.
+				base_snap_name = "ubuntu-core";
+				goto again;
+			}
+			die("cannot locate the base snap: %s", base_snap_name);
+		}
 		struct sc_mount_config classic_config = {
-			.rootfs_dir = sc_get_outer_core_mount_point(),
+			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.on_classic_distro = true,
 		};
@@ -633,8 +630,10 @@ static bool is_mounted_with_shared_option(const char *dir)
 void sc_ensure_shared_snap_mount()
 {
 	if (!is_mounted_with_shared_option("/")
-	    && !is_mounted_with_shared_option("/snap")) {
-		sc_do_mount("/snap", "/snap", "none", MS_BIND | MS_REC, 0);
-		sc_do_mount("none", "/snap", NULL, MS_SHARED | MS_REC, NULL);
+	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
+			    MS_BIND | MS_REC, 0);
+		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
+			    NULL);
 	}
 }

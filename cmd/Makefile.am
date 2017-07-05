@@ -11,7 +11,7 @@ subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-syntax-sh check-unit-tests
+check: check-syntax-c check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
@@ -24,15 +24,6 @@ check-syntax-c:
 	       HOME=$(srcdir) indent "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
-
-# Check for common shell errors
-.PHONY: check-syntax-sh
-check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*))
-if HAVE_SHELLCHECK
-	$(HAVE_SHELLCHECK) -x --format=gcc $^
-else
-	echo "shellcheck is not installed, skipping (non-critical) syntax test"
-endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
@@ -103,6 +94,8 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
+	libsnap-confine-private/test-utils.c \
+	libsnap-confine-private/test-utils-test.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
@@ -168,6 +161,8 @@ EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support.c \
+	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
 	snap-confine/mount-support.c \
@@ -251,11 +246,13 @@ snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_sn
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/unit-tests
 snap_confine_unit_tests_SOURCES = \
+	libsnap-confine-private/test-utils.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \

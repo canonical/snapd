@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
+const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
+
+const ubuntuDownloadManagerBaseDeclarationSlots = `
+  ubuntu-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
    are deliberately left out of this profile due to their privileged nature. */
 const downloadConnectedPlugAppArmor = `
@@ -185,17 +195,24 @@ owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/    rw,
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
 `
 
-type UbuntuDownloadManagerInterface struct{}
+type ubuntuDownloadManagerInterface struct{}
 
-func (iface *UbuntuDownloadManagerInterface) Name() string {
+func (iface *ubuntuDownloadManagerInterface) Name() string {
 	return "ubuntu-download-manager"
 }
 
-func (iface *UbuntuDownloadManagerInterface) String() string {
+func (iface *ubuntuDownloadManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              ubuntuDownloadManagerSummary,
+		BaseDeclarationSlots: ubuntuDownloadManagerBaseDeclarationSlots,
+	}
+}
+
+func (iface *ubuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(downloadConnectedPlugAppArmor, old, new, -1)
@@ -203,12 +220,12 @@ func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmo
 	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(downloadPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
@@ -219,25 +236,25 @@ func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *ubuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *ubuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ubuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&UbuntuDownloadManagerInterface{})
+	registerIface(&ubuntuDownloadManagerInterface{})
 }

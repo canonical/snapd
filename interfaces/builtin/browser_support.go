@@ -27,6 +27,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
+
+const browserSupportBaseDeclarationSlots = `
+  browser-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-connection:
+      plug-attributes:
+        allow-sandbox: true
+`
+
 const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
@@ -236,17 +248,26 @@ unshare
 quotactl
 `
 
-type BrowserSupportInterface struct{}
+type browserSupportInterface struct{}
 
-func (iface *BrowserSupportInterface) Name() string {
+func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *BrowserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              browserSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: browserSupportBaseDeclarationSlots,
+	}
+}
+
+func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -262,7 +283,7 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
@@ -273,7 +294,7 @@ func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
@@ -283,18 +304,18 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
 
-func (iface *BrowserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
-func (iface *BrowserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&BrowserSupportInterface{})
+	registerIface(&browserSupportInterface{})
 }

@@ -19,9 +19,16 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const homeSummary = `allows access to non-hidden files in the home directory`
+
+const homeBaseDeclarationSlots = `
+  home:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection:
+      on-classic: false
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
 const homeConnectedPlugAppArmor = `
@@ -48,15 +55,14 @@ owner /run/user/[0-9]*/gvfs/{,**} r,
 owner /run/user/[0-9]*/gvfs/*/**  w,
 `
 
-// NewHomeInterface returns a new "home" interface.
-func NewHomeInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "home",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "home",
+		summary:               homeSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  homeBaseDeclarationSlots,
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewHomeInterface())
+	})
 }

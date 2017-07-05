@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const timeserverControlSummary = `allows setting system time synchronization servers`
+
+const timeserverControlBaseDeclarationSlots = `
+  timeserver-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
@@ -74,15 +80,14 @@ dbus (receive)
 /usr/bin/timedatectl{,.real} ixr,
 `
 
-// NewTimeserverControlInterface returns a new "timeserver-control" interface.
-func NewTimeserverControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "timeserver-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "timeserver-control",
+		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewTimeserverControlInterface())
+	})
 }

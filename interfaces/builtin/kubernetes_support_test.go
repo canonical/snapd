@@ -45,10 +45,11 @@ apps:
   plugs: [kubernetes-support]
 `
 
-var _ = Suite(&KubernetesSupportInterfaceSuite{})
+var _ = Suite(&KubernetesSupportInterfaceSuite{
+	iface: builtin.MustInterface("kubernetes-support"),
+})
 
 func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewKubernetesSupportInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

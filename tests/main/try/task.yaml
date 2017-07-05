@@ -1,8 +1,6 @@
 summary: Check that try command works
 systems:
     - -ubuntu-core-16-*
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
@@ -29,14 +27,14 @@ execute: |
     snap try $TESTSLIB/snaps/test-snapd-tools
 
     echo "Then the snap is listed as installed with try in the notes"
-    snap list | grep -Pq "^test-snapd-tools +.*?try"
+    snap list | MATCH '^test-snapd-tools .* try'
 
     echo "And commands from the snap-try binary can be run"
     test-snapd-tools.success
 
     echo "And commands from the snap-try binary can read in a readable dir"
     echo -n "Hello World" > $READABLE_FILE
-    test-snapd-tools.cat $READABLE_FILE | grep -q "Hello World"
+    test-snapd-tools.cat $READABLE_FILE | MATCH "Hello World"
 
     echo "====================================="
 
@@ -44,10 +42,12 @@ execute: |
     echo "When try is executed on that directory"
     snap try $TESTSLIB/snaps/test-snapd-tools
 
-    echo "Then the snap command is not able to access the protected resource"
-    if test-snapd-tools.head -1 /dev/kmsg; then
-        echo "Expected confinement denial in try mode didn't work"
-        exit 1
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Then the snap command is not able to access the protected resource"
+        if test-snapd-tools.head -1 /dev/kmsg; then
+            echo "Expected confinement denial in try mode didn't work"
+            exit 1
+        fi
     fi
 
     echo "====================================="
@@ -66,7 +66,7 @@ execute: |
     snap try $TESTSLIB/snaps/network-consumer
 
     echo "Then the snap is able to access the network resource"
-    network-consumer http://127.0.0.1:$PORT | grep -q "ok"
+    network-consumer http://127.0.0.1:$PORT | MATCH "ok"
 
     echo "====================================="
     n=test-snapd-classic-confinement

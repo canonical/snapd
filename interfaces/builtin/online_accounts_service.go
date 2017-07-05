@@ -28,6 +28,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const onlineAccountsServiceSummary = `allows operating as the Online Accounts service`
+
+const onlineAccountsServiceBaseDeclarationSlots = `
+  online-accounts-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const onlineAccountsServicePermanentSlotAppArmor = `
 # Description: Allow operating as the Online Accounts service.
 
@@ -88,54 +98,61 @@ listen
 shutdown
 `
 
-type OnlineAccountsServiceInterface struct{}
+type onlineAccountsServiceInterface struct{}
 
-func (iface *OnlineAccountsServiceInterface) Name() string {
+func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *OnlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *onlineAccountsServiceInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              onlineAccountsServiceSummary,
+		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
+	}
+}
+
+func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *onlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *onlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(onlineAccountsServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(onlineAccountsServicePermanentSlotSecComp)
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *onlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *onlineAccountsServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *onlineAccountsServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
 
 func init() {
-	registerIface(&OnlineAccountsServiceInterface{})
+	registerIface(&onlineAccountsServiceInterface{})
 }

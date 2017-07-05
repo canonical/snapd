@@ -38,6 +38,10 @@ execute: |
     snap disconnect shutdown-introspection-consumer:shutdown
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
+    if [ "$(snap debug confinement)" = none ]; then
+        exit
+    fi
+
     echo "Then the snap is not able to get system information"
     if su -l -c "shutdown-introspection-consumer" test; then
         echo "Expected error with plug disconnected"

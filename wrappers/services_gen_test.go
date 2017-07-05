@@ -24,6 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"strings"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -38,13 +41,14 @@ var _ = Suite(&servicesWrapperGenSuite{})
 const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
-Requires=snap-snap-44.mount
+Requires=%s-snap-44.mount
 Wants=network-online.target
-After=snap-snap-44.mount network-online.target
+After=%s-snap-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
 Restart=%s
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
@@ -58,22 +62,27 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, "on-failure", "simple\n\n")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, "on-failure", "dbus\n\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, "no", "oneshot\nRemainAfterExit=yes\n")
+	mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
+)
+
+var (
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple\n\n")
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\n\nBusName=foo.bar.baz")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes\n")
 )
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
-Requires=snap-xkcd\x2dwebserver-44.mount
+Requires=%s-xkcd\x2dwebserver-44.mount
 Wants=network-online.target
-After=snap-xkcd\x2dwebserver-44.mount network-online.target
+After=%s-xkcd\x2dwebserver-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run xkcd-webserver
+SyslogIdentifier=xkcd-webserver.xkcd-webserver
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver
@@ -83,7 +92,7 @@ TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -106,7 +115,7 @@ apps:
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
-	c.Check(generatedWrapper, Equals, expectedAppService)
+	c.Check(string(generatedWrapper), Equals, expectedAppService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
@@ -124,8 +133,9 @@ apps:
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
-		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
+		wrapperText := string(generatedWrapper)
 		if cond == systemd.RestartNever {
 			c.Check(wrapperText, Matches,
 				`(?ms).*^Restart=no$.*`, Commentf(name))
@@ -154,7 +164,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedTypeForkingWrapper)
+	c.Assert(string(generatedWrapper), Equals, expectedTypeForkingWrapper)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) {
@@ -198,10 +208,10 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
 
-	c.Assert(wrapperText, Equals, expectedDbusService)
+	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {
@@ -221,8 +231,8 @@ apps:
 
 	app := info.Apps["app"]
 
-	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
 
-	c.Assert(wrapperText, Equals, expectedOneshotService)
+	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
 }

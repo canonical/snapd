@@ -30,15 +30,33 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
-// HidrawInterface is the type for hidraw interfaces.
-type HidrawInterface struct{}
+const hidrawSummary = `allows access to specific hidraw device`
+
+const hidrawBaseDeclarationSlots = `
+  hidraw:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
+// hidrawInterface is the type for hidraw interfaces.
+type hidrawInterface struct{}
 
 // Name of the hidraw interface.
-func (iface *HidrawInterface) Name() string {
+func (iface *hidrawInterface) Name() string {
 	return "hidraw"
 }
 
-func (iface *HidrawInterface) String() string {
+func (iface *hidrawInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              hidrawSummary,
+		BaseDeclarationSlots: hidrawBaseDeclarationSlots,
+	}
+}
+
+func (iface *hidrawInterface) String() string {
 	return iface.Name()
 }
 
@@ -52,7 +70,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
-func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Check slot is of right type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -105,7 +123,7 @@ func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *hidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -113,7 +131,7 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *HidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -130,7 +148,7 @@ func (iface *HidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	return nil
 }
 
-func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
@@ -149,7 +167,7 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -165,12 +183,12 @@ func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	return nil
 }
 
-func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
+func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	if _, ok := slot.Attrs["usb-vendor"]; ok {
 		return true
 	}
@@ -180,10 +198,10 @@ func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	return false
 }
 
-func (iface *HidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *hidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&HidrawInterface{})
+	registerIface(&hidrawInterface{})
 }

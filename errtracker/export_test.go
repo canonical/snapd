@@ -34,11 +34,11 @@ func MockCrashDbURL(url string) (restorer func()) {
 	}
 }
 
-func MockMachineIDPath(path string) (restorer func()) {
-	old := machineID
-	machineID = path
+func MockMachineIDPaths(paths []string) (restorer func()) {
+	old := machineIDs
+	machineIDs = paths
 	return func() {
-		machineID = old
+		machineIDs = old
 	}
 }
 

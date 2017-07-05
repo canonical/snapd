@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const networkObserveSummary = `allows querying network status`
+
+const networkObserveBaseDeclarationSlots = `
+  network-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-observe
 const networkObserveConnectedPlugAppArmor = `
@@ -115,16 +121,15 @@ socket AF_NETLINK - NETLINK_ROUTE
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkObserveInterface returns a new "network-observe" interface.
-func NewNetworkObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network-observe",
+		summary:               networkObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewNetworkObserveInterface())
+	})
 }

@@ -19,7 +19,20 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+const networkSummary = `allows access to the network`
+
+const networkBaseDeclarationSlots = `
+  network:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
+const networkDescription = `
+The network interface allows connected plugs to access the network as a client.
+
+The core snap provides the slot that is shared by all the snaps.
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
@@ -44,16 +57,16 @@ shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 `
 
-// NewNetworkInterface returns a new "network" interface.
-func NewNetworkInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network",
+		summary:               networkSummary,
+		description:           networkDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBaseDeclarationSlots,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewNetworkInterface())
+	})
 }

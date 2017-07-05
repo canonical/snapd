@@ -38,7 +38,9 @@ type OfonoInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OfonoInterfaceSuite{})
+var _ = Suite(&OfonoInterfaceSuite{
+	iface: builtin.MustInterface("ofono"),
+})
 
 func (s *OfonoInterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
@@ -58,7 +60,6 @@ apps:
   command: foo
   slots: [ofono]
 `
-	s.iface = &builtin.OfonoInterface{}
 	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: snapInfo.Slots["ofono"]}
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)

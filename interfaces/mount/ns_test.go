@@ -34,12 +34,12 @@ import (
 
 type nsSuite struct {
 	testutil.BaseTest
-	oldDistroLibExecDir string
 }
 
 var _ = Suite(&nsSuite{})
 
 func (s *nsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	s.AddCleanup(release.MockOnClassic(true))

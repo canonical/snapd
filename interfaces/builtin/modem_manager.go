@@ -30,6 +30,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const modemManagerSummary = `allows operating as the ModemManager service`
+
+const modemManagerBaseDeclarationSlots = `
+  modem-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const modemManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the ModemManager service. This gives
 # privileged access to the system.
@@ -1156,13 +1169,21 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 LABEL="mm_candidate_end"
 `
 
-type ModemManagerInterface struct{}
+type modemManagerInterface struct{}
 
-func (iface *ModemManagerInterface) Name() string {
+func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              modemManagerSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,
+	}
+}
+
+func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
@@ -1173,27 +1194,27 @@ func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *ModemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(modemManagerConnectedPlugDBus)
 	return nil
 }
 
-func (iface *ModemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ModemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ModemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
 	return nil
 }
 
-func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
@@ -1201,24 +1222,24 @@ func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *ModemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *modemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&ModemManagerInterface{})
+	registerIface(&modemManagerInterface{})
 }

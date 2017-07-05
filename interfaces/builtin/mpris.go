@@ -29,6 +29,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const mprisSummary = `allows operating as an MPRIS player`
+
+const mprisBaseDeclarationSlots = `
+  mpris:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
 
@@ -138,20 +151,27 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type MprisInterface struct{}
+type mprisInterface struct{}
 
-func (iface *MprisInterface) Name() string {
+func (iface *mprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *MprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mprisInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mprisSummary,
+		BaseDeclarationSlots: mprisBaseDeclarationSlots,
+	}
+}
+
+func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	name, err := iface.getName(slot.Attrs)
 	if err != nil {
 		return err
@@ -168,14 +188,14 @@ func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *MprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, error) {
+func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, error) {
 	// default to snap name if 'name' attribute not set
 	mprisName := "@{SNAP_NAME}"
 	for attr := range attribs {
@@ -200,11 +220,11 @@ func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *MprisInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *mprisInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -213,19 +233,19 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *MprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *MprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *mprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
-func (iface *MprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *mprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&MprisInterface{})
+	registerIface(&mprisInterface{})
 }

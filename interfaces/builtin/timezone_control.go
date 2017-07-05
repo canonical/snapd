@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const timezoneControlSummary = `allows setting system timezone`
+
+const timezoneControlBaseDeclarationSlots = `
+  timezone-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
@@ -76,15 +82,14 @@ dbus (receive)
 /usr/bin/timedatectl{,.real} ixr,
 `
 
-// NewTimezoneControlInterface returns a new "timezone-control" interface.
-func NewTimezoneControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "timezone-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "timezone-control",
+		summary:               timezoneControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewTimezoneControlInterface())
+	})
 }

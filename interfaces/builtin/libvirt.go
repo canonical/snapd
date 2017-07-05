@@ -19,7 +19,15 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+const libvirtSummary = `allows access to libvirt service`
+
+const libvirtBaseDeclarationSlots = `
+  libvirt:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
@@ -32,15 +40,14 @@ accept
 accept4
 `
 
-func NewLibvirtInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "libvirt",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "libvirt",
+		summary:               libvirtSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  libvirtBaseDeclarationSlots,
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewLibvirtInterface())
+	})
 }

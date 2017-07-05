@@ -1,4 +1,5 @@
 summary: Check that revert of a snap in devmode restores devmode
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
@@ -51,21 +52,23 @@ execute: |
         fi
     fi
 
+    . $TESTSLIB/dirs.sh
+
     echo "When a refresh is made"
     snap refresh --devmode --edge test-snapd-tools
 
     echo "Then the new version is installed"
-    snap list | grep -Pq "test-snapd-tools +\d+\.\d+\+fake1"
-    LATEST=$(readlink /snap/test-snapd-tools/current)
+    snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
+    LATEST=$(readlink $SNAPMOUNTDIR/test-snapd-tools/current)
 
     echo "When a revert is made without --devmode flag"
     snap revert test-snapd-tools
 
     echo "Then the old version is active"
-    snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
+    snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+ '
 
     echo "And the snap runs confined"
-    snap list|grep test-snapd-tools|grep -q "-"
+    snap list|MATCH 'test-snapd-tools .* -'
 
     echo "When the latest revision is installed again"
     snap remove --revision=$LATEST test-snapd-tools
@@ -75,4 +78,4 @@ execute: |
     snap revert --devmode test-snapd-tools
 
     echo "Then snap uses devmode"
-    snap list|grep test-snapd-tools|grep -q devmode
+    snap list|MATCH 'test-snapd-tools .* devmode'

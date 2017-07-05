@@ -35,7 +35,7 @@ type LibvirtInterfaceSuite struct {
 }
 
 var _ = Suite(&LibvirtInterfaceSuite{
-	iface: builtin.NewLibvirtInterface(),
+	iface: builtin.MustInterface("libvirt"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "libvirt"},

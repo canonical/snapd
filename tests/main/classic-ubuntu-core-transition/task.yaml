@@ -11,6 +11,8 @@ restore: |
     rm -f state.json.new
 
 execute: |
+    . "$TESTSLIB/pkgdb.sh"
+
     wait_for_service() {
         local service_name="$1"
         local state="${2:-active}"
@@ -27,11 +29,10 @@ execute: |
         python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
     }
 
-    . "$TESTSLIB/apt.sh"
+    . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge --force-depends snapd
-    apt-get install -f -y
-    install_build_snapd
+    distro_purge_package snapd
+    distro_install_build_snapd
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is
@@ -42,7 +43,10 @@ execute: |
     mv state.json.new /var/lib/snapd/state.json
     systemctl start snapd.{service,socket}
 
-    snap install --${CORE_CHANNEL} ubuntu-core
+    snap download --${CORE_CHANNEL} ubuntu-core
+    snap ack ./ubuntu-core_*.assert
+    snap install ./ubuntu-core_*.snap
+
     snap install test-snapd-python-webserver
     snap interfaces | MATCH ":network +test-snapd-python-webserver"
     snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"

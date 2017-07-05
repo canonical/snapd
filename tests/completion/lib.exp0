@@ -1,7 +1,7 @@
 # -*- tcl -*-
 
 set send_slow {1 0.001}
-set timeout 10
+set timeout 30
 
 proc delay {} {
     sleep 0.5
@@ -66,5 +66,5 @@ proc brexit {} {
 # tests to fail.
 spawn env -u PS1 bash --norc -i
 next
-send ". /etc/bash_completion; . ../../../data/completion/snap\n"
+send ". /usr/share/bash-completion/bash_completion; . ../../../data/completion/snap\n"
 next

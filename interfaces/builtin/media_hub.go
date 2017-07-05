@@ -27,6 +27,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mediaHubSummary = `allows operating as the media-hub service`
+
+const mediaHubBaseDeclarationSlots = `
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const mediaHubPermanentSlotAppArmor = `
 # Description: Allow operating as the the media-hub service.
 
@@ -144,49 +156,56 @@ const mediaHubPermanentSlotSecComp = `
 bind
 `
 
-type MediaHubInterface struct{}
+type mediaHubInterface struct{}
 
-func (iface *MediaHubInterface) Name() string {
+func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mediaHubInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mediaHubSummary,
+		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
+	}
+}
+
+func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *MediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mediaHubPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *MediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mediaHubPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *MediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *mediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *MediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *mediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *MediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&MediaHubInterface{})
+	registerIface(&mediaHubInterface{})
 }
