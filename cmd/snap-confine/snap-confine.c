@@ -62,25 +62,6 @@ void sc_maybe_fixup_permissions()
 	}
 }
 
-// sc_maybe_fixup_permissions fixes incorrect permissions
-// inside the mount namespace for /var/lib. Before 1ccce4
-// this directory was created with permissions 1777.
-void sc_maybe_fixup_permissions()
-{
-	struct stat buf;
-	if (stat("/var/lib", &buf) != 0) {
-		die("cannot stat /var/lib");
-	}
-	if ((buf.st_mode & 0777) == 0777) {
-		if (chmod("/var/lib", 0755) != 0) {
-			die("cannot chmod /var/lib");
-		}
-		if (chown("/var/lib", 0, 0) != 0) {
-			die("cannot chown /var/lib");
-		}
-	}
-}
-
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
