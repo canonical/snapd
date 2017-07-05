@@ -20,6 +20,7 @@
 package systemd
 
 import (
+	"io"
 	"time"
 )
 
@@ -43,4 +44,10 @@ func MockOsGetenv(f func(string) string) func() {
 	oldOsGetenv := osGetenv
 	osGetenv = f
 	return func() { osGetenv = oldOsGetenv }
+}
+
+func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) func() {
+	old := osutilStreamCommand
+	osutilStreamCommand = f
+	return func() { osutilStreamCommand = old }
 }
