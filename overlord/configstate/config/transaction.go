@@ -146,7 +146,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	// There is a known problem with json raw messages representing nulls when they are stored in nested structures, such as
-	// config map inside our state. These are turned into nils and need to be handled explicitely.
+	// config map inside our state. These are turned into nils and need to be handled explicitly.
 	if raw == nil {
 		m := json.RawMessage("null")
 		raw = &m
