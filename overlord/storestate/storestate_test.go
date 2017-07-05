@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
+	"github.com/snapcore/snapd/store"
 
 	. "gopkg.in/check.v1"
 )
@@ -55,4 +56,18 @@ func (ss *storeStateSuite) TestExplicitAPI(c *C) {
 	ss.state.Set("store", &storeState)
 	api := storestate.API(ss.state)
 	c.Check(api, Equals, storeState.API)
+}
+
+func (ss *storeStateSuite) TestStore(c *C) {
+	ss.state.Lock()
+	defer ss.state.Unlock()
+
+	sto := &store.Store{}
+	storestate.ReplaceStore(ss.state, sto)
+	store1 := storestate.Store(ss.state)
+	c.Check(store1, Equals, sto)
+
+	// cached
+	store2 := storestate.Store(ss.state)
+	c.Check(store2, Equals, sto)
 }

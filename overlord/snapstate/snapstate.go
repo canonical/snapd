@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -562,7 +563,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 
 	st.Unlock()
 	updates, err := theStore.ListRefresh(candidatesInfo, user)
