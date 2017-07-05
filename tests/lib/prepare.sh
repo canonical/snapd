@@ -218,6 +218,15 @@ EOF
         apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
+
+        mkdir -p /etc/systemd/system/rng-tools.service.d/
+        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+[Service]
+Restart=always
+RestartSec=2
+RemainAfterExit=no
+EOF
+        systemctl daemon-reload
     fi
 
     disable_kernel_rate_limiting

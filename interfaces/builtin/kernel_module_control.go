@@ -21,6 +21,20 @@ package builtin
 
 const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
 
+const kernelModuleControlBaseDeclarationPlugs = `
+  kernel-module-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const kernelModuleControlBaseDeclarationSlots = `
+  kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const kernelModuleControlConnectedPlugAppArmor = `
 # Description: Allow insertion, removal and querying of modules.
 
@@ -53,6 +67,8 @@ func init() {
 		summary:               kernelModuleControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,

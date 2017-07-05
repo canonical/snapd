@@ -20,9 +20,13 @@
 package policy
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 )
 
 // The headers of the builtin base-declaration describing the default
@@ -132,535 +136,64 @@ import (
 //     deny-auto-connection:
 //       on-classic: false
 //
-const baseDeclarationHeaders = `
+
+const baseDeclarationHeader = `
 type: base-declaration
 authority-id: canonical
 series: 16
 revision: 0
-plugs:
-  classic-support:
-    allow-installation: false
-    deny-auto-connection: true
-  core-support:
-    allow-installation:
-      plug-snap-type:
-        - core
-  docker-support:
-    allow-installation: false
-    deny-auto-connection: true
-  kernel-module-control:
-    allow-installation: false
-    deny-auto-connection: true
-  kubernetes-support:
-    allow-installation: false
-    deny-auto-connection: true
-  lxd-support:
-    allow-installation: false
-    deny-auto-connection: true
-  snapd-control:
-    allow-installation: false
-    deny-auto-connection: true
-  unity8:
-    allow-installation: false
-slots:
-  account-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  alsa:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  avahi-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  autopilot-introspection:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  bluetooth-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  bluez:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  bool-file:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
-  browser-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-connection:
-      plug-attributes:
-        allow-sandbox: true
-  camera:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  classic-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  content:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - gadget
-    allow-connection:
-      plug-attributes:
-        content: $SLOT(content)
-    allow-auto-connection:
-      plug-publisher-id:
-        - $SLOT_PUBLISHER_ID
-      plug-attributes:
-        content: $SLOT(content)
-  core-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  cups-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  dbus:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection:
-      slot-attributes:
-        name: .+
-    deny-auto-connection: true
-  dcdbas-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  docker:
-    allow-installation: false
-    deny-connection: true
-    deny-auto-connection: true
-  docker-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  firewall-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  framebuffer:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  fuse-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  fwupd:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  gpio:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
-  gsettings:
-    allow-installation:
-      slot-snap-type:
-        - core
-  hardware-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  hidraw:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
-  home:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection:
-      on-classic: false
-  hardware-random-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  hardware-random-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  i2c:
-    allow-installation:
-      slot-snap-type:
-        - gadget
-        - core
-    deny-auto-connection: true
-  iio:
-    allow-installation:
-      slot-snap-type:
-        - gadget
-        - core
-    deny-auto-connection: true
-  io-ports-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  joystick:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  kernel-module-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  kubernetes-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  libvirt:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  locale-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  location-control:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  location-observe:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  log-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  lxd:
-    allow-installation: false
-    deny-connection: true
-    deny-auto-connection: true
-  lxd-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  maliit:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  media-hub:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-connection:
-      on-classic: false
-  mir:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-  modem-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: true
-    deny-connection:
-      on-classic: false
-  mount-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  mpris:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection:
-      slot-attributes:
-        name: .+
-    deny-auto-connection: true
-  netlink-audit:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  netlink-connector:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  network:
-    allow-installation:
-      slot-snap-type:
-        - core
-  network-bind:
-    allow-installation:
-      slot-snap-type:
-        - core
-  network-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  network-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: true
-    deny-connection:
-      on-classic: false
-  network-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  network-setup-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  network-setup-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  network-status:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-  ofono:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: true
-    deny-connection:
-      on-classic: false
-  online-accounts-service:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-  opengl:
-    allow-installation:
-      slot-snap-type:
-        - core
-  openvswitch:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  openvswitch-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  optical-drive:
-    allow-installation:
-      slot-snap-type:
-        - core
-  physical-memory-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  physical-memory-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  ppp:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  process-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  pulseaudio:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-connection:
-      on-classic: false
-  raw-usb:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  removable-media:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  screen-inhibit-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-  serial-port:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
-    deny-auto-connection: true
-  shutdown:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  snapd-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  storage-framework-service:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  system-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  system-trace:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  thumbnailer-service:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
-    deny-connection: true
-  time-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  timeserver-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  timezone-control:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  tpm:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  udisks2:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-    deny-auto-connection: true
-  uhid:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  unity7:
-    allow-installation:
-      slot-snap-type:
-        - core
-  unity8:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-  unity8-calendar:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
-    deny-connection: true
-  unity8-contacts:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
-    deny-connection: true
-  ubuntu-download-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
-  upower-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - app
-    deny-connection:
-      on-classic: false
-  x11:
-    allow-installation:
-      slot-snap-type:
-        - core
 `
 
+const baseDeclarationPlugs = `
+plugs:
+`
+
+const baseDeclarationSlots = `
+slots:
+`
+
+func trimTrailingNewline(s string) string {
+	return strings.TrimRight(s, "\n")
+}
+
+func composeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
+	var buf bytes.Buffer
+	// Trim newlines at the end of the string. All the elements may have
+	// spurious trailing newlines. All elements start with a leading newline.
+	// We don't want any blanks as that would no longer parse.
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationHeader)); err != nil {
+		return nil, err
+	}
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationPlugs)); err != nil {
+		return nil, err
+	}
+	for _, iface := range ifaces {
+		plugPolicy := interfaces.IfaceMetaData(iface).BaseDeclarationPlugs
+		if _, err := buf.WriteString(trimTrailingNewline(plugPolicy)); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationSlots)); err != nil {
+		return nil, err
+	}
+	for _, iface := range ifaces {
+		slotPolicy := interfaces.IfaceMetaData(iface).BaseDeclarationSlots
+		if _, err := buf.WriteString(trimTrailingNewline(slotPolicy)); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := buf.WriteRune('\n'); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func init() {
-	err := asserts.InitBuiltinBaseDeclaration([]byte(baseDeclarationHeaders))
+	decl, err := composeBaseDeclaration(builtin.Interfaces())
 	if err != nil {
+		panic(fmt.Sprintf("cannot compose base-declaration: %v", err))
+	}
+	if err := asserts.InitBuiltinBaseDeclaration(decl); err != nil {
 		panic(fmt.Sprintf("cannot initialize the builtin base-declaration: %v", err))
 	}
 }

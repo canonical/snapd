@@ -1053,6 +1053,7 @@ func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: foo
 version: 1.2
+title: Foo
 summary: foo app
 type: app
 epoch: 1*
@@ -1090,6 +1091,7 @@ slots:
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
+	c.Check(info.Title(), Equals, "Foo")
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)

@@ -232,9 +232,9 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func formatRefreshTime(t time.Time) string {
 	if t.IsZero() {
-		return "n/a"
+		return ""
 	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -261,10 +261,10 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
-			"schedule": refreshScheduleStr,
-			"last":     formatRefreshTime(lastRefresh),
-			"next":     formatRefreshTime(nextRefresh),
+		"refresh": client.RefreshInfo{
+			Schedule: refreshScheduleStr,
+			Last:     formatRefreshTime(lastRefresh),
+			Next:     formatRefreshTime(nextRefresh),
 		},
 	}
 
@@ -316,7 +316,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindInvalidAuthData,
 				Value:   map[string][]string{"email": {"invalid"}},
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 
@@ -329,7 +329,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	case store.Err2faFailed:
 		return SyncResponse(&resp{
@@ -338,7 +338,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	default:
 		switch err := err.(type) {
@@ -350,7 +350,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindInvalidAuthData,
 					Value:   err,
 				},
-				Status: http.StatusBadRequest,
+				Status: 400,
 			}, nil)
 		case store.PasswordPolicyError:
 			return SyncResponse(&resp{
@@ -360,7 +360,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindPasswordPolicy,
 					Value:   err,
 				},
-				Status: http.StatusUnauthorized,
+				Status: 401,
 			}, nil)
 		}
 		return Unauthorized(err.Error())
@@ -1126,7 +1126,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
 		Result: &errorResult{Message: err.Error(), Kind: kind},
-		Status: http.StatusBadRequest,
+		Status: 400,
 	}, nil)
 }
 
@@ -1208,7 +1208,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 				Message: err.Error(),
 				Kind:    errorKindNotSnap,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 	if err != nil {
@@ -1722,7 +1722,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	// TODO: what more info do we want to return on success?
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 	}
 }
 
@@ -2212,7 +2212,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindLoginRequired,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
@@ -2221,7 +2221,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindTermsNotAccepted,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrNoPaymentMethods:
 		return SyncResponse(&resp{
@@ -2230,7 +2230,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindNoPaymentMethods,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrPaymentDeclined:
 		return SyncResponse(&resp{
@@ -2239,7 +2239,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindPaymentDeclined,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	default:
 		return InternalError("%v", err)
@@ -2257,17 +2257,25 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	switch a.Action {
 	case "ensure-state-soon":
-		st := c.d.overlord.State()
-		st.Lock()
-		defer st.Unlock()
 		ensureStateSoon(st)
+		return SyncResponse(true, nil)
+	case "get-base-declaration":
+		bd, err := assertstate.BaseDeclaration(st)
+		if err != nil {
+			return InternalError("cannot get base declaration: %s", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"base-declaration": string(asserts.Encode(bd)),
+		}, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
-
-	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2313,13 +2321,24 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
 			return BadRequest("error running snapctl: %s", err)
+		}
+	}
+
+	if context.IsEphemeral() {
+		context.Lock()
+		defer context.Unlock()
+		if err := context.Done(); err != nil {
+			return BadRequest(i18n.G("set failed: %v"), err)
 		}
 	}
 

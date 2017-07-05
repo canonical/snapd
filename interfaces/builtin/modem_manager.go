@@ -32,6 +32,17 @@ import (
 
 const modemManagerSummary = `allows operating as the ModemManager service`
 
+const modemManagerBaseDeclarationSlots = `
+  modem-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const modemManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the ModemManager service. This gives
 # privileged access to the system.
@@ -1166,8 +1177,9 @@ func (iface *modemManagerInterface) Name() string {
 
 func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           modemManagerSummary,
-		ImplicitOnClassic: true,
+		Summary:              modemManagerSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,
 	}
 }
 
