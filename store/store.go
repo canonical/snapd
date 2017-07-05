@@ -183,15 +183,10 @@ type Config struct {
 }
 
 // SetAPI updates API URLs in the Config. Must not be used to change active config.
-func (cfg *Config) SetAPI(apiURL string) error {
+func (cfg *Config) SetAPI(api *url.URL) {
 	// TODO: should SNAPPY_FORCE_API_URL take precedence over this? Probably
 	// not because, even though the user's env normally beats config, this
 	// could change at runtime and it would be really weird to just ignore it.
-
-	api, err := url.Parse(apiURL)
-	if err != nil {
-		return fmt.Errorf("invalid store API URL: %s", err)
-	}
 
 	// XXX: it's ok to ignore errors here because the refs are all hard-coded, valid paths.
 	cfg.SearchURI, _ = api.Parse("api/v1/snaps/search")
@@ -199,8 +194,6 @@ func (cfg *Config) SetAPI(apiURL string) error {
 	cfg.DetailsURI, _ = api.Parse("api/v1/snaps/details/")
 	cfg.BulkURI, _ = api.Parse("api/v1/snaps/metadata")
 	cfg.SectionsURI, _ = api.Parse("api/v1/snaps/sections")
-
-	return nil
 }
 
 // Store represents the ubuntu snap store
@@ -334,10 +327,11 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	err := defaultConfig.SetAPI(apiURL())
+	apiURI, err := url.Parse(apiURL())
 	if err != nil {
 		panic(err)
 	}
+	defaultConfig.SetAPI(apiURI)
 
 	assertsBaseURI, err := url.Parse(assertsURL())
 	if err != nil {

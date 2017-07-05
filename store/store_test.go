@@ -67,21 +67,15 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
 	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
 
-	err := cfg.SetAPI("http://example.com/path/prefix/")
+	api, err := url.Parse("http://example.com/path/prefix/")
 	c.Assert(err, IsNil)
+	cfg.SetAPI(api)
 
 	for _, uri := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI} {
 		c.Assert(uri.Scheme, Equals, "http")
 		c.Assert(uri.Host, Equals, "example.com")
 		c.Assert(uri.Path, Matches, "/path/prefix/api/v1/snaps/.*")
 	}
-}
-
-func (suite *configTestSuite) TestSetAPIInvalidURL(c *C) {
-	cfg := DefaultConfig()
-	err := cfg.SetAPI("://example.com/")
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid store API URL: parse ://example.com/: missing protocol scheme")
 }
 
 type remoteRepoTestSuite struct {
