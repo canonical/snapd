@@ -20,12 +20,16 @@
 package main_test
 
 import (
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -395,8 +399,9 @@ func (s *runnerSuite) TestLoadState(c *C) {
 	runner := repair.NewRunner()
 	err = runner.LoadState()
 	c.Assert(err, IsNil)
-	c.Check(runner.Brand(), Equals, "my-brand")
-	c.Check(runner.Model(), Equals, "my-model")
+	brand, model := runner.Device()
+	c.Check(brand, Equals, "my-brand")
+	c.Check(model, Equals, "my-model")
 }
 
 func (s *runnerSuite) TestLoadStateInitState(c *C) {
@@ -408,8 +413,9 @@ func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
 	// TODO: init state will do more later
-	c.Check(runner.Brand(), Equals, "")
-	c.Check(runner.Model(), Equals, "")
+	brand, model := runner.Device()
+	c.Check(brand, Equals, "")
+	c.Check(model, Equals, "")
 }
 
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
@@ -430,4 +436,300 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 	defer os.Chmod(dirs.SnapRepairDir, 0775)
 
 	c.Check(runner.SaveState, PanicMatches, `cannot save repair state:.*`)
+}
+
+func (s *runnerSuite) TestSaveState(c *C) {
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+
+	runner.SetDevice("my-brand", "my-model")
+	runner.SetSequence("canonical", []*repair.RepairState{
+		{Seq: 1, Revision: 3},
+	})
+
+	runner.SaveState()
+
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"seq":1,"revision":3,"status":0}]}}`)
+}
+
+var (
+	nextRepairs = []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+timestamp: 2017-07-01T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptA
+
+
+AXNpZw==`,
+		`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 2
+series:
+  - 33
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`,
+		`type: repair
+revision: 2
+authority-id: canonical
+brand-id: canonical
+repair-id: 3
+series:
+  - 16
+timestamp: 2017-07-03T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptC
+
+
+AXNpZw==
+`}
+
+	repair3Rev4 = `type: repair
+revision: 4
+authority-id: canonical
+brand-id: canonical
+repair-id: 3
+series:
+  - 16
+timestamp: 2017-07-03T12:00:00Z
+body-length: 9
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptC2
+
+
+AXNpZw==
+`
+
+	repair4 = `type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 4
+timestamp: 2017-07-03T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptD
+
+
+AXNpZw==
+`
+)
+
+func makeMockServer(c *C, seqRepairs *[]string) *httptest.Server {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(strings.HasPrefix(r.URL.Path, "/repairs/canonical/"), Equals, true)
+		seq, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/repairs/canonical/"))
+		c.Assert(err, IsNil)
+
+		if seq > len(*seqRepairs) {
+			w.WriteHeader(404)
+			return
+		}
+
+		repair, err := asserts.Decode([]byte((*seqRepairs)[seq-1]))
+		c.Assert(err, IsNil)
+
+		switch r.Header.Get("Accept") {
+		case "application/json":
+			b, err := json.Marshal(map[string]interface{}{
+				"headers": repair.Headers(),
+			})
+			c.Assert(err, IsNil)
+			w.Write(b)
+		case asserts.MediaType:
+			w.Write(asserts.Encode(repair))
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+
+	return mockServer
+}
+
+func (s *runnerSuite) TestNext(c *C) {
+	seqRepairs := append([]string(nil), nextRepairs...)
+
+	mockServer := makeMockServer(c, &seqRepairs)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "repair.r0")), Equals, true)
+
+	rpr, err = runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "3")
+	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "repair.r2"))
+	c.Assert(err, IsNil)
+	c.Check(string(strm), Equals, seqRepairs[2])
+
+	// no more
+	rpr, err = runner.Next("canonical")
+	c.Check(err, Equals, repair.ErrRepairNotFound)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Seq: 1},
+		{Seq: 2, Status: repair.NotApplicableStatus},
+		{Seq: 3, Revision: 2},
+	})
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":0},{"seq":2,"revision":0,"status":1},{"seq":3,"revision":2,"status":0}]}}`)
+
+	// start fresh run with new runner
+	// will refetch repair 3
+	seqRepairs[2] = repair3Rev4
+	seqRepairs = append(seqRepairs, repair4)
+
+	runner = repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err = runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "1")
+
+	rpr, err = runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "3")
+	// refetched new revision!
+	c.Check(rpr.Revision(), Equals, 4)
+	c.Check(rpr.Body(), DeepEquals, []byte("scriptC2\n"))
+
+	// new repair
+	rpr, err = runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "4")
+	c.Check(rpr.Body(), DeepEquals, []byte("scriptD\n"))
+
+	// no more
+	rpr, err = runner.Next("canonical")
+	c.Check(err, Equals, repair.ErrRepairNotFound)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Seq: 1},
+		{Seq: 2, Status: repair.NotApplicableStatus},
+		{Seq: 3, Revision: 4},
+		{Seq: 4},
+	})
+}
+
+func (s *runnerSuite) TestNextImmediateNotApplicable(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 33
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	// not applicable => not returned
+	_, err := runner.Next("canonical")
+	c.Check(err, Equals, repair.ErrRepairNotFound)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Seq: 1, Status: repair.NotApplicableStatus},
+	})
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":1}]}}`)
+}
+
+func (s *runnerSuite) TestNextRefetchNotApplicable(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 16
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Seq: 1},
+	})
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":0}]}}`)
+
+	// new fresh run, repair becomes now unapplicable
+	seqRepairs[0] = `type: repair
+authority-id: canonical
+revision: 1
+brand-id: canonical
+repair-id: 1
+series:
+  - 33
+timestamp: 2017-07-02T12:00:00Z
+body-length: 7
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptX
+
+AXNpZw==`
+
+	runner = repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err = runner.Next("canonical")
+	c.Check(err, Equals, repair.ErrRepairNotFound)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Seq: 1, Revision: 1, Status: repair.NotApplicableStatus},
+	})
+	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":1,"status":1}]}}`)
 }

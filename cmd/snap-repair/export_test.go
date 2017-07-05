@@ -53,10 +53,22 @@ func MockMaxRepairScriptSize(maxSize int) (restore func()) {
 	}
 }
 
-func (run *Runner) Brand() string {
-	return run.state.Device.Brand
+func (run *Runner) Device() (brand, model string) {
+	return run.state.Device.Brand, run.state.Device.Model
 }
 
-func (run *Runner) Model() string {
-	return run.state.Device.Model
+func (run *Runner) SetDevice(brand, model string) {
+	run.state.Device.Brand = brand
+	run.state.Device.Model = model
+}
+
+func (run *Runner) Sequence(brand string) []*RepairState {
+	return run.state.Sequences[brand]
+}
+
+func (run *Runner) SetSequence(brand string, sequence []*RepairState) {
+	if run.state.Sequences == nil {
+		run.state.Sequences = make(map[string][]*RepairState)
+	}
+	run.state.Sequences[brand] = sequence
 }
