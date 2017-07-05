@@ -179,7 +179,7 @@ func initialStoreConfig(s *state.State) (*store.Config, error) {
 func replaceStore(o *Overlord, s *state.State, config *store.Config) {
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(config, authContext)
-	snapstate.ReplaceStore(s, sto)
+	storestate.ReplaceStore(s, sto)
 }
 
 // ReplaceStore installs a new store.

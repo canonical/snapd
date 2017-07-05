@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -456,7 +457,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	mStore := store.New(&storeCfg, nil)
 	st := ms.o.State()
 	st.Lock()
-	snapstate.ReplaceStore(ms.o.State(), mStore)
+	storestate.ReplaceStore(ms.o.State(), mStore)
 	st.Unlock()
 
 	return mockServer

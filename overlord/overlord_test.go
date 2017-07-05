@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -83,7 +84,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(patchLevel, Equals, 42)
 
 	// store is setup
-	sto := snapstate.Store(s)
+	sto := storestate.Store(s)
 	c.Check(sto, FitsTypeOf, &store.Store{})
 }
 
@@ -238,7 +239,7 @@ func (ovs *overlordSuite) TestReplaceStore(c *C) {
 	defer s.Unlock()
 	o.ReplaceStore(s, store.DefaultConfig())
 
-	c.Check(snapstate.Store(s), Equals, &replacementStore)
+	c.Check(storestate.Store(s), Equals, &replacementStore)
 }
 
 type witnessManager struct {
