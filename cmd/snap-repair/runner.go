@@ -43,6 +43,43 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// Repair is a runnable repair.
+type Repair struct {
+	*asserts.Repair
+
+	run      *Runner
+	sequence int
+}
+
+// SetStatus sets the status of the repair in the state and saves the latter.
+func (r *Repair) SetStatus(status RepairStatus) {
+	brandID := r.BrandID()
+	cur := *r.run.state.Sequences[brandID][r.sequence-1]
+	cur.Status = status
+	r.run.setRepairState(brandID, cur)
+	r.run.SaveState()
+}
+
+// Run executes the repair script leaving execution trail files on disk.
+func (r *Repair) Run() error {
+	// XXX initial skeleton...
+	// write the script to disk
+	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	err := os.MkdirAll(rundir, 0775)
+	if err != nil {
+		return err
+	}
+	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
+	err = osutil.AtomicWriteFile(script, r.Body(), 0600, 0)
+	if err != nil {
+		return err
+	}
+
+	// XXX actually run things and captures output etc
+
+	return nil
+}
+
 // Runner implements fetching, tracking and running repairs.
 type Runner struct {
 	BaseURL *url.URL
@@ -470,7 +507,7 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 }
 
 // Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
-func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
+func (run *Runner) Next(brandID string) (*Repair, error) {
 	sequenceNext := run.sequenceNext[brandID]
 	if sequenceNext == 0 {
 		sequenceNext = 1
@@ -498,6 +535,11 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 		if err == errSkip {
 			continue
 		}
-		return repair, nil
+
+		return &Repair{
+			Repair:   repair,
+			run:      run,
+			sequence: sequenceNext - 1,
+		}, nil
 	}
 }
