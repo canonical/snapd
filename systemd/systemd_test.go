@@ -455,3 +455,20 @@ Options=nodev,ro
 WantedBy=multi-user.target
 `, mockSnapPath))
 }
+
+func (s *SystemdTestSuite) TestJctl(c *C) {
+	var args []string
+	var err error
+	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
+		c.Check(cap(myargs) <= len(myargs)+1, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		args = myargs
+		return nil, nil
+	})
+
+	_, err = Jctl([]string{"foo", "bar"}, "10", false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "10", "--no-pager", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar", "baz"}, "99", true)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "99", "--no-pager", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
+}

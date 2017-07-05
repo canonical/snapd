@@ -60,19 +60,23 @@ func run(args ...string) ([]byte, error) {
 // systemctl. It's exported so it can be overridden by testing.
 var SystemctlCmd = run
 
+var osutilStreamCommand = osutil.StreamCommand
+
 // jctl calls journalctl to get the JSON logs of the given services.
 func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
-	args := make([]string, 0, 2*len(svcs)+4)
-	args = append(args, "-o", "json", "-n", n, "--no-pager")
+	// args will need two entries per service, plus a fixed number (give or take
+	// one) for the initial options.
+	args := make([]string, 0, 2*len(svcs)+6)
+	args = append(args, "-o", "json", "-n", n, "--no-pager") // len(this)+1 == that ^ fixed number
 	if follow {
-		args = append(args, "-f")
+		args = append(args, "-f") // this is the +1 :-)
 	}
 
 	for i := range svcs {
-		args = append(args, "-u", svcs[i])
+		args = append(args, "-u", svcs[i]) // this is why 2×
 	}
 
-	return osutil.StreamCommand("journalctl", args...)
+	return osutilStreamCommand("journalctl", args...)
 }
 
 // JournalctlCmd is called from Logs to run journalctl; exported for testing.
