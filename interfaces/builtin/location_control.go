@@ -29,6 +29,15 @@ import (
 
 const locationControlSummary = `allows operating as the location service`
 
+const locationControlBaseDeclarationSlots = `
+  location-control:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const locationControlPermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -200,7 +209,8 @@ func (iface *locationControlInterface) Name() string {
 
 func (iface *locationControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: locationControlSummary,
+		Summary:              locationControlSummary,
+		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
 	}
 }
 

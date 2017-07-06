@@ -21,6 +21,14 @@ package builtin
 
 const openvswitchSummary = `allows access to the openvswitch socket`
 
+const openvswitchBaseDeclarationSlots = `
+  openvswitch:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 `
@@ -30,6 +38,7 @@ func init() {
 		name:                  "openvswitch",
 		summary:               openvswitchSummary,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  openvswitchBaseDeclarationSlots,
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

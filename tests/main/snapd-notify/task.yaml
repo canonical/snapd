@@ -1,5 +1,13 @@
 summary: Ensure snapd notify feature is working
 
 execute: |
-    systemctl status snapd.service | MATCH "Active: active"
-    journalctl -u snapd | MATCH "activation done in"
+    for _ in $(seq 5); do
+      if systemctl status snapd.service | MATCH "Active: active"; then
+          journalctl -u snapd | MATCH "activation done in"
+          exit
+      fi
+      sleep 1
+    done
+
+    echo "Snapd service status not active"
+    exit 1

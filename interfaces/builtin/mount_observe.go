@@ -21,6 +21,14 @@ package builtin
 
 const mountObserveSummary = `allows reading mount table and quota information`
 
+const mountObserveBaseDeclarationSlots = `
+  mount-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
 # Description: Can query system mount and disk quota information. This is
@@ -47,13 +55,11 @@ const mountObserveConnectedPlugSecComp = `
 # restricted because it gives privileged read access to mount arguments and
 # should only be used with trusted apps.
 
-# FIXME: restore quotactl with parameter filtering once snap-confine can read
-# this syntax. See LP:#1662489 for context.
-#quotactl Q_GETQUOTA - - -
-#quotactl Q_GETINFO - - -
-#quotactl Q_GETFMT - - -
-#quotactl Q_XGETQUOTA - - -
-#quotactl Q_XGETQSTAT - - -
+quotactl Q_GETQUOTA - - -
+quotactl Q_GETINFO - - -
+quotactl Q_GETFMT - - -
+quotactl Q_XGETQUOTA - - -
+quotactl Q_XGETQSTAT - - -
 `
 
 func init() {
@@ -62,6 +68,7 @@ func init() {
 		summary:               mountObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  mountObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,

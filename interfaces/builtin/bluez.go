@@ -30,6 +30,15 @@ import (
 
 const bluezSummary = `allows operating as the bluez service`
 
+const bluezBaseDeclarationSlots = `
+  bluez:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const bluezPermanentSlotAppArmor = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
@@ -191,7 +200,8 @@ func (iface *bluezInterface) Name() string {
 
 func (iface *bluezInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: bluezSummary,
+		Summary:              bluezSummary,
+		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
 }
 
