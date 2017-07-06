@@ -102,6 +102,7 @@ func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
 
 	// add again, verify its not added twice but updated
 	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
+	c.Assert(err, IsNil)
 	expected = mockConfigTxt + "\n" + "framebuffer_depth=32"
 	s.checkMockConfig(c, expected)
 }
