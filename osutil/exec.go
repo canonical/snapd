@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -235,4 +236,48 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
+}
+
+type waitingReader struct {
+	reader io.Reader
+	cmd    *exec.Cmd
+}
+
+func (r *waitingReader) Close() error {
+	if r.cmd.Process != nil {
+		r.cmd.Process.Kill()
+	}
+	return r.cmd.Wait()
+}
+
+func (r *waitingReader) Read(b []byte) (int, error) {
+	n, err := r.reader.Read(b)
+	if n == 0 && err == io.EOF {
+		err = r.Close()
+		if err == nil {
+			return 0, io.EOF
+		}
+		return 0, err
+	}
+	return n, err
+}
+
+// StreamCommand runs a the named program with the given arguments,
+// streaming its standard output over the returned io.ReadCloser.
+//
+// The program will run until EOF is reached (at which point the
+// ReadCloser is closed), or until the ReadCloser is explicitly closed.
+func StreamCommand(name string, args ...string) (io.ReadCloser, error) {
+	cmd := exec.Command(name, args...)
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	return &waitingReader{reader: pipe, cmd: cmd}, nil
 }
