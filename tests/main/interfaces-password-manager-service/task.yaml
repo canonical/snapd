@@ -17,7 +17,7 @@ restore: |
 
 execute: |
     CONNECTED_PATTERN=":password-manager-service +test-snapd-password-manager-consumer"
-    DISCONNECTED_PATTERN="- +test-snapd-password-manager-consumer:password-manager-service"
+    DISCONNECTED_PATTERN="\- +test-snapd-password-manager-consumer:password-manager-service"
 
     echo "Ensure things run"
     eval $(dbus-launch --sh-syntax)
