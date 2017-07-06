@@ -125,7 +125,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// a service snap (e.g. network-manager) starts in parallel with
 	// snapd so for such snaps, the profiles may not be generated
 	// yet
-	int max_wait = 120;
+	long max_wait = 120;
 	const char *MAX_PROFILE_WAIT = getenv("SNAP_CONFINE_MAX_PROFILE_WAIT");
 	if (MAX_PROFILE_WAIT != NULL) {
 		char *endptr = NULL;
@@ -137,7 +137,10 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		}
 		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;
 	}
-	for (int i = 0; i < max_wait; ++i) {
+	if (max_wait > 3600) {
+		max_wait = 3600;
+	}
+	for (long i = 0; i < max_wait; ++i) {
 		if (access(profile_path, F_OK) == 0) {
 			break;
 		}
