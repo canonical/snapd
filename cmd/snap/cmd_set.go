@@ -73,7 +73,7 @@ func (x *cmdSet) Execute(args []string) error {
 		dec := json.NewDecoder(strings.NewReader(parts[1]))
 		dec.UseNumber()
 		err := dec.Decode(&value)
-		if err == nil {
+		if err == nil && !dec.More() {
 			patchValues[parts[0]] = value
 		} else {
 			// Not valid JSON-- just save the string as-is.

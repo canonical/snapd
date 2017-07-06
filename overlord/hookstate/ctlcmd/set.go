@@ -105,7 +105,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		dec := json.NewDecoder(strings.NewReader(parts[1]))
 		dec.UseNumber()
 		err := dec.Decode(&value)
-		if err != nil {
+		if err != nil || dec.More() {
 			// Not valid JSON-- just save the string as-is.
 			value = parts[1]
 		}
