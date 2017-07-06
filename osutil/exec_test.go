@@ -20,7 +20,9 @@
 package osutil_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -193,4 +195,32 @@ func (s *execSuite) TestKillProcessGroupShyOfInit(c *C) {
 
 	err := osutil.KillProcessGroup(cmd)
 	c.Assert(err, ErrorMatches, "cannot kill pgid 1")
+}
+
+func (s *execSuite) TestStreamCommandHappy(c *C) {
+	var buf bytes.Buffer
+	stdout, err := osutil.StreamCommand("sh", "-c", "echo hello; sleep .1; echo bye")
+	c.Assert(err, IsNil)
+	_, err = io.Copy(&buf, stdout)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "hello\nbye\n")
+
+	wrf, wrc := osutil.WaitingReaderGuts(stdout)
+	c.Assert(wrf, FitsTypeOf, &os.File{})
+	c.Check(wrf.(*os.File).Close(), Equals, syscall.EINVAL) // i.e. already closed
+	c.Check(wrc.ProcessState, NotNil)                       // i.e. already waited for
+}
+
+func (s *execSuite) TestStreamCommandSad(c *C) {
+	var buf bytes.Buffer
+	stdout, err := osutil.StreamCommand("false")
+	c.Assert(err, IsNil)
+	_, err = io.Copy(&buf, stdout)
+	c.Assert(err, ErrorMatches, "exit status 1")
+	c.Check(buf.String(), Equals, "")
+
+	wrf, wrc := osutil.WaitingReaderGuts(stdout)
+	c.Assert(wrf, FitsTypeOf, &os.File{})
+	c.Check(wrf.(*os.File).Close(), Equals, syscall.EINVAL) // i.e. already closed
+	c.Check(wrc.ProcessState, NotNil)                       // i.e. already waited for
 }
