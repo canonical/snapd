@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -447,17 +448,6 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	return installed, tasksets, nil
 }
 
-// contains determines whether the given string is contained in the
-// given list of strings, which must have been previously sorted using
-// sort.Strings.
-func contains(ns []string, n string) bool {
-	i := sort.SearchStrings(ns, n)
-	if i >= len(ns) {
-		return false
-	}
-	return ns[i] == n
-}
-
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
@@ -498,7 +488,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 			continue
 		}
 
-		if len(names) > 0 && !contains(names, snapInfo.Name()) {
+		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
 			continue
 		}
 
