@@ -20,8 +20,6 @@
 package systemd
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -62,21 +60,23 @@ func run(args ...string) ([]byte, error) {
 // systemctl. It's exported so it can be overridden by testing.
 var SystemctlCmd = run
 
-// jctl calls journalctl to get the JSON logs of the given services, wrapping the error if any.
-func jctl(svcs []string) ([]byte, error) {
-	cmd := []string{"journalctl", "-o", "json"}
+var osutilStreamCommand = osutil.StreamCommand
+
+// jctl calls journalctl to get the JSON logs of the given services.
+func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+	// args will need two entries per service, plus a fixed number (give or take
+	// one) for the initial options.
+	args := make([]string, 0, 2*len(svcs)+6)
+	args = append(args, "-o", "json", "-n", n, "--no-pager") // len(this)+1 == that ^ fixed number
+	if follow {
+		args = append(args, "-f") // this is the +1 :-)
+	}
 
 	for i := range svcs {
-		cmd = append(cmd, "-u", svcs[i])
+		args = append(args, "-u", svcs[i]) // this is why 2×
 	}
 
-	bs, err := exec.Command(cmd[0], cmd[1:]...).Output() // journalctl can be messy with its stderr
-	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: cmd, exitCode: exitCode, msg: bs}
-	}
-
-	return bs, nil
+	return osutilStreamCommand("journalctl", args...)
 }
 
 // JournalctlCmd is called from Logs to run journalctl; exported for testing.
@@ -93,12 +93,12 @@ type Systemd interface {
 	Restart(service string, timeout time.Duration) error
 	Status(service string) (string, error)
 	ServiceStatus(service string) (*ServiceStatus, error)
-	Logs(services []string) ([]Log, error)
+	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, what, where, fstype string) (string, error)
 }
 
 // A Log is a single entry in the systemd journal
-type Log map[string]interface{}
+type Log map[string]string
 
 // RestartCondition encapsulates the different systemd 'restart' options
 type RestartCondition string
@@ -196,36 +196,9 @@ func (*systemd) Start(serviceName string) error {
 	return err
 }
 
-// Logs for the given service
-func (*systemd) Logs(serviceNames []string) ([]Log, error) {
-	bs, err := JournalctlCmd(serviceNames)
-	if err != nil {
-		return nil, err
-	}
-
-	const noEntries = "-- No entries --\n"
-	if len(bs) == len(noEntries) && string(bs) == noEntries {
-		return nil, nil
-	}
-
-	var logs []Log
-	dec := json.NewDecoder(bytes.NewReader(bs))
-	for {
-		var log Log
-
-		err = dec.Decode(&log)
-		if err != nil {
-			break
-		}
-
-		logs = append(logs, log)
-	}
-
-	if err != io.EOF {
-		return nil, err
-	}
-
-	return logs, nil
+// LogReader for the given services
+func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
+	return JournalctlCmd(serviceNames, n, follow)
 }
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
@@ -236,7 +209,7 @@ func (s *systemd) Status(serviceName string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState), nil
+	return status.StatusString(), nil
 }
 
 // A ServiceStatus holds structured service status information.
@@ -246,6 +219,10 @@ type ServiceStatus struct {
 	ActiveState     string `json:"active-state"`
 	SubState        string `json:"sub-state"`
 	UnitFileState   string `json:"unit-file-state"`
+}
+
+func (status *ServiceStatus) StatusString() string {
+	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState)
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
@@ -367,17 +344,12 @@ const myFmt = "2006-01-02T15:04:05.000000Z07:00"
 // also result in "-(errror message)-" timestamps.
 func (l Log) Timestamp() string {
 	t := "-(no timestamp!)-"
-	if ius, ok := l["__REALTIME_TIMESTAMP"]; ok {
+	if sus, ok := l["__REALTIME_TIMESTAMP"]; ok {
 		// according to systemd.journal-fields(7) it's microseconds as a decimal string
-		sus, ok := ius.(string)
-		if ok {
-			if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
-				t = time.Unix(us/1000000, 1000*(us%1000000)).UTC().Format(myFmt)
-			} else {
-				t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
-			}
+		if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
+			t = time.Unix(us/1000000, 1000*(us%1000000)).UTC().Format(myFmt)
 		} else {
-			t = fmt.Sprintf("-(timestamp not a string: %#v)-", ius)
+			t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
 		}
 	}
 
@@ -386,7 +358,7 @@ func (l Log) Timestamp() string {
 
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
-	if msg, ok := l["MESSAGE"].(string); ok {
+	if msg, ok := l["MESSAGE"]; ok {
 		return msg
 	}
 
@@ -395,15 +367,27 @@ func (l Log) Message() string {
 
 // SID is the syslog identifier of the Log, if any; otherwise, "-".
 func (l Log) SID() string {
-	if sid, ok := l["SYSLOG_IDENTIFIER"].(string); ok {
+	if sid, ok := l["SYSLOG_IDENTIFIER"]; ok {
 		return sid
 	}
 
 	return "-"
 }
 
+// PID is the pid of the client pid, if any; otherwise, "-".
+func (l Log) PID() string {
+	if pid, ok := l["_PID"]; ok {
+		return pid
+	}
+	if pid, ok := l["SYSLOG_PID"]; ok {
+		return pid
+	}
+
+	return "-"
+}
+
 func (l Log) String() string {
-	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
+	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp(), l.SID(), l.PID(), l.Message())
 }
 
 // useFuse detects if we should be using squashfuse instead
