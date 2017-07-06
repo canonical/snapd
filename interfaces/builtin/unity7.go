@@ -31,6 +31,13 @@ import (
 
 const unity7Summary = `allows interacting with Unity 7 services`
 
+const unity7BaseDeclarationSlots = `
+  unity7:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
@@ -526,8 +533,9 @@ func (iface *unity7Interface) Name() string {
 
 func (iface *unity7Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           unity7Summary,
-		ImplicitOnClassic: true,
+		Summary:              unity7Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: unity7BaseDeclarationSlots,
 	}
 }
 

@@ -196,6 +196,27 @@ backends:
                 username: test
                 password: ubuntu
 
+    linode-sru:
+        type: linode
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
+                workers: 2
+            - ubuntu-16.04-64:
+                kernel: GRUB 2
+                workers: 2
+            - ubuntu-16.10-64:
+                kernel: GRUB 2
+                workers: 2
+            - ubuntu-17.04-64:
+                kernel: GRUB 2
+                workers: 2
+            - ubuntu-17.10-64:
+                kernel: GRUB 2
+                workers: 2
+
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
@@ -279,8 +300,7 @@ prepare: |
     precedence ::ffff:0:0/96 100
     EOF
     if ! mv gai.conf /etc/gai.conf; then
-        # not writable, disable ipv6 through sysctl
-        sysctl -w net.ipv6.conf.all.disable_ipv6=1
+        echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
 

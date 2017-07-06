@@ -30,6 +30,14 @@ import (
 
 const networkStatusSummary = `allows operating as the NetworkingStatus service`
 
+const networkStatusBaseDeclarationSlots = `
+  network-status:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const networkStatusPermanentSlotAppArmor = `
 # Description: Allow owning the NetworkingStatus bus name on the system bus
 
@@ -100,7 +108,8 @@ func (iface *networkStatusInterface) Name() string {
 
 func (iface *networkStatusInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: networkStatusSummary,
+		Summary:              networkStatusSummary,
+		BaseDeclarationSlots: networkStatusBaseDeclarationSlots,
 	}
 }
 

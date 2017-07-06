@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
 create_test_user(){
@@ -48,7 +49,7 @@ build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
     arch=x86_64
-    base_version="$(head -1 debian/changelog | awk -F'[()]' '{print $2}')"
+    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
     archive_name=snapd-$version.tar.gz
@@ -69,26 +70,26 @@ build_rpm() {
             exit 1
     esac
 
-    sed -i -e "s/^Version:.*$/Version: $version/g" $packaging_path/snapd.spec
+    sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
 
     # Create a source tarball for the current snapd sources
-    mkdir -p /tmp/pkg/snapd-$version
-    cp -rav * /tmp/pkg/snapd-$version/
-    mkdir -p $rpm_dir/SOURCES
-    (cd /tmp/pkg; tar c${archive_compression}f $rpm_dir/SOURCES/$archive_name snapd-$version $extra_tar_args)
-    cp $packaging_path/* $rpm_dir/SOURCES/
+    mkdir -p "/tmp/pkg/snapd-$version"
+    cp -rav -- * "/tmp/pkg/snapd-$version/"
+    mkdir -p "$rpm_dir/SOURCES"
+    (cd /tmp/pkg || tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" "$extra_tar_args")
+    cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
-    rm -rf $rpm_dir/BUILD/*
+    rm -rf "$rpm_dir"/BUILD/*
 
     # Build our source package
-    rpmbuild --with testkeys -bs $packaging_path/snapd.spec
+    rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
 
     # .. and we need all necessary build dependencies available
     deps=()
     n=0
     IFS=$'\n'
-    for dep in $(rpm -qpR $rpm_dir/SRPMS/snapd-1337.*.src.rpm); do
+    for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
       if [[ "$dep" = rpmlib* ]]; then
          continue
       fi
@@ -102,12 +103,12 @@ build_rpm() {
         --with testkeys \
         --nocheck \
         -ba \
-        $packaging_path/snapd.spec
+        "$packaging_path/snapd.spec"
 
-    cp $rpm_dir/RPMS/$arch/snap*.rpm $GOPATH
+    cp "$rpm_dir"/RPMS/$arch/snap*.rpm "$GOPATH"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         # On Fedora we have an additional package for SELinux
-        cp $rpm_dir/RPMS/noarch/snap*.rpm $GOPATH
+        cp "$rpm_dir"/RPMS/noarch/snap*.rpm "$GOPATH"
     fi
 }
 
@@ -206,12 +207,15 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
 fi
 
 distro_purge_package snapd || true
-distro_install_package "${DISTRO_BUILD_DEPS[@]}"
+distro_install_package ${DISTRO_BUILD_DEPS[@]}
 
 # We take a special case for Debian/Ubuntu where we install additional build deps
 # base on the packaging. In Fedora/Suse this is handled via mock/osc
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
+        # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+        # will fail to install because the poor apt resolver does not get it
+        apt-get install -y --only-upgrade systemd
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
         ;;
@@ -219,7 +223,7 @@ esac
 
 # update vendoring
 if [ -z "$(which govendor)" ]; then
-    rm -rf $GOPATH/src/github.com/kardianos/govendor
+    rm -rf "$GOPATH/src/github.com/kardianos/govendor"
     go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
@@ -250,8 +254,9 @@ fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"
 fi
-# shellcheck disable=SC2086
-go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
+
+# eval to prevent expansion errors on opensuse (the variable keeps quotes)
+eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
 # Build additional utilities we need for testing
 go get ./tests/lib/fakedevicesvc
