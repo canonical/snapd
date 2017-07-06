@@ -28,20 +28,15 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-var (
-	clientConfig = client.Config{
-		// snapctl should not try to read $HOME/.snap/auth.json, this will
-		// result in apparmor denials and configure task failures
-		// (LP: #1660941)
-		DisableAuth: true,
+var clientConfig = client.Config{
+	// snapctl should not try to read $HOME/.snap/auth.json, this will
+	// result in apparmor denials and configure task failures
+	// (LP: #1660941)
+	DisableAuth: true,
 
-		// we need the less privileged snap socket in snapctl
-		Socket: dirs.SnapSocket,
-	}
-
-	Stdout = os.Stdout
-	Stderr = os.Stderr
-)
+	// we need the less privileged snap socket in snapctl
+	Socket: dirs.SnapSocket,
+}
 
 func main() {
 	// check for internal commands
@@ -49,7 +44,7 @@ func main() {
 		switch os.Args[2] {
 		case "configure-core":
 			if err := corecfg.Run(); err != nil {
-				fmt.Fprintf(Stderr, "cannot run core-configure: %s\n", err)
+				fmt.Fprintf(os.Stderr, "cannot run core-configure: %s\n", err)
 				os.Exit(1)
 			}
 			os.Exit(0)
