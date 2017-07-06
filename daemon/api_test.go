@@ -568,6 +568,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
+	restore = release.MockForcedDevmode(true)
+	defer restore()
+
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -588,6 +591,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"refresh": map[string]interface{}{
 			"schedule": "",
 		},
+		"confinement": "partial",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
