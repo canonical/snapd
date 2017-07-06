@@ -1,3 +1,28 @@
+snapd (2.26.8~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - Fix snap-seccomp tests in artful/trusty on i386/s390x/aarch64
+    - add snapd.core-fixup.service unit
+    - ensure re-exec uses the right internal tools
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 05 Jul 2017 07:48:22 +0200
+
+snapd (2.26.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - interfaces: allow snaps to use the timedatectl utility in
+      time-control
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 27 Jun 2017 08:38:15 +0100
+
+snapd (2.26.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - backport of seccomp-bpf branch to the 2.26 release to ensure snap
+      revert with new seccomp syntax works correctly
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 26 Jun 2017 15:31:08 +0100
+
 snapd (2.26.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
