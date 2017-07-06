@@ -21,4 +21,40 @@ package cmd
 
 var (
 	DistroSupportsReExec = distroSupportsReExec
+	CoreSupportsReExec   = coreSupportsReExec
 )
+
+func MockCorePaths(newOldCore, newNewCore string) func() {
+	oldOldCore := oldCore
+	oldNewCore := newCore
+	newCore = newNewCore
+	oldCore = newOldCore
+	return func() {
+		newCore = oldNewCore
+		oldCore = oldOldCore
+	}
+}
+
+func MockSelfExe(newSelfExe string) func() {
+	oldSelfExe := selfExe
+	selfExe = newSelfExe
+	return func() {
+		selfExe = oldSelfExe
+	}
+}
+
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	oldSyscallExec := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = oldSyscallExec
+	}
+}
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = realOsReadlink
+	}
+}

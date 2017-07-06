@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const joystickSummary = `allows access to joystick devices`
+
+const joystickBaseDeclarationSlots = `
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const joystickConnectedPlugAppArmor = `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
@@ -42,6 +52,15 @@ type joystickInterface struct{}
 // Name returns the name of the joystick interface.
 func (iface *joystickInterface) Name() string {
 	return "joystick"
+}
+
+func (iface *joystickInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              joystickSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: joystickBaseDeclarationSlots,
+	}
 }
 
 // String returns the name of the joystick interface.

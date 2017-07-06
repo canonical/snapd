@@ -19,6 +19,16 @@
 
 package builtin
 
+const dcdbasControlSummary = `allows access to Dell Systems Management Base Driver`
+
+const dcdbasControlBaseDeclarationSlots = `
+  dcdbas-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // https://www.kernel.org/doc/Documentation/dcdbas.txt
 const dcdbasControlConnectedPlugAppArmor = `
 # Description: This interface allows communication with Dell Systems Management Base Driver
@@ -43,7 +53,11 @@ const dcdbasControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "dcdbas-control",
+		name:                  "dcdbas-control",
+		summary:               dcdbasControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  dcdbasControlBaseDeclarationSlots,
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

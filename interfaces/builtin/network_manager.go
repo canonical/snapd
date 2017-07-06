@@ -29,6 +29,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const networkManagerSummary = `allows operating as the NetworkManager service`
+
+const networkManagerBaseDeclarationSlots = `
+  network-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const networkManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
@@ -100,6 +113,11 @@ network packet,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
+
+# Explicitly deny plugging snaps from ptracing the slot to silence noisy
+# denials. Neither the NetworkManager service nor nmcli require ptrace
+# trace for full functionality.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -375,6 +393,14 @@ type networkManagerInterface struct{}
 
 func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
+}
+
+func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              networkManagerSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
+	}
 }
 
 func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

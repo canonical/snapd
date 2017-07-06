@@ -25,6 +25,16 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+var (
+	AddImplicitSlots = addImplicitSlots
+)
+
+func MockConflictPredicate(pred func(string) bool) (restore func()) {
+	old := noConflictOnConnectTasks
+	noConflictOnConnectTasks = pred
+	return func() { noConflictOnConnectTasks = old }
+}
+
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.
 func (m *InterfaceManager) AddForeignTaskHandlers() {

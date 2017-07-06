@@ -21,10 +21,12 @@ package errtracker
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -42,9 +44,17 @@ var (
 	CrashDbURLBase string
 	SnapdVersion   string
 
-	machineID       = "/var/lib/dbus/machine-id"
+	// The machine-id file is at different locations depending on how the system
+	// is setup. On Fedora for example /var/lib/dbus/machine-id doesn't exist
+	// but we have /etc/machine-id. See
+	// https://www.freedesktop.org/software/systemd/man/machine-id.html for a
+	// few more details.
+	machineIDs = []string{"/etc/machine-id", "/var/lib/dbus/machine-id"}
+
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
+
+	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
 
 	timeNow = time.Now
 )
@@ -59,16 +69,45 @@ func distroRelease() string {
 	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
 }
 
+func readMachineID() ([]byte, error) {
+	for _, id := range machineIDs {
+		machineID, err := ioutil.ReadFile(id)
+		if err == nil {
+			return bytes.TrimSpace(machineID), nil
+		} else if !os.IsNotExist(err) {
+			logger.Noticef("cannot read %s: %s", id, err)
+		}
+	}
+
+	return nil, fmt.Errorf("cannot report: no suitable machine id file found")
+}
+
+func snapConfineProfileDigest(suffix string) string {
+	profileText, err := ioutil.ReadFile(snapConfineProfile + suffix)
+	if err != nil {
+		return ""
+	}
+	// NOTE: uses md5sum for easier comparison against dpkg meta-data
+	return fmt.Sprintf("%x", md5.Sum(profileText))
+}
+
+func didSnapdReExec() string {
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		return "yes"
+	}
+	return "no"
+}
+
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
 	}
 
-	machineID, err := ioutil.ReadFile(machineID)
+	machineID, err := readMachineID()
 	if err != nil {
 		return "", err
 	}
-	machineID = bytes.TrimSpace(machineID)
+
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
@@ -102,12 +141,32 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
+
+		"DidSnapdReExec": didSnapdReExec(),
 	}
 	for k, v := range extra {
 		// only set if empty
 		if _, ok := report[k]; !ok {
 			report[k] = v
 		}
+	}
+
+	// include md5 hashes of the apparmor conffile for easier debbuging
+	// of not-updated snap-confine apparmor profiles
+	for _, sp := range []struct {
+		suffix string
+		key    string
+	}{
+		{"", "MD5SumSnapConfineAppArmorProfile"},
+		{".dpkg-new", "MD5SumSnapConfineAppArmorProfileDpkgNew"},
+		{".real", "MD5SumSnapConfineAppArmorProfileReal"},
+		{".real.dpkg-new", "MD5SumSnapConfineAppArmorProfileRealDpkgNew"},
+	} {
+		digest := snapConfineProfileDigest(sp.suffix)
+		if digest != "" {
+			report[sp.key] = digest
+		}
+
 	}
 
 	// see if we run in testing mode

@@ -20,10 +20,13 @@
 package snapstate_test
 
 import (
+	"fmt"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -58,6 +61,8 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
+	dirs.SnapCookieDir = c.MkDir()
+
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(s.stateBackend)
@@ -69,11 +74,29 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	resetReadInfo := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = func() {
+		resetReadInfo()
+		dirs.SetRootDir("/")
+	}
 }
 
 func (s *linkSnapSuite) TearDownTest(c *C) {
 	s.reset()
+}
+
+func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
+	var contexts map[string]interface{}
+	err := st.Get("snap-cookies", &contexts)
+	c.Assert(err, IsNil)
+	c.Check(contexts, HasLen, 1)
+
+	for _, snap := range contexts {
+		if snapName == snap {
+			return
+		}
+	}
+	panic(fmt.Sprintf("Cookie missing for snap %q", snapName))
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
@@ -98,6 +121,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
+
+	checkHasCookieForSnap(c, s.state, "foo")
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
@@ -157,7 +182,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/foo/35"
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35")
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -179,11 +204,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/foo/35",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/foo/35",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
 		},
 	})
 }

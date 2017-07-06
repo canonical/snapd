@@ -99,27 +99,27 @@ func checkVersion(version string) bool {
 	return true
 }
 
-type ErrSnapNeedsDevMode struct {
+type SnapNeedsDevModeError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsDevMode) Error() string {
+func (e *SnapNeedsDevModeError) Error() string {
 	return fmt.Sprintf("snap %q requires devmode or confinement override", e.Snap)
 }
 
-type ErrSnapNeedsClassic struct {
+type SnapNeedsClassicError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsClassic) Error() string {
+func (e *SnapNeedsClassicError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement", e.Snap)
 }
 
-type ErrSnapNeedsClassicSystem struct {
+type SnapNeedsClassicSystemError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsClassicSystem) Error() string {
+func (e *SnapNeedsClassicSystemError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
@@ -135,12 +135,12 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		if flags.DevModeAllowed() {
 			return nil
 		}
-		return &ErrSnapNeedsDevMode{
+		return &SnapNeedsDevModeError{
 			Snap: info.Name(),
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return &ErrSnapNeedsClassicSystem{Snap: info.Name()}
+			return &SnapNeedsClassicSystemError{Snap: info.Name()}
 		}
 
 		if flags.Classic {
@@ -151,7 +151,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 
-		return &ErrSnapNeedsClassic{
+		return &SnapNeedsClassicError{
 			Snap: info.Name(),
 		}
 	default:

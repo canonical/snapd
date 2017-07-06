@@ -126,7 +126,7 @@ type serverError struct {
 }
 
 func retryBadStatus(t *state.Task, reason string, resp *http.Response) error {
-	if resp.StatusCode > http.StatusInternalServerError {
+	if resp.StatusCode > 500 {
 		// likely temporary
 		return retryErr(t, "%s: unexpected status %d", reason, resp.StatusCode)
 	}

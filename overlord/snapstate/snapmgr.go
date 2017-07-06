@@ -22,10 +22,12 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -301,6 +303,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 		runner:  runner,
 	}
 
+	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
+	}
+
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -499,8 +505,13 @@ func (m *SnapManager) ensureRefreshes() error {
 	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
-		delta := timeutil.Next(refreshSchedule, lastRefresh)
-		m.nextRefresh = time.Now().Add(delta)
+		if !lastRefresh.IsZero() {
+			delta := timeutil.Next(refreshSchedule, lastRefresh)
+			m.nextRefresh = time.Now().Add(delta)
+		} else {
+			// immediate
+			m.nextRefresh = time.Now()
+		}
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
 
@@ -512,7 +523,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// do refresh attempt (if needed)
-	if m.nextRefresh.Before(time.Now()) {
+	if !m.nextRefresh.After(time.Now()) {
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will

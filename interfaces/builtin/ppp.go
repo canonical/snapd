@@ -25,6 +25,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 )
 
+const pppSummary = `allows operating as the ppp service`
+
+const pppBaseDeclarationSlots = `
+  ppp:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const pppConnectedPlugAppArmor = `
 # Description: Allow operating ppp daemon. This gives privileged access to the
 # ppp daemon.
@@ -53,6 +63,15 @@ type pppInterface struct{}
 
 func (iface *pppInterface) Name() string {
 	return "ppp"
+}
+
+func (iface *pppInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              pppSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: pppBaseDeclarationSlots,
+	}
 }
 
 func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

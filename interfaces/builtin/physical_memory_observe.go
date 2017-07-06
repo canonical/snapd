@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const physicalMemoryObserveSummary = `allows read access to all physical memory`
+
+const physicalMemoryObserveBaseDeclarationSlots = `
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const physicalMemoryObserveConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical
 # memory. With STRICT_DEVMEM=y, allow reading /dev/mem for read-only
@@ -45,6 +55,15 @@ func (iface *physicalMemoryObserveInterface) Name() string {
 
 func (iface *physicalMemoryObserveInterface) String() string {
 	return iface.Name()
+}
+
+func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              physicalMemoryObserveSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryObserveBaseDeclarationSlots,
+	}
 }
 
 // Check validity of the defined slot

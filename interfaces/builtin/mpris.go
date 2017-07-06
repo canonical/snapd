@@ -29,6 +29,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const mprisSummary = `allows operating as an MPRIS player`
+
+const mprisBaseDeclarationSlots = `
+  mpris:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
 
@@ -142,6 +155,13 @@ type mprisInterface struct{}
 
 func (iface *mprisInterface) Name() string {
 	return "mpris"
+}
+
+func (iface *mprisInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mprisSummary,
+		BaseDeclarationSlots: mprisBaseDeclarationSlots,
+	}
 }
 
 func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

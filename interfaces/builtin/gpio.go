@@ -27,6 +27,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 )
 
+const gpioSummary = `allows access to specifc GPIO pin`
+
+const gpioBaseDeclarationSlots = `
+  gpio:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
 var gpioSysfsExport = "/sys/class/gpio/export"
 
@@ -41,6 +52,13 @@ func (iface *gpioInterface) String() string {
 // Name of the gpioInterface
 func (iface *gpioInterface) Name() string {
 	return "gpio"
+}
+
+func (iface *gpioInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              gpioSummary,
+		BaseDeclarationSlots: gpioBaseDeclarationSlots,
+	}
 }
 
 // SanitizeSlot checks the slot definition is valid

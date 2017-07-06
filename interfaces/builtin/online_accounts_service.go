@@ -28,6 +28,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const onlineAccountsServiceSummary = `allows operating as the Online Accounts service`
+
+const onlineAccountsServiceBaseDeclarationSlots = `
+  online-accounts-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const onlineAccountsServicePermanentSlotAppArmor = `
 # Description: Allow operating as the Online Accounts service.
 
@@ -92,6 +102,13 @@ type onlineAccountsServiceInterface struct{}
 
 func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
+}
+
+func (iface *onlineAccountsServiceInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              onlineAccountsServiceSummary,
+		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
+	}
 }
 
 func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

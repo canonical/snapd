@@ -28,6 +28,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
+const boolFileSummary = `allows access to specific file with bool semantics`
+
+const boolFileBaseDeclarationSlots = `
+  bool-file:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // boolFileInterface is the type of all the bool-file interfaces.
 type boolFileInterface struct{}
 
@@ -39,6 +50,13 @@ func (iface *boolFileInterface) String() string {
 // Name returns the name of the bool-file interface.
 func (iface *boolFileInterface) Name() string {
 	return "bool-file"
+}
+
+func (iface *boolFileInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              boolFileSummary,
+		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
+	}
 }
 
 var boolFileGPIOValuePattern = regexp.MustCompile(

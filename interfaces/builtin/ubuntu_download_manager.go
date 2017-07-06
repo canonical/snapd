@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
+const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
+
+const ubuntuDownloadManagerBaseDeclarationSlots = `
+  ubuntu-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
    are deliberately left out of this profile due to their privileged nature. */
 const downloadConnectedPlugAppArmor = `
@@ -189,6 +199,13 @@ type ubuntuDownloadManagerInterface struct{}
 
 func (iface *ubuntuDownloadManagerInterface) Name() string {
 	return "ubuntu-download-manager"
+}
+
+func (iface *ubuntuDownloadManagerInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              ubuntuDownloadManagerSummary,
+		BaseDeclarationSlots: ubuntuDownloadManagerBaseDeclarationSlots,
+	}
 }
 
 func (iface *ubuntuDownloadManagerInterface) String() string {

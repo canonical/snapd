@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"regexp"
+	"time"
 )
 
 // Repair holds an repair assertion which allows running repair
@@ -28,42 +29,55 @@ import (
 type Repair struct {
 	assertionBase
 
-	series []string
-	models []string
+	series        []string
+	architectures []string
+	models        []string
+
+	disabled  bool
+	timestamp time.Time
 }
 
 // BrandID returns the brand identifier that signed this assertion.
-func (em *Repair) BrandID() string {
-	return em.HeaderString("brand-id")
+func (r *Repair) BrandID() string {
+	return r.HeaderString("brand-id")
 }
 
 // RepairID returns the "id" of the repair. It should be a short string
 // that follows a convention like "REPAIR-123". Similar to a CVE there
 // should be a public place to look up details about the repair-id
 // (e.g. the snapcraft forum).
-func (em *Repair) RepairID() string {
-	return em.HeaderString("repair-id")
+func (r *Repair) RepairID() string {
+	return r.HeaderString("repair-id")
 }
 
-// Arch returns the architecture that this assertions applies to.
-// If the architecture is "all" it means it applies to all architecutres.
-func (em *Repair) Arch() string {
-	return em.HeaderString("arch")
+// Architectures returns the architectures that this assertions applies to.
+func (r *Repair) Architectures() []string {
+	return r.architectures
 }
 
 // Series returns the series that this assertion is valid for.
-func (em *Repair) Series() []string {
-	return em.series
+func (r *Repair) Series() []string {
+	return r.series
 }
 
 // Models returns the models that this assertion is valid for.
 // It is a list of "brand-id/model-name" strings.
-func (em *Repair) Models() []string {
-	return em.models
+func (r *Repair) Models() []string {
+	return r.models
+}
+
+// Disabled returns true if the repair has been disabled.
+func (r *Repair) Disabled() bool {
+	return r.disabled
+}
+
+// Timestamp returns the time when the repair was issued.
+func (r *Repair) Timestamp() time.Time {
+	return r.timestamp
 }
 
 // Implement further consistency checks.
-func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
 	// i.e. in the future repair code
 
@@ -73,15 +87,16 @@ func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Repair)(nil)
 
-// the repair-id can either be:
-// - repair-$ID
-// - $brand-$ID
-// - $brand_$model-$ID
-var validRepairID = regexp.MustCompile("^.*-[0-9]+$")
+// the repair-id can for now be a sequential number starting with 1
+var validRepairID = regexp.MustCompile("^[1-9][0-9]*$")
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
+		return nil, err
+	}
+
+	if _, err = checkStringMatchesWhat(assert.headers, "repair-id", "header", validRepairID); err != nil {
 		return nil, err
 	}
 
@@ -93,13 +108,27 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = checkStringMatchesWhat(assert.headers, "repair-id", "header", validRepairID); err != nil {
+	architectures, err := checkStringList(assert.headers, "architectures")
+	if err != nil {
+		return nil, err
+	}
+
+	disabled, err := checkOptionalBool(assert.headers, "disabled")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
 		return nil, err
 	}
 
 	return &Repair{
 		assertionBase: assert,
 		series:        series,
+		architectures: architectures,
 		models:        models,
+		disabled:      disabled,
+		timestamp:     timestamp,
 	}, nil
 }

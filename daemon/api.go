@@ -232,9 +232,9 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func formatRefreshTime(t time.Time) string {
 	if t.IsZero() {
-		return "n/a"
+		return ""
 	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -261,16 +261,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
-			"schedule": refreshScheduleStr,
-			"last":     formatRefreshTime(lastRefresh),
-			"next":     formatRefreshTime(nextRefresh),
+		"refresh": client.RefreshInfo{
+			Schedule: refreshScheduleStr,
+			Last:     formatRefreshTime(lastRefresh),
+			Next:     formatRefreshTime(nextRefresh),
 		},
-	}
-
-	// TODO: set the store-id here from the model information
-	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
-		m["store"] = storeID
 	}
 
 	return SyncResponse(m, nil)
@@ -321,7 +316,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindInvalidAuthData,
 				Value:   map[string][]string{"email": {"invalid"}},
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 
@@ -334,7 +329,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	case store.Err2faFailed:
 		return SyncResponse(&resp{
@@ -343,11 +338,11 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	default:
 		switch err := err.(type) {
-		case store.ErrInvalidAuthData:
+		case store.InvalidAuthDataError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -355,9 +350,9 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindInvalidAuthData,
 					Value:   err,
 				},
-				Status: http.StatusBadRequest,
+				Status: 400,
 			}, nil)
-		case store.ErrPasswordPolicy:
+		case store.PasswordPolicyError:
 			return SyncResponse(&resp{
 				Type: ResponseTypeError,
 				Result: &errorResult{
@@ -365,7 +360,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindPasswordPolicy,
 					Value:   err,
 				},
-				Status: http.StatusUnauthorized,
+				Status: 401,
 			}, nil)
 		}
 		return Unauthorized(err.Error())
@@ -430,8 +425,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	var macaroon string
 	var discharges []string
-	for _, field := range strings.Split(authorizationData[1], ",") {
-		field := strings.TrimSpace(field)
+	for _, field := range splitQS(authorizationData[1]) {
 		if strings.HasPrefix(field, `root="`) {
 			macaroon = strings.TrimSuffix(field[6:], `"`)
 		}
@@ -457,7 +451,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find %q snap", name)
+			return SnapNotFound(err)
 		}
 
 		return InternalError("%v", err)
@@ -609,7 +603,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
 		if err == store.ErrSnapNotFound {
-			return NotFound(err.Error())
+			return SnapNotFound(err)
 		}
 		return InternalError("%v", err)
 	}
@@ -713,13 +707,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	var wanted map[string]bool
 	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := strings.Split(ns, ",")
+		nsl := splitQS(ns)
 		wanted = make(map[string]bool, len(nsl))
 		for _, name := range nsl {
-			name = strings.TrimSpace(name)
-			if len(name) > 0 {
-				wanted[name] = true
-			}
+			wanted[name] = true
 		}
 	}
 
@@ -783,6 +774,7 @@ type snapInstruction struct {
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
+	Unaliased        bool          `json:"unaliased"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -795,6 +787,17 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
 	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
+func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
+	flags, err := inst.modeFlags()
+	if err != nil {
+		return snapstate.Flags{}, err
+	}
+	if inst.Unaliased {
+		flags.Unaliased = true
+	}
+	return flags, nil
 }
 
 var (
@@ -947,7 +950,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := inst.modeFlags()
+	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -1094,29 +1097,36 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	result := &errorResult{Message: err.Error()}
+	var kind errorKind
 
-	switch err := err.(type) {
-	case *snap.AlreadyInstalledError:
-		result.Kind = errorKindSnapAlreadyInstalled
-	case *snap.NotInstalledError:
-		result.Kind = errorKindSnapNotInstalled
-	case *snap.NoUpdateAvailableError:
-		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.ErrSnapNeedsDevMode:
-		result.Kind = errorKindSnapNeedsDevMode
-	case *snapstate.ErrSnapNeedsClassic:
-		result.Kind = errorKindSnapNeedsClassic
-	case *snapstate.ErrSnapNeedsClassicSystem:
-		result.Kind = errorKindSnapNeedsClassicSystem
+	switch err {
+	case store.ErrSnapNotFound:
+		return SnapNotFound(err)
+	case store.ErrNoUpdateAvailable:
+		kind = errorKindSnapNoUpdateAvailable
+	case store.ErrLocalSnap:
+		kind = errorKindSnapLocal
 	default:
-		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		switch err := err.(type) {
+		case *snap.AlreadyInstalledError:
+			kind = errorKindSnapAlreadyInstalled
+		case *snap.NotInstalledError:
+			kind = errorKindSnapNotInstalled
+		case *snapstate.SnapNeedsDevModeError:
+			kind = errorKindSnapNeedsDevMode
+		case *snapstate.SnapNeedsClassicError:
+			kind = errorKindSnapNeedsClassic
+		case *snapstate.SnapNeedsClassicSystemError:
+			kind = errorKindSnapNeedsClassicSystem
+		default:
+			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		}
 	}
 
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
-		Result: result,
-		Status: http.StatusBadRequest,
+		Result: &errorResult{Message: err.Error(), Kind: kind},
+		Status: 400,
 	}, nil)
 }
 
@@ -1198,7 +1208,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 				Message: err.Error(),
 				Kind:    errorKindNotSnap,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 	if err != nil {
@@ -1471,7 +1481,7 @@ func iconGet(st *state.State, name string) Response {
 	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find snap %q", name)
+			return SnapNotFound(err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1492,11 +1502,24 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
+func splitQS(qs string) []string {
+	qsl := strings.Split(qs, ",")
+	split := make([]string, 0, len(qsl))
+	for _, elem := range qsl {
+		elem = strings.TrimSpace(elem)
+		if len(elem) > 0 {
+			split = append(split, elem)
+		}
+	}
+
+	return split
+}
+
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := vars["name"]
 
-	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	keys := splitQS(r.URL.Query().Get("keys"))
 	if len(keys) == 0 {
 		return BadRequest("cannot obtain configuration: no keys supplied")
 	}
@@ -1510,7 +1533,11 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
-			return BadRequest("%s", err)
+			if config.IsNoOption(err) {
+				return BadRequest("%v", err)
+			} else {
+				return InternalError("%v", err)
+			}
 		}
 
 		currentConfValues[key] = value
@@ -1534,10 +1561,12 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err == state.ErrNoState {
-		return NotFound("cannot find %q snap", snapName)
-	} else if err != nil {
-		return InternalError("%v", err)
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		if err == state.ErrNoState {
+			return SnapNotFound(err)
+		} else {
+			return InternalError("%v", err)
+		}
 	}
 
 	taskset := configstate.Configure(st, snapName, patchValues, 0)
@@ -1693,7 +1722,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	// TODO: what more info do we want to return on success?
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 	}
 }
 
@@ -2183,7 +2212,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindLoginRequired,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
@@ -2192,7 +2221,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindTermsNotAccepted,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrNoPaymentMethods:
 		return SyncResponse(&resp{
@@ -2201,7 +2230,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindNoPaymentMethods,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrPaymentDeclined:
 		return SyncResponse(&resp{
@@ -2210,7 +2239,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindPaymentDeclined,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	default:
 		return InternalError("%v", err)
@@ -2228,17 +2257,25 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	switch a.Action {
 	case "ensure-state-soon":
-		st := c.d.overlord.State()
-		st.Lock()
-		defer st.Unlock()
 		ensureStateSoon(st)
+		return SyncResponse(true, nil)
+	case "get-base-declaration":
+		bd, err := assertstate.BaseDeclaration(st)
+		if err != nil {
+			return InternalError("cannot get base declaration: %s", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"base-declaration": string(asserts.Encode(bd)),
+		}, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
-
-	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2284,13 +2321,24 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
 			return BadRequest("error running snapctl: %s", err)
+		}
+	}
+
+	if context.IsEphemeral() {
+		context.Lock()
+		defer context.Unlock()
+		if err := context.Done(); err != nil {
+			return BadRequest(i18n.G("set failed: %v"), err)
 		}
 	}
 

@@ -19,6 +19,15 @@
 
 package builtin
 
+const x11Summary = `allows interacting with the X11 server`
+
+const x11BaseDeclarationSlots = `
+  x11:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
@@ -46,7 +55,10 @@ shutdown
 
 func init() {
 	registerIface(&commonInterface{
-		name: "x11",
+		name:                  "x11",
+		summary:               x11Summary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,

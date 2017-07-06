@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const framebufferSummary = `allows access to universal framebuffer devices`
+
+const framebufferBaseDeclarationSlots = `
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const framebufferConnectedPlugAppArmor = `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
@@ -41,6 +51,15 @@ type framebufferInterface struct{}
 // Getter for the name of the physical-memory-control interface
 func (iface *framebufferInterface) Name() string {
 	return "framebuffer"
+}
+
+func (iface *framebufferInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              framebufferSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: framebufferBaseDeclarationSlots,
+	}
 }
 
 func (iface *framebufferInterface) String() string {
