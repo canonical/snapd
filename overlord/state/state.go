@@ -27,6 +27,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,7 +51,9 @@ func (data customData) get(key string, value interface{}) error {
 	if entryJSON == nil {
 		return ErrNoState
 	}
-	err := json.Unmarshal(*entryJSON, value)
+	dec := json.NewDecoder(strings.NewReader(string(*entryJSON)))
+	dec.UseNumber()
+	err := dec.Decode(value)
 	if err != nil {
 		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
 	}
@@ -176,7 +179,9 @@ func (s *State) MarshalJSON() ([]byte, error) {
 func (s *State) UnmarshalJSON(data []byte) error {
 	s.writing()
 	var unmarshalled marshalledState
-	err := json.Unmarshal(data, &unmarshalled)
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
+	err := dec.Decode(&unmarshalled)
 	if err != nil {
 		return err
 	}
@@ -451,6 +456,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.Lock()
 	defer s.unlock()
 	d := json.NewDecoder(r)
+	d.UseNumber()
 	err := d.Decode(&s)
 	if err != nil {
 		return nil, err
