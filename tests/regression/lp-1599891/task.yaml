@@ -7,4 +7,4 @@ execute: |
     echo "Seeing that snap-confine is in $snap_confine"
 
     echo "I also see a corresponding apparmor profile"
-    cat "/sys/kernel/security/apparmor/profiles" | MATCH "$snap_confine \(enforce\)"
+    MATCH "$snap_confine \(enforce\)" < /sys/kernel/security/apparmor/profiles

@@ -31,6 +31,18 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const upowerObserveSummary = `allows operating as or reading from the UPower service`
+
+const upowerObserveBaseDeclarationSlots = `
+  upower-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - app
+    deny-connection:
+      on-classic: false
+`
+
 const upowerObservePermanentSlotAppArmor = `
 # Description: Allow operating as the UPower service.
 
@@ -207,6 +219,14 @@ type upowerObserveInterface struct{}
 
 func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
+}
+
+func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              upowerObserveSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
+	}
 }
 
 func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

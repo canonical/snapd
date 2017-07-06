@@ -43,16 +43,16 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
-			"checksumSHA1": "c1zgLuM2b+2vguxwz+XVMXPnXOY=",
-			"path": "github.com/mvo5/uboot-go",
-			"revision": "256976a42706934b027729183e3a5af2ae646502",
-			"revisionTime": "2017-05-16T08:01:36Z"
+			"checksumSHA1": "EoJqr2ZG7jODFsCnKwrn4JWRS+Y=",
+			"path": "github.com/mvo5/libseccomp-golang",
+			"revision": "84e1d1c75beaa58be6a76d2fc94d95eb8c1583b6",
+			"revisionTime": "2017-06-14T13:46:31Z"
 		},
 		{
-			"checksumSHA1": "tZT9rWgTJ61Y5VdqSCF9B3404mU=",
-			"path": "github.com/mvo5/uboot-go/uenv",
-			"revision": "256976a42706934b027729183e3a5af2ae646502",
-			"revisionTime": "2017-05-16T08:01:36Z"
+			"checksumSHA1": "4ZkAtTGnZIVrA5hUBCN/5+XdHYU=",
+			"path": "github.com/mvo5/net/bpf",
+			"revision": "0c0cd2628b36f2b053b7cc1ec04b76aab4c5189c",
+			"revisionTime": "2017-05-27T09:53:06Z"
 		},
 		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",

@@ -19,6 +19,22 @@
 
 package builtin
 
+const kubernetesSupportSummary = `allows operating as the Kubernetes service`
+
+const kubernetesSupportBaseDeclarationPlugs = `
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const kubernetesSupportBaseDeclarationSlots = `
+  kubernetes-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const kubernetesSupportConnectedPlugAppArmor = `
 # Description: can use kubernetes to control Docker containers. This interface
 # is restricted because it gives wide ranging access to the host and other
@@ -70,7 +86,12 @@ var kubernetesSupportConnectedPlugKmod = []string{`llc`, `stp`}
 
 func init() {
 	registerIface(&commonInterface{
-		name: "kubernetes-support",
+		name:                     "kubernetes-support",
+		summary:                  kubernetesSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
 		reservedForOS:            true,

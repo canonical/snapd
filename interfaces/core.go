@@ -71,7 +71,7 @@ func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Interfaces holds information about a list of plugs and slots, and their connections.
+// Interfaces holds information about a list of plugs and slots, their connections and interface meta-data.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
@@ -125,6 +125,39 @@ type Interface interface {
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// MetaData describes various meta-data of a given interface.
+//
+// The Summary must be a one-line string of length suitable for listing views.
+// The Description must describe the purpose of the interface in non-technical
+// terms. The DocumentationURL can point to website (e.g. a forum thread) that
+// goes into more depth and documents the interface in detail.
+type MetaData struct {
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	DocumentationURL string `json:"documentation-url,omitempty"`
+
+	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
+	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
+	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationPlugs string
+	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationSlots string
+}
+
+// IfaceMetaData returns the meta-data of the given interface.
+func IfaceMetaData(iface Interface) (md MetaData) {
+	type metaDataProvider interface {
+		MetaData() MetaData
+	}
+	if iface, ok := iface.(metaDataProvider); ok {
+		md = iface.MetaData()
+	}
+	return md
 }
 
 // Specification describes interactions between backends and interfaces.

@@ -75,12 +75,13 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
-// StartSnapServices starts service units for the applications from the snap which are services.
-func StartSnapServices(s *snap.Info, inter interacter) (err error) {
+// StartServices starts service units for the applications from the snap which are services.
+func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
-	for _, app := range s.Apps {
-		if app.Daemon == "" {
+	for _, app := range apps {
+		// they're *supposed* to be all services, but checking doesn't hurt
+		if !app.IsService() {
 			continue
 		}
 		if err := sysd.Start(app.ServiceName()); err != nil {
@@ -105,7 +106,7 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		if !app.IsService() {
 			continue
 		}
 		nservices++
@@ -133,14 +134,14 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-// StopSnapServices stops service units for the applications from the snap which are services.
-func StopSnapServices(s *snap.Info, inter interacter) error {
+// StopServices stops service units for the applications from the snap which are services.
+func StopServices(apps []*snap.AppInfo, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
-	for _, app := range s.Apps {
+	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
-		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		if err := stopService(sysd, app, inter); err != nil {
@@ -158,7 +159,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++
@@ -198,6 +199,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart={{.App.LauncherCommand}}
+SyslogIdentifier={{.App.Snap.Name}}.{{.App.Name}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}

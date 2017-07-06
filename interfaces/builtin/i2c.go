@@ -30,12 +30,30 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const i2cSummary = `allows access to specific I2C controller`
+
+const i2cBaseDeclarationSlots = `
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 // The type for i2c interface
 type i2cInterface struct{}
 
 // Getter for the name of the i2c interface
 func (iface *i2cInterface) Name() string {
 	return "i2c"
+}
+
+func (iface *i2cInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              i2cSummary,
+		BaseDeclarationSlots: i2cBaseDeclarationSlots,
+	}
 }
 
 func (iface *i2cInterface) String() string {

@@ -19,6 +19,16 @@
 
 package builtin
 
+const systemObserveSummary = `allows observing all processes and drivers`
+
+const systemObserveBaseDeclarationSlots = `
+  system-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
@@ -57,6 +67,8 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
 
+#include <abstractions/dbus-strict>
+
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
@@ -88,7 +100,11 @@ const systemObserveConnectedPlugSecComp = `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "system-observe",
+		name:                  "system-observe",
+		summary:               systemObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,

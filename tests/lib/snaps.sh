@@ -1,10 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 
 install_local() {
     local SNAP_NAME="$1"
     shift;
     local SNAP_FILE="$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
-    local SNAP_DIR=$(dirname "$SNAP_FILE")
+    local SNAP_DIR
+    # assigned in a separate step to avoid hiding a failure
+    SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
         snapbuild "$SNAP_DIR" "$SNAP_DIR"
     fi
@@ -31,7 +33,7 @@ mksnap_fast() {
 
 install_generic_consumer() {
     local INTERFACE_NAME="$1"
-    cp -ar $TESTSLIB/snaps/generic-consumer .
+    cp -ar "$TESTSLIB/snaps/generic-consumer" .
     sed "s/@INTERFACE@/$INTERFACE_NAME/" generic-consumer/meta/snap.yaml.in > generic-consumer/meta/snap.yaml
     snapbuild generic-consumer generic-consumer
     snap install --dangerous generic-consumer/*.snap

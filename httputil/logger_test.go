@@ -51,7 +51,7 @@ func (loggerSuite) TearDownTest(c *check.C) {
 func (s *loggerSuite) SetUpTest(c *check.C) {
 	os.Setenv("SNAPD_DEBUG", "true")
 	s.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.NewConsoleLog(s.logbuf, logger.DefaultFlags)
+	l, err := logger.New(s.logbuf, logger.DefaultFlags)
 	c.Assert(err, check.IsNil)
 	logger.SetLogger(l)
 }

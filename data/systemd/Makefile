@@ -20,7 +20,7 @@ LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
 SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} snapd.refresh.timer snapd.socket
+SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
 
 %.service: %.service.in
 	cat $< | \
@@ -34,6 +34,7 @@ all: ${SYSTEMD_UNITS}
 
 install: $(SYSTEMD_UNITS)
 	install -D -m 0644 -t ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR} $^
+	install -D -m 0755 -t ${DESTDIR}/${LIBEXECDIR}/snapd snapd.core-fixup.sh
 
 clean:
 	rm -f ${SYSTEMD_UNITS_GENERATED}

@@ -1,9 +1,5 @@
 summary: Ensure that the kernel-module-control interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
@@ -17,7 +13,7 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
-    snap install --edge test-snapd-kernel-module-control-consumer
+    snap install --edge test-snapd-kernel-module-consumer
     . $TESTSLIB/snaps.sh
     install_generic_consumer kernel-module-control
 
@@ -37,8 +33,8 @@ debug: |
     lsmod
 
 execute: |
-    CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-control-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-control-consumer:kernel-module-control"
+    CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-consumer"
+    DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
 
     echo "The plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
@@ -46,13 +42,13 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-kernel-module-control-consumer:kernel-module-control
+    snap connect test-snapd-kernel-module-consumer:kernel-module-control
     snap connect generic-consumer:kernel-module-control
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
 
     echo "Then the snap is able to list the existing modules"
-    [ $(su -l -c "test-snapd-kernel-module-control-consumer.lsmod" test | wc -l) -gt 2 ]
+    [ $(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l) -gt 2 ]
 
     echo "And the snap is able to insert a module"
     if lsmod | MATCH binfmt_misc; then
@@ -67,7 +63,7 @@ execute: |
         fi
     fi
     lsmod | MATCH -v binfmt_misc
-    test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
+    test-snapd-kernel-module-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
 
     echo "And the snap is able to read /sys/module"
     generic-consumer.cmd ls /sys/module | MATCH binfmt_misc
@@ -80,25 +76,29 @@ execute: |
     cat touch.error | MATCH "Permission denied"
 
     echo "And the snap is able to remove a module"
-    test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
+    test-snapd-kernel-module-consumer.rmmod binfmt_misc
     lsmod | MATCH -v binfmt_misc
+
+    if [ "$(snap debug confinement)" = none ] ; then
+        exit 0
+    fi
 
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-kernel-module-control-consumer:kernel-module-control
+    snap disconnect test-snapd-kernel-module-consumer:kernel-module-control
     snap disconnect generic-consumer:kernel-module-control
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to list modules"
-    if su -l -c "test-snapd-kernel-module-control-consumer.lsmod 2>${PWD}/list.error" test; then
+    if su -l -c "test-snapd-kernel-module-consumer.lsmod 2>${PWD}/list.error" test; then
         echo "Expected permission error listing modules with disconnected plug"
         exit 1
     fi
     cat list.error | MATCH "Permission denied"
 
     echo "And the snap is not able to insert a module"
-    if test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko; then
+    if test-snapd-kernel-module-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko; then
         echo "Expected permission error inserting module with disconnected plug"
         exit 1
     fi
@@ -108,7 +108,7 @@ execute: |
     lsmod | MATCH -v binfmt_misc
     insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
     lsmod | MATCH binfmt_misc
-    if test-snapd-kernel-module-control-consumer.rmmod binfmt_misc 2>${PWD}/remove.error; then
+    if test-snapd-kernel-module-consumer.rmmod binfmt_misc 2>${PWD}/remove.error; then
         echo "Expected permission error removing module with disconnected plug"
         exit 1
     fi

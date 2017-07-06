@@ -26,6 +26,18 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
+
+const pulseaudioBaseDeclarationSlots = `
+  pulseaudio:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const pulseaudioConnectedPlugAppArmor = `
 /{run,dev}/shm/pulse-shm-* mrwk,
 
@@ -115,6 +127,14 @@ type pulseAudioInterface struct{}
 
 func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
+}
+
+func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              pulseaudioSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
+	}
 }
 
 func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -19,6 +19,16 @@
 
 package builtin
 
+const networkObserveSummary = `allows querying network status`
+
+const networkObserveBaseDeclarationSlots = `
+  network-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-observe
 const networkObserveConnectedPlugAppArmor = `
 # Description: Can query network status information. This is restricted because
@@ -113,7 +123,11 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name: "network-observe",
+		name:                  "network-observe",
+		summary:               networkObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,

@@ -27,6 +27,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
+const locationControlSummary = `allows operating as the location service`
+
+const locationControlBaseDeclarationSlots = `
+  location-control:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const locationControlPermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -194,6 +205,13 @@ type locationControlInterface struct{}
 
 func (iface *locationControlInterface) Name() string {
 	return "location-control"
+}
+
+func (iface *locationControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              locationControlSummary,
+		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
+	}
 }
 
 func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
