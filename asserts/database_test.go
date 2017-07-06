@@ -503,6 +503,28 @@ func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {
+	aKey := testPrivKey2
+
+	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": aKey.PublicKey().ID(),
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+	}
+	acctKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, aKeyEncoded, aKey)
+	c.Assert(err, IsNil)
+
+	// this must fail
+	err = safs.db.Add(acctKey)
+	c.Check(err, ErrorMatches, `no matching public key.*`)
+}
+
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
