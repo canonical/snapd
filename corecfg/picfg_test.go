@@ -20,6 +20,7 @@
 package corecfg_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,9 +29,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type piCfgSuite struct{}
+type piCfgSuite struct {
+	mockConfigPath string
+}
 
 var _ = Suite(&piCfgSuite{})
 
@@ -45,80 +51,116 @@ var mockConfigTxt = `
 #disable_overscan=1
 unrelated_options=are-kept`
 
-func mockConfig(c *C, txt string) string {
-	mockConfig := filepath.Join(c.MkDir(), "config.txt")
-	err := ioutil.WriteFile(mockConfig, []byte(txt), 0644)
+func (s *piCfgSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	s.mockConfigPath = filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
+	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
 	c.Assert(err, IsNil)
-	return mockConfig
+	s.mockConfig(c, mockConfigTxt)
 }
 
-func checkMockConfig(c *C, mockConfig, expected string) {
-	newContent, err := ioutil.ReadFile(mockConfig)
+func (s *piCfgSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
+func (s *piCfgSuite) mockConfig(c *C, txt string) {
+	err := ioutil.WriteFile(s.mockConfigPath, []byte(txt), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
+	newContent, err := ioutil.ReadFile(s.mockConfigPath)
 	c.Assert(err, IsNil)
 	c.Check(string(newContent), Equals, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
-	mockConfig := mockConfig(c, mockConfigTxt)
-
-	err := corecfg.UpdatePiConfig(mockConfig, map[string]string{"disable_overscan": "1"})
+	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"disable_overscan": "1"})
 	c.Assert(err, IsNil)
 
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
-	checkMockConfig(c, mockConfig, expected)
+	s.checkMockConfig(c, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigCommentExisting(c *C) {
-	mockConfig := mockConfig(c, mockConfigTxt+"\navoid_warnings=1\n")
+	s.mockConfig(c, mockConfigTxt+"\navoid_warnings=1\n")
 
-	err := corecfg.UpdatePiConfig(mockConfig, map[string]string{"avoid_warnings": ""})
+	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""})
 	c.Assert(err, IsNil)
 
 	expected := mockConfigTxt + "\n" + "#avoid_warnings=1"
-	checkMockConfig(c, mockConfig, expected)
+	s.checkMockConfig(c, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
-	mockConfig := mockConfig(c, mockConfigTxt)
-
-	err := corecfg.UpdatePiConfig(mockConfig, map[string]string{"framebuffer_depth": "16"})
+	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"})
 	c.Assert(err, IsNil)
 
 	expected := mockConfigTxt + "\n" + "framebuffer_depth=16"
-	checkMockConfig(c, mockConfig, expected)
+	s.checkMockConfig(c, expected)
 
 	// add again, verify its not added twice but updated
-	err = corecfg.UpdatePiConfig(mockConfig, map[string]string{"framebuffer_depth": "32"})
+	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
 	expected = mockConfigTxt + "\n" + "framebuffer_depth=32"
-	checkMockConfig(c, mockConfig, expected)
+	s.checkMockConfig(c, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
-	mockConfig := mockConfig(c, mockConfigTxt)
-
-	st1, err := os.Stat(mockConfig)
+	st1, err := os.Stat(s.mockConfigPath)
 	c.Assert(err, IsNil)
 
-	err = corecfg.UpdatePiConfig(mockConfig, map[string]string{"hdmi_safe": ""})
+	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_safe": ""})
 	c.Assert(err, IsNil)
 
-	st2, err := os.Stat(mockConfig)
+	st2, err := os.Stat(s.mockConfigPath)
 	c.Assert(err, IsNil)
 
 	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
-	mockConfig := mockConfig(c, mockConfigTxt)
-
-	st1, err := os.Stat(mockConfig)
+	st1, err := os.Stat(s.mockConfigPath)
 	c.Assert(err, IsNil)
 
-	err = corecfg.UpdatePiConfig(mockConfig, map[string]string{"unrelated_options": "are-kept"})
+	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "are-kept"})
 	c.Assert(err, IsNil)
 
-	st2, err := os.Stat(mockConfig)
+	st2, err := os.Stat(s.mockConfigPath)
 	c.Assert(err, IsNil)
 
 	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
+}
+
+func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
+if [ "$1" = "get" ] && [ "$2" = "pi-config.disable-overscan" ]; then
+    echo "1"
+fi
+`))
+	defer mockSnapctl.Restore()
+
+	err := corecfg.Run()
+	c.Assert(err, IsNil)
+
+	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
+	s.checkMockConfig(c, expected)
+
+	// run again with the inverse result and ensure we are back
+	// as before
+	mockSnapctl = testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
+if [ "$1" = "get" ] && [ "$2" = "pi-config.disable-overscan" ]; then
+    echo ""
+fi
+`))
+	defer mockSnapctl.Restore()
+
+	err = corecfg.Run()
+	c.Assert(err, IsNil)
+
+	s.checkMockConfig(c, mockConfigTxt)
+
 }
