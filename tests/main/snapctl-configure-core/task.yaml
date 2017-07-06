@@ -1,0 +1,40 @@
+summary: Ensure "snapctl core-configure" works
+
+# the test is only meaningful on core devices
+systems: [ubuntu-core-*]
+
+prepare: |
+    cat > new-configure-core  <<EOF
+    #!/bin/sh
+    snapctl internal configure-core
+    EOF
+    chmod +x new-configure-core
+    mount -o bind new-configure-core /snap/core/current/meta/hooks/configure
+
+restore: |
+    umount /snap/core/current/meta/hooks/configure
+    systemctl enable rsyslog.service
+    systemctl start rsyslog.service
+    rm -f /etc/systemd/login.conf.d/00-snap-core.conf
+
+execute: |
+    echo "Check that service disable works"
+    systemctl status rsyslog.service|MATCH "Active: active"
+    snap set core service.rsyslog.disable=true
+    systemctl status rsyslog.service|MATCH "Active: inactive"
+    snap set core service.rsyslog.disable=false
+
+    
+    echo "Check that powerkey handling works"
+    snap set core system.power-key-action=reboot
+    cat /etc/systemd/logind.conf.d/00-snap-core.conf | MATCH HandlePowerKey=reboot
+    snap set core system.power-key-action=""
+
+    
+    echo "Check that pi config handline works"
+    if [ -e /boot/uboot/config.txt ]; then
+        snap set core pi-config.hdmi-mode=1
+        cat /boot/uboot/config.txt | MATCH ^hdmi_mode=1
+        snap set core pi-config.hdmi-mode=""
+        cat /boot/uboot/config.txt | MATCH ^#hdmi_mode=1
+    fi
