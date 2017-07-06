@@ -156,7 +156,9 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
+		dec := json.NewDecoder(strings.NewReader(parts[1]))
+		dec.UseNumber()
+		err := dec.Decode(&value)
 		if err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]

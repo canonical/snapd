@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -1386,7 +1387,9 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 	if !ok {
 		return state.ErrNoState
 	}
-	err = json.Unmarshal([]byte(*raw), &snapst)
+	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec.UseNumber()
+	err = dec.Decode(&snapst)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal snap state: %v", err)
 	}
