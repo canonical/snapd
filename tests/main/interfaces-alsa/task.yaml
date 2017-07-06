@@ -51,7 +51,7 @@ execute: |
     # TODO: extend test to check /var/lib/alsa with plug connected when
     # https://bugs.launchpad.net/snapd/+bug/1694281 is fixed
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         echo "Do not execute checks with disconnected plug on systems where confinement doesn't work"
         exit 0
     fi
