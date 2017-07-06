@@ -54,3 +54,22 @@ func switchDisableService(service, value string) error {
 		return fmt.Errorf("Invalid value %q provided for option %q", value, serviceName)
 	}
 }
+
+// services that can be disabled
+var services = []string{"ssh", "rsyslog"}
+
+func handleServiceDisableConfiguration() error {
+	for _, service := range services {
+		output, err := snapctlGet(fmt.Sprintf("service.%s.disable", service))
+		if err != nil {
+			return err
+		}
+		if output != "" {
+			if err := switchDisableService(service, output); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}

@@ -23,9 +23,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -117,5 +119,28 @@ func updatePiConfig(path string, config map[string]string) error {
 		return osutil.AtomicWriteFile(path, []byte(s), 0644, 0)
 	}
 
+	return nil
+}
+
+func piConfig() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
+}
+
+func handlePiConfiguration() error {
+	if osutil.FileExists(piConfig()) {
+		// snapctl can actually give us the whole dict in
+		// JSON, in a single call; use that instead of this.
+		config := map[string]string{}
+		for key := range piConfigKeys {
+			output, err := snapctlGet(fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
+			if err != nil {
+				return err
+			}
+			config[key] = output
+		}
+		if err := updatePiConfig(piConfig(), config); err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -24,11 +24,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-// can be overriden in tests
-var powerBtnCfg = "/etc/systemd/logind.conf.d/00-snap-core.conf"
+func powerBtnCfg() string {
+	return filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+}
 
 // switchHandlePowerKey change the behavor when the power key is pressed
 func switchHandlePowerKey(action string) error {
@@ -44,7 +46,7 @@ func switchHandlePowerKey(action string) error {
 		"lock":         true,
 	}
 
-	cfgDir := filepath.Dir(powerBtnCfg)
+	cfgDir := filepath.Dir(powerBtnCfg())
 	if !osutil.IsDirectory(cfgDir) {
 		if err := os.MkdirAll(cfgDir, 0755); err != nil {
 			return err
@@ -57,5 +59,18 @@ func switchHandlePowerKey(action string) error {
 	content := fmt.Sprintf(`[Login]
 HandlePowerKey=%s
 `, action)
-	return osutil.AtomicWriteFile(powerBtnCfg, []byte(content), 0644, 0)
+	return osutil.AtomicWriteFile(powerBtnCfg(), []byte(content), 0644, 0)
+}
+
+func handlePowerButtonConfiguration() error {
+	output, err := snapctlGet("system.power-key-action")
+	if err != nil {
+		return err
+	}
+	if output != "" {
+		if err := switchHandlePowerKey(output); err != nil {
+			return err
+		}
+	}
+	return nil
 }

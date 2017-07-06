@@ -24,9 +24,3 @@ var (
 	SwitchHandlePowerKey = switchHandlePowerKey
 	SwitchDisableService = switchDisableService
 )
-
-func MockPowerBtnCfg(s string) func() {
-	realPowerBtnCfg := powerBtnCfg
-	powerBtnCfg = s
-	return func() { powerBtnCfg = realPowerBtnCfg }
-}

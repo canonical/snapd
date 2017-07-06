@@ -35,9 +35,6 @@ var (
 	Stderr = os.Stderr
 )
 
-// services that can be disabled
-var services = []string{"ssh", "rsyslog"}
-
 // coreSupportAvailable checks that the system has the core-support
 // interface. An error is returned if this is not the case
 func coreSupportAvailable() error {
@@ -45,66 +42,37 @@ func coreSupportAvailable() error {
 	return err
 }
 
-func snapctlGet(key string) ([]byte, error) {
-	output, err := exec.Command("snapctl", "get", key).CombinedOutput()
+func snapctlGet(key string) (string, error) {
+	raw, err := exec.Command("snapctl", "get", key).CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("Cannot run snapctl: %s", osutil.OutputErr(output, err))
+		return "", fmt.Errorf("Cannot run snapctl: %s", osutil.OutputErr(raw, err))
 	}
+
+	output := strings.TrimRight(string(raw), "\n")
 	return output, nil
 }
 
 func Run() error {
+	// see if it makes sense to run at all
 	if release.OnClassic {
 		return fmt.Errorf("cannot run core-configure on classic distribution")
 	}
-
-	// see if it makes sense to run at all
 	if err := coreSupportAvailable(); err != nil {
 		return fmt.Errorf("Cannot run systemctl - is core-support available: %s\n", err)
 	}
 
-	// service handling
-	for _, service := range services {
-		output, err := snapctlGet(fmt.Sprintf("service.%s.disable", service))
-		if err != nil {
-			return err
-		}
-		value := strings.TrimSpace(string(output))
-		if value != "" {
-			if err := switchDisableService(service, value); err != nil {
-				return err
-			}
-		}
-	}
-
-	// system.power-key-action
-	output, err := snapctlGet("system.power-key-action")
-	if err != nil {
+	// handle the various core config options:
+	// service.*.disable
+	if err := handleServiceDisableConfiguration(); err != nil {
 		return err
 	}
-	value := strings.TrimSpace(string(output))
-	if value != "" {
-		if err := switchHandlePowerKey(value); err != nil {
-			return err
-		}
+	// system.power-key-action
+	if err := handlePowerButtonConfiguration(); err != nil {
+		return err
 	}
-
-	piConfig := "/boot/uboot/config.txt"
-	if osutil.FileExists(piConfig) {
-		// snapctl can actually give us the whole dict in
-		// JSON, in a single call; use that instead of this.
-		config := map[string]string{}
-		for key := range piConfigKeys {
-			output, err := snapctlGet(fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
-			if err != nil {
-				return err
-			}
-			value := strings.TrimSpace(string(output))
-			config[key] = string(value)
-		}
-		if err := updatePiConfig(piConfig, config); err != nil {
-			return err
-		}
+	// pi-config.*
+	if err := handlePiConfiguration(); err != nil {
+		return err
 	}
 
 	return nil

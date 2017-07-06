@@ -27,32 +27,53 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type powerbtnSuite struct{}
+type powerbtnSuite struct {
+	mockPowerBtnCfg string
+}
 
 var _ = Suite(&powerbtnSuite{})
 
-func (s *powerbtnSuite) TestConfigurePower(c *C) {
-	mockPowerBtnCfg := filepath.Join(c.MkDir(), "00-snap-core.conf")
-	restore := corecfg.MockPowerBtnCfg(mockPowerBtnCfg)
-	defer restore()
+func (s *powerbtnSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	s.mockPowerBtnCfg = filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+}
 
-	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
-		err := corecfg.SwitchHandlePowerKey(action)
-		c.Check(err, IsNil)
-
-		content, err := ioutil.ReadFile(mockPowerBtnCfg)
-		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
-	}
+func (s *powerbtnSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
-	mockPowerBtnCfg := filepath.Join(c.MkDir(), "00-snap-core.conf")
-	restore := corecfg.MockPowerBtnCfg(mockPowerBtnCfg)
-	defer restore()
-
 	err := corecfg.SwitchHandlePowerKey("invalid-action")
 	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)
+}
+
+func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
+
+		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
+if [ "$1" = "get" ] && [ "$2" = "system.power-key-action" ]; then
+    echo "%s"
+fi
+`, action))
+		defer mockSnapctl.Restore()
+
+		err := corecfg.Run()
+		c.Assert(err, IsNil)
+
+		// ensure nothing gets enabled/disabled when an unsupported
+		// service is set for disable
+		c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
+		content, err := ioutil.ReadFile(s.mockPowerBtnCfg)
+		c.Assert(err, IsNil)
+		c.Check(string(content), Equals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
+	}
+
 }
