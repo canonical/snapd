@@ -20,6 +20,8 @@
 package osutil
 
 import (
+	"io"
+	"os/exec"
 	"os/user"
 	"syscall"
 	"time"
@@ -78,3 +80,8 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 }
 
 var KillProcessGroup = killProcessGroup
+
+func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
+	wr := r.(*waitingReader)
+	return wr.reader, wr.cmd
+}

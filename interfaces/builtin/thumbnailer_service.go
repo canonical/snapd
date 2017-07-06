@@ -29,6 +29,15 @@ import (
 
 const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
 
+const thumbnailerServiceBaseDeclarationSlots = `
+  thumbnailer-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
+
 const thumbnailerServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_query_label API. This
 # discloses the AppArmor policy for all processes.
@@ -96,7 +105,8 @@ func (iface *thumbnailerServiceInterface) Name() string {
 
 func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: thumbnailerServiceSummary,
+		Summary:              thumbnailerServiceSummary,
+		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
 	}
 }
 

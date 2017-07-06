@@ -31,6 +31,14 @@ system. This interface gives access to sensitive information in the user's
 session.
 `
 
+const passwordManagerBaseDeclarationSlots = `
+  password-manager-service:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const passwordManagerServiceConnectedPlugAppArmor = `
 # Description: Allow access to password manager services provided by popular
 # Desktop Environments. This interface gives access to sensitive information
@@ -89,6 +97,7 @@ func init() {
 		summary:               passwordManagerServiceSummary,
 		description:           passwordManagerServiceDescription,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  passwordManagerBaseDeclarationSlots,
 		connectedPlugAppArmor: passwordManagerServiceConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -17,7 +17,7 @@ execute: |
     run_install --classic
     $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
-    if [ "$(snap debug confinement)" = none ]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 

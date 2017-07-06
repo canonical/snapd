@@ -21,6 +21,20 @@ package builtin
 
 const greengrassSupportSummary = `allows operating as the Greengrass service`
 
+const greengrassSupportBaseDeclarationPlugs = `
+  greengrass-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const greengrassSupportBaseDeclarationSlots = `
+  greengrass-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const greengrassSupportConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # interface is restricted because it gives wide ranging access to the host and
@@ -177,6 +191,8 @@ func init() {
 		summary:               greengrassSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  greengrassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:  greengrassSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:         true,

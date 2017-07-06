@@ -32,6 +32,15 @@ import (
 
 const serialPortSummary = `allows accessing a specific serial port`
 
+const serialPortBaseDeclarationSlots = `
+  serial-port:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // serialPortInterface is the type for serial port interfaces.
 type serialPortInterface struct{}
 
@@ -42,7 +51,8 @@ func (iface *serialPortInterface) Name() string {
 
 func (iface *serialPortInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: serialPortSummary,
+		Summary:              serialPortSummary,
+		BaseDeclarationSlots: serialPortBaseDeclarationSlots,
 	}
 }
 

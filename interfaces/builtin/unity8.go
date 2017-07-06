@@ -30,6 +30,19 @@ import (
 
 const unity8Summary = `allows operating as or interacting with Unity 8`
 
+const unity8BaseDeclarationPlugs = `
+  unity8:
+    allow-installation: false
+`
+
+const unity8BaseDeclarationSlots = `
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const unity8ConnectedPlugAppArmor = `
 # Description: Can access unity8 desktop services
 
@@ -92,7 +105,9 @@ func (iface *unity8Interface) Name() string {
 
 func (iface *unity8Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: unity8Summary,
+		Summary:              unity8Summary,
+		BaseDeclarationPlugs: unity8BaseDeclarationPlugs,
+		BaseDeclarationSlots: unity8BaseDeclarationSlots,
 	}
 }
 
