@@ -637,6 +637,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
 // before the feature of running snapctl outside of hooks was introduced, leading to a warning
 // from snap-confine).
+// It is the caller's responsibility to lock state before calling this function.
 func (m *SnapManager) GenerateCookies(st *state.State) error {
 	var snapNames map[string]*json.RawMessage
 	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {

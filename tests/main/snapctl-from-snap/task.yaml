@@ -15,7 +15,7 @@ execute: |
           echo "Cookie file $COOKIE_FILE is missing"
           exit 1
       fi
-      if [ $(stat -c%a $COOKIE_FILE) != "600" ]; then
+      if [ $(stat -c %a $COOKIE_FILE) != "600" ]; then
           echo "Incorrect permissions of file $COOKIE_FILE"
           exit 1
       fi
