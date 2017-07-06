@@ -56,8 +56,9 @@ func (s *cmdSuite) SetUpTest(c *C) {
 	s.lastExecArgv = nil
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
-	s.newCore = filepath.Join(s.fakeroot, "new")
-	s.oldCore = filepath.Join(s.fakeroot, "old")
+	dirs.SetRootDir(s.fakeroot)
+	s.newCore = filepath.Join(s.fakeroot, "/snap/core/42")
+	s.oldCore = filepath.Join(s.fakeroot, "/snap/ubuntu-core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
@@ -80,7 +81,7 @@ func (s *cmdSuite) fakeCoreVersion(c *C, coreDir, version string) {
 }
 
 func (s *cmdSuite) fakeInternalTool(c *C, coreDir, toolName string) string {
-	s.fakeCoreVersion(c, coreDir, "9999")
+	s.fakeCoreVersion(c, coreDir, "42")
 	p := filepath.Join(coreDir, "/usr/lib/snapd", toolName)
 	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
 
@@ -196,67 +197,27 @@ func (s *cmdSuite) TestCoreSupportsReExec(c *C) {
 	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, true)
 }
 
-func (s *cmdSuite) testInternalToolPathInCore(c *C, coreDir string) {
-	defer release.MockOnClassic(true)()
-	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
-	defer cmd.MockVersion("2")()
-
-	p := s.fakeInternalTool(c, coreDir, "potato")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, p)
-}
-
-func (s *cmdSuite) TestInternalToolPathInNewCore(c *C) {
-	defer cmd.MockCorePaths(s.oldCore, s.newCore)()
-	s.testInternalToolPathInCore(c, s.newCore)
-}
-
-func (s *cmdSuite) TestInternalToolPathInOldCore(c *C) {
-	defer cmd.MockCorePaths(s.oldCore, s.newCore)()
-	s.testInternalToolPathInCore(c, s.oldCore)
-}
-
-func (s *cmdSuite) TestInternalToolPathInBothPrefersNew(c *C) {
-	defer s.mockReExecingEnv()()
-
-	pNew := s.fakeInternalTool(c, s.newCore, "potato")
-	s.fakeInternalTool(c, s.oldCore, "potato")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, pNew)
-}
-
-func (s *cmdSuite) TestInternalToolPathDisabledByEnv(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
-	s.fakeInternalTool(c, s.newCore, "potato")
-
-	// but, disabled by env
-	os.Setenv("SNAP_REEXEC", "0")
-	defer os.Unsetenv("SNAP_REEXEC")
+func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
+	defer restore()
 
 	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathDisabledByDistro(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
+func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 	s.fakeInternalTool(c, s.newCore, "potato")
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(s.newCore, "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
 
-	// but, not on classic
-	defer release.MockOnClassic(false)()
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathInNewCoreDisabledByNoReExecSupportInCore(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
-	s.fakeInternalTool(c, s.newCore, "potato")
-
-	// but, older version
-	s.fakeCoreVersion(c, s.newCore, "0")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
+	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd")
 }
 
 func (s *cmdSuite) TestExecInCoreSnap(c *C) {
