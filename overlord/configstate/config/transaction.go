@@ -124,6 +124,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	if IsNoOption(err) {
 		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], result)
 	}
+
 	return err
 }
 
@@ -146,7 +147,9 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	if pos+1 == len(subkeys) {
-		err := json.Unmarshal([]byte(*raw), result)
+		dec := json.NewDecoder(strings.NewReader(string(*raw)))
+		dec.UseNumber()
+		err := dec.Decode(&result)
 		if err != nil {
 			key := strings.Join(subkeys, ".")
 			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
@@ -155,7 +158,9 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	var configm map[string]*json.RawMessage
-	err := json.Unmarshal([]byte(*raw), &configm)
+	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec.UseNumber()
+	err := dec.Decode(&configm)
 	if err != nil {
 		return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 	}
@@ -218,7 +223,9 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 			return jsonRaw(change)
 		}
 		var pristinem map[string]*json.RawMessage
-		if err := json.Unmarshal([]byte(*pristine), &pristinem); err != nil {
+		dec := json.NewDecoder(strings.NewReader(string(*pristine)))
+		dec.UseNumber()
+		if err := dec.Decode(&pristinem); err != nil {
 			// Not a map. Overwrite with the change.
 			return jsonRaw(change)
 		}

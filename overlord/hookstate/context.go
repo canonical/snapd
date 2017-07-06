@@ -22,6 +22,7 @@ package hookstate
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,7 +181,9 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	err := json.Unmarshal([]byte(*raw), &value)
+	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec.UseNumber()
+	err := dec.Decode(&value)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}

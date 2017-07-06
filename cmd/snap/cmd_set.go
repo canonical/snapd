@@ -70,7 +70,9 @@ func (x *cmdSet) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
+		dec := json.NewDecoder(strings.NewReader(parts[1]))
+		dec.UseNumber()
+		err := dec.Decode(&value)
 		if err == nil {
 			patchValues[parts[0]] = value
 		} else {
