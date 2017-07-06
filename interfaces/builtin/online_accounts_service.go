@@ -30,6 +30,14 @@ import (
 
 const onlineAccountsServiceSummary = `allows operating as the Online Accounts service`
 
+const onlineAccountsServiceBaseDeclarationSlots = `
+  online-accounts-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const onlineAccountsServicePermanentSlotAppArmor = `
 # Description: Allow operating as the Online Accounts service.
 
@@ -98,7 +106,8 @@ func (iface *onlineAccountsServiceInterface) Name() string {
 
 func (iface *onlineAccountsServiceInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: onlineAccountsServiceSummary,
+		Summary:              onlineAccountsServiceSummary,
+		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
 	}
 }
 

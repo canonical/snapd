@@ -32,6 +32,15 @@ import (
 
 const hidrawSummary = `allows access to specific hidraw device`
 
+const hidrawBaseDeclarationSlots = `
+  hidraw:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // hidrawInterface is the type for hidraw interfaces.
 type hidrawInterface struct{}
 
@@ -42,7 +51,8 @@ func (iface *hidrawInterface) Name() string {
 
 func (iface *hidrawInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: hidrawSummary,
+		Summary:              hidrawSummary,
+		BaseDeclarationSlots: hidrawBaseDeclarationSlots,
 	}
 }
 

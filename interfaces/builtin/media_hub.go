@@ -29,6 +29,16 @@ import (
 
 const mediaHubSummary = `allows operating as the media-hub service`
 
+const mediaHubBaseDeclarationSlots = `
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const mediaHubPermanentSlotAppArmor = `
 # Description: Allow operating as the the media-hub service.
 
@@ -154,7 +164,8 @@ func (iface *mediaHubInterface) Name() string {
 
 func (iface *mediaHubInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: mediaHubSummary,
+		Summary:              mediaHubSummary,
+		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
 	}
 }
 

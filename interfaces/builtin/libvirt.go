@@ -21,6 +21,14 @@ package builtin
 
 const libvirtSummary = `allows access to libvirt service`
 
+const libvirtBaseDeclarationSlots = `
+  libvirt:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
@@ -37,6 +45,7 @@ func init() {
 		name:                  "libvirt",
 		summary:               libvirtSummary,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  libvirtBaseDeclarationSlots,
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,

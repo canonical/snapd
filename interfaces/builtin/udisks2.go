@@ -31,6 +31,15 @@ import (
 
 const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
 
+const udisks2BaseDeclarationSlots = `
+  udisks2:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. This gives privileged access to
 # the system.
@@ -351,7 +360,8 @@ func (iface *udisks2Interface) Name() string {
 
 func (iface *udisks2Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: udisks2Summary,
+		Summary:              udisks2Summary,
+		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
 }
 

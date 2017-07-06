@@ -84,7 +84,7 @@ execute: |
         echo "test-snapd-tools.echo should fail with invalid seccomp profile"
         exit 1
     fi
-    echo $output | MATCH "prctl.*Invalid argument"
+    echo $output | MATCH "cannot apply seccomp profile: Invalid argument"
 
     echo "Add huge snapd.test-snapd-tools.bin to ensure size limit works"
     dd if=/dev/zero of=${PROFILE}.bin count=50 bs=1M
