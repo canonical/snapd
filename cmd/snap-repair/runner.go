@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Runner implements fetching, tracking and running repairs.
@@ -303,22 +304,13 @@ func stringList(headers map[string]interface{}, name string) ([]string, error) {
 	return r, nil
 }
 
-func inStringList(l []string, s string) bool {
-	for _, s1 := range l {
-		if s1 == s {
-			return true
-		}
-	}
-	return false
-}
-
 // Applicable returns whether a repair with the given headers is applicable to the device.
 func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	series, err := stringList(headers, "series")
 	if err != nil {
 		return false
 	}
-	if len(series) != 0 && !inStringList(series, release.Series) {
+	if len(series) != 0 && !strutil.ListContains(series, release.Series) {
 		return false
 	}
 	// TODO: architecture, model filtering
