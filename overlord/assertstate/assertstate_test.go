@@ -315,7 +315,7 @@ func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
 
 	// this must fail
 	err = batch.Commit(s.state)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
 }
 
 func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
