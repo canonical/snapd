@@ -21,6 +21,21 @@ package builtin
 
 const coreSupportSummary = `special permissions for the core snap`
 
+const coreSupportBaseDeclarationPlugs = `
+  core-support:
+    allow-installation:
+      plug-snap-type:
+        - core
+`
+
+const coreSupportBaseDeclarationSlots = `
+  core-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const coreSupportConnectedPlugAppArmor = `
 # Description: Can control all aspects of systemd via the systemctl command,
 # update rsyslog configuration, update systemd-timesyncd configuration and
@@ -78,10 +93,12 @@ owner /boot/uboot/config.txt.tmp rwk,
 
 func init() {
 	registerIface(&commonInterface{
-		name:              "core-support",
-		summary:           coreSupportSummary,
-		implicitOnCore:    true,
-		implicitOnClassic: true,
+		name:                 "core-support",
+		summary:              coreSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: coreSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: coreSupportBaseDeclarationSlots,
 		// NOTE: core-support implicitly contains the rules from network-bind.
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,

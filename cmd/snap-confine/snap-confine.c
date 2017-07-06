@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/classic.h"
@@ -40,6 +42,25 @@
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
+
+// sc_maybe_fixup_permissions fixes incorrect permissions
+// inside the mount namespace for /var/lib. Before 1ccce4
+// this directory was created with permissions 1777.
+void sc_maybe_fixup_permissions()
+{
+	struct stat buf;
+	if (stat("/var/lib", &buf) != 0) {
+		die("cannot stat /var/lib");
+	}
+	if ((buf.st_mode & 0777) == 0777) {
+		if (chmod("/var/lib", 0755) != 0) {
+			die("cannot chmod /var/lib");
+		}
+		if (chown("/var/lib", 0, 0) != 0) {
+			die("cannot chown /var/lib");
+		}
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -116,12 +137,6 @@ int main(int argc, char **argv)
 		    " permission escalation attacks");
 	}
 	// TODO: check for similar situation and linux capabilities.
-#ifdef HAVE_SECCOMP
-	scmp_filter_ctx seccomp_ctx
-	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
-	seccomp_ctx = sc_prepare_seccomp_context(security_tag);
-#endif				// ifdef HAVE_SECCOMP
-
 	if (geteuid() == 0) {
 		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
@@ -170,6 +185,11 @@ int main(int argc, char **argv)
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_close_ns_group(group);
+			// older versions of snap-confine created incorrect
+			// 777 permissions for /var/lib and we need to fixup
+			// for systems that had their NS created with an
+			// old version
+			sc_maybe_fixup_permissions();
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to
@@ -222,7 +242,7 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-	sc_load_seccomp_context(seccomp_ctx);
+	sc_apply_seccomp_bpf(security_tag);
 #endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);

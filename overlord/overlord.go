@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -73,6 +74,7 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
+	cmdMgr    *cmdstate.CommandManager
 }
 
 var storeNew = store.New
@@ -135,6 +137,9 @@ func New() (*Overlord, error) {
 	}
 	o.deviceMgr = deviceMgr
 	o.stateEng.AddManager(o.deviceMgr)
+
+	o.cmdMgr = cmdstate.Manager(s)
+	o.stateEng.AddManager(o.cmdMgr)
 
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
@@ -332,4 +337,9 @@ func (o *Overlord) HookManager() *hookstate.HookManager {
 // DeviceManager returns the device manager responsible for the device identity and policies
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
+}
+
+// CommandManager returns the manager responsible for running odd jobs
+func (o *Overlord) CommandManager() *cmdstate.CommandManager {
+	return o.cmdMgr
 }
