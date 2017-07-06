@@ -31,6 +31,13 @@ import (
 
 const unity7Summary = `allows interacting with Unity 7 services`
 
+const unity7BaseDeclarationSlots = `
+  unity7:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
@@ -193,6 +200,12 @@ dbus send
 /usr/share/mime/**                   r,
 owner @{HOME}/.local/share/mime/**   r,
 owner @{HOME}/.config/user-dirs.dirs r,
+
+# gtk settings (subset of gnome abstraction)
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+# Note: this leaks directory names that wouldn't otherwise be known to the snap
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
@@ -520,7 +533,9 @@ func (iface *unity7Interface) Name() string {
 
 func (iface *unity7Interface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: unity7Summary,
+		Summary:              unity7Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: unity7BaseDeclarationSlots,
 	}
 }
 

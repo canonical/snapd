@@ -21,6 +21,14 @@ package builtin
 
 const tpmSummary = `allows access to the Trusted Platform Module device`
 
+const tpmBaseDeclarationSlots = `
+  tpm:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const tpmConnectedPlugAppArmor = `
 # Description: for those who need to talk to the system TPM chip over /dev/tpm0
 
@@ -31,6 +39,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "tpm",
 		summary:               tpmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  tpmBaseDeclarationSlots,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

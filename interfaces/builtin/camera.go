@@ -21,6 +21,14 @@ package builtin
 
 const cameraSummary = `allows access to all cameras`
 
+const cameraBaseDeclarationSlots = `
+  camera:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
 /dev/video[0-9]* rw,
@@ -36,6 +44,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "camera",
 		summary:               cameraSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  cameraBaseDeclarationSlots,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

@@ -21,6 +21,14 @@ package builtin
 
 const hardwareObserveSummary = `allows reading information about system hardware`
 
+const hardwareObserveBaseDeclarationSlots = `
+  hardware-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
 # from the system. This is reserved because it allows reading potentially
@@ -85,6 +93,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "hardware-observe",
 		summary:               hardwareObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hardwareObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,

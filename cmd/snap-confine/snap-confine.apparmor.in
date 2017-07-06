@@ -89,10 +89,13 @@
     # change_profile unsafe /** -> **,
 
     # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
+
+    # ensuring correct permissions in sc_quirk_create_writable_mimic
+    /{tmp/snap.rootfs_*/,}var/lib/ rw,
 
     # LP: #1668659
     mount options=(rw rbind) /snap/ -> /snap/,
@@ -103,7 +106,7 @@
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
     # the next line is for classic system
-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/ -> /tmp/snap.rootfs_*/,
     # the next line is for core system
     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
     # all of the constructed rootfs is a rslave
@@ -263,6 +266,9 @@
 
     # Allow snap-confine to move to the void
     /var/lib/snapd/void/ r,
+
+    # Allow snap-confine to read snap contexts
+    /var/lib/snapd/context/snap.* r,
 
     # Support for the quirk system
     /var/ r,

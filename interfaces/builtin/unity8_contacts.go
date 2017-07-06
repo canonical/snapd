@@ -21,6 +21,15 @@ package builtin
 
 const unity8ContactsSummary = `allows operating as or interacting with the Unity 8 Contacts Service`
 
+const unity8ContactsBaseDeclarationSlots = `
+  unity8-contacts:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
+
 const unity8ContactsPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. This gives privileged access
 # to the system.
@@ -177,6 +186,7 @@ func init() {
 	registerIface(&unity8PimCommonInterface{
 		name:                  "unity8-contacts",
 		summary:               unity8ContactsSummary,
+		baseDeclarationSlots:  unity8ContactsBaseDeclarationSlots,
 		permanentSlotAppArmor: unity8ContactsPermanentSlotAppArmor,
 		connectedSlotAppArmor: unity8ContactsConnectedSlotAppArmor,
 		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,

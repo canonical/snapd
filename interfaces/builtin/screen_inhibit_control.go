@@ -21,6 +21,13 @@ package builtin
 
 const screenInhibitControlSummary = `allows inhibiting the screen saver`
 
+const screenInhibitBaseDeclarationSlots = `
+  screen-inhibit-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const screenInhibitControlConnectedPlugAppArmor = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
 #include <abstractions/dbus-session-strict>
@@ -69,6 +76,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "screen-inhibit-control",
 		summary:               screenInhibitControlSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  screenInhibitBaseDeclarationSlots,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

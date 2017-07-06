@@ -21,6 +21,14 @@ package builtin
 
 const netlinkAuditSummary = `allows access to kernel audit system through netlink`
 
+const netlinkAuditBaseDeclarationSlots = `
+  netlink-audit:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const netlinkAuditConnectedPlugSecComp = `
 # Description: Can use netlink to read/write to kernel audit system.
 bind
@@ -31,6 +39,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                 "netlink-audit",
 		summary:              netlinkAuditSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: netlinkAuditBaseDeclarationSlots,
 		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
 		reservedForOS:        true,
 	})

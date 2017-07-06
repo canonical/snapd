@@ -21,6 +21,14 @@ package builtin
 
 const bluetoothControlSummary = `allows managing the kernel bluetooth stack`
 
+const bluetoothControlBaseDeclarationSlots = `
+  bluetooth-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
 # because this gives privileged access to the system.
@@ -52,6 +60,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "bluetooth-control",
 		summary:               bluetoothControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  bluetoothControlBaseDeclarationSlots,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
 		reservedForOS:         true,

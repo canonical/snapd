@@ -21,6 +21,14 @@ package builtin
 
 const avahiObserveSummary = `allows discovering local domains, hostnames and services`
 
+const avahiObserveBaseDeclarationSlots = `
+  avahi-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain browsing, service browsing and service resolving
 
@@ -117,6 +125,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "avahi-observe",
 		summary:               avahiObserveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  avahiObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
