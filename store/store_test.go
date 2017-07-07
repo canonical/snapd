@@ -3566,18 +3566,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		var resp struct {
-			Snaps []map[string]interface{} `json:"snaps"`
-		}
-
-		err = json.Unmarshal(jsonReq, &resp)
-		c.Assert(err, IsNil)
-
-		// XXX actually why hit the network here
-		c.Assert(resp.Snaps, HasLen, 0)
-		io.WriteString(w, `{}`)
+		c.Fatal("no network request expected")
 	}))
 
 	c.Assert(mockServer, NotNil)
