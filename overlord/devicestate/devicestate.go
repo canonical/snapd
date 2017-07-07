@@ -95,16 +95,9 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
-	_, err := Model(st)
-	if err == state.ErrNoState {
-		// no model, no need to wait for a serial
-		// can happen only on classic
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
+	// we now try to get a serial everywhere, core and classic
+	// and even if there's no seeded model, using a dummy model
+	// in that case.
 	// either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
 	// least upgrade core if that can help
@@ -112,7 +105,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	_, err = Serial(st)
+	_, err := Serial(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}

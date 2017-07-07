@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -148,30 +149,82 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	// conditions to trigger device registration
+	//
+	// * have a model assertion with a gadget (core and
+	//   device-like classic) in which case we need also to wait
+	//   for the gadget to have been installed though
+	// * classic with a model assertion with a non-default store specified
+	// * lazy classic case (might have a model with no gadget nor store
+	//   or no model): we wait to have some snaps installed or be
+	//   in the process to install some
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	if device.Brand == "" || device.Model == "" {
-		// cannot proceed until seeding has loaded the model
-		// assertion and set the brand and model, that is
-		// optional on classic
-		// TODO: later we can check if
-		// "seeded" was set and we still don't have a brand/model
-		// and use a fallback assertion
-		return nil
+		if !release.OnClassic || !seeded {
+			return nil
+		}
+		// we are on classic and seeded but there is no model:
+		// use a dummy model!
+		// TODO: have a real matching model assertion?  use a
+		// different brand (requires store support!)?
+		device.Brand = "canonical"
+		device.Model = "generic-classic"
+		err := auth.SetDevice(m.state, device)
+		if err != nil {
+			return err
+		}
 	}
 
 	if m.changeInFlight("become-operational") {
 		return nil
 	}
 
-	// TODO: make presence of gadget optional on classic? that is
-	// sensible only for devices that the store can give directly
-	// serials to and when we will have a general fallback
-	gadgetInfo, err := snapstate.GadgetInfo(m.state)
-	if err == state.ErrNoState {
-		// no gadget installed yet, cannot proceed
-		return nil
-	}
-	if err != nil {
+	var storeID, gadget string
+	model, err := Model(m.state)
+	if err != nil && err != state.ErrNoState {
 		return err
+	}
+	if err == nil {
+		gadget = model.Gadget()
+		storeID = model.Store()
+	} else {
+		if !release.OnClassic {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
+	}
+
+	if gadget == "" && storeID == "" {
+		// classic: if we have no gadget and no non-default store
+		// wait to have snaps or snap installation
+
+		// TODO: implement snapstate.NumSnaps!
+		all, err := snapstate.All(m.state)
+		if err != nil {
+			return err
+		}
+		if len(all) == 0 && !snapstate.Installing(m.state) {
+			return nil
+		}
+	}
+
+	// if there's a gadget specified wait for it
+	var gadgetInfo *snap.Info
+	if gadget != "" {
+		var err error
+		gadgetInfo, err = snapstate.GadgetInfo(m.state)
+		if err == state.ErrNoState {
+			// no gadget installed yet, cannot proceed
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	// have some backoff between full retries
@@ -188,7 +241,7 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks := []*state.Task{}
 
 	var prepareDevice *state.Task
-	if gadgetInfo.Hooks["prepare-device"] != nil {
+	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
 			Snap: gadgetInfo.Name(),

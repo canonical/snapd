@@ -137,7 +137,14 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
+	// seeded
 	st.Set("seeded", true)
+	// registred
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "generic-classic",
+		Serial: "serialserial",
+	})
 	st.Unlock()
 
 	ms.serveIDtoName = make(map[string]string)

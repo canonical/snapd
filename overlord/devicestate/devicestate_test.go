@@ -231,8 +231,15 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			c.Assert(ok, Equals, true)
 			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
 			c.Assert(err, IsNil)
-			c.Check(serialReq.BrandID(), Equals, "canonical")
-			c.Check(serialReq.Model(), Equals, "pc")
+			brandID := serialReq.BrandID()
+			model := serialReq.Model()
+			c.Check(brandID, Equals, "canonical")
+			switch model {
+			case "pc", "pc2":
+			case "generic-classic", "classic-alt-store":
+			default:
+				c.Fatal("unknown model")
+			}
 			reqID := serialReq.RequestID()
 			if reqID == "REQID-BADREQ" {
 				w.Header().Set("Content-Type", "application/json")
@@ -252,8 +259,8 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 				serialStr = serialReq.Serial()
 			}
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
-				"brand-id":            "canonical",
-				"model":               "pc",
+				"brand-id":            brandID,
+				"model":               model,
 				"serial":              serialStr,
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
@@ -315,15 +322,108 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setupGadget(c, `
-name: gadget
-type: gadget
-version: gadget
-`, "")
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// not started without gadget
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Check(becomeOperational, IsNil)
+
+	s.setupGadget(c, `
+name: pc
+type: gadget
+version: gadget
+`, "")
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	s.reqID = "REQID-1"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer r2()
+
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer r3()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]string{
+		"classic": "true",
+		"store":   "alt-store",
+	})
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "classic-alt-store",
 	})
 
 	// avoid full seeding
@@ -349,12 +449,94 @@ version: gadget
 	device, err := auth.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
-	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Model, Equals, "classic-alt-store")
 	c.Check(device.Serial, Equals, "9999")
 
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
-		"model":    "pc",
+		"model":    "classic-alt-store",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	s.reqID = "REQID-1"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer r2()
+
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer r3()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// not started without some installation happening or happened
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Check(becomeOperational, IsNil)
+
+	// have a in-progress installation
+	inst := s.state.NewChange("install", "...")
+	task := s.state.NewTask("mount-snap", "...")
+	inst.AddTask(task)
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "generic-classic")
+	c.Check(device.Serial, Equals, "9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "generic-classic",
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
@@ -529,16 +711,22 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setupGadget(c, `
-name: gadget
-type: gadget
-version: gadget
-`, "")
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
+
+	s.setupGadget(c, `
+name: pc
+type: gadget
+version: gadget
+`, "")
 
 	// avoid full seeding
 	s.seeding()
@@ -622,6 +810,12 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
 	s.setupGadget(c, `
 name: gadget
 type: gadget
@@ -629,9 +823,10 @@ version: gadget
 hooks:
     prepare-device:
 `, "")
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
-		Model: "pc",
+		Model: "pc2",
 	})
 
 	// avoid full seeding
@@ -657,12 +852,12 @@ hooks:
 	device, err := auth.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
-	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Model, Equals, "pc2")
 	c.Check(device.Serial, Equals, "Y9999")
 
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
-		"model":    "pc",
+		"model":    "pc2",
 		"serial":   "Y9999",
 	})
 	c.Assert(err, IsNil)
@@ -706,16 +901,22 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	// sanity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
-	s.setupGadget(c, `
-name: gadget
-type: gadget
-version: gadget
-`, "")
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
+
+	s.setupGadget(c, `
+name: pc
+type: gadget
+version: gadget
+`, "")
 
 	// avoid full seeding
 	s.seeding()
@@ -1532,7 +1733,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 
 	// seeded, no model -> auto-refresh
 	s.state.Set("seeded", true)
-	c.Check(canAutoRefresh(), Equals, true)
+	c.Check(canAutoRefresh(), Equals, false)
 
 	// seeded, model, no serial -> no auto-refresh
 	auth.SetDevice(s.state, &auth.DeviceState{
@@ -1551,6 +1752,47 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 		Serial: "8989",
 	})
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+	c.Check(canAutoRefresh(), Equals, true)
+
+	// not seeded, model, serial -> no auto-refresh
+	s.state.Set("seeded", false)
+	c.Check(canAutoRefresh(), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshOnClassicDummyModel(c *C) {
+	release.OnClassic = true
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	canAutoRefresh := func() bool {
+		ok, err := devicestate.CanAutoRefresh(s.state)
+		c.Assert(err, IsNil)
+		return ok
+	}
+
+	// not seeded, no model, no serial -> no auto-refresh
+	s.state.Set("seeded", false)
+	c.Check(canAutoRefresh(), Equals, false)
+
+	// seeded, no model -> auto-refresh
+	s.state.Set("seeded", true)
+	c.Check(canAutoRefresh(), Equals, false)
+
+	// seeded, dummy model (no assertion), no serial -> no auto-refresh
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "generic-classic",
+	})
+	c.Check(canAutoRefresh(), Equals, false)
+
+	// seeded, model, serial -> auto-refresh
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "generic-classic",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "generic-classic", "8989")
 	c.Check(canAutoRefresh(), Equals, true)
 
 	// not seeded, model, serial -> no auto-refresh
