@@ -378,8 +378,8 @@ type OSRelease struct {
 
 type RefreshInfo struct {
 	Schedule string `json:"schedule"`
-	Last     string `json:"last"`
-	Next     string `json:"next"`
+	Last     string `json:"last,omitempty"`
+	Next     string `json:"next,omitempty"`
 }
 
 // SysInfo holds system information
@@ -392,7 +392,8 @@ type SysInfo struct {
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh RefreshInfo `json:"refresh,omitempty"`
+	Refresh     RefreshInfo `json:"refresh,omitempty"`
+	Confinement string      `json:"confinement"`
 }
 
 func (rsp *response) err() error {

@@ -21,6 +21,15 @@ package builtin
 
 const homeSummary = `allows access to non-hidden files in the home directory`
 
+const homeBaseDeclarationSlots = `
+  home:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection:
+      on-classic: false
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
 const homeConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's $HOME. This is restricted
@@ -52,6 +61,7 @@ func init() {
 		summary:               homeSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  homeBaseDeclarationSlots,
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

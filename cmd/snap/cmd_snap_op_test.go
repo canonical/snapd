@@ -545,7 +545,7 @@ func (s *SnapSuite) TestRefreshTime(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25 17:35:00 +0200 CEST", "next": "2017-04-26 00:58:00 +0200 CEST"}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -556,8 +556,8 @@ func (s *SnapSuite) TestRefreshTime(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `schedule: 00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59
-last: 2017-04-25 17:35:00 +0200 CEST
-next: 2017-04-26 00:58:00 +0200 CEST
+last: 2017-04-25T17:35:00+0200
+next: 2017-04-26T00:58:00+0200
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit

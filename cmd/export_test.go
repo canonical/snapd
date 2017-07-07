@@ -50,3 +50,11 @@ func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err err
 		syscallExec = oldSyscallExec
 	}
 }
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = realOsReadlink
+	}
+}

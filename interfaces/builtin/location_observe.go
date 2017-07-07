@@ -29,6 +29,15 @@ import (
 
 const locationObserveSummary = `allows access to the current physical location`
 
+const locationObserveBaseDeclarationSlots = `
+  location-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const locationObservePermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -254,7 +263,8 @@ func (iface *locationObserveInterface) Name() string {
 
 func (iface *locationObserveInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: locationObserveSummary,
+		Summary:              locationObserveSummary,
+		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
 	}
 }
 
