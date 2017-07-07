@@ -17,7 +17,7 @@ func (estore *EnterpriseStore) OperatorID() string {
 	return estore.HeaderString("operator-id")
 }
 
-// Store returns the name of the operator's enterprise store.
+// Store returns the identifying name of the operator's enterprise store.
 func (estore *EnterpriseStore) Store() string {
 	return estore.HeaderString("store")
 }
