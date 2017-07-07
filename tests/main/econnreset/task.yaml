@@ -28,13 +28,13 @@ execute: |
     iptables -I OUTPUT -m owner --uid-owner $(id -u test) -j REJECT -p tcp --reject-with tcp-reset
 
     echo "Check that we retried"
-    for i in $(seq 10); do
-        if [ cat snap-download.log | MATCH "Retrying.*\.snap, attempt 2" ]; then
+    for i in $(seq 20); do
+        if MATCH "Retrying.*\.snap, attempt 2" < snap-download.log; then
             break
         fi
-        sleep 1
+        sleep .5
     done
-    cat snap-download.log | MATCH "Retrying.*\.snap, attempt 2"
+    MATCH "Retrying.*\.snap, attempt 2" < snap-download.log
 
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
