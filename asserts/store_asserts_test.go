@@ -1,6 +1,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ func (estores *enterpriseStoreSuite) SetUpSuite(c *C) {
 		"authority-id: canonical\n" +
 		"operator-id: op-id1\n" +
 		"store: store1\n" +
-		"address: store.example.com\n" +
+		"address: https://store.example.com\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
 		"AXNpZw=="
@@ -33,7 +34,7 @@ func (estores *enterpriseStoreSuite) TestDecodeOK(c *C) {
 
 	c.Check(estore.OperatorID(), Equals, "op-id1")
 	c.Check(estore.Store(), Equals, "store1")
-	c.Check(estore.Address(), Equals, "store.example.com")
+	c.Check(estore.Address().String(), Equals, "https://store.example.com")
 }
 
 var eStoreErrPrefix = "assertion enterprise-store: "
@@ -44,14 +45,56 @@ func (estores *enterpriseStoreSuite) TestDecodeInvalidHeaders(c *C) {
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"store: store1\n", "", `"store" header is mandatory`},
 		{"store: store1\n", "store: \n", `"store" header should not be empty`},
-		{"address: store.example.com\n", "", `"address" header is mandatory`},
-		{"address: store.example.com\n", "address: \n", `"address" header should not be empty`},
+		{"address: https://store.example.com\n", "", `"address" header is mandatory`},
+		{"address: https://store.example.com\n", "address: \n", `"address" header should not be empty`},
 	}
 
 	for _, test := range tests {
 		invalid := strings.Replace(estores.validExample, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, eStoreErrPrefix+test.expectedErr)
+	}
+}
+
+func (estores *enterpriseStoreSuite) TestAddress(c *C) {
+	tests := []struct {
+		address string
+		err     string
+	}{
+		// Valid addresses.
+		{"http://example.com/", ""},
+		{"https://example.com/", ""},
+		{"https://example.com/some/path/", ""},
+		{"https://example.com:443/", ""},
+		{"https://example.com:1234/", ""},
+		{"https://user:pass@example.com/", ""},
+		{"https://token@example.com/", ""},
+
+		// Invalid addresses.
+		{"://example.com", `"address" header must be a valid URL`},
+		{"example.com", `"address" header scheme must be "https" or "http"`},
+		{"//example.com", `"address" header scheme must be "https" or "http"`},
+		{"ftp://example.com", `"address" header scheme must be "https" or "http"`},
+		{"mailto:someone@example.com", `"address" header scheme must be "https" or "http"`},
+		{"https://", `"address" header must have a host`},
+		{"https:///", `"address" header must have a host`},
+		{"https:///some/path", `"address" header must have a host`},
+		{"https://example.com/?foo=bar", `"address" header must not have a query`},
+		{"https://example.com/#fragment", `"address" header must not have a fragment`},
+	}
+
+	for _, test := range tests {
+		encoded := strings.Replace(
+			estores.validExample, "address: https://store.example.com\n",
+			fmt.Sprintf("address: %s\n", test.address), 1)
+		assert, err := asserts.Decode([]byte(encoded))
+		if test.err != "" {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, eStoreErrPrefix+test.err+": "+test.address)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(assert.(*asserts.EnterpriseStore).Address().String(), Equals, test.address)
+		}
 	}
 }
 
@@ -72,7 +115,7 @@ func (estores *enterpriseStoreSuite) TestCheckAuthority(c *C) {
 	estoreHeaders := map[string]interface{}{
 		"operator-id": operator.HeaderString("account-id"),
 		"store":       "store1",
-		"address":     "store.example.com",
+		"address":     "https://store.example.com",
 	}
 
 	// enterprise-store signed by some other account fails.
@@ -95,7 +138,7 @@ func (estores *enterpriseStoreSuite) TestCheckOperatorAccount(c *C) {
 	assert, err := storeDB.Sign(asserts.EnterpriseStoreType, map[string]interface{}{
 		"operator-id": "op-id1",
 		"store":       "store1",
-		"address":     "store.example.com",
+		"address":     "https://store.example.com",
 	}, nil, "")
 	c.Assert(err, IsNil)
 
