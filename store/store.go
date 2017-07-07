@@ -303,6 +303,8 @@ func assertsURL(storeBaseURI *url.URL) string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
+	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
+	// new bulk-friendly APIs are designed and implemented.
 	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
 }
 
@@ -337,14 +339,21 @@ func init() {
 		panic(err)
 	}
 
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
 	defaultConfig.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
 	// slash at the end because snap name is appended to this with .Parse(snapName)
 	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
 	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+
 	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+
 	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
 	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
-	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
 }
 
 type searchResults struct {
