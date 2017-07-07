@@ -6,7 +6,7 @@ restore: |
     rm basic-hooks_1.0_all.snap
 
 execute: |
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

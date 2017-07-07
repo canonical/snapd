@@ -161,6 +161,9 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.system-shutdown.service
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_systemd_start:
 	# we want to start the auto-update timer
@@ -183,6 +186,9 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
+	dh_systemd_start \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build

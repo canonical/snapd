@@ -645,8 +645,16 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	}
 
 	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
-	fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
-	fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	if sysinfo.Refresh.Last != "" {
+		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
+	} else {
+		fmt.Fprintf(Stdout, "last: n/a\n")
+	}
+	if sysinfo.Refresh.Next != "" {
+		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	} else {
+		fmt.Fprintf(Stdout, "next: n/a\n")
+	}
 	return nil
 }
 

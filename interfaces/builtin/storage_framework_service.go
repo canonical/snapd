@@ -30,6 +30,15 @@ import (
 
 const storageFrameworkServiceSummary = `allows operating as or interacting with the Storage Framework`
 
+const storageFrameworkServiceBaseDeclarationSlots = `
+  storage-framework-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const storageFrameworkServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_is_enabled()
 
@@ -111,7 +120,8 @@ func (iface *storageFrameworkServiceInterface) Name() string {
 
 func (iface *storageFrameworkServiceInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: storageFrameworkServiceSummary,
+		Summary:              storageFrameworkServiceSummary,
+		BaseDeclarationSlots: storageFrameworkServiceBaseDeclarationSlots,
 	}
 }
 

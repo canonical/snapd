@@ -1,4 +1,5 @@
 #!/bin/bash
+
 gadget_name=$(snap list | sed -n 's/^\(pc\|pi[23]\|dragonboard\) .*/\1/p')
 kernel_name=$gadget_name-kernel
 

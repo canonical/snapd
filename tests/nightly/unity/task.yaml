@@ -24,7 +24,7 @@ execute: |
     snap install ubuntu-clock-app
 
     echo "When the app is started"
-    systemd-run --unit unity-app --setenv=DISPLAY=$DISPLAY --uid $(id -u test) $(which xvfb-run) --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" $(which ubuntu-clock-app.clock)
+    systemd-run --unit unity-app --setenv=DISPLAY="$DISPLAY" --uid "$(id -u test)" "$(which xvfb-run)" --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" "$(which ubuntu-clock-app.clock)"
 
     echo "Then the app window is created"
     expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"

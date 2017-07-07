@@ -29,6 +29,14 @@ import (
 
 const framebufferSummary = `allows access to universal framebuffer devices`
 
+const framebufferBaseDeclarationSlots = `
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const framebufferConnectedPlugAppArmor = `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
@@ -47,9 +55,10 @@ func (iface *framebufferInterface) Name() string {
 
 func (iface *framebufferInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           framebufferSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              framebufferSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: framebufferBaseDeclarationSlots,
 	}
 }
 
