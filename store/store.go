@@ -304,7 +304,7 @@ func assertsURL(storeBaseURI *url.URL) string {
 		return u
 	}
 	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
-	// new bulk-friendly APIs are designed and implemented.
+	// once new bulk-friendly APIs are designed and implemented.
 	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
 }
 
