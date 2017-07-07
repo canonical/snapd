@@ -22,6 +22,11 @@ execute: |
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"
+    # wait for steady state or ensure-state-soon will be pointless
+    while snap changes|grep ".*.Doing.*"; do
+        snap changes
+        sleep .5
+    done
     snap debug ensure-state-soon
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do

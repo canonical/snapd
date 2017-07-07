@@ -33,6 +33,11 @@ execute: |
     snap list | MATCH "core "
 
     echo "Ensure transition is triggered"
+    # wait for steady state or ensure-state-soon will be pointless
+    while snap changes|grep ".*.Doing.*"; do
+        snap changes
+        sleep .5
+    done
     snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh
