@@ -328,6 +328,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	if storeBaseURI.RawQuery != "" {
+		panic("store API URL may not contain query string")
+	}
 
 	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
 	if err != nil {
