@@ -302,7 +302,27 @@ func trustedBackstore(trusted []asserts.Assertion) asserts.Backstore {
 	return trustedBS
 }
 
-func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trustedKeys asserts.Backstore) error {
+func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
+	switch a.Type() {
+	case asserts.AccountKeyType, asserts.AccountType:
+	default:
+		return nil
+	}
+	acctID := a.AuthorityID()
+	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
+	if err != nil && err != asserts.ErrNotFound {
+		return err
+	}
+	if err == asserts.ErrNotFound {
+		return fmt.Errorf("%v not signed by trusted authority: %s", a.Ref(), acctID)
+	}
+	return nil
+}
+
+func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted asserts.Backstore) error {
+	if err := checkAuthorityID(a, trusted); err != nil {
+		return err
+	}
 	acctKeyMaxSuppFormat := asserts.AccountKeyType.MaxSupportedFormat()
 
 	seen := make(map[string]bool)
@@ -319,7 +339,7 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trustedKeys
 			return err
 		}
 		if err == asserts.ErrNotFound {
-			key, err = trustedKeys.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+			key, err = trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
 			if err != nil && err != asserts.ErrNotFound {
 				return err
 			}
@@ -327,6 +347,10 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trustedKeys
 				return fmt.Errorf("cannot find public key %q", signKey[0])
 			}
 			bottom = true
+		} else {
+			if err := checkAuthorityID(key, trusted); err != nil {
+				return err
+			}
 		}
 		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}); err != nil {
 			return err
