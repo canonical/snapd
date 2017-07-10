@@ -4145,7 +4145,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -4153,11 +4153,11 @@ var buyTests = []struct {
 		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
 		buyStatus:         404,
 		buyErrorCode:      "not-found",
-		buyErrorMessage:   "Not found",
+		buyErrorMessage:   "Snap package not found",
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found: Snap package not found",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -4167,6 +4167,24 @@ var buyTests = []struct {
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
 		expectedError:     "payment declined",
+	},
+	{
+		// failure due to no payment methods
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "no-payment-methods",
+		buyErrorMessage:   "No payment methods associated with your account.",
+		expectedError:     "no payment methods",
+	},
+	{
+		// failure due to terms of service not accepted
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "tos-not-accepted",
+		buyErrorMessage:   "You must accept the latest terms of service first.",
+		expectedError:     "terms of service not accepted",
 	},
 }
 
@@ -4480,7 +4498,7 @@ var readyToBuyTests = []struct {
 		},
 		Test: func(c *C, err error) {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, `store reported an error: message 1`)
+			c.Check(err.Error(), Equals, `message 1`)
 		},
 		NumOfCalls: 5,
 	},
