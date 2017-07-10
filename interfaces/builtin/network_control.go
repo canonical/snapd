@@ -143,6 +143,9 @@ capability setuid,
 /dev/tun[0-9]{,[0-9]*} rw,
 /dev/tap[0-9]{,[0-9]*} rw,
 
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
+
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via
 # 'ip netns exec ...') the ip command uses mount namespaces such that
