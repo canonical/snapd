@@ -82,6 +82,23 @@ func (s *ValidateSuite) TestValidateEpoch(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateLicense(c *C) {
+	validLicenses := []string{
+		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
+	}
+	for _, epoch := range validLicenses {
+		err := ValidateLicense(epoch)
+		c.Assert(err, IsNil)
+	}
+	invalidLicenses := []string{
+		" GPL-3.0", " GPL-3.0 ", "GPL-3.0 ", "GPL~3.0", "3.0-GPL", "(GPL-3.0", "(GPL-3.0))", "GPL-3.0++", "+GPL-3.0", "GPL-3.0 GPL-2.0",
+	}
+	for _, epoch := range invalidLicenses {
+		err := ValidateLicense(epoch)
+		c.Assert(err, ErrorMatches, `invalid snap license: ".*"`)
+	}
+}
+
 func (s *ValidateSuite) TestValidateHook(c *C) {
 	validHooks := []*HookInfo{
 		{Name: "a"},
@@ -237,6 +254,25 @@ epoch: 0*
 }
 
 func (s *ValidateSuite) TestMissingSnapEpochIsOkay(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestIllegalSnapLicense(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+license: GPL~3.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap license: "GPL~3.0"`)
+}
+
+func (s *ValidateSuite) TestMissingSnapLicenseIsOkay(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 `))
