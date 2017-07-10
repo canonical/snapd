@@ -1666,7 +1666,7 @@ type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
 }
 
-func (s *storeErrors) ErrorCode() string {
+func (s *storeErrors) Code() string {
 	if len(s.Errors) == 0 {
 		return ""
 	}
@@ -1741,7 +1741,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
 	case 403:
 		// Customer account not set up for purchases.
-		switch errorInfo.ErrorCode() {
+		switch errorInfo.Code() {
 		case "no-payment-methods":
 			return nil, ErrNoPaymentMethods
 		case "tos-not-accepted":
