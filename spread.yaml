@@ -346,6 +346,7 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

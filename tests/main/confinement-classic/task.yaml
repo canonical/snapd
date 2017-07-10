@@ -7,7 +7,7 @@ details: |
 # Classic confinement isn't working yet on Fedora and openSUSE
 systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 execute: |
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
 
     run_install() {
         make -C test-snapd-hello-classic clean
@@ -16,7 +16,7 @@ execute: |
     }
 
     run_install --classic
-    $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+    "$SNAPMOUNTDIR/bin/test-snapd-hello-classic" | MATCH 'Hello Classic!'
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -24,7 +24,7 @@ execute: |
 
     # Installing again will increase revision and put the snap into jailmode
     run_install --classic --jailmode
-    $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+    "$SNAPMOUNTDIR/bin/test-snapd-hello-classic" | MATCH 'Hello Classic!'
 
 restore: |
     make -C test-snapd-hello-classic clean
