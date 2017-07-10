@@ -1672,11 +1672,18 @@ type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
 }
 
+func (s *storeErrors) Code() string {
+	if len(s.Errors) == 0 {
+		return ""
+	}
+	return s.Errors[0].Code
+}
+
 func (s *storeErrors) Error() string {
 	if len(s.Errors) == 0 {
 		return "internal error: empty store error used as an actual error"
 	}
-	return "store reported an error: " + s.Errors[0].Error()
+	return s.Errors[0].Error()
 }
 
 func buyOptionError(message string) (*BuyResult, error) {
@@ -1697,12 +1704,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	}
 	if user == nil {
 		return nil, ErrUnauthenticated
-	}
-
-	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
-	err := s.ReadyToBuy(user)
-	if err != nil {
-		return nil, err
 	}
 
 	instruction := orderInstruction{
@@ -1744,9 +1745,18 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case 400:
 		// Invalid price was specified, etc.
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+	case 403:
+		// Customer account not set up for purchases.
+		switch errorInfo.Code() {
+		case "no-payment-methods":
+			return nil, ErrNoPaymentMethods
+		case "tos-not-accepted":
+			return nil, ErrTOSNotAccepted
+		}
+		return buyOptionError(fmt.Sprintf("permission denied: %v", errorInfo.Error()))
 	case 404:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
+		// Likely because customer account or snap ID doesn't exist.
+		return buyOptionError(fmt.Sprintf("server says not found: %v", errorInfo.Error()))
 	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
