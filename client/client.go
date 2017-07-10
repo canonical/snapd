@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -258,7 +257,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	}
 
 	if v != nil {
-		dec := json.NewDecoder(strings.NewReader(string(rsp.Result)))
+		dec := json.NewDecoder(bytes.NewReader(rsp.Result))
 		dec.UseNumber()
 		if err := dec.Decode(v); err != nil {
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
