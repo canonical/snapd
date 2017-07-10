@@ -21,6 +21,14 @@ package builtin
 
 const networkControlSummary = `allows configuring networking and network namespaces`
 
+const networkControlBaseDeclarationSlots = `
+  network-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
 # 'ip netns' command (man ip-netns(8)). This interface is restricted because it
@@ -135,6 +143,9 @@ capability setuid,
 /dev/tun[0-9]{,[0-9]*} rw,
 /dev/tap[0-9]{,[0-9]*} rw,
 
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
+
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via
 # 'ip netns exec ...') the ip command uses mount namespaces such that
@@ -214,6 +225,7 @@ func init() {
 		summary:               networkControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,

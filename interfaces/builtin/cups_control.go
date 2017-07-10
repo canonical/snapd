@@ -21,6 +21,14 @@ package builtin
 
 const cupsControlSummary = `allows access to the CUPS control socket`
 
+const cupsControlBaseDeclarationSlots = `
+  cups-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const cupsControlConnectedPlugAppArmor = `
 # Description: Can access cups control socket. This is restricted because it provides
 # privileged access to configure printing.
@@ -33,6 +41,7 @@ func init() {
 		name:                  "cups-control",
 		summary:               cupsControlSummary,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  cupsControlBaseDeclarationSlots,
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

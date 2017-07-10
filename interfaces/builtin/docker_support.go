@@ -29,6 +29,20 @@ import (
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
 
+const dockerSupportBaseDeclarationPlugs = `
+  docker-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const dockerSupportBaseDeclarationSlots = `
+  docker-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -530,9 +544,11 @@ func (iface *dockerSupportInterface) Name() string {
 
 func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           dockerSupportSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              dockerSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
+		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
 	}
 }
 

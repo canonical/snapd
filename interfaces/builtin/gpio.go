@@ -29,6 +29,15 @@ import (
 
 const gpioSummary = `allows access to specifc GPIO pin`
 
+const gpioBaseDeclarationSlots = `
+  gpio:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
 var gpioSysfsExport = "/sys/class/gpio/export"
 
@@ -47,7 +56,8 @@ func (iface *gpioInterface) Name() string {
 
 func (iface *gpioInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: gpioSummary,
+		Summary:              gpioSummary,
+		BaseDeclarationSlots: gpioBaseDeclarationSlots,
 	}
 }
 

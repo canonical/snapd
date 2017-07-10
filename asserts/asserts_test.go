@@ -444,6 +444,58 @@ func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
 	c.Assert(err, ErrorMatches, `error reading assertion signature: maximum size exceeded while looking for delimiter "\\n\\n"`)
 }
 
+func (as *assertsSuite) TestDecoderDefaultMaxBodySize(c *C) {
+	enc := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097153", 1)
+	decoder := asserts.NewDecoder(bytes.NewBufferString(enc))
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
+}
+
+func (as *assertsSuite) TestDecoderWithTypeMaxBodySize(c *C) {
+	ex1 := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097152", 1)
+	ex1 = strings.Replace(ex1, "THE-BODY", strings.Repeat("B", 2*1024*1024), 1)
+	ex1toobig := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097153", 1)
+	ex1toobig = strings.Replace(ex1toobig, "THE-BODY", strings.Repeat("B", 2*1024*1024+1), 1)
+	const ex2 = `type: test-only-2
+authority-id: auth-id1
+pk1: foo
+pk2: bar
+body-length: 3
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+XYZ
+
+AXNpZw==`
+
+	decoder := asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 3,
+	})
+	a1, err := decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a1.Body(), HasLen, 2*1024*1024)
+	a2, err := decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
+
+	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 2,
+	})
+	a1, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a1.Body(), HasLen, 2*1024*1024)
+	_, err = decoder.Decode()
+	c.Assert(err, ErrorMatches, `assertion body length 3 exceeds maximum body size 2 for "test-only-2" assertions`)
+
+	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex2+"\n\n"+ex1toobig), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 3,
+	})
+	a2, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
+	_, err = decoder.Decode()
+	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
+}
+
 func (as *assertsSuite) TestEncode(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +

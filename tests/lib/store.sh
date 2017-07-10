@@ -1,4 +1,5 @@
 #!/bin/bash
+
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 # shellcheck source=tests/lib/systemd.sh

@@ -31,6 +31,17 @@ import (
 
 const mprisSummary = `allows operating as an MPRIS player`
 
+const mprisBaseDeclarationSlots = `
+  mpris:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
 
@@ -148,7 +159,8 @@ func (iface *mprisInterface) Name() string {
 
 func (iface *mprisInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: mprisSummary,
+		Summary:              mprisSummary,
+		BaseDeclarationSlots: mprisBaseDeclarationSlots,
 	}
 }
 

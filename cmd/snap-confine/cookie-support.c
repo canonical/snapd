@@ -50,7 +50,7 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 	if (fd < 0) {
 		err =
 		    sc_error_init_from_errno(errno,
-					     "cannot open cookie file %s",
+					     "warning: cannot open cookie file %s",
 					     context_path);
 		goto out;
 	}

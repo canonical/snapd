@@ -29,6 +29,16 @@ import (
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
 
+const browserSupportBaseDeclarationSlots = `
+  browser-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-connection:
+      plug-attributes:
+        allow-sandbox: true
+`
+
 const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
@@ -246,9 +256,10 @@ func (iface *browserSupportInterface) Name() string {
 
 func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           browserSupportSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              browserSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: browserSupportBaseDeclarationSlots,
 	}
 }
 

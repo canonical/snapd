@@ -74,6 +74,7 @@ type cmdInfo struct {
 	hidden                    bool
 	optDescs                  map[string]string
 	argDescs                  []argDesc
+	alias                     string
 }
 
 // commands holds information about all non-debug commands.
@@ -169,6 +170,9 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+		if c.alias != "" {
+			cmd.Aliases = append(cmd.Aliases, c.alias)
+		}
 
 		opts := cmd.Options()
 		if c.optDescs != nil && len(opts) != len(c.optDescs) {

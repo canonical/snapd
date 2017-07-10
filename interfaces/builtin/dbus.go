@@ -33,6 +33,17 @@ import (
 
 const dbusSummary = `allows owning a specifc name on DBus`
 
+const dbusBaseDeclarationSlots = `
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const dbusPermanentSlotAppArmor = `
 # Description: Allow owning a name on DBus public bus
 
@@ -195,7 +206,8 @@ func (iface *dbusInterface) Name() string {
 
 func (iface *dbusInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: dbusSummary,
+		Summary:              dbusSummary,
+		BaseDeclarationSlots: dbusBaseDeclarationSlots,
 	}
 }
 
