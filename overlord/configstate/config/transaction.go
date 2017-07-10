@@ -20,6 +20,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -154,7 +155,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	if pos+1 == len(subkeys) {
-		dec := json.NewDecoder(strings.NewReader(string(*raw)))
+		dec := json.NewDecoder(bytes.NewReader(*raw))
 		dec.UseNumber()
 		err := dec.Decode(&result)
 		if err != nil {
@@ -165,7 +166,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	var configm map[string]*json.RawMessage
-	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec := json.NewDecoder(bytes.NewReader(*raw))
 	dec.UseNumber()
 	err := dec.Decode(&configm)
 	if err != nil {
@@ -230,7 +231,7 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 			return jsonRaw(change)
 		}
 		var pristinem map[string]*json.RawMessage
-		dec := json.NewDecoder(strings.NewReader(string(*pristine)))
+		dec := json.NewDecoder(bytes.NewReader(*pristine))
 		dec.UseNumber()
 		if err := dec.Decode(&pristinem); err != nil {
 			// Not a map. Overwrite with the change.

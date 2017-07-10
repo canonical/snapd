@@ -21,11 +21,11 @@
 package snapstate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -1387,7 +1387,7 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 	if !ok {
 		return state.ErrNoState
 	}
-	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec := json.NewDecoder(bytes.NewReader(*raw))
 	dec.UseNumber()
 	err = dec.Decode(&snapst)
 	if err != nil {

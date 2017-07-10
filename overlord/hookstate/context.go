@@ -20,9 +20,9 @@
 package hookstate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -181,7 +181,7 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	dec := json.NewDecoder(strings.NewReader(string(*raw)))
+	dec := json.NewDecoder(bytes.NewReader(*raw))
 	dec.UseNumber()
 	err := dec.Decode(&value)
 	if err != nil {

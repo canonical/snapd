@@ -20,6 +20,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -56,7 +57,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 	case *json.RawMessage:
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
-		dec := json.NewDecoder(strings.NewReader(string(*config)))
+		dec := json.NewDecoder(bytes.NewReader(*config))
 		dec.UseNumber()
 		err := dec.Decode(&configm)
 		if err != nil {
@@ -100,7 +101,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		dec := json.NewDecoder(strings.NewReader(string(*raw)))
+		dec := json.NewDecoder(bytes.NewReader(*raw))
 		dec.UseNumber()
 		err := dec.Decode(result)
 		if err != nil {
@@ -116,7 +117,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		dec := json.NewDecoder(strings.NewReader(string(*raw)))
+		dec := json.NewDecoder(bytes.NewReader(*raw))
 		dec.UseNumber()
 		err := dec.Decode(&configm)
 		if err != nil {

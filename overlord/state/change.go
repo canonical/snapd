@@ -191,7 +191,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 		c.state.writing()
 	}
 	var unmarshalled marshalledChange
-	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	err := dec.Decode(&unmarshalled)
 	if err != nil {

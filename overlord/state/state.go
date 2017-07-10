@@ -21,13 +21,13 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,7 +51,7 @@ func (data customData) get(key string, value interface{}) error {
 	if entryJSON == nil {
 		return ErrNoState
 	}
-	dec := json.NewDecoder(strings.NewReader(string(*entryJSON)))
+	dec := json.NewDecoder(bytes.NewReader(*entryJSON))
 	dec.UseNumber()
 	err := dec.Decode(value)
 	if err != nil {
@@ -179,7 +179,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 func (s *State) UnmarshalJSON(data []byte) error {
 	s.writing()
 	var unmarshalled marshalledState
-	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	err := dec.Decode(&unmarshalled)
 	if err != nil {
