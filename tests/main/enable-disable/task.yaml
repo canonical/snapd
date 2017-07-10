@@ -1,9 +1,9 @@
 summary: Check that enable/disable works
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
     echo "Install test-snapd-tools and ensure it runs"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     test-snapd-tools.echo Hello|MATCH Hello
     echo "Disable test-snapd-tools and ensure it is listed as disabled"
