@@ -45,7 +45,7 @@ execute: |
         # This is a bit nasty but the best we can do at the moment as we don't
         # have something like `busctl status io.snapcraft.SafeLauncher` on 14.04
         list_dbus_names() {
-            dbus-send --system            \
+            dbus-send --session            \
                 --dest=org.freedesktop.DBus \
                 --type=method_call          \
                 --print-reply               \
