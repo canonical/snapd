@@ -56,10 +56,6 @@ func (iface *consolesInterface) Name() string {
 	return "consoles"
 }
 
-func (iface *consolesInterface) String() string {
-	return iface.Name()
-}
-
 func (iface *consolesInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
 		BaseDeclarationSlots: consolesBaseDeclarationSlots,
