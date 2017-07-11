@@ -37,7 +37,7 @@ execute: |
     echo "Then the snap command is able use the libsecret service"
     test-snapd-password-manager-consumer.secret-tool clear foo bar
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
     fi
 
