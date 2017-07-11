@@ -91,3 +91,23 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 func udevSnapSecurityName(snapName string, appName string) string {
 	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
 }
+
+func ensureSlotIfaceMatch(iface interfaces.Interface, slot *interfaces.Slot) {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
+	}
+}
+
+func ensurePlugIfaceMatch(iface interfaces.Interface, plug *interfaces.Plug) {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+	}
+}
+
+// sanitizeSlotReservedForOS contains common check for many interfaces.
+func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot) error {
+	if slot.Snap.Type != snap.TypeOS {
+		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
+	}
+	return nil
+}
