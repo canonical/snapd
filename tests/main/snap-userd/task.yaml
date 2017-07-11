@@ -114,7 +114,6 @@ execute: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         stop test-snap-userd
     else
-        systemctl stop --signal=KILL test-dbus-session.scope
         systemctl stop --signal=KILL test-snap-userd.scope
     fi
 
