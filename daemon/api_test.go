@@ -618,7 +618,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"osutilAddUser",
 		"setupLocalUser",
 		"storeUserInfo",
-		"postCreateUserUcrednetGetUID",
+		"postCreateUserUcrednetGet",
 		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -4547,8 +4547,8 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
+	postCreateUserUcrednetGet = func(string) (uint64, uint32, error) {
+		return 100, 0, nil
 	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
@@ -4557,7 +4557,7 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
-	postCreateUserUcrednetGetUID = ucrednetGetUID
+	postCreateUserUcrednetGet = ucrednetGet
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
 	storeUserInfo = store.UserInfo
@@ -4907,11 +4907,11 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
+	postCreateUserUcrednetGet = func(string) (uint64, uint32, error) {
+		return 100, 0, nil
 	}
 	defer func() {
-		postCreateUserUcrednetGetUID = ucrednetGetUID
+		postCreateUserUcrednetGet = ucrednetGet
 	}()
 
 	// do it!

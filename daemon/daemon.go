@@ -87,7 +87,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	isUser := false
-	uid, err := ucrednetGetUID(r.RemoteAddr)
+	_, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
 		if uid == 0 {
 			// Superuser does anything.
@@ -95,7 +95,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		isUser = true
-	} else if err != errNoUID {
+	} else if err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return false
 	} else if c.SnapOK {
