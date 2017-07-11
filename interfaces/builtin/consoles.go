@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const consolesSummary = `allows access to /dev/tty0 and /dev/console`
+
 const consolesBaseDeclarationSlots = `
   consoles:
     allow-installation:
@@ -57,6 +59,7 @@ func (iface *consolesInterface) Name() string {
 
 func (iface *consolesInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
+		Summary:              consolesSummary,
 		BaseDeclarationSlots: consolesBaseDeclarationSlots,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
