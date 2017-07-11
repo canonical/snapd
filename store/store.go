@@ -183,7 +183,7 @@ type Config struct {
 }
 
 // SetAPI updates API URLs in the Config. Must not be used to change active config.
-func (cfg *Config) SetAPI(api *url.URL) {
+func (cfg *Config) SetAPI(api *url.URL) error {
 	// TODO: should SNAPPY_FORCE_API_URL/SNAPPY_USE_STAGING_STORE take
 	// precedence over this? Probably not because, even though the user's env
 	// normally beats config, this could change at runtime and it would be
@@ -202,6 +202,14 @@ func (cfg *Config) SetAPI(api *url.URL) {
 	cfg.DetailsURI = urlJoin(api, "api/v1/snaps/details/")
 	cfg.BulkURI = urlJoin(api, "api/v1/snaps/metadata")
 	cfg.SectionsURI = urlJoin(api, "api/v1/snaps/sections")
+
+	assertsBaseURI, err := assertsURL(api)
+	if err != nil {
+		return err
+	}
+	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+
+	return nil
 }
 
 // Store represents the ubuntu snap store
@@ -322,13 +330,17 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL(storeBaseURI *url.URL) string {
-	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
-		return u
+func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
+	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
+		}
+		return u, nil
 	}
 	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
 	// once new bulk-friendly APIs are designed and implemented.
-	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
+	return urlJoin(storeBaseURI, "api/v1/snaps/"), nil
 }
 
 func myappsURL() string {
@@ -354,9 +366,7 @@ func init() {
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	defaultConfig.SetAPI(storeBaseURI)
-
-	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
+	err = defaultConfig.SetAPI(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
@@ -365,9 +375,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
-	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
-
 	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
 	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
 }

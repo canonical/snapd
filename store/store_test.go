@@ -69,13 +69,26 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 
 	api, err := url.Parse("http://example.com/path/prefix/")
 	c.Assert(err, IsNil)
-	cfg.SetAPI(api)
+	err = cfg.SetAPI(api)
+	c.Assert(err, IsNil)
 
 	for _, uri := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI} {
 		c.Assert(uri.Scheme, Equals, "http")
 		c.Assert(uri.Host, Equals, "example.com")
 		c.Assert(uri.Path, Matches, "/path/prefix/api/v1/snaps/.*")
 	}
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	storeBaseURI, _ := url.Parse(apiURL())
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(storeBaseURI)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
 type remoteRepoTestSuite struct {
@@ -3658,14 +3671,27 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 	storeBaseURI, _ := url.Parse(apiURL())
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
-	before := assertsURL(storeBaseURI)
+	before, err := assertsURL(storeBaseURI)
+	c.Assert(err, IsNil)
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
-	after := assertsURL(storeBaseURI)
+	after, err := assertsURL(storeBaseURI)
+	c.Assert(err, IsNil)
 
-	c.Check(before, Not(Equals), after)
-	c.Check(after, Equals, "https://assertions.example.org/v1/")
+	c.Check(before.String(), Not(Equals), after.String())
+	c.Check(after.String(), Equals, "https://assertions.example.org/v1/")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	storeBaseURI, _ := url.Parse(apiURL())
+	_, err := assertsURL(storeBaseURI)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
