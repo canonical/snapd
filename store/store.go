@@ -184,9 +184,13 @@ type Config struct {
 
 // SetAPI updates API URLs in the Config. Must not be used to change active config.
 func (cfg *Config) SetAPI(api *url.URL) {
-	// TODO: should SNAPPY_FORCE_API_URL take precedence over this? Probably
-	// not because, even though the user's env normally beats config, this
-	// could change at runtime and it would be really weird to just ignore it.
+	// TODO: should SNAPPY_FORCE_API_URL/SNAPPY_USE_STAGING_STORE take
+	// precedence over this? Probably not because, even though the user's env
+	// normally beats config, this could change at runtime and it would be
+	// really weird to just ignore it. SNAPPY_USE_STAGING_STORE is also the
+	// current mechanism for installing trusted staging asssertions but we want
+	// to be able to run with staging assertions *and* change the API at
+	// runtime.
 
 	// XXX: it's ok to ignore errors here because the refs are all hard-coded, valid paths.
 	cfg.SearchURI, _ = api.Parse("api/v1/snaps/search")
