@@ -254,6 +254,20 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
+// Extend a base URL with additional unescaped paths.  (url.Parse handles
+// resolving relative links, which isn't quite what we want: that goes wrong if
+// the base URL doesn't end with a slash.)
+func urlJoin(base *url.URL, paths ...string) *url.URL {
+	if len(paths) == 0 {
+		return base
+	}
+	url := *base
+	url.RawQuery = ""
+	paths = append([]string{strings.TrimSuffix(url.Path, "/")}, paths...)
+	url.Path = strings.Join(paths, "/")
+	return &url
+}
+
 func apiURL() string {
 	// FIXME: this will become a store-url assertion
 	// XXX: Deprecated but present for backward-compatibility: this used
@@ -286,15 +300,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL() string {
+func assertsURL(storeBaseURI *url.URL) string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
-	return "https://assertions.ubuntu.com/v1/"
+	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
+	// once new bulk-friendly APIs are designed and implemented.
+	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
 }
 
 func myappsURL() string {
@@ -317,47 +329,35 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	if storeBaseURI.RawQuery != "" {
+		panic("store API URL may not contain query string")
+	}
 
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("api/v1/snaps/search")
+	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
 	if err != nil {
 		panic(err)
 	}
 
+	myappsBaseURI, err := url.Parse(myappsURL())
+	if err != nil {
+		panic(err)
+	}
+
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
+	defaultConfig.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
 	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("api/v1/snaps/details/")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
+	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("api/v1/snaps/metadata")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 
-	assertsBaseURI, err := url.Parse(assertsURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.AssertionsURI, err = assertsBaseURI.Parse("assertions/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("api/v1/snaps/sections")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
+	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
 }
 
 type searchResults struct {
@@ -1153,6 +1153,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 
 // query the store for the information about currently offered revisions of snaps
 func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+	if len(currentSnaps) == 0 {
+		// nothing to do
+		return nil, nil
+	}
+
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
@@ -1667,11 +1672,18 @@ type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
 }
 
+func (s *storeErrors) Code() string {
+	if len(s.Errors) == 0 {
+		return ""
+	}
+	return s.Errors[0].Code
+}
+
 func (s *storeErrors) Error() string {
 	if len(s.Errors) == 0 {
 		return "internal error: empty store error used as an actual error"
 	}
-	return "store reported an error: " + s.Errors[0].Error()
+	return s.Errors[0].Error()
 }
 
 func buyOptionError(message string) (*BuyResult, error) {
@@ -1692,12 +1704,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	}
 	if user == nil {
 		return nil, ErrUnauthenticated
-	}
-
-	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
-	err := s.ReadyToBuy(user)
-	if err != nil {
-		return nil, err
 	}
 
 	instruction := orderInstruction{
@@ -1739,9 +1745,18 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case 400:
 		// Invalid price was specified, etc.
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+	case 403:
+		// Customer account not set up for purchases.
+		switch errorInfo.Code() {
+		case "no-payment-methods":
+			return nil, ErrNoPaymentMethods
+		case "tos-not-accepted":
+			return nil, ErrTOSNotAccepted
+		}
+		return buyOptionError(fmt.Sprintf("permission denied: %v", errorInfo.Error()))
 	case 404:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
+		// Likely because customer account or snap ID doesn't exist.
+		return buyOptionError(fmt.Sprintf("server says not found: %v", errorInfo.Error()))
 	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
