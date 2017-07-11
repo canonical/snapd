@@ -169,6 +169,7 @@ type Config struct {
 	BulkURI        *url.URL
 	AssertionsURI  *url.URL
 	OrdersURI      *url.URL
+	BuyURI         *url.URL
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
 
@@ -189,6 +190,7 @@ type Store struct {
 	bulkURI        *url.URL
 	assertionsURI  *url.URL
 	ordersURI      *url.URL
+	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
 
@@ -338,11 +340,6 @@ func init() {
 		panic(err)
 	}
 
-	myappsBaseURI, err := url.Parse(myappsURL())
-	if err != nil {
-		panic(err)
-	}
-
 	// XXX: Repeating "api/" here is cumbersome, but the next generation
 	// of store APIs will probably drop that prefix (since it now
 	// duplicates the hostname), and we may want to switch to v2 APIs
@@ -352,12 +349,12 @@ func init() {
 	// slash at the end because snap name is appended to this with .Parse(snapName)
 	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
 	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	defaultConfig.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
+	defaultConfig.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
+	defaultConfig.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
 	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
 
 	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
-
-	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
-	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
 }
 
 type searchResults struct {
@@ -440,6 +437,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:         cfg.BulkURI,
 		assertionsURI:   cfg.AssertionsURI,
 		ordersURI:       cfg.OrdersURI,
+		buyURI:          cfg.BuyURI,
 		customersMeURI:  cfg.CustomersMeURI,
 		sectionsURI:     sectionsURI,
 		series:          series,
@@ -1719,7 +1717,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.ordersURI,
+		URL:         s.buyURI,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
