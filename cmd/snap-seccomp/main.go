@@ -19,8 +19,6 @@
 
 package main
 
-//#cgo pkg-config: --static --libs libseccomp
-//
 //#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
 //
 //#include <asm/ioctls.h>
