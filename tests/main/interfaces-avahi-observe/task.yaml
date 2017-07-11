@@ -1,14 +1,14 @@
 summary: check that avahi-observe interface works
 
-systems: [-ubuntu-core-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
 
 prepare: |
     echo "Given a snap with an avahi-observe interface plug is installed"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_generic_consumer avahi-observe,unity7
 
     echo "And avahi-daemon is installed and configured"
-    . $TESTSLIB/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     distro_install_package avahi-daemon
     sed -i 's/^#enable-dbus=yes/enable-dbus=yes/' /etc/avahi/avahi-daemon.conf
     if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
@@ -21,7 +21,7 @@ prepare: |
 
 restore: |
     rm -f *.error
-    . $TESTSLIB/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     distro_purge_package avahi-daemon
     distro_auto_remove_packages
 
@@ -40,7 +40,7 @@ execute: |
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat avahi.error | MATCH "org.freedesktop.DBus.Error.AccessDenied"
+        MATCH "org.freedesktop.DBus.Error.AccessDenied" < avahi.error
     fi
 
     echo "When the plug is connected"
