@@ -10,6 +10,8 @@ prepare: |
     snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
 
 execute: |
+    . "$TESTSLIB/strings.sh"
+
     echo "Check that classic snaps work only with --classic"
     if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
         echo "snap install needs --classic to install local snaps with classic confinment"
@@ -26,6 +28,6 @@ execute: |
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         EXPECTED_TEXT="cannot install $CLASSIC_SNAP: classic confinement is not yet supported on your distribution"
     fi
-    ( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 && exit 1 || true ) | tr '\r\n' ' ' | tr -s ' ' | MATCH "$EXPECTED_TEXT"
+    str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 && exit 1 || true )" | MATCH "$EXPECTED_TEXT"
     echo "Not from the store either"
-    ( snap install --classic "$CLASSIC_SNAP" 2>&1 && exit 1 || true ) | tr '\r\n' ' ' | tr -s ' ' | MATCH "$EXPECTED_TEXT"
+    str_to_one_line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 && exit 1 || true )" | MATCH "$EXPECTED_TEXT"
