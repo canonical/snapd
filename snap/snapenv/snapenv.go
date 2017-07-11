@@ -21,9 +21,9 @@ package snapenv
 
 import (
 	"fmt"
-	"path/filepath"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
