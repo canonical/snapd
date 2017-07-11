@@ -24,9 +24,9 @@ execute: |
     fi
 
     echo "Check that the classic snap is not installable even with --classic"
-    EXPECTED_TEXT="cannot install snap file: classic confinement is only supported on classic systems"
+    EXPECTED_TEXT="classic confinement is only supported on classic systems"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
-        EXPECTED_TEXT="cannot install $CLASSIC_SNAP: classic confinement is not yet supported on your distribution"
+        EXPECTED_TEXT="classic confinement is not yet supported on your distribution"
     fi
     str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 && exit 1 || true )" | MATCH "$EXPECTED_TEXT"
     echo "Not from the store either"
