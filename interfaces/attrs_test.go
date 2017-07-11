@@ -55,16 +55,8 @@ slots:
 	s.slot = &Slot{SlotInfo: producer.Slots["slot"]}
 }
 
-func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
-	attrData, err := newSlotAttrs(s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(attrData, NotNil)
-
-	val, err := attrData.StaticAttr("attr")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "value")
-
-	val, err = attrData.StaticAttr("unknown")
+func (s *AttrsSuite) testStaticAttrs(c *C, attrData *Attrs) {
+	_, err := attrData.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
@@ -72,6 +64,22 @@ func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
+}
+
+func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
+	attrData, err := newSlotAttrs(s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(attrData, NotNil)
+
+	s.testStaticAttrs(c, attrData)
+}
+
+func (s *AttrsSuite) TestStaticPlugAttrs(c *C) {
+	attrData, err := newSlotAttrs(s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(attrData, NotNil)
+
+	s.testStaticAttrs(c, attrData)
 }
 
 func (s *AttrsSuite) TestDynamicSlotAttrs(c *C) {
@@ -85,6 +93,10 @@ func (s *AttrsSuite) TestDynamicSlotAttrs(c *C) {
 	val, err := attrData.Attr("foo")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
+
+	val, err = attrData.Attr("attr")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "value")
 
 	val, err = attrData.Attr("unknown")
 	c.Assert(err, NotNil)
@@ -104,9 +116,23 @@ func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 
 	_, err = attrData.Attr("foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
+	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
 
 	_, err = attrData.Attrs()
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
+}
+
+func (s *AttrsSuite) TestSetStaticSlotAttr(c *C) {
+	attrData, err := newSlotAttrs(s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(attrData, NotNil)
+
+	attrData.SetStaticAttr("attr", "newvalue")
+
+	val, err := attrData.StaticAttr("attr")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "newvalue")
+
+	c.Assert(s.slot.Attrs["attr"], Equals, "newvalue")
 }
