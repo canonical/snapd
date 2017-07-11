@@ -42,8 +42,19 @@ execute: |
 
         initctl reload-configuration
         start test-snap-userd
-
-        sleep 5
+        # This is a bit nasty but the best we can do at the moment as we don't
+        # have something like `busctl status io.snapcraft.SafeLauncher` on 14.04
+        list_dbus_names() {
+            dbus-send --system            \
+                --dest=org.freedesktop.DBus \
+                --type=method_call          \
+                --print-reply               \
+                /org/freedesktop/DBus       \
+                org.freedesktop.DBus.ListNames
+        }
+        while ! list_dbus_names | MATCH io.snapcraft.SafeLauncher ; do
+            sleep .1
+        done
     else
         systemd-run \
             --scope \
@@ -101,7 +112,6 @@ execute: |
     test ! -e /tmp/xdg-open-output
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        stop test-dbus-session
         stop test-snap-userd
     else
         systemctl stop --signal=KILL test-dbus-session.scope
