@@ -5,12 +5,21 @@ systems:
     # a user session environment there
     - -ubuntu-core-*
 
+environment:
+    DISPLAY: :0
+
 restore: |
-    systemctl stop --signal=KILL test-dbus-session.scope || true
-    systemctl stop --signal=KILL test-snap-userd.scope || true
+    . "$TESTSLIB/pkgdb.sh"
+    rm -f dbus.env
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        stop test-snap-userd || true
+        rm -f /etc/init/test-snap-userd.conf
+    else
+        systemctl stop --signal=KILL test-snap-userd.scope || true
+    fi
     umount -f /usr/bin/xdg-open || true
     umount -f /snap/core/current/usr/bin/xdg-open || true
-
+    distro_purge_package dbus-x11 xdg-utils
 
 execute: |
     . "$TESTSLIB/pkgdb.sh"
@@ -19,26 +28,37 @@ execute: |
     # Install necessary pacakges to get dbus-launch helper
     distro_install_package dbus-x11 xdg-utils
 
-    # Run a dbus session bus and the snap userd service via systemd
-    # to allow easier tracking of any started processes.
-    export DBUS_SESSION_BUS_ADDRESS=unix:abstract=/tmp/dbus-test-snap-user
-    systemd-run \
-        --scope \
-        --unit=test-dbus-session \
-        --no-block \
-        /usr/bin/dbus-daemon --address="$DBUS_SESSION_BUS_ADDRESS" --fork --session
+    dbus-launch > dbus.env
+    export $(cat dbus.env | xargs)
 
-    systemd-run \
-        --scope \
-        --unit=test-snap-userd \
-        --no-block \
-        --setenv=DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
-        /bin/sh -c '/usr/bin/snap userd &'
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        cat << EOF > /etc/init/test-snap-userd.conf
+    env DISPLAY="$DISPLAY"
+    env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
+    env DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID"
+    kill timeout 5
+    exec /usr/bin/snap userd
+    EOF
 
-    # Wait until the service is up and running
-    while ! systemctl is-active test-snap-userd.scope ; do
-        sleep .1
-    done
+        initctl reload-configuration
+        start test-snap-userd
+
+        sleep 5
+    else
+        systemd-run \
+            --scope \
+            --unit=test-snap-userd \
+            --no-block \
+            --setenv=DISPLAY="$DISPLAY" \
+            --setenv=DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+            --setenv=DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID" \
+            /bin/sh -c '/usr/bin/snap userd &'
+
+        # Wait until the service is up and running
+        while ! systemctl is-active test-snap-userd.scope ; do
+            sleep .1
+        done
+    fi
 
     # Create a small helper which will tell us if snap passes
     # the URL correctly to the right handler
@@ -62,8 +82,8 @@ execute: |
 
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
-        DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
-            /snap/core/current/usr/bin/xdg-open $1
+        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+        /snap/core/current/usr/bin/xdg-open $1
         test -e /tmp/xdg-open-output
         test "$(cat /tmp/xdg-open-output)" = $1
     }
@@ -80,6 +100,11 @@ execute: |
     ! $SNAPMOUNTDIR/core/current/usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output
 
-    systemctl stop --signal=KILL test-dbus-session.scope
-    systemctl stop --signal=KILL test-snap-userd.scope
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        stop test-dbus-session
+        stop test-snap-userd
+    else
+        systemctl stop --signal=KILL test-dbus-session.scope
+        systemctl stop --signal=KILL test-snap-userd.scope
+    fi
 
