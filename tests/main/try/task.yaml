@@ -1,8 +1,6 @@
 summary: Check that try command works
 systems:
     - -ubuntu-core-16-*
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
@@ -44,10 +42,12 @@ execute: |
     echo "When try is executed on that directory"
     snap try $TESTSLIB/snaps/test-snapd-tools
 
-    echo "Then the snap command is not able to access the protected resource"
-    if test-snapd-tools.head -1 /dev/kmsg; then
-        echo "Expected confinement denial in try mode didn't work"
-        exit 1
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Then the snap command is not able to access the protected resource"
+        if test-snapd-tools.head -1 /dev/kmsg; then
+            echo "Expected confinement denial in try mode didn't work"
+            exit 1
+        fi
     fi
 
     echo "====================================="

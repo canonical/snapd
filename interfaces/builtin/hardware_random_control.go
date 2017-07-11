@@ -28,6 +28,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const hardwareRandomControlSummary = `allows control over the hardware random number generator`
+
+const hardwareRandomControlBaseDeclarationSlots = `
+  hardware-random-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const hardwareRandomControlConnectedPlugAppArmor = `
 # Description: allow direct access to the hardware random number generator
 # device. Usually, the default access to /dev/random is sufficient, but this
@@ -50,6 +60,15 @@ type hardwareRandomControlInterface struct{}
 // Getter for the name of the physical-memory-control interface
 func (iface *hardwareRandomControlInterface) Name() string {
 	return "hardware-random-control"
+}
+
+func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              hardwareRandomControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: hardwareRandomControlBaseDeclarationSlots,
+	}
 }
 
 // Check validity of the defined slot

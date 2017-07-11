@@ -27,6 +27,15 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const lxdSummary = `allows access to the LXD socket`
+
+const lxdBaseDeclarationSlots = `
+  lxd:
+    allow-installation: false
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const lxdConnectedPlugAppArmor = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
@@ -46,6 +55,13 @@ type lxdInterface struct{}
 
 func (iface *lxdInterface) Name() string {
 	return "lxd"
+}
+
+func (iface *lxdInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              lxdSummary,
+		BaseDeclarationSlots: lxdBaseDeclarationSlots,
+	}
 }
 
 func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

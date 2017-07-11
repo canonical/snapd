@@ -32,7 +32,10 @@ import (
 var (
 	GlobalRootDir string
 
-	SnapMountDir              string
+	SnapMountDir string
+
+	DistroLibExecDir string
+
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -49,11 +52,13 @@ var (
 	SnapSocket                string
 	SnapRunDir                string
 	SnapRunNsDir              string
+	SnapRunLockDir            string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
 
 	SnapAssertsDBDir      string
+	SnapCookieDir         string
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
 
@@ -71,9 +76,6 @@ var (
 
 	ClassicDir string
 
-	DistroLibExecDir string
-	CoreLibExecDir   string
-
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
 
@@ -82,6 +84,12 @@ var (
 
 const (
 	defaultSnapMountDir = "/snap"
+
+	// These are directories which are static inside the core snap and
+	// can never be prefixed as they will be always absolute once we
+	// are in the snap confinement environment.
+	CoreLibExecDir   = "/usr/lib/snapd"
+	CoreSnapMountDir = "/snap"
 )
 
 var (
@@ -136,19 +144,21 @@ func SetRootDir(rootdir string) {
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
-	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
+	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
+	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
+	SnapCookieDir = filepath.Join(rootdir, snappyDir, "cookie")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
@@ -178,8 +188,6 @@ func SetRootDir(rootdir string) {
 	default:
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
-
-	CoreLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")

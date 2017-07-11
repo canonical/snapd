@@ -27,6 +27,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
+const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
+
+const thumbnailerServiceBaseDeclarationSlots = `
+  thumbnailer-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
+
 const thumbnailerServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_query_label API. This
 # discloses the AppArmor policy for all processes.
@@ -90,6 +101,13 @@ type thumbnailerServiceInterface struct{}
 
 func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
+}
+
+func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              thumbnailerServiceSummary,
+		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
+	}
 }
 
 func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -1,9 +1,5 @@
 summary: Ensure that the network-observe interface works
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The network-observe interface allows a snap to query the network status information.
 
@@ -55,14 +51,16 @@ execute: |
     echo "Then the snap command can query network status information"
     network-observe-consumer | grep -P "0.0.0.0:$PORT.*?LISTEN"
 
-    echo "===================================="
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "===================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect network-observe-consumer:network-observe
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect network-observe-consumer:network-observe
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap command can not query network status information"
-    if network-observe-consumer 2>net-query.output; then
-        echo "Expected error caling command with disconnected plug"
+        echo "Then the snap command can not query network status information"
+        if network-observe-consumer 2>net-query.output; then
+            echo "Expected error caling command with disconnected plug"
+        fi
+        cat net-query.output | grep -Pq "Permission denied"
     fi
-    cat net-query.output | grep -Pq "Permission denied"

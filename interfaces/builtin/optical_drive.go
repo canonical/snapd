@@ -19,14 +19,27 @@
 
 package builtin
 
+const opticalDriveSummary = `allows read access to optical drives`
+
+const opticalDriveBaseDeclarationSlots = `
+  optical-drive:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
+@{PROC}/sys/dev/cdrom/info r,
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "optical-drive",
+		name:                  "optical-drive",
+		summary:               opticalDriveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

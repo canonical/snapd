@@ -30,6 +30,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const iioSummary = `allows access to a specific IIO device`
+
+const iioBaseDeclarationSlots = `
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 const iioConnectedPlugAppArmor = `
 # Description: Give access to a specific IIO device on the system.
 
@@ -44,6 +55,13 @@ type iioInterface struct{}
 // Getter for the name of the iio interface
 func (iface *iioInterface) Name() string {
 	return "iio"
+}
+
+func (iface *iioInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              iioSummary,
+		BaseDeclarationSlots: iioBaseDeclarationSlots,
+	}
 }
 
 func (iface *iioInterface) String() string {

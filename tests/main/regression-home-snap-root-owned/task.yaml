@@ -8,8 +8,10 @@ prepare: |
     install_local test-snapd-tools
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     # run a snap command via sudo
-    output=$(su -l -c "sudo /snap/bin/test-snapd-tools.env" test)
+    output=$(su -l -c "sudo $SNAPMOUNTDIR/bin/test-snapd-tools.env" test)
 
     # ensure SNAP_USER_DATA points to the right place
     echo $output | MATCH SNAP_USER_DATA=/root/snap/test-snapd-tools/x[0-9]+
@@ -19,7 +21,7 @@ execute: |
     echo "Verify that the /root/snap directory created and root owned"
     if [ $(stat -c '%U' /root/snap) != "root" ]; then
         echo "The /root/snap directory is not owned by root"
-        ls -ld /snap/snap
+        ls -ld $SNAPMOUNTDIR/snap
         exit 1
     fi
 

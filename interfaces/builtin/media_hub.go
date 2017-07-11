@@ -27,6 +27,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mediaHubSummary = `allows operating as the media-hub service`
+
+const mediaHubBaseDeclarationSlots = `
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const mediaHubPermanentSlotAppArmor = `
 # Description: Allow operating as the the media-hub service.
 
@@ -148,6 +160,13 @@ type mediaHubInterface struct{}
 
 func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
+}
+
+func (iface *mediaHubInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mediaHubSummary,
+		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
+	}
 }
 
 func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

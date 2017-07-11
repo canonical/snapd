@@ -45,6 +45,14 @@ type Flags struct {
 	// Required is set to mark that a snap is required
 	// and cannot be removed
 	Required bool `json:"required,omitempty"`
+
+	// SkipConfigure is used with InstallPath to flag that creating a task
+	// running the configure hook should be skipped.
+	SkipConfigure bool `json:"skip-configure,omitempty"`
+
+	// Unaliased is set to request that no automatic aliases are created
+	// installing the snap.
+	Unaliased bool `json:"unaliased,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
@@ -55,5 +63,6 @@ func (f Flags) DevModeAllowed() bool {
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
 func (f Flags) ForSnapSetup() Flags {
 	f.IgnoreValidation = false
+	f.SkipConfigure = false
 	return f
 }

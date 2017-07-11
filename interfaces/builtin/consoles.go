@@ -28,6 +28,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const consolesBaseDeclarationSlots = `
+  consoles:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const consolesUdevRule = `
 SUBSYSTEM="tty", KERNEL=="tty0", TAG+="%[1]s"
 SUBSYSTEM="tty", KERNEL=="console", TAG+="%[1]s"
@@ -50,6 +58,14 @@ func (iface *consolesInterface) Name() string {
 
 func (iface *consolesInterface) String() string {
 	return iface.Name()
+}
+
+func (iface *consolesInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		BaseDeclarationSlots: consolesBaseDeclarationSlots,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+	}
 }
 
 // Check validity of the defined slot

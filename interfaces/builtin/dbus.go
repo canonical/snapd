@@ -31,6 +31,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const dbusSummary = `allows owning a specifc name on DBus`
+
+const dbusBaseDeclarationSlots = `
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const dbusPermanentSlotAppArmor = `
 # Description: Allow owning a name on DBus public bus
 
@@ -189,6 +202,13 @@ type dbusInterface struct{}
 
 func (iface *dbusInterface) Name() string {
 	return "dbus"
+}
+
+func (iface *dbusInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              dbusSummary,
+		BaseDeclarationSlots: dbusBaseDeclarationSlots,
+	}
 }
 
 // Obtain yaml-specified bus well-known name

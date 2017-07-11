@@ -30,12 +30,30 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const serialPortSummary = `allows accessing a specific serial port`
+
+const serialPortBaseDeclarationSlots = `
+  serial-port:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // serialPortInterface is the type for serial port interfaces.
 type serialPortInterface struct{}
 
 // Name of the serial-port interface.
 func (iface *serialPortInterface) Name() string {
 	return "serial-port"
+}
+
+func (iface *serialPortInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              serialPortSummary,
+		BaseDeclarationSlots: serialPortBaseDeclarationSlots,
+	}
 }
 
 func (iface *serialPortInterface) String() string {

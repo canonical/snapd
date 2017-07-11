@@ -53,7 +53,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 0:
 		t.checker(r)
 		t.c.Check(r.Method, check.Equals, "POST")
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(202)
 		fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 	case 1:
 		t.c.Check(r.Method, check.Equals, "GET")
@@ -260,6 +260,25 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":    "install",
+			"unaliased": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--unaliased", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
@@ -526,7 +545,7 @@ func (s *SnapSuite) TestRefreshTime(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25 17:35:00 +0200 CEST", "next": "2017-04-26 00:58:00 +0200 CEST"}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -537,8 +556,8 @@ func (s *SnapSuite) TestRefreshTime(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `schedule: 00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59
-last: 2017-04-25 17:35:00 +0200 CEST
-next: 2017-04-26 00:58:00 +0200 CEST
+last: 2017-04-25T17:35:00+0200
+next: 2017-04-26T00:58:00+0200
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -749,7 +768,7 @@ func (s *SnapOpSuite) TestTryClassic(c *check.C) {
 func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(202)
 		fmt.Fprintln(w, `
 {
   "type": "error",
@@ -876,7 +895,7 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 			})
 
 			c.Check(r.Method, check.Equals, "POST")
-			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
@@ -928,7 +947,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 			})
 
 			c.Check(r.Method, check.Equals, "POST")
-			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")

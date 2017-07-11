@@ -51,16 +51,6 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
-// Needed returns true if the change needs to be performed in the context of mount table.
-func (c Change) Needed(mounted []*InfoEntry) bool {
-	// Look through what is mounted and see if we shold perform the change. If
-	// the entry is already mounted then we don't need to mount it, if the
-	// entry is already unmounted then we don't need to unmount it.
-
-	// TODO: implement this
-	return true
-}
-
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.

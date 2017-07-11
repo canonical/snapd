@@ -20,6 +20,7 @@
 package errtracker_test
 
 import (
+	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -46,6 +47,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 type ErrtrackerTestSuite struct {
 	testutil.BaseTest
+
+	snapConfineProfile string
 }
 
 var _ = Suite(&ErrtrackerTestSuite{})
@@ -56,12 +59,20 @@ var falsePath = osutil.LookPathDefault("false", "/bin/false")
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	p := filepath.Join(c.MkDir(), "machine-id")
+	d := c.MkDir()
+	p := filepath.Join(d, "machine-id")
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
-	s.AddCleanup(errtracker.MockMachineIDPath(p))
+	s.AddCleanup(errtracker.MockMachineIDPaths([]string{p}))
 	s.AddCleanup(errtracker.MockHostSnapd(truePath))
 	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
+	s.AddCleanup(errtracker.MockReExec(true))
+
+	p = filepath.Join(d, "usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(p, []byte("# fake profile of snap-confine"), 0644)
+	c.Assert(err, IsNil)
+	s.AddCleanup(errtracker.MockSnapConfineApparmorProfile(p))
+	s.snapConfineProfile = p
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
@@ -70,6 +81,13 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	hostBuildID, err := osutil.ReadBuildID(truePath)
 	c.Assert(err, IsNil)
 	coreBuildID, err := osutil.ReadBuildID(falsePath)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(s.snapConfineProfile+".dpkg-new", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -107,6 +125,13 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"ErrorMessage":       "failed to do stuff",
 				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
+
+				"MD5SumSnapConfineAppArmorProfile":            "7a7aa5f21063170c1991b84eb8d86de1",
+				"MD5SumSnapConfineAppArmorProfileDpkgNew":     "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileReal":        "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileRealDpkgNew": "93b885adfe0da089cdf634904fd59f71",
+
+				"DidSnapdReExec": "yes",
 			})
 			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 		case 1:
@@ -167,4 +192,33 @@ func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "oops-not-sent")
 	c.Check(n, Equals, 0)
+}
+
+func (s *ErrtrackerTestSuite) TestTriesAllKnownMachineIDs(c *C) {
+	p := filepath.Join(c.MkDir(), "machine-id")
+	machineID := []byte("bbb1a6a5bcdb418380056a2d759c3f7c")
+	err := ioutil.WriteFile(p, machineID, 0644)
+	c.Assert(err, IsNil)
+	s.AddCleanup(errtracker.MockMachineIDPaths([]string{"/does/not/exist", p}))
+
+	n := 0
+	var identifiers []string
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		identifiers = append(identifiers, r.URL.Path)
+		n++
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
+	defer restorer()
+
+	_, err = errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", map[string]string{
+		"Channel": "beta",
+	})
+	c.Check(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(identifiers, DeepEquals, []string{fmt.Sprintf("/%x", sha512.Sum512(machineID))})
 }

@@ -19,6 +19,16 @@
 
 package builtin
 
+const timeserverControlSummary = `allows setting system time synchronization servers`
+
+const timeserverControlBaseDeclarationSlots = `
+  timeserver-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
@@ -62,11 +72,21 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=unconfined),
+
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus method for controlling network time synchronization via
+# timedatectl's set-ntp command.
+/usr/bin/timedatectl{,.real} ixr,
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name: "timeserver-control",
+		name:                  "timeserver-control",
+		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
