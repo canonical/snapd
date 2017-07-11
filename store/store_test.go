@@ -3588,18 +3588,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		var resp struct {
-			Snaps []map[string]interface{} `json:"snaps"`
-		}
-
-		err = json.Unmarshal(jsonReq, &resp)
-		c.Assert(err, IsNil)
-
-		// XXX actually why hit the network here
-		c.Assert(resp.Snaps, HasLen, 0)
-		io.WriteString(w, `{}`)
+		c.Fatal("no network request expected")
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -3630,7 +3619,7 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := apiURL()
 
@@ -3664,14 +3653,19 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := assertsURL()
+	// This also depends on SNAPPY_USE_STAGING_STORE, but that's tested
+	// separately (see TestApiURLDependsOnEnviron).
+	storeBaseURI, _ := url.Parse(apiURL())
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := assertsURL()
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	before := assertsURL(storeBaseURI)
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	after := assertsURL(storeBaseURI)
 
 	c.Check(before, Not(Equals), after)
+	c.Check(after, Equals, "https://assertions.example.org/v1/")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
@@ -3688,7 +3682,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://api.snapcraft.io/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://api.snapcraft.io/api/v1/snaps/metadata"), Equals, true)
-	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://api.snapcraft.io/api/v1/snaps/assertions/")
 }
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
@@ -4178,7 +4172,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -4186,11 +4180,11 @@ var buyTests = []struct {
 		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
 		buyStatus:         404,
 		buyErrorCode:      "not-found",
-		buyErrorMessage:   "Not found",
+		buyErrorMessage:   "Snap package not found",
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found: Snap package not found",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -4200,6 +4194,24 @@ var buyTests = []struct {
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
 		expectedError:     "payment declined",
+	},
+	{
+		// failure due to no payment methods
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "no-payment-methods",
+		buyErrorMessage:   "No payment methods associated with your account.",
+		expectedError:     "no payment methods",
+	},
+	{
+		// failure due to terms of service not accepted
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "tos-not-accepted",
+		buyErrorMessage:   "You must accept the latest terms of service first.",
+		expectedError:     "terms of service not accepted",
 	},
 }
 
@@ -4513,7 +4525,7 @@ var readyToBuyTests = []struct {
 		},
 		Test: func(c *C, err error) {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, `store reported an error: message 1`)
+			c.Check(err.Error(), Equals, `message 1`)
 		},
 		NumOfCalls: 5,
 	},

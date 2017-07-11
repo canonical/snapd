@@ -277,17 +277,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
-	// XXX: without this we abort, and further explode that abort
-	// debug!
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
-
+func (s *FirstBootTestSuite) makeBecomeOpertionalChange(c *C) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -376,6 +366,25 @@ snaps:
 	st.Unlock()
 	s.overlord.Settle()
 	st.Lock()
+	// unlocked by defer
+
+	return chg
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	chg := s.makeBecomeOpertionalChange(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	c.Assert(chg.Err(), IsNil)
 
 	// and check the snap got correctly installed
@@ -431,6 +440,15 @@ snaps:
 	err = state.Get("seeded", &seeded)
 	c.Assert(err, IsNil)
 	c.Check(seeded, Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
+	chg := s.makeBecomeOpertionalChange(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).* cannot determine bootloader.*`)
 }
 
 func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {

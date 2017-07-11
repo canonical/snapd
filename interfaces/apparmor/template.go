@@ -57,6 +57,9 @@ var defaultTemplate = `
   # for perl apps/services
   #include <abstractions/perl>
   /usr/bin/perl{,5*} ixr,
+  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
+  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
+  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
 
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
@@ -276,6 +279,7 @@ var defaultTemplate = `
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
+  owner @{PROC}/@{pid}/loginuid r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
