@@ -23,41 +23,46 @@ import (
 	"fmt"
 )
 
-type Attrs struct {
-	staticAttrs  map[string]interface{}
+type PlugData struct {
+	plug         *Plug
 	dynamicAttrs map[string]interface{}
 }
 
-func newSlotAttrs(slot *Slot, dynamicAttrs map[string]interface{}) (*Attrs, error) {
-	return &Attrs{
-		staticAttrs:  slot.Attrs,
+type SlotData struct {
+	slot         *Slot
+	dynamicAttrs map[string]interface{}
+}
+
+func newSlotData(slot *Slot, dynamicAttrs map[string]interface{}) (*SlotData, error) {
+	return &SlotData{
+		slot:         slot,
 		dynamicAttrs: dynamicAttrs,
 	}, nil
 }
 
-func newPlugAttrs(plug *Plug, dynamicAttrs map[string]interface{}) (*Attrs, error) {
-	return &Attrs{
-		staticAttrs:  plug.Attrs,
+func newPlugData(plug *Plug, dynamicAttrs map[string]interface{}) (*PlugData, error) {
+	return &PlugData{
+		plug:         plug,
 		dynamicAttrs: dynamicAttrs,
 	}, nil
 }
 
-func (attrs *Attrs) StaticAttr(key string) (interface{}, error) {
-	if val, ok := attrs.staticAttrs[key]; ok {
+func (attrs *PlugData) StaticAttr(key string) (interface{}, error) {
+	if val, ok := attrs.plug.Attrs[key]; ok {
 		return val, nil
 	}
 	return nil, fmt.Errorf("attribute %q not found", key)
 }
 
-func (attrs *Attrs) SetStaticAttr(key string, value interface{}) {
-	attrs.staticAttrs[key] = value
+func (attrs *PlugData) SetStaticAttr(key string, value interface{}) {
+	attrs.plug.Attrs[key] = value
 }
 
-func (attrs *Attrs) StaticAttrs() map[string]interface{} {
-	return attrs.staticAttrs
+func (attrs *PlugData) StaticAttrs() map[string]interface{} {
+	return attrs.plug.Attrs
 }
 
-func (attrs *Attrs) Attr(key string) (interface{}, error) {
+func (attrs *PlugData) Attr(key string) (interface{}, error) {
 	if attrs.dynamicAttrs != nil {
 		if val, ok := attrs.dynamicAttrs[key]; ok {
 			return val, nil
@@ -66,14 +71,53 @@ func (attrs *Attrs) Attr(key string) (interface{}, error) {
 	return attrs.StaticAttr(key)
 }
 
-func (attrs *Attrs) Attrs() (map[string]interface{}, error) {
+func (attrs *PlugData) Attrs() (map[string]interface{}, error) {
 	if attrs.dynamicAttrs == nil {
 		return nil, fmt.Errorf("dynamic attributes not initialized")
 	}
 	return attrs.dynamicAttrs, nil
 }
 
-func (attrs *Attrs) SetAttr(key string, value interface{}) error {
+func (attrs *PlugData) SetAttr(key string, value interface{}) error {
+	if attrs.dynamicAttrs == nil {
+		return fmt.Errorf("dynamic attributes not initialized")
+	}
+	attrs.dynamicAttrs[key] = value
+	return nil
+}
+
+func (attrs *SlotData) StaticAttr(key string) (interface{}, error) {
+	if val, ok := attrs.slot.Attrs[key]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("attribute %q not found", key)
+}
+
+func (attrs *SlotData) SetStaticAttr(key string, value interface{}) {
+	attrs.slot.Attrs[key] = value
+}
+
+func (attrs *SlotData) StaticAttrs() map[string]interface{} {
+	return attrs.slot.Attrs
+}
+
+func (attrs *SlotData) Attr(key string) (interface{}, error) {
+	if attrs.dynamicAttrs != nil {
+		if val, ok := attrs.dynamicAttrs[key]; ok {
+			return val, nil
+		}
+	}
+	return attrs.StaticAttr(key)
+}
+
+func (attrs *SlotData) Attrs() (map[string]interface{}, error) {
+	if attrs.dynamicAttrs == nil {
+		return nil, fmt.Errorf("dynamic attributes not initialized")
+	}
+	return attrs.dynamicAttrs, nil
+}
+
+func (attrs *SlotData) SetAttr(key string, value interface{}) error {
 	if attrs.dynamicAttrs == nil {
 		return fmt.Errorf("dynamic attributes not initialized")
 	}
