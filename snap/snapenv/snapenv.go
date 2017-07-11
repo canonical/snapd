@@ -20,8 +20,8 @@
 package snapenv
 
 import (
-	"path/filepath"
 	"fmt"
+	"path/filepath"
 	"os"
 	"os/user"
 	"strings"
