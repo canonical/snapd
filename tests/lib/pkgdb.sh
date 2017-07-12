@@ -282,7 +282,7 @@ distro_install_build_snapd(){
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
             fedora-*)
-                packages="${GOHOME}"/snap-confine*.rpm "${GOPATH}"/snapd*.rpm
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
             opensuse-*)
                 packages="${GOHOME}"/snapd*.rpm
