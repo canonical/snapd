@@ -3759,7 +3759,6 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 
