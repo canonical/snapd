@@ -27,10 +27,12 @@ execute: |
         exit
     fi
 
-    # Read/write access should be possible
-    test -n "`/snap/bin/time-control-consumer.read`"
-    /snap/bin/time-control-consumer.write
+    . $TESTSLIB/dirs.sh
 
     # Read/write access should be possible
-    test -n "`/snap/bin/time-control-consumer.timedatectl status`"
-    /snap/bin/time-control-consumer.timedatectl set-local-rtc no
+    test -n "`$SNAPMOUNTDIR/bin/time-control-consumer.read`"
+    $SNAPMOUNTDIR/bin/time-control-consumer.write
+
+    # Read/write access should be possible
+    test -n "`$SNAPMOUNTDIR/bin/time-control-consumer.timedatectl status`"
+    $SNAPMOUNTDIR/bin/time-control-consumer.timedatectl set-local-rtc no

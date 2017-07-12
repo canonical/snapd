@@ -52,11 +52,13 @@ var (
 	SnapSocket                string
 	SnapRunDir                string
 	SnapRunNsDir              string
+	SnapRunLockDir            string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
 
 	SnapAssertsDBDir      string
+	SnapCookieDir         string
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
 
@@ -149,12 +151,14 @@ func SetRootDir(rootdir string) {
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
+	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
+	SnapCookieDir = filepath.Join(rootdir, snappyDir, "cookie")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")

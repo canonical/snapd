@@ -20,6 +20,7 @@
 package errtracker_test
 
 import (
+	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -62,12 +63,12 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	p := filepath.Join(d, "machine-id")
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
-	s.AddCleanup(errtracker.MockMachineIDPath(p))
+	s.AddCleanup(errtracker.MockMachineIDPaths([]string{p}))
 	s.AddCleanup(errtracker.MockHostSnapd(truePath))
 	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
 	s.AddCleanup(errtracker.MockReExec(true))
 
-	p = filepath.Join(d, "usr.lib.snapd.snap-confine.real")
+	p = filepath.Join(d, "usr.lib.snapd.snap-confine")
 	err = ioutil.WriteFile(p, []byte("# fake profile of snap-confine"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockSnapConfineApparmorProfile(p))
@@ -83,6 +84,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(s.snapConfineProfile+".dpkg-new", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real", []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(s.snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -121,8 +126,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
 
-				"SnapConfineAppArmorProfileCurrentMD5Sum": "7a7aa5f21063170c1991b84eb8d86de1",
-				"SnapConfineAppArmorProfileDpkgNewMD5Sum": "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfile":            "7a7aa5f21063170c1991b84eb8d86de1",
+				"MD5SumSnapConfineAppArmorProfileDpkgNew":     "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileReal":        "93b885adfe0da089cdf634904fd59f71",
+				"MD5SumSnapConfineAppArmorProfileRealDpkgNew": "93b885adfe0da089cdf634904fd59f71",
 
 				"DidSnapdReExec": "yes",
 			})
@@ -185,4 +192,33 @@ func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "oops-not-sent")
 	c.Check(n, Equals, 0)
+}
+
+func (s *ErrtrackerTestSuite) TestTriesAllKnownMachineIDs(c *C) {
+	p := filepath.Join(c.MkDir(), "machine-id")
+	machineID := []byte("bbb1a6a5bcdb418380056a2d759c3f7c")
+	err := ioutil.WriteFile(p, machineID, 0644)
+	c.Assert(err, IsNil)
+	s.AddCleanup(errtracker.MockMachineIDPaths([]string{"/does/not/exist", p}))
+
+	n := 0
+	var identifiers []string
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		identifiers = append(identifiers, r.URL.Path)
+		n++
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
+	defer restorer()
+
+	_, err = errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", map[string]string{
+		"Channel": "beta",
+	})
+	c.Check(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(identifiers, DeepEquals, []string{fmt.Sprintf("/%x", sha512.Sum512(machineID))})
 }

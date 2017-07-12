@@ -32,7 +32,7 @@ import (
 
 var shortFindHelp = i18n.G("Finds packages to install")
 var longFindHelp = i18n.G(`
-The find command queries the store for available packages.
+The find command queries the store for available packages in the stable channel.
 `)
 
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
@@ -96,7 +96,7 @@ func init() {
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
 		"section": i18n.G("Restrict the search to a given section"),
-	}, []argDesc{{name: i18n.G("<query>")}})
+	}, []argDesc{{name: i18n.G("<query>")}}).alias = "search"
 }
 
 func (x *cmdFind) Execute(args []string) error {

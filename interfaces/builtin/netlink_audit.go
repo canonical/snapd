@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const netlinkAuditSummary = `allows access to kernel audit system through netlink`
+
+const netlinkAuditBaseDeclarationSlots = `
+  netlink-audit:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const netlinkAuditConnectedPlugSecComp = `
 # Description: Can use netlink to read/write to kernel audit system.
@@ -29,15 +35,14 @@ bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
-// NewNetlinkAuditInterface returns a new "netlink-audit" interface.
-func NewNetlinkAuditInterface() interfaces.Interface {
-	return &commonInterface{
+func init() {
+	registerIface(&commonInterface{
 		name:                 "netlink-audit",
+		summary:              netlinkAuditSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: netlinkAuditBaseDeclarationSlots,
 		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
 		reservedForOS:        true,
-	}
-}
-
-func init() {
-	registerIface(NewNetlinkAuditInterface())
+	})
 }

@@ -30,15 +30,33 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
-// SerialPortInterface is the type for serial port interfaces.
-type SerialPortInterface struct{}
+const serialPortSummary = `allows accessing a specific serial port`
+
+const serialPortBaseDeclarationSlots = `
+  serial-port:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
+// serialPortInterface is the type for serial port interfaces.
+type serialPortInterface struct{}
 
 // Name of the serial-port interface.
-func (iface *SerialPortInterface) Name() string {
+func (iface *serialPortInterface) Name() string {
 	return "serial-port"
 }
 
-func (iface *SerialPortInterface) String() string {
+func (iface *serialPortInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              serialPortSummary,
+		BaseDeclarationSlots: serialPortBaseDeclarationSlots,
+	}
+}
+
+func (iface *serialPortInterface) String() string {
 	return iface.Name()
 }
 
@@ -58,7 +76,7 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|AMA|XRUSB|S|
 var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
-func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Check slot is of right type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -111,7 +129,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *serialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -119,7 +137,7 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *SerialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -136,7 +154,7 @@ func (iface *SerialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	return nil
 }
 
-func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
@@ -155,7 +173,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -171,12 +189,12 @@ func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	return nil
 }
 
-func (iface *SerialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *serialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *SerialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
+func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	if _, ok := slot.Attrs["usb-vendor"]; ok {
 		return true
 	}
@@ -186,10 +204,10 @@ func (iface *SerialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	return false
 }
 
-func (iface *SerialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *serialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&SerialPortInterface{})
+	registerIface(&serialPortInterface{})
 }

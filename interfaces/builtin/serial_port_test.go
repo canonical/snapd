@@ -68,7 +68,7 @@ type SerialPortInterfaceSuite struct {
 }
 
 var _ = Suite(&SerialPortInterfaceSuite{
-	iface: &builtin.SerialPortInterface{},
+	iface: builtin.MustInterface("serial-port"),
 })
 
 func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {

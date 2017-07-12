@@ -1,9 +1,5 @@
 summary: Ensure that the home interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 
@@ -77,16 +73,18 @@ execute: |
 
     echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then snap can't read home files"
-    if home-consumer.reader $READABLE_FILE; then
-        echo "Home files shouldn't be readable" && exit 1
+        echo "Then snap can't read home files"
+        if home-consumer.reader $READABLE_FILE; then
+            echo "Home files shouldn't be readable" && exit 1
+        fi
+
+        echo "============================================"
     fi
-
-    echo "============================================"
 
     echo "When the plug is connected"
     snap connect home-consumer:home
@@ -98,16 +96,18 @@ execute: |
 
     echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then snap can't append to home files"
-    if home-consumer.writer "$WRITABLE_FILE"; then
-        echo "Home files shouldn't be writable" && exit 1
+        echo "Then snap can't append to home files"
+        if home-consumer.writer "$WRITABLE_FILE"; then
+            echo "Home files shouldn't be writable" && exit 1
+        fi
+
+        echo "============================================"
     fi
-
-    echo "============================================"
 
     echo "When the plug is connected"
     snap connect home-consumer:home
@@ -118,6 +118,10 @@ execute: |
     cat "$CREATABLE_FILE" | grep -Pqz "ok"
 
     echo "============================================"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
 
     echo "When the plug is disconnected"
     snap disconnect home-consumer:home

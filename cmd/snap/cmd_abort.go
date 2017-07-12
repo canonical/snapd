@@ -25,11 +25,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdAbort struct {
-	Positional struct {
-		ID changeID
-	} `positional-args:"yes" required:"yes"`
-}
+type cmdAbort struct{ changeIDMixin }
 
 var shortAbortHelp = i18n.G("Abort a pending change")
 
@@ -44,8 +40,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdAbort{}
 		},
-		nil,
-		[]argDesc{{name: i18n.G("<change-id>")}},
+		changeIDMixinOptDesc,
+		changeIDMixinArgDesc,
 	)
 }
 
@@ -55,6 +51,10 @@ func (x *cmdAbort) Execute(args []string) error {
 	}
 
 	cli := Client()
-	_, err := cli.Abort(string(x.Positional.ID))
+	id, err := x.GetChangeID(cli)
+	if err != nil {
+		return err
+	}
+	_, err = cli.Abort(id)
 	return err
 }

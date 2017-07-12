@@ -27,6 +27,15 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const lxdSummary = `allows access to the LXD socket`
+
+const lxdBaseDeclarationSlots = `
+  lxd:
+    allow-installation: false
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const lxdConnectedPlugAppArmor = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
@@ -42,41 +51,48 @@ shutdown
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
-type LxdInterface struct{}
+type lxdInterface struct{}
 
-func (iface *LxdInterface) Name() string {
+func (iface *lxdInterface) Name() string {
 	return "lxd"
 }
 
-func (iface *LxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              lxdSummary,
+		BaseDeclarationSlots: lxdBaseDeclarationSlots,
+	}
+}
+
+func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *LxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *LxdInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *lxdInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *LxdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *lxdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *LxdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *lxdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&LxdInterface{})
+	registerIface(&lxdInterface{})
 }

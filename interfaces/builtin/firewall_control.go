@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const firewallControlSummary = `allows control over network firewall`
+
+const firewallControlBaseDeclarationSlots = `
+  firewall-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
@@ -86,6 +92,9 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/bridge/bridge-nf-call-arptables rw,
 @{PROC}/sys/net/bridge/bridge-nf-call-iptables rw,
 @{PROC}/sys/net/bridge/bridge-nf-call-ip6tables rw,
+@{PROC}/sys/net/bridge/bridge-nf-filter-pppoe-tagged rw,
+@{PROC}/sys/net/bridge/bridge-nf-filter-vlan-tagged rw,
+@{PROC}/sys/net/bridge/bridge-nf-pass-vlan-input-dev rw,
 @{PROC}/sys/net/ipv4/conf/*/rp_filter w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_source_route w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_redirects w,
@@ -120,19 +129,19 @@ var firewallControlConnectedPlugKmod = []string{
 	"arp_tables",
 	"br_netfilter",
 	"ip6table_filter",
-	"iptable_filter"}
+	"iptable_filter",
+}
 
-// NewFirewallControlInterface returns a new "firewall-control" interface.
-func NewFirewallControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "firewall-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                     "firewall-control",
+		summary:                  firewallControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     firewallControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
 		reservedForOS:            true,
-	}
-}
-
-func init() {
-	registerIface(NewFirewallControlInterface())
+	})
 }

@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const systemObserveSummary = `allows observing all processes and drivers`
+
+const systemObserveBaseDeclarationSlots = `
+  system-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
@@ -50,7 +56,6 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
-@{PROC}/meminfo r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
@@ -60,6 +65,8 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
+
+#include <abstractions/dbus-strict>
 
 dbus (send)
     bus=system
@@ -90,16 +97,15 @@ const systemObserveConnectedPlugSecComp = `
 #@deny ptrace
 `
 
-// NewSystemObserveInterface returns a new "system-observe" interface.
-func NewSystemObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "system-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "system-observe",
+		summary:               systemObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewSystemObserveInterface())
+	})
 }

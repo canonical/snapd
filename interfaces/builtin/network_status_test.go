@@ -38,7 +38,7 @@ type NetworkStatusSuite struct {
 }
 
 var _ = Suite(&NetworkStatusSuite{
-	iface: &builtin.NetworkStatusInterface{},
+	iface: builtin.MustInterface("network-status"),
 })
 
 func (s *NetworkStatusSuite) SetUpSuite(c *C) {

@@ -45,10 +45,11 @@ apps:
   plugs: [docker]
 `
 
-var _ = Suite(&DockerInterfaceSuite{})
+var _ = Suite(&DockerInterfaceSuite{
+	iface: builtin.MustInterface("docker"),
+})
 
 func (s *DockerInterfaceSuite) SetUpTest(c *C) {
-	s.iface = &builtin.DockerInterface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{

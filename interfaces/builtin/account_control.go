@@ -19,12 +19,24 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const accountControlSummary = `allows managing non-system user accounts`
+
+const accountControlDescription = `
+The account-control interface allows connected plugs to create, modify and
+delete non-system users as well as to change account passwords.
+
+The core snap provides the slot that is shared by all the snaps.
+`
+
+const accountControlBaseDeclarationSlots = `
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const accountControlConnectedPlugAppArmor = `
-# Allow creating, modifying and deleting non-system users and account password.
 /{,usr/}sbin/chpasswd ixr,
 /{,usr/}sbin/user{add,del} ixr,
 
@@ -63,16 +75,16 @@ bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
-// Interface which allows to handle the user accounts.
-func NewAccountControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "account-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "account-control",
+		summary:               accountControlSummary,
+		description:           accountControlDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewAccountControlInterface())
+	})
 }

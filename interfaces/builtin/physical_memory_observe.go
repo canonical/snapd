@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const physicalMemoryObserveSummary = `allows read access to all physical memory`
+
+const physicalMemoryObserveBaseDeclarationSlots = `
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const physicalMemoryObserveConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical
 # memory. With STRICT_DEVMEM=y, allow reading /dev/mem for read-only
@@ -36,19 +46,28 @@ const physicalMemoryObserveConnectedPlugAppArmor = `
 `
 
 // The type for physical-memory-observe interface
-type PhysicalMemoryObserveInterface struct{}
+type physicalMemoryObserveInterface struct{}
 
 // Getter for the name of the physical-memory-observe interface
-func (iface *PhysicalMemoryObserveInterface) Name() string {
+func (iface *physicalMemoryObserveInterface) Name() string {
 	return "physical-memory-observe"
 }
 
-func (iface *PhysicalMemoryObserveInterface) String() string {
+func (iface *physicalMemoryObserveInterface) String() string {
 	return iface.Name()
 }
 
+func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              physicalMemoryObserveSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryObserveBaseDeclarationSlots,
+	}
+}
+
 // Check validity of the defined slot
-func (iface *PhysicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -63,7 +82,7 @@ func (iface *PhysicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot)
 }
 
 // Checks and possibly modifies a plug
-func (iface *PhysicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *physicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -71,12 +90,12 @@ func (iface *PhysicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-func (iface *PhysicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *PhysicalMemoryObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="mem", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -85,11 +104,11 @@ func (iface *PhysicalMemoryObserveInterface) UDevConnectedPlug(spec *udev.Specif
 	return nil
 }
 
-func (iface *PhysicalMemoryObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *physicalMemoryObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&PhysicalMemoryObserveInterface{})
+	registerIface(&physicalMemoryObserveInterface{})
 }

@@ -64,6 +64,11 @@ type Interfaces struct {
 	Slots []Slot `json:"slots"`
 }
 
+// InterfaceMetaData contains meta-data about a given interface type.
+type InterfaceMetaData struct {
+	Description string `json:"description,omitempty"`
+}
+
 // InterfaceAction represents an action performed on the interface system.
 type InterfaceAction struct {
 	Action string `json:"action"`

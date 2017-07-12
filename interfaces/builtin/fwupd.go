@@ -28,6 +28,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const fwupdSummary = `allows operating as the fwupd service`
+
+const fwupdBaseDeclarationSlots = `
+  fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
@@ -181,20 +192,27 @@ const fwupdConnectedPlugSecComp = `
 bind
 `
 
-// FwupdInterface type
-type FwupdInterface struct{}
+// fwupdInterface type
+type fwupdInterface struct{}
 
-// Name of the FwupdInterface
-func (iface *FwupdInterface) Name() string {
+// Name of the fwupdInterface
+func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *FwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              fwupdSummary,
+		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
+	}
+}
+
+func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotDBus)
 	return nil
 }
 
-func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
@@ -202,13 +220,13 @@ func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotAppArmor)
 	return nil
 
 }
 
-func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
@@ -216,31 +234,31 @@ func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(fwupdConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *FwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotSecComp)
 	return nil
 }
 
 // SanitizePlug checks the plug definition is valid
-func (iface *FwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
 // SanitizeSlot checks the slot definition is valid
-func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&FwupdInterface{})
+	registerIface(&fwupdInterface{})
 }

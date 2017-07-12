@@ -6,6 +6,8 @@ details: |
     function correctly in both cases.
 systems: [-ubuntu-core-16-*]
 execute: |
+    . $TESTSLIB/dirs.sh
+
     run_install() {
         make -C test-snapd-hello-classic clean
         make -C test-snapd-hello-classic
@@ -13,18 +15,15 @@ execute: |
     }
 
     run_install --classic
-    /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+    $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
-    # FIXME jailmode doesn't work on debian type systems due to missing
-    # confinement yet. This check will be replaced with proper detection
-    # if confinement is supported on the platform we're running.
-    if [[ "$SPREAD_SYSTEM" = debian-* ]]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
     # Installing again will increase revision and put the snap into jailmode
     run_install --classic --jailmode
-    /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
+    $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
 restore: |
     make -C test-snapd-hello-classic clean

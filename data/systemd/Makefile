@@ -20,7 +20,7 @@ LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
 SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} snapd.refresh.timer snapd.socket
+SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
 
 %.service: %.service.in
 	cat $< | \

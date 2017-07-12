@@ -97,10 +97,6 @@ int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 	debug("%s", __func__);
 	int rc = 0;
 
-	// extra paranoia
-	if (!verify_security_tag(security_tag))
-		die("security tag %s not allowed", security_tag);
-
 	udev_s->tagname[0] = '\0';
 	udev_s->tagname_len = 0;
 	// TAG+="snap_<security tag>" (udev doesn't like '.' in the tag name)
@@ -157,9 +153,6 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		NULL,
 	};
 
-	// extra paranoia
-	if (!verify_security_tag(security_tag))
-		die("security tag %s not allowed", security_tag);
 	if (udev_s == NULL)
 		die("snappy_udev is NULL");
 	if (udev_s->udev == NULL)

@@ -6,8 +6,8 @@ details: |
     from the host filesystem when running on a classic distribution
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
 execute: |
     echo "We can ensure that the /lib/modules/$(uname -r) directory exists"
-    test-snapd-tools.cmd test -d /lib/modules/$(uname -r)
+    test-snapd-tools.cmd test -d "/lib/modules/$(uname -r)"

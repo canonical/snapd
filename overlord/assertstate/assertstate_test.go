@@ -92,6 +92,10 @@ func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error)
 	panic("fakeStore.Find not expected")
 }
 
+func (sto *fakeStore) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.LookupRefresh not expected")
+}
+
 func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
 	panic("fakeStore.ListRefresh not expected")
 }
@@ -270,6 +274,48 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	aKey, _ := assertstest.GenerateKey(752)
+	aSignDB := assertstest.NewSigningDB("can0nical", aKey)
+
+	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id":        "can0nical",
+		"account-id":          "can0nical",
+		"public-key-sha3-384": aKey.PublicKey().ID(),
+		"name":                "default",
+		"since":               time.Now().UTC().Format(time.RFC3339),
+	}
+	acctKey, err := aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, "")
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "can0nical",
+		"brand-id":     "can0nical",
+		"repair-id":    "2",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}
+	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	err = batch.Add(repair)
+	c.Assert(err, IsNil)
+
+	err = batch.Add(acctKey)
+	c.Assert(err, IsNil)
+
+	// this must fail
+	err = batch.Commit(s.state)
+	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
 }
 
 func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {

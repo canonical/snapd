@@ -28,17 +28,35 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-// BoolFileInterface is the type of all the bool-file interfaces.
-type BoolFileInterface struct{}
+const boolFileSummary = `allows access to specific file with bool semantics`
+
+const boolFileBaseDeclarationSlots = `
+  bool-file:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
+// boolFileInterface is the type of all the bool-file interfaces.
+type boolFileInterface struct{}
 
 // String returns the same value as Name().
-func (iface *BoolFileInterface) String() string {
+func (iface *boolFileInterface) String() string {
 	return iface.Name()
 }
 
 // Name returns the name of the bool-file interface.
-func (iface *BoolFileInterface) Name() string {
+func (iface *boolFileInterface) Name() string {
 	return "bool-file"
+}
+
+func (iface *boolFileInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              boolFileSummary,
+		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
+	}
 }
 
 var boolFileGPIOValuePattern = regexp.MustCompile(
@@ -52,7 +70,7 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 
 // SanitizeSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
-func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -70,7 +88,7 @@ func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -78,7 +96,7 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *BoolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -91,7 +109,7 @@ func (iface *BoolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// Allow write and lock on the file designated by the path.
 	// Dereference symbolic links to file path handed out to apparmor since
 	// sysfs is full of symlinks and apparmor requires uses real path for
@@ -104,7 +122,7 @@ func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
+func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		path, err := evalSymlinks(path)
 		if err != nil {
@@ -116,7 +134,7 @@ func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string,
 }
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
-func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
+func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
@@ -129,18 +147,18 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
-func (iface *BoolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
 
-func (iface *BoolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+func (iface *boolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
 	return nil
 }
 
-func (iface *BoolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+func (iface *boolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
 func init() {
-	registerIface(&BoolFileInterface{})
+	registerIface(&boolFileInterface{})
 }
