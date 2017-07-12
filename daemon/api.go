@@ -2012,10 +2012,22 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGetUID = ucrednetGetUID
-	storeUserInfo                = store.UserInfo
-	osutilAddUser                = osutil.AddUser
+	checkRootUserUcrednetGetUID = ucrednetGetUID
+	storeUserInfo               = store.UserInfo
+	osutilAddUser               = osutil.AddUser
 )
+
+// Check the request came from the local machine's root user.
+func checkRootUser(r *http.Request, handlerName string) Response {
+	uid, err := checkRootUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use %s as non-root", handlerName)
+	}
+	return nil
+}
 
 func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
 	v, err := storeUserInfo(email)
@@ -2190,12 +2202,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
+	errResponse := checkRootUser(r, "create-user")
+	if errResponse != nil {
+		return errResponse
 	}
 
 	var createData postUserCreateData
@@ -2413,12 +2422,9 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
+	errResponse := checkRootUser(r, "users")
+	if errResponse != nil {
+		return errResponse
 	}
 
 	st := c.d.overlord.State()
