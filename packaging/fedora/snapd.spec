@@ -71,6 +71,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires:  systemd
+BuildRequires:  libseccomp-static
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
