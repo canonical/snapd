@@ -9,14 +9,14 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-var _ = Suite(&enterpriseStoreSuite{})
+var _ = Suite(&storeSuite{})
 
-type enterpriseStoreSuite struct {
+type storeSuite struct {
 	validExample string
 }
 
-func (estores *enterpriseStoreSuite) SetUpSuite(c *C) {
-	estores.validExample = "type: enterprise-store\n" +
+func (s *storeSuite) SetUpSuite(c *C) {
+	s.validExample = "type: store\n" +
 		"authority-id: canonical\n" +
 		"operator-id: op-id1\n" +
 		"store: store1\n" +
@@ -26,20 +26,20 @@ func (estores *enterpriseStoreSuite) SetUpSuite(c *C) {
 		"AXNpZw=="
 }
 
-func (estores *enterpriseStoreSuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(estores.validExample))
+func (s *storeSuite) TestDecodeOK(c *C) {
+	a, err := asserts.Decode([]byte(s.validExample))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.EnterpriseStoreType)
-	estore := a.(*asserts.EnterpriseStore)
+	c.Check(a.Type(), Equals, asserts.StoreType)
+	store := a.(*asserts.Store)
 
-	c.Check(estore.OperatorID(), Equals, "op-id1")
-	c.Check(estore.Store(), Equals, "store1")
-	c.Check(estore.Address().String(), Equals, "https://store.example.com")
+	c.Check(store.OperatorID(), Equals, "op-id1")
+	c.Check(store.Store(), Equals, "store1")
+	c.Check(store.Address().String(), Equals, "https://store.example.com")
 }
 
-var eStoreErrPrefix = "assertion enterprise-store: "
+var storeErrPrefix = "assertion store: "
 
-func (estores *enterpriseStoreSuite) TestDecodeInvalidHeaders(c *C) {
+func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 	tests := []struct{ original, invalid, expectedErr string }{
 		{"operator-id: op-id1\n", "", `"operator-id" header is mandatory`},
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
@@ -50,13 +50,13 @@ func (estores *enterpriseStoreSuite) TestDecodeInvalidHeaders(c *C) {
 	}
 
 	for _, test := range tests {
-		invalid := strings.Replace(estores.validExample, test.original, test.invalid, 1)
+		invalid := strings.Replace(s.validExample, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, eStoreErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, storeErrPrefix+test.expectedErr)
 	}
 }
 
-func (estores *enterpriseStoreSuite) TestAddress(c *C) {
+func (s *storeSuite) TestAddress(c *C) {
 	tests := []struct {
 		address string
 		err     string
@@ -85,20 +85,20 @@ func (estores *enterpriseStoreSuite) TestAddress(c *C) {
 
 	for _, test := range tests {
 		encoded := strings.Replace(
-			estores.validExample, "address: https://store.example.com\n",
+			s.validExample, "address: https://store.example.com\n",
 			fmt.Sprintf("address: %s\n", test.address), 1)
 		assert, err := asserts.Decode([]byte(encoded))
 		if test.err != "" {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, eStoreErrPrefix+test.err+": "+test.address)
+			c.Check(err.Error(), Equals, storeErrPrefix+test.err+": "+test.address)
 		} else {
 			c.Assert(err, IsNil)
-			c.Check(assert.(*asserts.EnterpriseStore).Address().String(), Equals, test.address)
+			c.Check(assert.(*asserts.Store).Address().String(), Equals, test.address)
 		}
 	}
 }
 
-func (estores *enterpriseStoreSuite) TestCheckAuthority(c *C) {
+func (s *storeSuite) TestCheckAuthority(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	// Add account for operator.
@@ -112,30 +112,30 @@ func (estores *enterpriseStoreSuite) TestCheckAuthority(c *C) {
 	err = db.Add(operator)
 	c.Assert(err, IsNil)
 
-	estoreHeaders := map[string]interface{}{
+	storeHeaders := map[string]interface{}{
 		"operator-id": operator.HeaderString("account-id"),
 		"store":       "store1",
 		"address":     "https://store.example.com",
 	}
 
-	// enterprise-store signed by some other account fails.
+	// store signed by some other account fails.
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
-	estore, err := otherDB.Sign(asserts.EnterpriseStoreType, estoreHeaders, nil, "")
+	store, err := otherDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Check(estore)
-	c.Assert(err, ErrorMatches, `enterprise-store assertion for operator-id "op-id1" and store "store1" is not signed by a directly trusted authority: other`)
+	err = db.Check(store)
+	c.Assert(err, ErrorMatches, `store assertion for operator-id "op-id1" and store "store1" is not signed by a directly trusted authority: other`)
 
 	// but succeeds when signed by a trusted authority.
-	estore, err = storeDB.Sign(asserts.EnterpriseStoreType, estoreHeaders, nil, "")
+	store, err = storeDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Check(estore)
+	err = db.Check(store)
 	c.Assert(err, IsNil)
 }
 
-func (estores *enterpriseStoreSuite) TestCheckOperatorAccount(c *C) {
+func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	assert, err := storeDB.Sign(asserts.EnterpriseStoreType, map[string]interface{}{
+	assert, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
 		"operator-id": "op-id1",
 		"store":       "store1",
 		"address":     "https://store.example.com",
@@ -144,7 +144,7 @@ func (estores *enterpriseStoreSuite) TestCheckOperatorAccount(c *C) {
 
 	// No account for operator op-id1 yet, so Check fails.
 	err = db.Check(assert)
-	c.Assert(err, ErrorMatches, `enterprise-store assertion for operator-id "op-id1" and store "store1" does not have a matching account assertion for the operator "op-id1"`)
+	c.Assert(err, ErrorMatches, `store assertion for operator-id "op-id1" and store "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
 	assert, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
@@ -162,8 +162,8 @@ func (estores *enterpriseStoreSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (estores *enterpriseStoreSuite) TestPrerequisites(c *C) {
-	assert, err := asserts.Decode([]byte(estores.validExample))
+func (s *storeSuite) TestPrerequisites(c *C) {
+	assert, err := asserts.Decode([]byte(s.validExample))
 	c.Assert(err, IsNil)
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"op-id1"}},
