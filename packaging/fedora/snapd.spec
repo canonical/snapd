@@ -37,9 +37,6 @@
 %global debug_package   %{nil}
 %endif
 
-%global _unpackaged_files_terminate_build 0
-%global _missing_doc_files_terminate_build 0
-
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
@@ -351,7 +348,6 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-%gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
