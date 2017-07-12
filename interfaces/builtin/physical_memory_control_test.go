@@ -38,7 +38,7 @@ type PhysicalMemoryControlInterfaceSuite struct {
 }
 
 var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
-	iface: &builtin.PhysicalMemoryControlInterface{},
+	iface: builtin.MustInterface("physical-memory-control"),
 })
 
 func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {

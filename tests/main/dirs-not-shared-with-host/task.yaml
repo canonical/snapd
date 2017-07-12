@@ -1,0 +1,30 @@
+summary: Ensure that certain directories are coming from the core snap
+details: |
+  The snap-confine program bind mounts the /etc directory from the
+  classic distribution into the snap execution environment.
+  Certain directories however, if they exist on the host's /etc
+  are actually, bind-mounted from the core snap for a more
+  consistent behaviour across various distributions.
+systems:
+    # This test only applies to classic systems
+    - -ubuntu-core-16-*
+prepare: |
+    echo "Having installed the test snap"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+environment:
+    DIRECTORY/alternatives: /etc/alternatives
+    DIRECTORY/ssl: /etc/ssl
+execute: |
+    . "$TESTSLIB/dirs.sh"
+    echo "We can check the inode number of $DIRECTORY"
+    host_inode="$(stat -c '%i' $DIRECTORY)"
+    if [ -e $SNAPMOUNTDIR/core/current ]; then
+        core_inode="$(stat -c '%i' $SNAPMOUNTDIR/core/current/$DIRECTORY)"
+    else
+        core_inode="$(stat -c '%i' $SNAPMOUNTDIR/ubuntu-core/current/$DIRECTORY)"
+    fi
+    effective_inode="$(test-snapd-tools.cmd stat -c '%i' $DIRECTORY)"
+    echo "The inode number as seen from a confined snap should be that of the $DIRECTORY from the core snap"
+    [ "$host_inode" != "$core_inode" ]
+    [ "$effective_inode" = "$core_inode" ]

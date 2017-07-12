@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const systemTraceSummary = `allows using kernel tracing facilities`
+
+const systemTraceBaseDeclarationSlots = `
+  system-trace:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const systemTraceConnectedPlugAppArmor = `
 # Description: Can use kernel tracing facilities. This is restricted because it
@@ -55,16 +61,15 @@ bpf
 perf_event_open
 `
 
-// NewSystemTraceInterface returns a new "system-trace" interface.
-func NewSystemTraceInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "system-trace",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "system-trace",
+		summary:               systemTraceSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemTraceBaseDeclarationSlots,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewSystemTraceInterface())
+	})
 }

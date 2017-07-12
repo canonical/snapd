@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const joystickSummary = `allows access to joystick devices`
+
+const joystickBaseDeclarationSlots = `
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const joystickConnectedPlugAppArmor = `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
@@ -36,21 +46,30 @@ const joystickConnectedPlugAppArmor = `
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
-// JoystickInterface is the type for joystick interface
-type JoystickInterface struct{}
+// joystickInterface is the type for joystick interface
+type joystickInterface struct{}
 
 // Name returns the name of the joystick interface.
-func (iface *JoystickInterface) Name() string {
+func (iface *joystickInterface) Name() string {
 	return "joystick"
 }
 
+func (iface *joystickInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              joystickSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: joystickBaseDeclarationSlots,
+	}
+}
+
 // String returns the name of the joystick interface.
-func (iface *JoystickInterface) String() string {
+func (iface *joystickInterface) String() string {
 	return iface.Name()
 }
 
 // SanitizeSlot checks the validity of the defined slot.
-func (iface *JoystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -65,7 +84,7 @@ func (iface *JoystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *JoystickInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *joystickInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -76,13 +95,13 @@ func (iface *JoystickInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // AppArmorConnectedPlug adds the necessary appamor snippet to the spec that
 // allows access to joystick devices.
-func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *joystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(joystickConnectedPlugAppArmor)
 	return nil
 }
 
 // TODO: This interface needs to use udev tagging, see LP: #1675738.
-// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+// func (iface *joystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 // 	const udevRule = `KERNEL=="js[0-9]*", TAG+="%s"`
 // 	for appName := range plug.Apps {
 // 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -92,10 +111,10 @@ func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 // }
 
 // AutoConnect returns true in order to allow what's in the declarations.
-func (iface *JoystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *joystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
 
 func init() {
-	registerIface(&JoystickInterface{})
+	registerIface(&joystickInterface{})
 }

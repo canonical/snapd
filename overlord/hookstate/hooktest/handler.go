@@ -32,6 +32,10 @@ type MockHandler struct {
 	ErrorCalled bool
 	ErrorError  bool
 	Err         error
+
+	// callbacks useful for testing
+	BeforeCallback func()
+	DoneCallback   func()
 }
 
 // NewMockHandler returns a new MockHandler.
@@ -41,6 +45,9 @@ func NewMockHandler() *MockHandler {
 
 // Before satisfies hookstate.Handler.Before
 func (h *MockHandler) Before() error {
+	if h.BeforeCallback != nil {
+		h.BeforeCallback()
+	}
 	h.BeforeCalled = true
 	if h.BeforeError {
 		return fmt.Errorf("Before failed at user request")
@@ -50,6 +57,9 @@ func (h *MockHandler) Before() error {
 
 // Done satisfies hookstate.Handler.Done
 func (h *MockHandler) Done() error {
+	if h.DoneCallback != nil {
+		h.DoneCallback()
+	}
 	h.DoneCalled = true
 	if h.DoneError {
 		return fmt.Errorf("Done failed at user request")

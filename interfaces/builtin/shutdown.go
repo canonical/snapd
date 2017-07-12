@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const shutdownSummary = `allows shutting down or rebooting the system`
+
+const shutdownBaseDeclarationSlots = `
+  shutdown:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
@@ -58,15 +64,14 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-// NewShutdownInterface returns a new "shutdown" interface.
-func NewShutdownInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "shutdown",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "shutdown",
+		summary:               shutdownSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
-}
-
-func init() {
-	registerIface(NewShutdownInterface())
+	})
 }

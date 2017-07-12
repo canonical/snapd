@@ -27,6 +27,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
+const locationObserveSummary = `allows access to the current physical location`
+
+const locationObserveBaseDeclarationSlots = `
+  location-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const locationObservePermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -244,23 +255,30 @@ const locationObserveConnectedPlugDBus = `
 </policy>
 `
 
-type LocationObserveInterface struct{}
+type locationObserveInterface struct{}
 
-func (iface *LocationObserveInterface) Name() string {
+func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              locationObserveSummary,
+		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
+	}
+}
+
+func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(locationObserveConnectedPlugDBus)
 	return nil
 }
 
-func (iface *LocationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(locationObservePermanentSlotDBus)
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
@@ -268,12 +286,12 @@ func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(locationObservePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
@@ -281,19 +299,19 @@ func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *locationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *locationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&LocationObserveInterface{})
+	registerIface(&locationObserveInterface{})
 }

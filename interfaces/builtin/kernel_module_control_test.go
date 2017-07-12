@@ -45,10 +45,11 @@ apps:
   plugs: [kernel-module-control]
 `
 
-var _ = Suite(&KernelModuleControlInterfaceSuite{})
+var _ = Suite(&KernelModuleControlInterfaceSuite{
+	iface: builtin.MustInterface("kernel-module-control"),
+})
 
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewKernelModuleControlInterface()
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},

@@ -20,7 +20,6 @@
 package hookstate
 
 import (
-	"syscall"
 	"time"
 )
 
@@ -32,19 +31,11 @@ func MockReadlink(f func(string) (string, error)) func() {
 	}
 }
 
-func MockSyscallKill(f func(int, syscall.Signal) error) func() {
-	oldSyscallKill := syscallKill
-	syscallKill = f
+func MockDefaultHookTimeout(timeout time.Duration) func() {
+	oldDefaultTimeout := defaultHookTimeout
+	defaultHookTimeout = timeout
 	return func() {
-		syscallKill = oldSyscallKill
-	}
-}
-
-func MockCmdWaitTimeout(timeout time.Duration) func() {
-	oldCmdWaitTimeout := cmdWaitTimeout
-	cmdWaitTimeout = timeout
-	return func() {
-		cmdWaitTimeout = oldCmdWaitTimeout
+		defaultHookTimeout = oldDefaultTimeout
 	}
 }
 

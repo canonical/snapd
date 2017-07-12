@@ -29,6 +29,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const unity7Summary = `allows interacting with Unity 7 services`
+
+const unity7BaseDeclarationSlots = `
+  unity7:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
@@ -192,6 +201,12 @@ dbus send
 owner @{HOME}/.local/share/mime/**   r,
 owner @{HOME}/.config/user-dirs.dirs r,
 
+# gtk settings (subset of gnome abstraction)
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+# Note: this leaks directory names that wouldn't otherwise be known to the snap
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
+
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
 dbus (send)
@@ -199,6 +214,12 @@ dbus (send)
     path=/org/a11y/bus
     interface=org.a11y.Bus
     member=GetAddress
+    peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
     peer=(label=unconfined),
 
 # unfortunate, but org.a11y.atspi is not designed for separation
@@ -299,6 +320,13 @@ dbus (receive)
     path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=unconfined),
 
 # app-indicators
@@ -510,13 +538,21 @@ const unity7ConnectedPlugSeccomp = `
 shutdown
 `
 
-type Unity7Interface struct{}
+type unity7Interface struct{}
 
-func (iface *Unity7Interface) Name() string {
+func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              unity7Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: unity7BaseDeclarationSlots,
+	}
+}
+
+func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
@@ -528,12 +564,12 @@ func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
 }
 
-func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -541,7 +577,7 @@ func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
@@ -554,11 +590,11 @@ func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *Unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&Unity7Interface{})
+	registerIface(&unity7Interface{})
 }

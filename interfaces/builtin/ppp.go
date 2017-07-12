@@ -25,6 +25,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 )
 
+const pppSummary = `allows operating as the ppp service`
+
+const pppBaseDeclarationSlots = `
+  ppp:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const pppConnectedPlugAppArmor = `
 # Description: Allow operating ppp daemon. This gives privileged access to the
 # ppp daemon.
@@ -49,34 +59,43 @@ capability setuid,
 // in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
 const pppConnectedPlugKmod = "ppp_generic"
 
-type PppInterface struct{}
+type pppInterface struct{}
 
-func (iface *PppInterface) Name() string {
+func (iface *pppInterface) Name() string {
 	return "ppp"
 }
 
-func (iface *PppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pppInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              pppSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: pppBaseDeclarationSlots,
+	}
+}
+
+func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(pppConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *PppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	return spec.AddModule(pppConnectedPlugKmod)
 }
 
-func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *pppInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *PppInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *pppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *pppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&PppInterface{})
+	registerIface(&pppInterface{})
 }

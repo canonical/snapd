@@ -69,7 +69,16 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func infoFromRemote(d snapDetails) *snap.Info {
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+	retry.Exponential{
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+func infoFromRemote(d *snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
 	info.Type = d.Type
@@ -78,6 +87,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
+	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.PublisherID = d.DeveloperID
@@ -244,16 +254,36 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func cpiURL() string {
+// Extend a base URL with additional unescaped paths.  (url.Parse handles
+// resolving relative links, which isn't quite what we want: that goes wrong if
+// the base URL doesn't end with a slash.)
+func urlJoin(base *url.URL, paths ...string) *url.URL {
+	if len(paths) == 0 {
+		return base
+	}
+	url := *base
+	url.RawQuery = ""
+	paths = append([]string{strings.TrimSuffix(url.Path, "/")}, paths...)
+	url.Path = strings.Join(paths, "/")
+	return &url
+}
+
+func apiURL() string {
 	// FIXME: this will become a store-url assertion
-	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
+	// XXX: Deprecated but present for backward-compatibility: this used
+	// to be "Click Package Index".  Remove this once people have got
+	// used to SNAPPY_FORCE_API_URL instead.
+	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
+		return strings.TrimSuffix(u, "api/v1/")
+	}
+	if u := os.Getenv("SNAPPY_FORCE_API_URL"); u != "" {
 		return u
 	}
 	if useStaging() {
-		return "https://search.apps.staging.ubuntu.com/api/v1/"
+		return "https://api.staging.snapcraft.io/"
 	}
 
-	return "https://search.apps.ubuntu.com/api/v1/"
+	return "https://api.snapcraft.io/"
 }
 
 func authLocation() string {
@@ -270,15 +300,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL() string {
+func assertsURL(storeBaseURI *url.URL) string {
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
 	}
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
-	return "https://assertions.ubuntu.com/v1/"
+	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
+	// once new bulk-friendly APIs are designed and implemented.
+	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
 }
 
 func myappsURL() string {
@@ -297,56 +325,44 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	storeBaseURI, err := url.Parse(cpiURL())
+	storeBaseURI, err := url.Parse(apiURL())
+	if err != nil {
+		panic(err)
+	}
+	if storeBaseURI.RawQuery != "" {
+		panic("store API URL may not contain query string")
+	}
+
+	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
 	if err != nil {
 		panic(err)
 	}
 
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("snaps/search")
+	myappsBaseURI, err := url.Parse(myappsURL())
 	if err != nil {
 		panic(err)
 	}
 
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
+	defaultConfig.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
 	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("snaps/details/")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
+	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("snaps/metadata")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 
-	assertsBaseURI, err := url.Parse(assertsURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.AssertionsURI, err = assertsBaseURI.Parse("assertions/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("snaps/sections")
-	if err != nil {
-		panic(err)
-	}
+	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
+	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
 }
 
 type searchResults struct {
 	Payload struct {
-		Packages []snapDetails `json:"clickindex:package"`
+		Packages []*snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -632,64 +648,29 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
-		result := success
-		if !ok {
-			result = failure
-		}
-		if result != nil {
-			return json.NewDecoder(resp.Body).Decode(result)
-		}
+func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
+	ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
+	// always decode on success; decode failures only if body is not empty
+	if !ok && resp.ContentLength == 0 {
 		return nil
-	})
+	}
+	result := success
+	if !ok {
+		result = failure
+	}
+	if result != nil {
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	return nil
 }
 
-// retryRequest calls doRequest and decodes the response in a retry loop.
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
-	var attempt *retry.Attempt
-	startTime := time.Now()
-	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
-		if cancelled(ctx) {
-			return nil, ctx.Err()
-		}
-
-		resp, err = s.doRequest(ctx, client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		} else {
-			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
-			// always decode on success; decode failures only if body is not empty
-			if !ok && resp.ContentLength == 0 {
-				resp.Body.Close()
-				break
-			}
-			err = decode(ok, resp)
-			resp.Body.Close()
-			if err != nil {
-				if shouldRetryError(attempt, err) {
-					continue
-				} else {
-					return nil, err
-				}
-			}
-		}
-		// break out from retry loop
-		break
-	}
-	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
-
-	return resp, err
+// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(ctx, s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, success, failure)
+	}, defaultRetryStrategy)
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -877,16 +858,16 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &result, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == 401 {
 		// TODO handle token expiry and refresh
 		return ErrInvalidCredentials
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return respToError(resp, "obtain known orders from store")
 	}
 
@@ -958,17 +939,17 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		Accept: halJsonContentType,
 	}
 
-	var remote snapDetails
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &remote, nil)
+	var remote *snapDetails
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// check statusCode
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case 200:
 		// OK
-	case http.StatusNotFound:
+	case 404:
 		return nil, ErrSnapNotFound
 	default:
 		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
@@ -1052,7 +1033,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,7 +1076,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,7 +1110,7 @@ type RefreshCandidate struct {
 }
 
 // the exact bits that we need to send to the store
-type currentSnapJson struct {
+type currentSnapJSON struct {
 	SnapID      string `json:"snap_id"`
 	Channel     string `json:"channel"`
 	Revision    int    `json:"revision,omitempty"`
@@ -1138,39 +1119,43 @@ type currentSnapJson struct {
 }
 
 type metadataWrapper struct {
-	Snaps  []currentSnapJson `json:"snaps"`
-	Fields []string          `json:"fields"`
+	Snaps  []*currentSnapJSON `json:"snaps"`
+	Fields []string           `json:"fields"`
 }
 
-// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
-
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]currentSnapJson, 0, len(installed))
-	for _, cs := range installed {
-		revision := cs.Revision.N
-		if !cs.Revision.Store() {
-			revision = 0
+func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
+	// the store gets confused if we send snaps without a snapid
+	// (like local ones)
+	if cs.SnapID == "" {
+		if cs.Revision.Store() {
+			logger.Noticef("store.currentSnap got given a RefreshCandidate with an empty SnapID but a store revision!")
 		}
-		// the store gets confused if we send snaps without a snapid
-		// (like local ones)
-		if cs.SnapID == "" {
-			continue
-		}
+		return nil
+	}
+	if !cs.Revision.Store() {
+		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
+		return nil
+	}
 
-		channel := cs.Channel
-		if channel == "" {
-			channel = "stable"
-		}
+	channel := cs.Channel
+	if channel == "" {
+		channel = "stable"
+	}
 
-		currentSnaps = append(currentSnaps, currentSnapJson{
-			SnapID:   cs.SnapID,
-			Channel:  channel,
-			Epoch:    cs.Epoch,
-			Revision: revision,
-			// confinement purposely left empty
-		})
-		candidateMap[cs.SnapID] = cs
+	return &currentSnapJSON{
+		SnapID:   cs.SnapID,
+		Channel:  channel,
+		Epoch:    cs.Epoch,
+		Revision: cs.Revision.N,
+		// confinement purposely left empty
+	}
+}
+
+// query the store for the information about currently offered revisions of snaps
+func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+	if len(currentSnaps) == 0 {
+		// nothing to do
+		return nil, nil
 	}
 
 	// build input for the updates endpoint
@@ -1198,36 +1183,81 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
-
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "query the store for updates")
-	}
-
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
-		rrev := snap.R(rsnap.Revision)
-		cand := candidateMap[rsnap.SnapID]
-
-		// the store also gives us identical revisions, filter those
-		// out, we are not interested
-		if rrev == cand.Revision {
-			continue
-		}
-		// do not upgade to a version we rolledback back from
-		if findRev(rrev, cand.Block) {
-			continue
-		}
-		res = append(res, infoFromRemote(rsnap))
 	}
 
 	s.extractSuggestedCurrency(resp)
 
-	return res, nil
+	return updateData.Payload.Packages, nil
+}
+
+var refreshForCandidates = (*Store).refreshForCandidates
+
+// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
+func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	cur := currentSnap(installed)
+	if cur == nil {
+		return nil, ErrLocalSnap
+	}
+
+	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(latest) != 1 {
+		return nil, ErrSnapNotFound
+	}
+
+	rsnap := latest[0]
+	if !acceptableUpdate(rsnap, installed) {
+		return nil, ErrNoUpdateAvailable
+	}
+
+	return infoFromRemote(rsnap), nil
+}
+
+// ListRefresh returns the available updates for a list of refresh candidates.
+// NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
+
+	candidateMap := map[string]*RefreshCandidate{}
+	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
+	for _, cs := range installed {
+		cur := currentSnap(cs)
+		if cur == nil {
+			continue
+		}
+		currentSnaps = append(currentSnaps, cur)
+		candidateMap[cs.SnapID] = cs
+	}
+
+	latest, err := s.refreshForCandidates(currentSnaps, user)
+	if err != nil {
+		return nil, err
+	}
+
+	toRefresh := make([]*snap.Info, 0, len(latest))
+	for _, rsnap := range latest {
+		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
+			continue
+		}
+
+		toRefresh = append(toRefresh, infoFromRemote(rsnap))
+	}
+
+	return toRefresh, nil
+}
+
+func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
+	rrev := snap.R(remote.Revision)
+	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1337,7 +1367,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			Method: "GET",
 			URL:    storeURL,
 		}
-		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
+		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
@@ -1368,13 +1398,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				continue
 			}
 			break
 		}
 
-		if shouldRetryHttpResponse(attempt, resp) {
+		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
 		}
@@ -1382,12 +1412,12 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
-		case http.StatusOK, http.StatusPartialContent:
-		case http.StatusUnauthorized:
+		case 200, 206: // OK, Partial Content
+		case 402: // Payment Required
 
-			return fmt.Errorf("Please buy %s before installing it.", name)
+			return fmt.Errorf("please buy %s before installing it.", name)
 		default:
-			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
 
 		if pbar == nil {
@@ -1398,7 +1428,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
 		if finalErr != nil {
-			if shouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1562,9 +1592,12 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	}
 
 	var asrt asserts.Assertion
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
+
+	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, user)
+	}, func(resp *http.Response) error {
 		var e error
-		if ok {
+		if resp.StatusCode == 200 {
 			// decode assertion
 			dec := asserts.NewDecoder(resp.Body)
 			asrt, e = dec.Decode()
@@ -1583,7 +1616,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 		}
 		return e
-	})
+	}, defaultRetryStrategy)
 
 	if err != nil {
 		return nil, err
@@ -1639,11 +1672,18 @@ type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
 }
 
+func (s *storeErrors) Code() string {
+	if len(s.Errors) == 0 {
+		return ""
+	}
+	return s.Errors[0].Code
+}
+
 func (s *storeErrors) Error() string {
 	if len(s.Errors) == 0 {
 		return "internal error: empty store error used as an actual error"
 	}
-	return "store reported an error: " + s.Errors[0].Error()
+	return s.Errors[0].Error()
 }
 
 func buyOptionError(message string) (*BuyResult, error) {
@@ -1664,12 +1704,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	}
 	if user == nil {
 		return nil, ErrUnauthenticated
-	}
-
-	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
-	err := s.ReadyToBuy(user)
-	if err != nil {
-		return nil, err
 	}
 
 	instruction := orderInstruction{
@@ -1693,13 +1727,13 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
 
 	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
+	case 200, 201:
 		// user already ordered or order successful
 		if orderDetails.State == "Cancelled" {
 			return buyOptionError("payment cancelled")
@@ -1708,16 +1742,25 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return &BuyResult{
 			State: orderDetails.State,
 		}, nil
-	case http.StatusBadRequest:
+	case 400:
 		// Invalid price was specified, etc.
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
-	case http.StatusNotFound:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
-	case http.StatusPaymentRequired:
+	case 403:
+		// Customer account not set up for purchases.
+		switch errorInfo.Code() {
+		case "no-payment-methods":
+			return nil, ErrNoPaymentMethods
+		case "tos-not-accepted":
+			return nil, ErrTOSNotAccepted
+		}
+		return buyOptionError(fmt.Sprintf("permission denied: %v", errorInfo.Error()))
+	case 404:
+		// Likely because customer account or snap ID doesn't exist.
+		return buyOptionError(fmt.Sprintf("server says not found: %v", errorInfo.Error()))
+	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
-	case http.StatusUnauthorized:
+	case 401:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
@@ -1746,13 +1789,13 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &customer, &errors)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
 
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case 200:
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
 		}
@@ -1760,10 +1803,10 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return ErrTOSNotAccepted
 		}
 		return nil
-	case http.StatusNotFound:
+	case 404:
 		// Likely because user has no account registered on the pay server
 		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
+	case 401:
 		return ErrInvalidCredentials
 	default:
 		if len(errors.Errors) == 0 {

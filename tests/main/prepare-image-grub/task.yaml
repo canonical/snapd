@@ -35,8 +35,8 @@ execute: |
     echo Expose the needed assertions through the fakestore
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
-    # have snap use the fakestore for assertions
-    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+    # have snap use the fakestore for assertions (but nothing else)
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR/api/v1/snaps/
 
     echo Running prepare-image
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
@@ -46,8 +46,8 @@ execute: |
     for f in pc pc-kernel core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
     done
-    grep snap_core=core $IMAGE/boot/grub/grubenv
-    grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+    MATCH snap_core=core < $IMAGE/boot/grub/grubenv
+    MATCH snap_kernel=pc-kernel < $IMAGE/boot/grub/grubenv
 
     # check copied assertions
     cmp $TESTSLIB/assertions/developer1-pc.model $IMAGE/var/lib/snapd/seed/assertions/model
@@ -66,13 +66,13 @@ execute: |
     else
         core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
     fi
-    grep -q "snap-id: ${core_snap_id}" $IMAGE/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: ${core_snap_id}" < $IMAGE/var/lib/snapd/seed/seed.yaml
 
     for snap in pc pc-kernel core; do
-        grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+        MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
     for name in pc pc-kernel core; do
-        grep "snap-name: $name" $IMAGE/var/lib/snapd/seed/assertions/*
+        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done

@@ -30,6 +30,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const ofonoSummary = `allows operating as the ofono service`
+
+const ofonoBaseDeclarationSlots = `
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const ofonoPermanentSlotAppArmor = `
 # Description: Allow operating as the ofono service. This gives privileged
 # access to the system.
@@ -257,13 +270,21 @@ ATTRS{idVendor}=="1c9e", ATTRS{idProduct}=="9605", ENV{ID_USB_INTERFACE_NUM}=="0
 LABEL="ofono_speedup_end"
 `
 
-type OfonoInterface struct{}
+type ofonoInterface struct{}
 
-func (iface *OfonoInterface) Name() string {
+func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              ofonoSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
+	}
+}
+
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -275,46 +296,46 @@ func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *OfonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *OfonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *OfonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotUDev)
 	return nil
 }
 
-func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *OfonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *OfonoInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func init() {
-	registerIface(&OfonoInterface{})
+	registerIface(&ofonoInterface{})
 }

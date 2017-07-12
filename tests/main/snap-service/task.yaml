@@ -7,14 +7,12 @@ execute: |
     install_local test-snapd-service
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-service|grep "running"
+    systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
 
     echo "When we reload"
     systemctl reload snap.test-snapd-service.test-snapd-service
 
     echo "We see the reload command from the snap was run"
-    while true; do
-        if systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; then
-            break
-        fi
+    while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; do
+        sleep 1
     done

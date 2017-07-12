@@ -4,14 +4,17 @@ summary: Run snap sign to sign a model assertion
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
-    . "$TESTSLIB/mkpinentry.sh"
+    "$TESTSLIB"/mkpinentry.sh
+
+debug: |
+    sysctl kernel.random.entropy_avail || true
 
 execute: |
     echo "Creating a new key without a password"
     expect -f create-key.exp
 
     echo "Ensure we have the new key"
-    snap keys|grep default
+    snap keys|MATCH default
     key=$(snap keys|grep default|tr -s ' ' |cut -f2 -d' ')
 
     echo "Create an example model assertion"
@@ -32,7 +35,7 @@ execute: |
     expect -d -f sign-model.exp
 
     echo "Verify that the resulting model assertion is signed"
-    grep "sign-key-sha3-384: $key" pi3.model
+    MATCH "sign-key-sha3-384: $key" < pi3.model
 
 restore: |
     rm -f pi3.model

@@ -503,6 +503,28 @@ func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {
+	aKey := testPrivKey2
+
+	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": aKey.PublicKey().ID(),
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+	}
+	acctKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, aKeyEncoded, aKey)
+	c.Assert(err, IsNil)
+
+	// this must fail
+	err = safs.db.Add(acctKey)
+	c.Check(err, ErrorMatches, `no matching public key.*`)
+}
+
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
@@ -768,6 +790,72 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	c.Check(err, Equals, asserts.ErrNotFound)
 
 	_, err = safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
+		"account-id":          acct1.AccountID(),
+		"public-key-sha3-384": acct1Key.PublicKeyID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+}
+
+func (safs *signAddFindSuite) TestFindManyTrusted(c *C) {
+	trustedKey0 := testPrivKey0
+	trustedKey1 := testPrivKey1
+	cfg := &asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("canonical"),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey0.PublicKey()),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey1.PublicKey()),
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	pk1 := testPrivKey2
+
+	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]interface{}{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
+
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
+		"authority-id": "canonical",
+	}, pk1.PublicKey(), safs.signingKeyID)
+
+	err = db.Add(acct1)
+	c.Assert(err, IsNil)
+	err = db.Add(acct1Key)
+	c.Assert(err, IsNil)
+
+	// find the trusted account
+	tAccts, err := db.FindManyTrusted(asserts.AccountType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tAccts, HasLen, 1)
+	c.Assert(tAccts[0].(*asserts.Account).AccountID(), Equals, "canonical")
+
+	// find the multiple trusted keys
+	tKeys, err := db.FindManyTrusted(asserts.AccountKeyType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tKeys, HasLen, 2)
+	got := make(map[string]string)
+	for _, a := range tKeys {
+		acctKey := a.(*asserts.AccountKey)
+		got[acctKey.PublicKeyID()] = acctKey.AccountID()
+	}
+	c.Check(got, DeepEquals, map[string]string{
+		trustedKey0.PublicKey().ID(): "canonical",
+		trustedKey1.PublicKey().ID(): "canonical",
+	})
+
+	// doesn't find not trusted assertions
+	_, err = db.FindManyTrusted(asserts.AccountType, map[string]string{
+		"account-id": acct1.AccountID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	_, err = db.FindManyTrusted(asserts.AccountKeyType, map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
