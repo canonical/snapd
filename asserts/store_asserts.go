@@ -5,41 +5,41 @@ import (
 	"net/url"
 )
 
-// EnterpriseStore holds an enterprise-store assertion, defining the
-// configuration needed to connect a device to the enterprise store.
-type EnterpriseStore struct {
+// Store holds a store assertion, defining the configuration needed to connect
+// a device to the store.
+type Store struct {
 	assertionBase
 	address *url.URL
 }
 
-// OperatorID returns the account id of the enterprise store's operator.
-func (estore *EnterpriseStore) OperatorID() string {
-	return estore.HeaderString("operator-id")
+// OperatorID returns the account id of the store's operator.
+func (store *Store) OperatorID() string {
+	return store.HeaderString("operator-id")
 }
 
-// Store returns the identifying name of the operator's enterprise store.
-func (estore *EnterpriseStore) Store() string {
-	return estore.HeaderString("store")
+// Store returns the identifying name of the operator's store.
+func (store *Store) Store() string {
+	return store.HeaderString("store")
 }
 
-// Address returns the URL of the enterprise store's API.
-func (estore *EnterpriseStore) Address() *url.URL {
-	return estore.address
+// Address returns the URL of the store's API.
+func (store *Store) Address() *url.URL {
+	return store.address
 }
 
-func (estore *EnterpriseStore) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// Will be applied to a system's snapd so must be signed by a trusted authority.
-	if !db.IsTrustedAccount(estore.AuthorityID()) {
-		return fmt.Errorf("enterprise-store assertion for operator-id %q and store %q is not signed by a directly trusted authority: %s",
-			estore.OperatorID(), estore.Store(), estore.AuthorityID())
+	if !db.IsTrustedAccount(store.AuthorityID()) {
+		return fmt.Errorf("store assertion for operator-id %q and store %q is not signed by a directly trusted authority: %s",
+			store.OperatorID(), store.Store(), store.AuthorityID())
 	}
 
-	_, err := db.Find(AccountType, map[string]string{"account-id": estore.OperatorID()})
+	_, err := db.Find(AccountType, map[string]string{"account-id": store.OperatorID()})
 	if err != nil {
 		if err == ErrNotFound {
 			return fmt.Errorf(
-				"enterprise-store assertion for operator-id %q and store %q does not have a matching account assertion for the operator %q",
-				estore.OperatorID(), estore.Store(), estore.OperatorID())
+				"store assertion for operator-id %q and store %q does not have a matching account assertion for the operator %q",
+				store.OperatorID(), store.Store(), store.OperatorID())
 		}
 		return err
 	}
@@ -47,15 +47,14 @@ func (estore *EnterpriseStore) checkConsistency(db RODatabase, acck *AccountKey)
 	return nil
 }
 
-// Prerequisites returns references to this enterprise-store's prerequisite
-// assertions.
-func (estore *EnterpriseStore) Prerequisites() []*Ref {
+// Prerequisites returns references to this store's prerequisite assertions.
+func (store *Store) Prerequisites() []*Ref {
 	return []*Ref{
-		{AccountType, []string{estore.OperatorID()}},
+		{AccountType, []string{store.OperatorID()}},
 	}
 }
 
-// checkAddressURL validates the input URL address and returns a full URL
+// checkAddressURL validates the input URL address and returns a full URL.
 func checkAddressURL(headers map[string]interface{}) (*url.URL, error) {
 	address, err := checkNotEmptyString(headers, "address")
 	if err != nil {
@@ -84,11 +83,11 @@ func checkAddressURL(headers map[string]interface{}) (*url.URL, error) {
 	return u, nil
 }
 
-func assembleEnterpriseStore(assert assertionBase) (Assertion, error) {
+func assembleStore(assert assertionBase) (Assertion, error) {
 	address, err := checkAddressURL(assert.headers)
 	if err != nil {
 		return nil, err
 	}
 
-	return &EnterpriseStore{assertionBase: assert, address: address}, nil
+	return &Store{assertionBase: assert, address: address}, nil
 }
