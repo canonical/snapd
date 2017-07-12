@@ -415,6 +415,14 @@ pkg_dependencies(){
 
 install_dependencies(){
     pkgs=$(pkg_dependencies | tr "\n" " ")
+
+    # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+    # will fail to install because the poor apt resolver does not get it
+    case "$SPREAD_SYSTEM" in
+        debian-*|ubuntu-*)
+            apt-get install -y --only-upgrade systemd
+    esac
+
     echo "Installing the following packages: $pkgs"
     distro_install_package $pkgs
 }
