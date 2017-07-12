@@ -19,6 +19,8 @@
 
 package main
 
+//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
+//
 //#include <asm/ioctls.h>
 //#include <ctype.h>
 //#include <errno.h>
