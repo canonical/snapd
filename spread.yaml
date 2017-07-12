@@ -61,7 +61,7 @@ backends:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
-                workers: 1
+                workers: 2
             - opensuse-42.2-64:
                 workers: 1
     qemu:
