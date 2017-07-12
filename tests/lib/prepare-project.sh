@@ -76,7 +76,7 @@ build_rpm() {
     mkdir -p "/tmp/pkg/snapd-$version"
     cp -rav -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
-    (cd /tmp/pkg || tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" "$extra_tar_args")
+    (cd /tmp/pkg && tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
