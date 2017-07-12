@@ -279,13 +279,13 @@ distro_install_build_snapd(){
         packages=
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                packages="${GOHOME}/snapd_*.deb"
+                packages="${GOHOME}"/snapd_*.deb
                 ;;
             fedora-*)
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
             opensuse-*)
-                packages="${GOHOME}/snapd*.rpm"
+                packages="${GOHOME}"/snapd*.rpm
                 ;;
             *)
                 exit 1
