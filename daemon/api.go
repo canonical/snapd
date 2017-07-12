@@ -93,6 +93,7 @@ var api = []*Command{
 	appsCmd,
 	logsCmd,
 	debugCmd,
+	storeCmd,
 }
 
 var (
@@ -247,6 +248,12 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	storeCmd = &Command{
+		Path:   "/v2/store",
+		PUT:    putStore,
+		DELETE: deleteStore,
 	}
 )
 
@@ -2693,4 +2700,87 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg.AddAll(ts)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+type putStoreData struct {
+	Store string `json:"store"`
+}
+
+type storeResponseData struct {
+	URL string `json:"url"`
+}
+
+// Set new store API from store assertion.
+func putStore(c *Command, r *http.Request, user *auth.UserState) Response {
+	errResponse := checkRootUser(r, "configure store")
+	if errResponse != nil {
+		return errResponse
+	}
+
+	var storeData putStoreData
+	if err := json.NewDecoder(r.Body).Decode(&storeData); err != nil {
+		return BadRequest("cannot decode store data from request body: %v", err)
+	}
+	if storeData.Store == "" {
+		return BadRequest("store is required")
+	}
+
+	st := c.d.overlord.State()
+
+	st.Lock()
+	db := assertstate.DB(st)
+	st.Unlock()
+
+	assert, err := db.Find(asserts.StoreType, map[string]string{
+		"store": storeData.Store,
+	})
+	if err != nil {
+		if err == asserts.ErrNotFound {
+			return BadRequest("cannot find store assertion with store %q: %s", storeData.Store, err)
+		}
+		msg := "unexpected error finding store assertion"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	store := assert.(*asserts.Store)
+	storeURL := store.URL()
+
+	// URL is optional, but it makes no sense to set a store with no URL.
+	if storeURL == nil {
+		return BadRequest("store assertion with store %q has no URL", storeData.Store)
+	}
+
+	// Replace active store and update state.
+	st.Lock()
+	defer st.Unlock()
+	err = storestate.SetBaseURL(st, storeURL)
+	if err != nil {
+		msg := "unexpected error updating store API"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	return SyncResponse(&storeResponseData{URL: storeURL.String()}, nil)
+}
+
+// Unset store API, returning system to default.
+func deleteStore(c *Command, r *http.Request, user *auth.UserState) Response {
+	errResponse := checkRootUser(r, "revert store")
+	if errResponse != nil {
+		return errResponse
+	}
+
+	// Replace active store and update state.
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	err := storestate.SetBaseURL(st, nil)
+	if err != nil {
+		msg := "unexpected error updating store API"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	return SyncResponse(nil, nil)
 }

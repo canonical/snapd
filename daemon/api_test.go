@@ -6257,3 +6257,290 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
 }
+
+// Install ucred uid mock, returns func to restore original.
+func mockCheckRootUserUcrednetGet(f func(string) (uint32, uint32, error)) func() {
+	saved := checkRootUserUcrednetGet
+	checkRootUserUcrednetGet = f
+	return func() {
+		checkRootUserUcrednetGet = saved
+	}
+}
+
+// Install ucred uid mock to return known uid, returns func to restore original.
+func mockUcredUID(uid uint32) func() {
+	return mockCheckRootUserUcrednetGet(func(string) (uint32, uint32, error) {
+		return 100, uid, nil
+	})
+}
+
+// Install ucred uid mock to return known error, returns func to restore original.
+func mockUcredError(err error) func() {
+	return mockCheckRootUserUcrednetGet(func(string) (uint32, uint32, error) {
+		return 0, 0, err
+	})
+}
+
+type storeSuite struct {
+	apiBaseSuite
+}
+
+var _ = check.Suite(&storeSuite{})
+
+func (s *storeSuite) addStoreAccountKey(c *check.C, st *state.State) {
+	st.Lock()
+	defer st.Unlock()
+	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
+}
+
+func (s *storeSuite) addOperator(c *check.C, st *state.State, username string) *asserts.Account {
+	st.Lock()
+	defer st.Unlock()
+	account := assertstest.NewAccount(s.storeSigning, username, map[string]interface{}{}, "")
+	err := assertstate.Add(st, account)
+	c.Assert(err, check.IsNil)
+	return account
+}
+
+func (s *storeSuite) addStore(c *check.C, st *state.State, store string, operator *asserts.Account, storeURL string) *asserts.Store {
+	st.Lock()
+	defer st.Unlock()
+	assert, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"authority-id": s.storeSigning.AuthorityID,
+		"store":        store,
+		"operator-id":  operator.AccountID(),
+		"url":          storeURL,
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	err = assertstate.Add(st, assert)
+	c.Assert(err, check.IsNil)
+	return assert.(*asserts.Store)
+}
+
+func (s *storeSuite) TestPut(c *check.C) {
+	defer mockUcredUID(0)()
+
+	d := s.daemon(c)
+	st := d.overlord.State()
+
+	st.Lock()
+	before := storestate.Store(st)
+	st.Unlock()
+
+	s.addStoreAccountKey(c, st)
+	operator := s.addOperator(c, st, "op")
+	s.addStore(c, st, "store-1", operator, "https://example.com/")
+
+	body := bytes.NewBufferString(`{"store":"store-1"}`)
+	req, err := http.NewRequest("PUT", "/v2/store", body)
+	c.Assert(err, check.IsNil)
+	rsp := putStore(storeCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, &storeResponseData{
+		URL: "https://example.com/",
+	})
+
+	st.Lock()
+	storeBaseURL := storestate.BaseURL(st)
+	after := storestate.Store(st)
+	st.Unlock()
+	c.Check(storeBaseURL, check.Equals, "https://example.com/")
+	c.Check(before, check.Not(check.Equals), after)
+}
+
+func (s *storeSuite) TestPutNoUID(c *check.C) {
+	ucredError := errors.New("fake error")
+	defer mockUcredError(ucredError)()
+
+	req, err := http.NewRequest("PUT", "/v2/store", &bytes.Buffer{})
+	c.Assert(err, check.IsNil)
+
+	rsp := putStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &errorResult{
+		Message: "cannot get ucrednet uid: fake error",
+	})
+}
+
+func (s *storeSuite) TestPutNotRoot(c *check.C) {
+	defer mockUcredUID(1000)()
+
+	req, err := http.NewRequest("PUT", "/v2/store", &bytes.Buffer{})
+	c.Assert(err, check.IsNil)
+
+	rsp := putStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &errorResult{
+		Message: "cannot configure store as non-root",
+	})
+}
+
+func (s *storeSuite) TestPutInvalidBody(c *check.C) {
+	defer mockUcredUID(0)()
+
+	tests := []string{
+		"",
+		"invalid-json",
+	}
+
+	for _, test := range tests {
+		req, err := http.NewRequest("PUT", "/v2/store", bytes.NewBufferString(test))
+		c.Assert(err, check.IsNil)
+
+		rsp := putStore(storeCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches,
+			"cannot decode store data from request body.*")
+	}
+}
+
+func (s *storeSuite) TestPutMissingKey(c *check.C) {
+	defer mockUcredUID(0)()
+
+	tests := []string{
+		`{"store":""}`,
+		`{}`,
+	}
+
+	for _, test := range tests {
+		body := bytes.NewBufferString(test)
+		req, err := http.NewRequest("PUT", "/v2/store", body)
+		c.Assert(err, check.IsNil)
+
+		rsp := putStore(storeCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches, "store is required")
+	}
+}
+
+func (s *storeSuite) TestPutAssertionNotFound(c *check.C) {
+	defer mockUcredUID(0)()
+	s.daemon(c)
+
+	body := `{"store":"store-1"}`
+	req, err := http.NewRequest("PUT", "/v2/store", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := putStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches,
+		`cannot find store assertion with store "store-1": assertion not found`)
+}
+
+func (s *storeSuite) TestPutAssertionNoURL(c *check.C) {
+	defer mockUcredUID(0)()
+
+	d := s.daemon(c)
+	st := d.overlord.State()
+
+	s.addStoreAccountKey(c, st)
+	operator := s.addOperator(c, st, "op")
+	s.addStore(c, st, "store-1", operator, "")
+
+	body := `{"store":"store-1"}`
+	req, err := http.NewRequest("PUT", "/v2/store", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := putStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches,
+		`store assertion with store "store-1" has no URL`)
+}
+
+func (s *storeSuite) TestPutUnexpectedError(c *check.C) {
+	defer mockUcredUID(0)()
+
+	d := s.daemon(c)
+	st := d.overlord.State()
+
+	s.addStoreAccountKey(c, st)
+	operator := s.addOperator(c, st, "op")
+	s.addStore(c, st, "store-1", operator, "https://example.com/")
+
+	// Updating the store will try to apply overrides from the env vars that
+	// may be invalid.
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local"), check.IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+
+	body := bytes.NewBufferString(`{"store":"store-1"}`)
+	req, err := http.NewRequest("PUT", "/v2/store", body)
+	c.Assert(err, check.IsNil)
+	rsp := putStore(storeCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Result, check.DeepEquals, &errorResult{
+		Message: "unexpected error updating store API",
+	})
+}
+
+func (s *storeSuite) TestDelete(c *check.C) {
+	defer mockUcredUID(0)()
+
+	d := s.daemon(c)
+	st := d.overlord.State()
+
+	st.Lock()
+	before := storestate.Store(st)
+	st.Unlock()
+
+	// Install non-default API URL.
+	st.Lock()
+	st.Set("store", map[string]interface{}{
+		"base-url": "http://example.com/",
+	})
+	c.Check(storestate.BaseURL(st), check.Not(check.Equals), "")
+	st.Unlock()
+
+	req, err := http.NewRequest("DELETE", "/v2/store", nil)
+	c.Assert(err, check.IsNil)
+	rsp := deleteStore(storeCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+
+	st.Lock()
+	storeBaseURL := storestate.BaseURL(st)
+	after := storestate.Store(st)
+	st.Unlock()
+	c.Check(storeBaseURL, check.Equals, "")
+	c.Check(before, check.Not(check.Equals), after)
+}
+
+func (s *storeSuite) TestDeleteNoUID(c *check.C) {
+	ucredError := errors.New("fake error")
+	defer mockUcredError(ucredError)()
+
+	req, err := http.NewRequest("DELETE", "/v2/store", &bytes.Buffer{})
+	c.Assert(err, check.IsNil)
+
+	rsp := deleteStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &errorResult{
+		Message: "cannot get ucrednet uid: fake error",
+	})
+}
+
+func (s *storeSuite) TestDeleteNotRoot(c *check.C) {
+	defer mockUcredUID(1000)()
+
+	req, err := http.NewRequest("DELETE", "/v2/store", &bytes.Buffer{})
+	c.Assert(err, check.IsNil)
+
+	rsp := deleteStore(storeCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &errorResult{
+		Message: "cannot revert store as non-root",
+	})
+}
