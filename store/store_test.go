@@ -3700,7 +3700,7 @@ func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
-	// This also depends on the API API, but that's tested separately (see
+	// This also depends on the API URL, but that's tested separately (see
 	// TestApiURLDependsOnEnviron).
 	api := apiURL()
 
