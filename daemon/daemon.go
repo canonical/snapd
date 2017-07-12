@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -77,8 +78,13 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
+	// can polkit grant access?
+	ActionID string
+
 	d *Daemon
 }
+
+var polkitCheckAuthorization = polkit.CheckAuthorization
 
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if user != nil {
@@ -87,11 +93,23 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	isUser := false
-	_, uid, err := ucrednetGet(r.RemoteAddr)
+	pid, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
 		if uid == 0 {
 			// Superuser does anything.
 			return true
+		}
+
+		if c.ActionID != "" {
+			subject := polkit.ProcessSubject{Pid: int(pid)}
+			if result, err := polkitCheckAuthorization(subject, c.ActionID, nil, polkit.CheckAuthorizationAllowUserInteraction); err == nil {
+				if result.IsAuthorized {
+					// polkit says user is authorised
+					return true
+				}
+			} else {
+				logger.Noticef("polkit error: %s", err)
+			}
 		}
 
 		isUser = true
