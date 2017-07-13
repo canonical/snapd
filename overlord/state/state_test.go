@@ -21,6 +21,7 @@ package state_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -74,6 +75,20 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	err = st.Get("mgr2", &mSt2B)
 	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
+}
+
+func (ss *stateSuite) TestGetAndSetNumbers(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	val := 1234567890
+	st.Set("value", val)
+
+	var out interface{}
+	st.Get("value", &out)
+
+	c.Assert(out, DeepEquals, json.Number("1234567890"))
 }
 
 func (ss *stateSuite) TestSetPanic(c *C) {
