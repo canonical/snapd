@@ -1,6 +1,4 @@
 #!/bin/bash
-DISPLAY=:0
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -17,7 +15,6 @@ start_dbus_loop_unit(){
     init_dbus_env
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         cat <<EOF > /etc/init/dbus-provider.conf
-env DISPLAY="$DISPLAY"
 env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
 env DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID"
 script
@@ -28,7 +25,6 @@ EOF
         start dbus-provider
     else
         systemd-run --unit dbus-provider \
-                    --setenv=DISPLAY=$DISPLAY \
                     --setenv=DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
                     --setenv=DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID \
                     $executable
