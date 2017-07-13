@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/snapcore/snapd/util"
 )
 
 // Status is used for status values for changes and tasks.
@@ -193,7 +191,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 		c.state.writing()
 	}
 	var unmarshalled marshalledChange
-	err := util.DecodeJsonWithNumbers(bytes.NewReader(data), &unmarshalled)
+	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
 		return err
 	}
