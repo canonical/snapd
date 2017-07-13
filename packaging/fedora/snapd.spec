@@ -698,7 +698,7 @@ fi
  - snap-seccomp: make sure snap-seccomp writes the bpf file
    atomically
  - tests: do not disable ipv6 on core systems
- - arch: the kernel architecutre name is armv7l instead of armv7
+ - arch: the kernel architecture name is armv7l instead of armv7
  - snap-confine: ensure snap-confine waits some seconds for seccomp
    security profilese
  - tests: shellcheck improvements for tests/nested tasks
