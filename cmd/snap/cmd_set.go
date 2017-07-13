@@ -20,13 +20,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/util"
 )
 
 var shortSetHelp = i18n.G("Changes configuration options")
@@ -70,14 +70,11 @@ func (x *cmdSet) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
 		var value interface{}
-		dec := json.NewDecoder(strings.NewReader(parts[1]))
-		dec.UseNumber()
-		err := dec.Decode(&value)
-		if err == nil && !dec.More() {
-			patchValues[parts[0]] = value
-		} else {
+		if err := util.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON-- just save the string as-is.
 			patchValues[parts[0]] = parts[1]
+		} else {
+			patchValues[parts[0]] = value
 		}
 	}
 

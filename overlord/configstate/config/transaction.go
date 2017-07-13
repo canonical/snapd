@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/util"
 )
 
 // Transaction holds a copy of the configuration originally present in the
@@ -155,9 +156,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	if pos+1 == len(subkeys) {
-		dec := json.NewDecoder(bytes.NewReader(*raw))
-		dec.UseNumber()
-		err := dec.Decode(&result)
+		err := util.DecodeJsonWithNumbers(bytes.NewReader(*raw), &result)
 		if err != nil {
 			key := strings.Join(subkeys, ".")
 			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
@@ -166,9 +165,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	var configm map[string]*json.RawMessage
-	dec := json.NewDecoder(bytes.NewReader(*raw))
-	dec.UseNumber()
-	err := dec.Decode(&configm)
+	err := util.DecodeJsonWithNumbers(bytes.NewReader(*raw), &configm)
 	if err != nil {
 		return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 	}
@@ -231,9 +228,7 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 			return jsonRaw(change)
 		}
 		var pristinem map[string]*json.RawMessage
-		dec := json.NewDecoder(bytes.NewReader(*pristine))
-		dec.UseNumber()
-		if err := dec.Decode(&pristinem); err != nil {
+		if err := util.DecodeJsonWithNumbers(bytes.NewReader(*pristine), &pristinem); err != nil {
 			// Not a map. Overwrite with the change.
 			return jsonRaw(change)
 		}
