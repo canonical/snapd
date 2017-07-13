@@ -128,6 +128,7 @@ var _ = Suite(&SnapSuite{})
 func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
 	var body map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
 	err := decoder.Decode(&body)
 	c.Assert(err, IsNil)
 	return body
