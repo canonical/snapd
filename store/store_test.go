@@ -1569,7 +1569,7 @@ const MockDetailsJSON = `{
     "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-    "title": "hello-world",
+    "title": "Hello World",
     "version": "6.3",
     "channel_maps_list": [
       {
@@ -1648,7 +1648,7 @@ const MockDetailsJSONnoChannelMapList = `{
     "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-    "title": "hello-world",
+    "title": "Hello World",
     "version": "6.3"
 }
 `
@@ -1758,6 +1758,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "This is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "The 'hello-world' of snaps")
+	c.Check(result.Title(), Equals, "Hello World")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Assert(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
 		{
@@ -2212,7 +2213,7 @@ const MockSearchJSON = `{
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.0"
             }
         ]
@@ -2671,7 +2672,7 @@ var MockUpdatesJSON = `
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.1"
             }
         ]
@@ -3382,7 +3383,7 @@ var MockUpdatesWithDeltasJSON = `
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.1",
                 "deltas": [{
                     "from_revision": 24,
@@ -3565,18 +3566,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		var resp struct {
-			Snaps []map[string]interface{} `json:"snaps"`
-		}
-
-		err = json.Unmarshal(jsonReq, &resp)
-		c.Assert(err, IsNil)
-
-		// XXX actually why hit the network here
-		c.Assert(resp.Snaps, HasLen, 0)
-		io.WriteString(w, `{}`)
+		c.Fatal("no network request expected")
 	}))
 
 	c.Assert(mockServer, NotNil)

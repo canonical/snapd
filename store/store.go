@@ -87,6 +87,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
+	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.PublisherID = d.DeveloperID
@@ -1152,6 +1153,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 
 // query the store for the information about currently offered revisions of snaps
 func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+	if len(currentSnaps) == 0 {
+		// nothing to do
+		return nil, nil
+	}
+
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,

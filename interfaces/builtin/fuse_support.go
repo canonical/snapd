@@ -25,6 +25,14 @@ import (
 
 const fuseSupportSummary = `allows access to the FUSE file system`
 
+const fuseSupportBaseDeclarationSlots = `
+  fuse-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -82,6 +90,7 @@ func init() {
 		summary:               fuseSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
 		reservedForOS:         true,
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
