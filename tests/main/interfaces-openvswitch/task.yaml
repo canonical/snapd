@@ -75,7 +75,7 @@ execute: |
     test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
     ovs-vsctl list-br | MATCH -v br0
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

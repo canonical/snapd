@@ -395,7 +395,8 @@ type SysInfo struct {
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh RefreshInfo `json:"refresh,omitempty"`
+	Refresh     RefreshInfo `json:"refresh,omitempty"`
+	Confinement string      `json:"confinement"`
 }
 
 func (rsp *response) err() error {
