@@ -80,11 +80,11 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 		cfg.OrdersURI,
 		cfg.BuyURI,
 		cfg.CustomersMeURI,
+		cfg.AssertionsURI,
 	}
 	for _, uri := range uris {
-		c.Assert(uri.Scheme, Equals, "http")
-		c.Assert(uri.Host, Equals, "example.com")
-		c.Assert(uri.Path, Matches, "/path/prefix/api/v1/snaps/.*")
+		c.Assert(uri, NotNil)
+		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
 	}
 }
 
