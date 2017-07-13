@@ -149,6 +149,15 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
 
+# Link all the libraries needed for seccomp
+ln -s /usr/include/libseccomp/* /usr/include/
+# Remove link to seccomp as it has been disabled
+sed -e "s:-lseccomp::g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+# build snap-seccomp
+%gobuild cmd/snap-seccomp
+
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -163,11 +172,12 @@ make %{?_smp_mflags} -C cmd check
 rm -rf %{buildroot}/usr/lib64/go
 rm -rf %{buildroot}/usr/lib/go
 find %{buildroot}
-# Move snapd, snap-exec and snap-update-ns into /usr/lib/snapd
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into /usr/lib/snapd
 install -m 755 -d %{buildroot}/usr/lib/snapd
 mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
+mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}/usr/lib/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -202,9 +212,12 @@ install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
 make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service; do
-    rm %buildroot/%{_unitdir}/$s
+for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
+    rm -f %buildroot/%{_unitdir}/$s
 done
+# Remove snappy core specific scripts
+rm -f %buildroot/usr/lib/snapd/snapd.core-fixup.sh
+
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}/usr/sbin
 ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd
