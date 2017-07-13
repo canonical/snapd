@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/util"
 	"time"
 )
 
@@ -129,9 +130,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 		t.state.writing()
 	}
 	var unmarshalled marshalledTask
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
-	err := dec.Decode(&unmarshalled)
+	err := util.DecodeJsonWithNumbers(bytes.NewBuffer(data), &unmarshalled)
 	if err != nil {
 		return err
 	}

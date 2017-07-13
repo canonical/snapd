@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/util"
 )
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
@@ -57,13 +58,11 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 	case *json.RawMessage:
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
-		dec := json.NewDecoder(bytes.NewReader(*config))
-		dec.UseNumber()
-		err := dec.Decode(&configm)
-		if err != nil {
+
+		if err := util.DecodeJsonWithNumbers(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
-		_, err = PatchConfig(snapName, subkeys, pos, configm, value)
+		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
 		if err != nil {
 			return nil, err
 		}
