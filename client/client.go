@@ -228,7 +228,6 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 	if v != nil {
 		dec := json.NewDecoder(rsp.Body)
-		dec.UseNumber()
 		if err := dec.Decode(v); err != nil {
 			r := dec.Buffered()
 			buf, err1 := ioutil.ReadAll(r)
