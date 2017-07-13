@@ -203,7 +203,7 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -q check-update
+            dnf -q makecache
             ;;
         opensuse-*)
             zypper -q refresh
