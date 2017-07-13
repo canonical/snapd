@@ -206,7 +206,7 @@ distro_update_package_db() {
             dnf -y -q upgrade
             ;;
         opensuse-*)
-            zypper -q update -y
+            zypper -q refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
