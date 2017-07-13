@@ -72,12 +72,6 @@ func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
 	return nil
 }
 
@@ -96,16 +90,11 @@ func (iface *framebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 }
 
 func (iface *framebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	// This will fix access denied of opengl interface when it's used with
-	// framebuffer interface in the same snap.
-	// https://bugs.launchpad.net/snapd/+bug/1675738
-	// TODO: we are not doing this due to the bug and we'll be reintroducing
-	// the udev tagging soon.
-	//const udevRule = `KERNEL=="fb[0-9]*", TAG+="%s"`
-	//for appName := range plug.Apps {
-	//	tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-	//	spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	//}
+	const udevRule = `KERNEL=="fb[0-9]*", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
+	}
 	return nil
 }
 

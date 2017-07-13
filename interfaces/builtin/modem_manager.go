@@ -1213,10 +1213,13 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 }
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	udevRule := modemManagerPermanentSlotUDev
+	const udevTag = `KERNEL=="tty[A-Z]*[0-9]|cdc-wdm[0-9]*" TAG+="%s"`
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(modemManagerPermanentSlotUDev, tag))
+		udevRule += fmt.Sprintf(udevTag, tag)
 	}
+	spec.AddSnippet(udevRule)
 	return nil
 }
 
