@@ -203,10 +203,10 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -y -q upgrade
+            dnf -q check-update
             ;;
         opensuse-*)
-            zypper -q update -y
+            zypper -q refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
