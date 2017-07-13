@@ -169,6 +169,7 @@ type Config struct {
 	BulkURI        *url.URL
 	AssertionsURI  *url.URL
 	OrdersURI      *url.URL
+	BuyURI         *url.URL
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
 
@@ -203,6 +204,9 @@ func (cfg *Config) SetAPI(api *url.URL) error {
 	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
 	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
 	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
+	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
+	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
 
 	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 
@@ -216,6 +220,7 @@ type Store struct {
 	bulkURI        *url.URL
 	assertionsURI  *url.URL
 	ordersURI      *url.URL
+	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
 
@@ -384,13 +389,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
-	myappsBaseURI, err := url.Parse(myappsURL())
-	if err != nil {
-		panic(err)
-	}
-	defaultConfig.OrdersURI = urlJoin(myappsBaseURI, "purchases/v1/orders")
-	defaultConfig.CustomersMeURI = urlJoin(myappsBaseURI, "purchases/v1/customers/me")
 }
 
 type searchResults struct {
@@ -473,6 +471,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:         cfg.BulkURI,
 		assertionsURI:   cfg.AssertionsURI,
 		ordersURI:       cfg.OrdersURI,
+		buyURI:          cfg.BuyURI,
 		customersMeURI:  cfg.CustomersMeURI,
 		sectionsURI:     sectionsURI,
 		series:          series,
@@ -1752,7 +1751,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.ordersURI,
+		URL:         s.buyURI,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
