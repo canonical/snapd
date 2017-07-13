@@ -68,6 +68,28 @@ func (s anySnapName) Complete(match string) []flags.Completion {
 	return res
 }
 
+type serviceName string
+
+func (s serviceName) Complete(match string) []flags.Completion {
+	cli := Client()
+	services, err := cli.ServiceStatus(nil)
+	if err != nil {
+		return nil
+	}
+
+	snaps := map[string]bool{}
+	ret := make([]flags.Completion, 0, 2*len(services))
+	for _, service := range services {
+		if !snaps[service.Snap] {
+			snaps[service.Snap] = true
+			ret = append(ret, flags.Completion{Item: service.Snap})
+		}
+		ret = append(ret, flags.Completion{Item: service.Snap + "." + service.Name})
+	}
+
+	return ret
+}
+
 type changeID string
 
 func (s changeID) Complete(match string) []flags.Completion {
