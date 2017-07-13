@@ -99,7 +99,6 @@ func (suite *configTestSuite) TestSetAPIStoreURLBadEnviron(c *C) {
 
 	cfg := DefaultConfig()
 	err := cfg.SetAPI(apiURL())
-	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
 }
 
@@ -121,7 +120,6 @@ func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
 
 	cfg := DefaultConfig()
 	err := cfg.SetAPI(apiURL())
-	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
@@ -3730,13 +3728,11 @@ func (t *remoteRepoTestSuite) TestStoreURLBadEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	_, err := storeURL(apiURL())
 	os.Setenv("SNAPPY_FORCE_API_URL", "")
-	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
 	_, err = storeURL(apiURL())
 	os.Setenv("SNAPPY_FORCE_CPI_URL", "")
-	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
@@ -3763,7 +3759,6 @@ func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 
 	_, err := assertsURL(apiURL())
-	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
