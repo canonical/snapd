@@ -16,6 +16,7 @@ restore: |
     systemctl enable rsyslog.service
     systemctl start rsyslog.service
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
+    rm -f config.txt.save
 
 execute: |
     echo "Check that service disable works"
@@ -33,8 +34,16 @@ execute: |
     
     echo "Check that pi config handline works"
     if [ -e /boot/uboot/config.txt ]; then
+        cp /boot/uboot/config.txt config.txt.save
+
         snap set core pi-config.hdmi-mode=1
         cat /boot/uboot/config.txt | MATCH ^hdmi_mode=1
         snap set core pi-config.hdmi-mode=""
         cat /boot/uboot/config.txt | MATCH ^#hdmi_mode=1
+
+        echo "Ensure the config.txt are fully undo when an option is unset"
+        if ! diff -u /boot/uboot/config.txt config.txt.save; then
+            echo "error: unexpected diff in /boot/uboot/config.txt"
+            exit 1
+        fi
     fi
