@@ -345,7 +345,7 @@ AXNpZw=`
 
 func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	// something preloaded
-	resp, err := s.StoreGet(`/assertions/account/testrootorg`)
+	resp, err := s.StoreGet(`/api/v1/snaps/assertions/account/testrootorg`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -366,7 +366,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
 	c.Assert(err, IsNil)
 
-	resp, err := s.StoreGet(`/assertions/snap-revision/` + rev.SnapSHA3_384())
+	resp, err := s.StoreGet(`/api/v1/snaps/assertions/snap-revision/` + rev.SnapSHA3_384())
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -378,7 +378,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	// something not found
-	resp, err := s.StoreGet(`/assertions/account/not-an-account-id`)
+	resp, err := s.StoreGet(`/api/v1/snaps/assertions/account/not-an-account-id`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
