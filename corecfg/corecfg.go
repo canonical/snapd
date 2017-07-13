@@ -35,9 +35,9 @@ var (
 	Stderr = os.Stderr
 )
 
-// coreSupportAvailable checks that the system has the core-support
+// ensureSupportInterface checks that the system has the core-support
 // interface. An error is returned if this is not the case
-func coreSupportAvailable() error {
+func ensureSupportInterface() error {
 	_, err := systemd.SystemctlCmd("--version")
 	return err
 }
@@ -45,7 +45,7 @@ func coreSupportAvailable() error {
 func snapctlGet(key string) (string, error) {
 	raw, err := exec.Command("snapctl", "get", key).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("Cannot run snapctl: %s", osutil.OutputErr(raw, err))
+		return "", fmt.Errorf("cannot run snapctl: %s", osutil.OutputErr(raw, err))
 	}
 
 	output := strings.TrimRight(string(raw), "\n")
@@ -57,8 +57,8 @@ func Run() error {
 	if release.OnClassic {
 		return fmt.Errorf("cannot run core-configure on classic distribution")
 	}
-	if err := coreSupportAvailable(); err != nil {
-		return fmt.Errorf("Cannot run systemctl - is core-support available: %s\n", err)
+	if err := ensureSupportInterface(); err != nil {
+		return fmt.Errorf("cannot run systemctl - core-support interface seems disconnected: %v", err)
 	}
 
 	// handle the various core config options:
