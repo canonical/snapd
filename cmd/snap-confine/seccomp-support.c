@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/prctl.h>
@@ -29,11 +30,12 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 
+#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-static char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
+static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
 const int MAX_BPF_SIZE = 32 * 1024;
@@ -43,32 +45,40 @@ typedef struct sock_filter bpf_instr;
 static void validate_path_has_strict_perms(const char *path)
 {
 	struct stat stat_buf;
-	if (stat(path, &stat_buf) < 0)
+	if (stat(path, &stat_buf) < 0) {
 		die("cannot stat %s", path);
+	}
 
 	errno = 0;
-	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0)
+	if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0) {
 		die("%s not root-owned %i:%i", path, stat_buf.st_uid,
 		    stat_buf.st_gid);
+	}
 
-	if (stat_buf.st_mode & S_IWOTH)
+	if (stat_buf.st_mode & S_IWOTH) {
 		die("%s has 'other' write %o", path, stat_buf.st_mode);
+	}
 }
 
 static void validate_bpfpath_is_safe(const char *path)
 {
-	if (path == NULL || strlen(path) == 0 || path[0] != '/')
+	if (path == NULL || strlen(path) == 0 || path[0] != '/') {
 		die("valid_bpfpath_is_safe needs an absolute path as input");
-
+	}
 	// strtok_r() modifies its first argument, so work on a copy
-	char *tokenized = strdup(path);
-
+	char *tokenized __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	tokenized = strdup(path);
+	if (tokenized == NULL) {
+		die("cannot allocate memory for copy of path");
+	}
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
-	size_t checked_path_size = sizeof(char) * strlen(path) + 1;
-	char *checked_path = malloc(checked_path_size);
-	if (checked_path == NULL)
-		die("Out of memory creating checked_path");
+	size_t checked_path_size = strlen(path) + 1;
+	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	checked_path = calloc(checked_path_size, 1);
+	if (checked_path == NULL) {
+		die("cannot allocate memory for checked_path");
+	}
 
 	checked_path[0] = '/';
 	checked_path[1] = '\0';
@@ -83,29 +93,30 @@ static void validate_bpfpath_is_safe(const char *path)
 	// reconstruct the path from '/' down to profile_name
 	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
 	while (buf_token != NULL) {
-		char *prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
+		char *prev __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
+		if (prev == NULL) {
+			die("cannot allocate memory for copy of checked_path");
+		}
 		// append '<buf_token>' if checked_path is '/', otherwise '/<buf_token>'
-		if (strlen(checked_path) == 1)
+		if (strlen(checked_path) == 1) {
 			sc_must_snprintf(checked_path, checked_path_size,
 					 "%s%s", prev, buf_token);
-		else
+		} else {
 			sc_must_snprintf(checked_path, checked_path_size,
 					 "%s/%s", prev, buf_token);
-		free(prev);
+		}
 		validate_path_has_strict_perms(checked_path);
 
 		buf_token = strtok_r(NULL, "/", &buf_saveptr);
 	}
-
-	free(tokenized);
-	free(checked_path);
 }
 
 int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
 
-	char profile_path[512];	// arbitrary path name limit
+	char profile_path[PATH_MAX];
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
@@ -114,14 +125,23 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// a service snap (e.g. network-manager) starts in parallel with
 	// snapd so for such snaps, the profiles may not be generated
 	// yet
-	int max_wait = 120;
-	if (getenv("SNAP_CONFINE_MAX_PROFILE_WAIT") != 0)
-		if (atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT")) > 0)
-			max_wait =
-			    atoi(getenv("SNAP_CONFINE_MAX_PROFILE_WAIT"));
-	struct stat buf;
-	for (int i = 0; i < max_wait; i++) {
-		if (stat(profile_path, &buf) == 0) {
+	long max_wait = 120;
+	const char *MAX_PROFILE_WAIT = getenv("SNAP_CONFINE_MAX_PROFILE_WAIT");
+	if (MAX_PROFILE_WAIT != NULL) {
+		char *endptr = NULL;
+		errno = 0;
+		long env_max_wait = strtol(MAX_PROFILE_WAIT, &endptr, 10);
+		if (errno != 0 || MAX_PROFILE_WAIT == endptr || *endptr != '\0'
+		    || env_max_wait <= 0) {
+			die("SNAP_CONFINE_MAX_PROFILE_WAIT invalid");
+		}
+		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;
+	}
+	if (max_wait > 3600) {
+		max_wait = 3600;
+	}
+	for (long i = 0; i < max_wait; ++i) {
+		if (access(profile_path, F_OK) == 0) {
 			break;
 		}
 		sleep(1);
@@ -136,28 +156,34 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	// load bpf
 	unsigned char bpf[MAX_BPF_SIZE + 1];	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
-	if (fp == NULL)
+	if (fp == NULL) {
 		die("cannot read %s", profile_path);
+	}
 	// set 'size' to 1 to get bytes transferred
 	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
-	if (ferror(fp) != 0)
-		die("cannot fread() %s", profile_path);
-	else if (feof(fp) == 0)
-		die("profile %s exceeds %zu bytes", profile_path, sizeof(bpf));
+	if (ferror(fp) != 0) {
+		die("cannot read seccomp profile %s", profile_path);
+	} else if (feof(fp) == 0) {
+		die("seccomp profile %s exceeds %zu bytes", profile_path,
+		    sizeof(bpf));
+	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
 	uid_t real_uid, effective_uid, saved_uid;
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-		die("could not find user IDs");
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
+		die("cannot call getresuid");
+	}
 	// If we can, raise privileges so that we can load the BPF into the
 	// kernel via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
 	debug("raising privileges to load seccomp profile");
 	if (effective_uid != 0 && saved_uid == 0) {
-		if (seteuid(0) != 0)
+		if (seteuid(0) != 0) {
 			die("seteuid failed");
-		if (geteuid() != 0)
+		}
+		if (geteuid() != 0) {
 			die("raising privs before seccomp_load did not work");
+		}
 	}
 	// Load filter into the kernel. Importantly we are
 	// intentionally *not* setting NO_NEW_PRIVS because it
@@ -172,19 +198,19 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
 	};
-	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		perror
-		    ("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
-		die("aborting");
+	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
+		die("cannot apply seccomp profile");
 	}
 	// drop privileges again
 	debug("dropping privileges after loading seccomp profile");
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
-		if (seteuid(real_uid) != 0)
+		if (seteuid(real_uid) != 0) {
 			die("seteuid failed");
-		if (real_uid != 0 && geteuid() == 0)
+		}
+		if (real_uid != 0 && geteuid() == 0) {
 			die("dropping privs after seccomp_load did not work");
+		}
 	}
 
 	return 0;
