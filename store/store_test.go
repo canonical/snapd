@@ -3724,15 +3724,17 @@ func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
 	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
 }
 
-func (t *remoteRepoTestSuite) TestStoreURLBadEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironAPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	_, err := storeURL(apiURL())
-	os.Setenv("SNAPPY_FORCE_API_URL", "")
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+}
 
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
-	_, err = storeURL(apiURL())
-	os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	_, err := storeURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
