@@ -54,5 +54,5 @@ exit 1
 	defer mockSystemctl.Restore()
 
 	err := corecfg.Run()
-	c.Check(err, ErrorMatches, `(?m)Cannot run systemctl - is core-support available: \[--version\] failed with exit status 1: simulate missing core-support`)
+	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: \[--version\] failed with exit status 1: simulate missing core-support`)
 }

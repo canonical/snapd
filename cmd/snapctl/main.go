@@ -44,7 +44,7 @@ func main() {
 		switch os.Args[2] {
 		case "configure-core":
 			if err := corecfg.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "cannot run core-configure: %s\n", err)
+				fmt.Fprintf(os.Stderr, "core configuration error: %v\n", err)
 				os.Exit(1)
 			}
 			os.Exit(0)
