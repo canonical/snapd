@@ -3979,8 +3979,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	c.Check(requestRecieved, Equals, false)
 }
 
-const ordersPath = "/purchases/v1/orders"
-const customersMePath = "/purchases/v1/customers/me"
+const ordersPath = "/api/v1/snaps/purchases/orders"
+const buyPath = "/api/v1/snaps/purchases/buy"
+const customersMePath = "/api/v1/snaps/purchases/customers/me"
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4207,7 +4208,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 
 	detailsURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 	c.Assert(err, IsNil)
 	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
 	c.Assert(err, IsNil)
@@ -4216,7 +4217,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	cfg := Config{
 		CustomersMeURI: customersMeURI,
 		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
+		BuyURI:         buyURI,
 	}
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
@@ -4269,7 +4270,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-				c.Check(r.URL.Path, Equals, ordersPath)
+				c.Check(r.URL.Path, Equals, buyPath)
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.expectedInput)
@@ -4301,14 +4302,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 		c.Assert(err, IsNil)
 		ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 		c.Assert(err, IsNil)
-		customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+		buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 		c.Assert(err, IsNil)
 
 		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
 		cfg := Config{
-			CustomersMeURI: customersMeURI,
-			DetailsURI:     detailsURI,
-			OrdersURI:      ordersURI,
+			DetailsURI: detailsURI,
+			OrdersURI:  ordersURI,
+			BuyURI:     buyURI,
 		}
 		repo := New(&cfg, authContext)
 		c.Assert(repo, NotNil)
