@@ -70,7 +70,7 @@ func updatePiConfig(path string, config map[string]string) error {
 		cfgKeys[i] = k
 		i++
 	}
-	reStr := fmt.Sprintf(`^[ \t]*?(?P<is_comment>#?)[ \t#]*?(?P<key>%s)=(?P<old_value>.*)$`, strings.Join(cfgKeys, "|"))
+	reStr := `^[ \t]*?(?P<is_comment>#?)[ \t#]*?(?P<key>[a-z_]+)=(?P<old_value>.*)$`
 	rx := regexp.MustCompile(reStr)
 
 	// now go over the content
@@ -82,7 +82,7 @@ func updatePiConfig(path string, config map[string]string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		matches := rx.FindStringSubmatch(line)
-		if len(matches) > 0 {
+		if len(matches) > 0 && piConfigKeys[matches[2]] {
 			wasComment := (matches[1] == "#")
 			key := matches[2]
 			oldValue := matches[3]
