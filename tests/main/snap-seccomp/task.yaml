@@ -1,18 +1,24 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
+# FIXME: once $(snap debug confinment) can be used (in 2.27+) remove
+#        the systems line
+systems: [ubuntu-*]
+
 environment:
     PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-tools.echo
     SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
 
 execute: |
-    if [ "$(snap debug confinement)" != strict ] ; then
-        echo "SKIP: these tests are only useful on systems with working seccomp"
-        exit 0
-    fi
-
     echo "Install test-snapd-tools and verify it works"
     snap install test-snapd-tools
     test-snapd-tools.echo hello | MATCH hello
+
+    # FIXME: use dirs.sh in 2.27+
+    echo "Ensure snap-seccomp is statically linked"
+    if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
+        echo "found dynamically linked libseccomp, we need a staticly linked one"
+        exit 1
+    fi
 
     # from the old test_complain
     echo "Test that the @complain keyword works"
@@ -84,7 +90,7 @@ execute: |
         echo "test-snapd-tools.echo should fail with invalid seccomp profile"
         exit 1
     fi
-    echo $output | MATCH "prctl.*Invalid argument"
+    echo $output | MATCH "cannot apply seccomp profile: Invalid argument"
 
     echo "Add huge snapd.test-snapd-tools.bin to ensure size limit works"
     dd if=/dev/zero of=${PROFILE}.bin count=50 bs=1M
