@@ -63,20 +63,22 @@ execute: |
 
     echo "================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect test-snapd-autopilot-consumer:autopilot-introspection
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "When the plug is disconnected"
+        snap disconnect test-snapd-autopilot-consumer:autopilot-introspection
+        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap version is not introspectable"
-    if /snap/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then
-        echo "Expected permission error trying to introspect version with disconnected plug"
-        exit 1
-    fi
-    cat getversion.error | MATCH "Permission denied"
+        echo "Then the snap version is not introspectable"
+        if /snap/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then
+            echo "Expected permission error trying to introspect version with disconnected plug"
+            exit 1
+        fi
+        cat getversion.error | MATCH "Permission denied"
 
-    echo "And the snap state is not introspectable"
-    if /snap/bin/test-snapd-autopilot-consumer.consumer GetState 2>${PWD}/getstate.error; then
-        echo "Expected permission error trying to introspect state with disconnected plug"
-        exit 1
+        echo "And the snap state is not introspectable"
+        if /snap/bin/test-snapd-autopilot-consumer.consumer GetState 2>${PWD}/getstate.error; then
+            echo "Expected permission error trying to introspect state with disconnected plug"
+            exit 1
+        fi
+        cat getstate.error | MATCH "Permission denied"
     fi
-    cat getstate.error | MATCH "Permission denied"
