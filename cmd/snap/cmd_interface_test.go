@@ -35,15 +35,10 @@ func (s *SnapSuite) TestInterfaceHelp(c *C) {
 	msg := `Usage:
   snap.test [OPTIONS] interface [interface-OPTIONS] [<interface>]
 
-The interface command lists interfaces available in the system.
+The interface command shows details of snap interfaces.
 
-By default a list of all used interfaces, along with a short summary, is
-displayed. Use the --all option to include unused interfaces.
-
-$ snap interfaces [--attrs] <interface>
-
-Shows details about the particular interface. The optional switch enables
-displaing of interface attributes that may be relevant to developers.
+If no interface name is provided, a list of interface names with at least
+one connection is shown, or a list of all interfaces if --all is provided.
 
 Application Options:
       --version          Print the version and exit
@@ -53,7 +48,7 @@ Help Options:
 
 [interface command options]
           --attrs        Show interface attributes
-          --all          Show both used and unused interfaces
+          --all          Include unused interfaces
 
 [interface command arguments]
   <interface>:           Show details of a specific interface

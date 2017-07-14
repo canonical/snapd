@@ -39,17 +39,12 @@ type cmdInterface struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfaceHelp = i18n.G("Lists interfaces in the system")
+var shortInterfaceHelp = i18n.G("Lists snap interfaces")
 var longInterfaceHelp = i18n.G(`
-The interface command lists interfaces available in the system.
+The interface command shows details of snap interfaces.
 
-By default a list of all used interfaces, along with a short summary, is
-displayed. Use the --all option to include unused interfaces.
-
-$ snap interfaces [--attrs] <interface>
-
-Shows details about the particular interface. The optional switch enables
-displaing of interface attributes that may be relevant to developers.
+If no interface name is provided, a list of interface names with at least
+one connection is shown, or a list of all interfaces if --all is provided.
 `)
 
 func init() {
@@ -57,7 +52,7 @@ func init() {
 		return &cmdInterface{}
 	}, map[string]string{
 		"attrs": i18n.G("Show interface attributes"),
-		"all":   i18n.G("Show both used and unused interfaces"),
+		"all":   i18n.G("Include unused interfaces"),
 	}, []argDesc{{
 		name: i18n.G("<interface>"),
 		desc: i18n.G("Show details of a specific interface"),
