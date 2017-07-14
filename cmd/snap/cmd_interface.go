@@ -99,11 +99,6 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	if iface.Summary != "" {
 		fmt.Fprintf(w, "summary:\t%s\n", iface.Summary)
 	}
-	if iface.Description != "" {
-		// FIXME: find out for real
-		termWidth := 77
-		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(iface.Description, termWidth))
-	}
 	if iface.DocsURL != "" {
 		fmt.Fprintf(w, "docs-url:\t%s\n", iface.DocsURL)
 	}

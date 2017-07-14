@@ -144,9 +144,6 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 			"result": client.Interface{
 				Name:    "network",
 				Summary: "allows access to the network",
-				Description: "" +
-					"The network interface allows connected plugs to access the network as a\n" +
-					"client. The core snap provides the slot that is used by all the snaps.",
 				DocsURL: "http://example.org/about-the-network-interface",
 				Plugs: []client.Plug{
 					{Snap: "deepin-music", Name: "network"},
@@ -160,11 +157,8 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"name:    network\n" +
-		"summary: allows access to the network\n" +
-		"description: |\n" +
-		"  The network interface allows connected plugs to access the network as a\n" +
-		"  client. The core snap provides the slot that is used by all the snaps.\n" +
+		"name:     network\n" +
+		"summary:  allows access to the network\n" +
 		"docs-url: http://example.org/about-the-network-interface\n" +
 		"plugs:\n" +
 		"  - snap: deepin-music\n" +
@@ -187,8 +181,6 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 			"result": client.Interface{
 				Name:    "serial-port",
 				Summary: "allows providing or using a specific serial port",
-				Description: "" +
-					"The serial-port interface allows connected plugs to access the specific serial port",
 				Plugs: []client.Plug{
 					{Snap: "minicom", Name: "serial-port"},
 				},
@@ -210,9 +202,6 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 	expectedStdout := "" +
 		"name:    serial-port\n" +
 		"summary: allows providing or using a specific serial port\n" +
-		"description: |\n" +
-		"  The serial-port interface allows connected plugs to access the specific serial\n" +
-		"  port\n" +
 		"plugs:\n" +
 		"  - snap: minicom\n" +
 		"slots:\n" +

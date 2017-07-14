@@ -112,9 +112,8 @@ func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 
 func (s *JSONSuite) TestInterfaceInfoMarshalJSON(c *C) {
 	md := MetaData{
-		Description: "interface description",
-		Summary:     "interface summary",
-		DocsURL:     "http://example.org/",
+		Summary: "interface summary",
+		DocsURL: "http://example.org/",
 	}
 	ifaceInfo := &InterfaceInfo{
 		Name:     "iface",
@@ -128,10 +127,9 @@ func (s *JSONSuite) TestInterfaceInfoMarshalJSON(c *C) {
 	err = json.Unmarshal(data, &repr)
 	c.Assert(err, IsNil)
 	c.Check(repr, DeepEquals, map[string]interface{}{
-		"name":        "iface",
-		"description": "interface description",
-		"summary":     "interface summary",
-		"docs-url":    "http://example.org/",
+		"name":     "iface",
+		"summary":  "interface summary",
+		"docs-url": "http://example.org/",
 		"plugs": []interface{}{
 			map[string]interface{}{
 				"snap":  "snap-name",

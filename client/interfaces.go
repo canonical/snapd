@@ -66,13 +66,12 @@ type Interfaces struct {
 
 // Interface holds information about a given interface and its instances.
 type Interface struct {
-	Name        string `json:"name,omitempty"`
-	Summary     string `json:"summary,omitempty"`
-	Description string `json:"description,omitempty"`
-	DocsURL     string `json:"docs-url,omitempty"`
-	Plugs       []Plug `json:"plugs,omitempty"`
-	Slots       []Slot `json:"slots,omitempty"`
-	Used        bool   `json:"used,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Summary string `json:"summary,omitempty"`
+	DocsURL string `json:"docs-url,omitempty"`
+	Plugs   []Plug `json:"plugs,omitempty"`
+	Slots   []Slot `json:"slots,omitempty"`
+	Used    bool   `json:"used,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
