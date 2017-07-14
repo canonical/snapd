@@ -116,12 +116,6 @@ func coreSupportsReExec(corePath string) bool {
 func InternalToolPath(tool string) string {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
-	// mostly useful for tests
-	if !osutil.GetenvBool(reExecKey, true) {
-		logger.Debugf("re-exec disabled by user")
-		return distroTool
-	}
-
 	// find the internal path relative to the running snapd, this
 	// ensure we don't rely on the state of the system (like
 	// having a valid "current" symlink).
