@@ -2394,6 +2394,50 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	}})
 }
 
+func (s *apiSuite) TestSetConfNumber(c *check.C) {
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
+
+	// Mock the hook runner
+	hookRunner := testutil.MockCommand(c, "snap", "")
+	defer hookRunner.Restore()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	text, err := json.Marshal(map[string]interface{}{"key": 1234567890})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	d.overlord.State().Lock()
+	tr := config.NewTransaction(d.overlord.State())
+	var result interface{}
+	c.Assert(tr.Get("config-snap", "key", &result), check.IsNil)
+	c.Assert(result, check.DeepEquals, json.Number("1234567890"))
+}
+
 func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 	d := s.daemon(c)
 
