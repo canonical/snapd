@@ -5,7 +5,7 @@ description: |
     the snapd-xdg-open package from the archive is properly replaced.
 # Test case only applies to Ubuntu as that is the only distribution where
 # we had a snapd-xdg-open package ever.
-systems: [-ubuntu-core-*, -debian-*]
+systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*]
 restore: |
     . "$TESTSLIB/pkgdb.sh"
     if [ "$REMOTE_STORE" = staging ]; then
@@ -19,22 +19,6 @@ execute: |
     # Original version of snapd-xdg-open in the archive which was not
     # part of the snapd source package.
     ver=0.0.0~16.04
-    case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*)
-            ver=0.0.0~14.04
-            ;;
-        ubuntu-16.04-*)
-            ;;
-        *)
-            echo "System doesn't have a snapd-xdg-open package in the archive"
-            echo "so skipping test case"
-            # We need to have snapd installed as otherwise the restore
-            # process fails
-            apt-get install -y snapd
-            exit 0
-            ;;
-    esac
-
     distro_install_package snapd-xdg-open=$ver
 
     prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
