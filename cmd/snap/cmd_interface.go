@@ -100,7 +100,7 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 		fmt.Fprintf(w, "summary:\t%s\n", iface.Summary)
 	}
 	if iface.DocsURL != "" {
-		fmt.Fprintf(w, "docs-url:\t%s\n", iface.DocsURL)
+		fmt.Fprintf(w, "documentation:\t%s\n", iface.DocsURL)
 	}
 	if len(iface.Plugs) > 0 {
 		fmt.Fprintf(w, "plugs:\n")
