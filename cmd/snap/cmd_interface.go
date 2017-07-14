@@ -105,27 +105,43 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	if len(iface.Plugs) > 0 {
 		fmt.Fprintf(w, "plugs:\n")
 		for _, plug := range iface.Plugs {
-			fmt.Fprintf(w, "  - snap:\t%s\n", plug.Snap)
-			if plug.Name != iface.Name {
-				fmt.Fprintf(w, "    plug:\t%s\n", plug.Name)
+			if plug.Name == iface.Name {
+				fmt.Fprintf(w, "  - %s", plug.Snap)
+			} else {
+				fmt.Fprintf(w, `  - "%s:%s"`, plug.Snap, plug.Name)
+			}
+			// Print a colon which will make the snap:plug element a key-value
+			// yaml object so that we can write the label or attributes.
+			if plug.Label != "" || len(plug.Attrs) > 0 && x.ShowAttrs {
+				fmt.Fprintf(w, ":\n")
+			} else {
+				fmt.Fprintf(w, "\n")
 			}
 			if plug.Label != "" {
-				fmt.Fprintf(w, "    label:\t%s\n", plug.Label)
+				fmt.Fprintf(w, "      label:\t%s\n", plug.Label)
 			}
-			x.showAttrs(w, plug.Attrs, "    ")
+			x.showAttrs(w, plug.Attrs, "      ")
 		}
 	}
 	if len(iface.Slots) > 0 {
 		fmt.Fprintf(w, "slots:\n")
 		for _, slot := range iface.Slots {
-			fmt.Fprintf(w, "  - snap:\t%s\n", slot.Snap)
-			if slot.Name != iface.Name {
-				fmt.Fprintf(w, "    slot:\t%s\n", slot.Name)
+			if slot.Name == iface.Name {
+				fmt.Fprintf(w, "  - %s", slot.Snap)
+			} else {
+				fmt.Fprintf(w, `  - "%s:%s"`, slot.Snap, slot.Name)
+			}
+			// Print a colon which will make the snap:slot element a key-value
+			// yaml object so that we can write the label or attributes.
+			if slot.Label != "" || len(slot.Attrs) > 0 && x.ShowAttrs {
+				fmt.Fprintf(w, ":\n")
+			} else {
+				fmt.Fprintf(w, "\n")
 			}
 			if slot.Label != "" {
-				fmt.Fprintf(w, "    label:\t%s\n", slot.Label)
+				fmt.Fprintf(w, "      label:\t%s\n", slot.Label)
 			}
-			x.showAttrs(w, slot.Attrs, "    ")
+			x.showAttrs(w, slot.Attrs, "      ")
 		}
 	}
 }
@@ -155,7 +171,7 @@ func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, inde
 		value := attrs[name]
 		switch value.(type) {
 		case string, int, bool:
-			fmt.Fprintf(w, "%s  %s:\t%s\n", indent, name, value)
+			fmt.Fprintf(w, "%s  %s:\t%v\n", indent, name, value)
 		}
 	}
 }

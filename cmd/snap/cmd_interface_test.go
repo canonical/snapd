@@ -161,10 +161,10 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		"summary:       allows access to the network\n" +
 		"documentation: http://example.org/about-the-network-interface\n" +
 		"plugs:\n" +
-		"  - snap: deepin-music\n" +
-		"  - snap: http\n" +
+		"  - deepin-music\n" +
+		"  - http\n" +
 		"slots:\n" +
-		"  - snap: core\n"
+		"  - core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -185,8 +185,9 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 					{Snap: "minicom", Name: "serial-port"},
 				},
 				Slots: []client.Slot{{
-					Snap: "gizmo-gadget",
-					Name: "debug-serial-port",
+					Snap:  "gizmo-gadget",
+					Name:  "debug-serial-port",
+					Label: "serial port for debugging",
 					Attrs: map[string]interface{}{
 						"header":   "pin-array",
 						"location": "internal",
@@ -203,14 +204,14 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		"name:    serial-port\n" +
 		"summary: allows providing or using a specific serial port\n" +
 		"plugs:\n" +
-		"  - snap: minicom\n" +
+		"  - minicom\n" +
 		"slots:\n" +
-		"  - snap: gizmo-gadget\n" +
-		"    slot: debug-serial-port\n" +
-		"    attributes:\n" +
-		"      header:   pin-array\n" +
-		"      location: internal\n" +
-		"      path:     /dev/ttyS0\n"
+		"  - \"gizmo-gadget:debug-serial-port\":\n" +
+		"      label: serial port for debugging\n" +
+		"      attributes:\n" +
+		"        header:   pin-array\n" +
+		"        location: internal\n" +
+		"        path:     /dev/ttyS0\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
