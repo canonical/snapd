@@ -42,15 +42,16 @@ func addImplicitSlots(snapInfo *snap.Info) {
 		if (release.OnClassic && md.ImplicitOnClassic) || (!release.OnClassic && md.ImplicitOnCore) {
 			ifaceName := iface.Name()
 			if _, ok := snapInfo.Slots[ifaceName]; !ok {
-				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
+				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName, md.Summary)
 			}
 		}
 	}
 }
 
-func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
+func makeImplicitSlot(snapInfo *snap.Info, ifaceName string, ifaceLabel string) *snap.SlotInfo {
 	return &snap.SlotInfo{
 		Name:      ifaceName,
+		Label:     ifaceLabel,
 		Snap:      snapInfo,
 		Interface: ifaceName,
 	}
