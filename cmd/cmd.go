@@ -126,8 +126,8 @@ func InternalToolPath(tool string) string {
 	}
 
 	// ensure we never use this helper from anything but
-	if !strings.HasSuffix(exe, "/snapd") {
-		panic("InternalToolPath can only be used from snapd")
+	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
+		panic(fmt.Sprintf("InternalToolPath can only be used from snapd, got: %s", exe))
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
