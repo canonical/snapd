@@ -31,7 +31,7 @@ import (
 )
 
 var getTests = []struct {
-	args, stdout, error string
+	args, stdout, stderr, error string
 }{{
 	args:  "get snap-name --foo",
 	error: ".*unknown flag.*foo.*",
@@ -59,6 +59,12 @@ var getTests = []struct {
 }, {
 	args:   "get snapname test-key1 test-key2",
 	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}, {
+	args:   "get snapname document",
+	stderr: "Key:\ndocument.key1\ndocument.key2\n",
+}, {
+	args:   "get -d snapname document",
+	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }}
 
 func (s *SnapSuite) TestSnapGetTests(c *C) {
@@ -75,6 +81,7 @@ func (s *SnapSuite) TestSnapGetTests(c *C) {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
 			c.Check(err, IsNil)
+			c.Check(s.Stderr(), Equals, test.stderr)
 			c.Check(s.Stdout(), Equals, test.stdout)
 		}
 	}
@@ -99,6 +106,8 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key1":"test-value1","test-key2":2}}`)
 		case "missing-key":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
+		case "document":
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"document":{"key1":"value1","key2":"value2"}}}`)
 		default:
 			c.Errorf("unexpected keys %q", query.Get("keys"))
 		}
