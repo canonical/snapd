@@ -1,5 +1,7 @@
 summary: Ensure that the alsa interface works.
 
+systems: [-fedora-*, -opensuse-*]
+
 details: |
     The alsa interface allows connected plugs to access raw ALSA devices.
 
