@@ -21,7 +21,6 @@
 package snapstate
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -1411,9 +1410,7 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 	if !ok {
 		return state.ErrNoState
 	}
-	dec := json.NewDecoder(bytes.NewReader(*raw))
-	dec.UseNumber()
-	err = dec.Decode(&snapst)
+	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal snap state: %v", err)
 	}
