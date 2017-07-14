@@ -54,6 +54,84 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestStore(t *testing.T) { TestingT(t) }
+
+type configTestSuite struct{}
+
+var _ = Suite(&configTestSuite{})
+
+func (suite *configTestSuite) TestSetAPI(c *C) {
+	// Sanity check to prove at least one URI changes.
+	cfg := DefaultConfig()
+	c.Assert(cfg.SectionsURI.Scheme, Equals, "https")
+	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
+	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
+
+	api, err := url.Parse("http://example.com/path/prefix/")
+	c.Assert(err, IsNil)
+	err = cfg.SetAPI(api)
+	c.Assert(err, IsNil)
+
+	uris := []*url.URL{
+		cfg.SearchURI,
+		cfg.DetailsURI,
+		cfg.BulkURI,
+		cfg.SectionsURI,
+		cfg.OrdersURI,
+		cfg.BuyURI,
+		cfg.CustomersMeURI,
+		cfg.AssertionsURI,
+	}
+	for _, uri := range uris {
+		c.Assert(uri, NotNil)
+		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	for _, u := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI, cfg.AssertionsURI} {
+		c.Check(u.String(), Matches, "https://force-api.local/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.AssertionsURI, Matches, "https://force-sas.local/.*")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
+}
+
 type remoteRepoTestSuite struct {
 	testutil.BaseTest
 	store     *Store
@@ -65,8 +143,6 @@ type remoteRepoTestSuite struct {
 	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
 }
-
-func TestStore(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&remoteRepoTestSuite{})
 
@@ -3597,17 +3673,6 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := apiURL()
-
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := apiURL()
-
-	c.Check(before, Not(Equals), after)
-}
-
 func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
@@ -3630,20 +3695,82 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
+func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	before := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	after := apiURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
+	// This also depends on the API URL, but that's tested separately (see
+	// TestApiURLDependsOnEnviron).
+	api := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", ""), IsNil)
+
+	// Test in order of precedence (low first) leaving env vars set as we go ...
+
+	u, err := storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, api.String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-api.local/.*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "https://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironAPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
+}
+
 func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	// This also depends on SNAPPY_USE_STAGING_STORE, but that's tested
-	// separately (see TestApiURLDependsOnEnviron).
-	storeBaseURI, _ := url.Parse(apiURL())
+	// This also depends on the store API, but that's tested separately (see
+	// TestStoreURLDependsOnEnviron).
+	apiBaseURI := apiURL()
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
-	before := assertsURL(storeBaseURI)
+	before, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
-	after := assertsURL(storeBaseURI)
+	after, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
 
-	c.Check(before, Not(Equals), after)
-	c.Check(after, Equals, "https://assertions.example.org/v1/")
+	c.Check(before.String(), Not(Equals), after.String())
+	c.Check(after.String(), Equals, "https://assertions.example.org/v1/")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	_, err := assertsURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
