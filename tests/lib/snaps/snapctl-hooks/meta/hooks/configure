@@ -41,6 +41,15 @@ test_get_int_number() {
 		  echo "Expected output to be '$expected_output', but it was '$output'"
 		  exit 1
 	fi
+  if ! output="$(snapctl get intnumber2)"; then
+		  echo "Expected snapctl get to be able to retrieve value just set"
+		  exit 1
+	fi
+	expected_output="\"a\": 9876543210"
+	if ! echo "$output" | grep -q -e "$expected_output"; then
+		  echo "Expected output to be '$expected_output', but it was '$output'"
+		  exit 1
+	fi
 }
 
 test_snapctl_get_foo_null() {
