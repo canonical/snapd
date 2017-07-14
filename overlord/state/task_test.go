@@ -82,25 +82,6 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
-func (ts *taskSuite) TestGetSetNumber(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	t := st.NewTask("download", "1...")
-	t.Set("a", 1234567890)
-
-	marshalled, err := t.MarshalJSON()
-	c.Assert(err, IsNil)
-
-	t.UnmarshalJSON(marshalled)
-
-	var v interface{}
-	err = t.Get("a", &v)
-	c.Assert(err, IsNil)
-	c.Check(v, DeepEquals, json.Number("1234567890"))
-}
-
 func (ts *taskSuite) TestClear(c *C) {
 	st := state.New(nil)
 	st.Lock()
