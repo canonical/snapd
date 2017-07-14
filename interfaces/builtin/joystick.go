@@ -29,6 +29,14 @@ import (
 
 const joystickSummary = `allows access to joystick devices`
 
+const joystickBaseDeclarationSlots = `
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const joystickConnectedPlugAppArmor = `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
@@ -48,9 +56,10 @@ func (iface *joystickInterface) Name() string {
 
 func (iface *joystickInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           joystickSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              joystickSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: joystickBaseDeclarationSlots,
 	}
 }
 

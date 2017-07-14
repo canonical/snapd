@@ -62,7 +62,7 @@ execute: |
     echo "Then the service is accessible by a client"
     nc -w 2 -q 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

@@ -66,7 +66,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.rsps = nil
 	cs.req = nil
 	cs.header = nil
-	cs.status = http.StatusOK
+	cs.status = 200
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
@@ -200,7 +200,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                      {"series": "16",
                       "version": "2",
                       "os-release": {"id": "ubuntu", "version-id": "16.04"},
-                      "on-classic": true}}`
+                      "on-classic": true,
+                      "confinement": "strict"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -210,7 +211,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 			ID:        "ubuntu",
 			VersionID: "16.04",
 		},
-		OnClassic: true,
+		OnClassic:   true,
+		Confinement: "strict",
 	})
 }
 

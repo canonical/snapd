@@ -25,6 +25,13 @@ const networkDescription = "" +
 	"The network interface allows connected plugs to access the network as a\n" +
 	"client. The core snap provides the slot that is used by all the snaps."
 
+const networkBaseDeclarationSlots = `
+  network:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
@@ -55,6 +62,7 @@ func init() {
 		description:           networkDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBaseDeclarationSlots,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,

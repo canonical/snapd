@@ -21,6 +21,13 @@ package builtin
 
 const networkBindSummary = `allows operating as a network service`
 
+const networkBindBaseDeclarationSlots = `
+  network-bind:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
@@ -73,6 +80,7 @@ func init() {
 		summary:               networkBindSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBindBaseDeclarationSlots,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,

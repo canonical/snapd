@@ -21,6 +21,15 @@ package builtin
 
 const unity8CalendarSummary = `allows operating as or interacting with the Unity 8 Calendar Service`
 
+const unity8CalendarBaseDeclarationSlots = `
+  unity8-calendar:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
+
 const unity8CalendarPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. This gives privileged access
 # to the system.
@@ -140,6 +149,7 @@ func init() {
 	registerIface(&unity8PimCommonInterface{
 		name:                  "unity8-calendar",
 		summary:               unity8CalendarSummary,
+		baseDeclarationSlots:  unity8CalendarBaseDeclarationSlots,
 		permanentSlotAppArmor: unity8CalendarPermanentSlotAppArmor,
 		connectedSlotAppArmor: unity8CalendarConnectedSlotAppArmor,
 		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,

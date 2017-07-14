@@ -150,6 +150,10 @@ type RODatabase interface {
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns ErrNotFound if no assertion can be found.
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+	// FindManyTrusted finds assertions in the trusted set based
+	// on arbitrary headers.  It returns ErrNotFound if no
+	// assertion can be found.
+	FindManyTrusted(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
 }
@@ -436,9 +440,7 @@ func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string
 	return find([]Backstore{db.trusted}, assertionType, headers, -1)
 }
 
-// FindMany finds assertions based on arbitrary headers.
-// It returns ErrNotFound if no assertion can be found.
-func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+func (db *Database) findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -451,7 +453,7 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 
 	// TODO: Find variant taking this
 	maxFormat := assertionType.MaxSupportedFormat()
-	for _, bs := range db.backstores {
+	for _, bs := range backstores {
 		err = bs.Search(assertionType, headers, foundCb, maxFormat)
 		if err != nil {
 			return nil, err
@@ -462,6 +464,19 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 		return nil, ErrNotFound
 	}
 	return res, nil
+}
+
+// FindMany finds assertions based on arbitrary headers.
+// It returns ErrNotFound if no assertion can be found.
+func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.findMany(db.backstores, assertionType, headers)
+}
+
+// FindManyTrusted finds assertions in the trusted set based on
+// arbitrary headers.  It returns ErrNotFound if no assertion can be
+// found.
+func (db *Database) FindManyTrusted(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.findMany([]Backstore{db.trusted}, assertionType, headers)
 }
 
 // assertion checkers

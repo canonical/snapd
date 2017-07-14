@@ -365,6 +365,15 @@ func migrateXauthority(info *snap.Info) (string, error) {
 
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	// if we re-exec, we must run the snap-confine from the core snap
+	// as well, if they get out of sync, havoc will happen
+	if isReexeced() {
+		// run snap-confine from the core snap. that will work because
+		// snap-confine on the core snap is mostly statically linked
+		// (except libudev and libc)
+		snapConfine = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, "snap-confine")
+	}
+
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
 			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
@@ -400,15 +409,6 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	// snap-exec is POSIXly-- options must come before positionals.
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
-
-	// if we re-exec, we must run the snap-confine from the core snap
-	// as well, if they get out of sync, havoc will happen
-	if isReexeced() {
-		// run snap-confine from the core snap. that will work because
-		// snap-confine on the core snap is mostly statically linked
-		// (except libudev and libc)
-		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
-	}
 
 	extraEnv := make(map[string]string)
 	if len(xauthPath) > 0 {

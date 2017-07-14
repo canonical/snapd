@@ -208,7 +208,7 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/identity/api/v1/request-id":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, s.reqID))
 
@@ -236,14 +236,14 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			reqID := serialReq.RequestID()
 			if reqID == "REQID-BADREQ" {
 				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(400)
 				w.Write([]byte(`{
   "error_list": [{"message": "bad serial-request"}]
 }`))
 				return
 			}
 			if reqID == "REQID-POLL" && serialNum != 10002 {
-				w.WriteHeader(http.StatusAccepted)
+				w.WriteHeader(202)
 				return
 			}
 			serialStr := fmt.Sprintf("%d", serialNum)
@@ -261,7 +261,7 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			}, serialReq.Body(), "")
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			w.Write(asserts.Encode(serial))
 		}
 	}))
