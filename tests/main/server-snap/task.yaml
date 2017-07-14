@@ -1,5 +1,7 @@
 summary: Check snap web servers
 
+systems: [-fedora-*, -opensuse-*]
+
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
     IP_VERSION/pythonServer: 4

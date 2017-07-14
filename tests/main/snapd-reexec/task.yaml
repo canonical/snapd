@@ -1,6 +1,6 @@
 summary: Test that snapd reexecs itself into core
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 
 restore: |
     . $TESTSLIB/dirs.sh

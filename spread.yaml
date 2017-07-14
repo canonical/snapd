@@ -63,7 +63,7 @@ backends:
             - fedora-25-64:
                 workers: 1
             - opensuse-42.2-64:
-                workers: 1
+                workers: 2
     qemu:
         systems:
             - ubuntu-14.04-32:
