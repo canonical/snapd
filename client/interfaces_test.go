@@ -118,7 +118,7 @@ func (cs *clientSuite) TestClientInterface(c *check.C) {
 		"type": "sync",
 		"result": {
 			"name": "bool-file",
-			"description": "The bool-file interface allows access to a specific file that contains values 0 or 1",
+			"summary": "The bool-file interface allows access to a specific file that contains values 0 or 1",
 			"docs-url": "http://example.org/",
 			"plugs": [
 				{
@@ -141,9 +141,9 @@ func (cs *clientSuite) TestClientInterface(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interface/bool-file")
 	c.Check(iface, check.DeepEquals, client.Interface{
-		Name:        "bool-file",
-		Description: "The bool-file interface allows access to a specific file that contains values 0 or 1",
-		DocsURL:     "http://example.org/",
+		Name:    "bool-file",
+		Summary: "The bool-file interface allows access to a specific file that contains values 0 or 1",
+		DocsURL: "http://example.org/",
 		Plugs: []client.Plug{
 			{
 				Snap:  "canonical-pi2",

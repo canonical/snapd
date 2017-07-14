@@ -139,13 +139,11 @@ type Interface interface {
 // MetaData describes various meta-data of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
-// The Description must describe the purpose of the interface in non-technical
-// terms. The DocsURL can point to website (e.g. a forum thread) that goes into
-// more depth and documents the interface in detail.
+// The DocsURL can point to website (e.g. a forum thread) that goes into more
+// depth and documents the interface in detail.
 type MetaData struct {
-	Summary     string `json:"summary,omitempty"`
-	Description string `json:"description,omitempty"`
-	DocsURL     string `json:"docs-url,omitempty"`
+	Summary string `json:"summary,omitempty"`
+	DocsURL string `json:"docs-url,omitempty"`
 
 	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
 	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`

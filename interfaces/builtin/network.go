@@ -21,10 +21,6 @@ package builtin
 
 const networkSummary = `allows access to the network`
 
-const networkDescription = "" +
-	"The network interface allows connected plugs to access the network as a\n" +
-	"client. The core snap provides the slot that is used by all the snaps."
-
 const networkBaseDeclarationSlots = `
   network:
     allow-installation:
@@ -59,7 +55,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network",
 		summary:               networkSummary,
-		description:           networkDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkBaseDeclarationSlots,
