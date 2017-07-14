@@ -21,7 +21,6 @@
 package state
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +32,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/util"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -52,7 +50,7 @@ func (data customData) get(key string, value interface{}) error {
 	if entryJSON == nil {
 		return ErrNoState
 	}
-	err := util.DecodeJsonWithNumbers(bytes.NewReader(*entryJSON), value)
+	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
 		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
 	}
@@ -178,7 +176,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 func (s *State) UnmarshalJSON(data []byte) error {
 	s.writing()
 	var unmarshalled marshalledState
-	err := util.DecodeJsonWithNumbers(bytes.NewReader(data), &unmarshalled)
+	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
 		return err
 	}
@@ -452,7 +450,8 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
 	s.Lock()
 	defer s.unlock()
-	err := util.DecodeJsonWithNumbers(r, &s)
+	d := json.NewDecoder(r)
+	err := d.Decode(&s)
 	if err != nil {
 		return nil, err
 	}

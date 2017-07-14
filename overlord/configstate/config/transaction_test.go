@@ -62,9 +62,7 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		dec := json.NewDecoder(strings.NewReader(kv[1]))
-		dec.UseNumber()
-		err := dec.Decode(&v)
+		err := json.Unmarshal([]byte(kv[1]), &v)
 		if err != nil {
 			v = kv[1]
 		}
