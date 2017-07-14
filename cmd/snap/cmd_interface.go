@@ -84,7 +84,7 @@ func (x *cmdInterface) Execute(args []string) error {
 			return err
 		}
 		if len(ifaces) == 0 {
-			return fmt.Errorf(i18n.G("no interfaces found"))
+			return fmt.Errorf(i18n.G("no interfaces currently connected"))
 		}
 		x.showManyInterfaces(ifaces)
 	}
