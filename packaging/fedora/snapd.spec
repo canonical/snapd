@@ -700,7 +700,7 @@ fi
  - tests: do not disable ipv6 on core systems
  - arch: the kernel architecture name is armv7l instead of armv7
  - snap-confine: ensure snap-confine waits some seconds for seccomp
-   security profilese
+   security profiles
  - tests: shellcheck improvements for tests/nested tasks
  - wrappers: add SyslogIdentifier to the service unit files.
  - tests: shellcheck improvements for unit tasks
