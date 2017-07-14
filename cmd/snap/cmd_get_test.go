@@ -22,6 +22,7 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -102,4 +103,24 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 			c.Errorf("unexpected keys %q", query.Get("keys"))
 		}
 	})
+}
+
+func (s *SnapSuite) TestGetDottedKeys(c *C) {
+	data := map[string]interface{}{}
+	paths := snapset.GetDottedKeys([]string{}, data)
+	c.Assert(paths, HasLen, 0)
+
+	data = map[string]interface{}{
+		"a": 1,
+		"b": map[string]interface{}{
+			"c": "x",
+			"d": 2,
+		},
+		"e": []string{"x", "y"},
+		"f": nil,
+	}
+	paths = snapset.GetDottedKeys([]string{}, data)
+	sort.Strings(paths)
+	c.Assert(paths, DeepEquals, []string{"a", "b.c", "b.d", "e", "f"})
+
 }

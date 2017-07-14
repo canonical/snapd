@@ -52,9 +52,9 @@ Nested values may be retrieved via a dotted path:
 
 type cmdGet struct {
 	Positional struct {
-		Snap installedSnapName
+		Snap installedSnapName `required:"yes"`
 		Keys []string
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 
 	Typed    bool `short:"t"`
 	Document bool `short:"d"`
@@ -75,6 +75,19 @@ func init() {
 				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})
+}
+
+func getDottedKeys(path []string, input map[string]interface{}) []string {
+	var paths []string
+	for k, v := range input {
+		p := append(path, k)
+		if vv, ok := v.(map[string]interface{}); ok {
+			paths = append(paths, getDottedKeys(p, vv)...)
+		} else {
+			paths = append(paths, strings.Join(p, "."))
+		}
+	}
+	return paths
 }
 
 func (x *cmdGet) Execute(args []string) error {
@@ -104,6 +117,24 @@ func (x *cmdGet) Execute(args []string) error {
 	if x.Typed && confToPrint == nil {
 		fmt.Fprintln(Stdout, "null")
 		return nil
+	}
+
+	if !x.Document && len(confKeys) == 1 {
+		var printKeys bool
+		for _, v := range conf {
+			if _, ok := v.(map[string]interface{}); ok {
+				printKeys = true
+				break
+			}
+		}
+		if printKeys {
+			fmt.Fprintf(Stderr, "Key:\n")
+			paths := getDottedKeys([]string{}, conf)
+			for _, p := range paths {
+				fmt.Fprintf(Stderr, "%s\n", p)
+			}
+			return nil
+		}
 	}
 
 	if s, ok := confToPrint.(string); ok && !x.Typed {
