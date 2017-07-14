@@ -157,9 +157,9 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"name:     network\n" +
-		"summary:  allows access to the network\n" +
-		"docs-url: http://example.org/about-the-network-interface\n" +
+		"name:          network\n" +
+		"summary:       allows access to the network\n" +
+		"documentation: http://example.org/about-the-network-interface\n" +
 		"plugs:\n" +
 		"  - snap: deepin-music\n" +
 		"  - snap: http\n" +
