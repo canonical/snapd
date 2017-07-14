@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 
@@ -59,7 +58,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != 200 {
 		return nil, parseError(response)
 	}
 

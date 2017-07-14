@@ -30,6 +30,15 @@ import (
 
 const boolFileSummary = `allows access to specific file with bool semantics`
 
+const boolFileBaseDeclarationSlots = `
+  bool-file:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // boolFileInterface is the type of all the bool-file interfaces.
 type boolFileInterface struct{}
 
@@ -45,7 +54,8 @@ func (iface *boolFileInterface) Name() string {
 
 func (iface *boolFileInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: boolFileSummary,
+		Summary:              boolFileSummary,
+		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
 	}
 }
 

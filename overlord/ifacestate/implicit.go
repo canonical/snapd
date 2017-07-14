@@ -38,7 +38,7 @@ func addImplicitSlots(snapInfo *snap.Info) {
 	}
 	// Ask each interface if it wants to be implcitly added.
 	for _, iface := range builtin.Interfaces() {
-		md := interfaces.IfaceMetaData(iface)
+		md := interfaces.MetaDataOf(iface)
 		if (release.OnClassic && md.ImplicitOnClassic) || (!release.OnClassic && md.ImplicitOnCore) {
 			ifaceName := iface.Name()
 			if _, ok := snapInfo.Slots[ifaceName]; !ok {

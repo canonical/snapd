@@ -6,10 +6,15 @@
 %bcond_without vendorized
 %endif
 
+# A switch to allow building the package with support for testkeys which
+# are used for the spread test suite of snapd.
+%bcond_with testkeys
+
 %global with_devel 1
 %global with_debug 1
 %global with_check 0
 %global with_unit_test 0
+%global with_test_keys 0
 
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
@@ -18,6 +23,12 @@
 %global with_bundled 0
 %else
 %global with_bundled 1
+%endif
+
+%if ! %{with testkeys}
+%global with_test_keys 0
+%else
+%global with_test_keys 1
 %endif
 
 %if 0%{?with_debug}
@@ -60,6 +71,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires:  systemd
+BuildRequires:  libseccomp-static
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
@@ -79,6 +91,7 @@ BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
 BuildRequires: golang(github.com/ojii/gettext.go)
+BuildRequires: golang(github.com/seccomp/libseccomp-golang)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
@@ -162,6 +175,7 @@ Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/mvo5/uboot-go/uenv)
 Requires:      golang(github.com/ojii/gettext.go)
+Requires:      golang(github.com/seccomp/libseccomp-golang)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
@@ -183,6 +197,7 @@ Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
 Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -320,11 +335,23 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-%gobuild -o bin/snap %{import_path}/cmd/snap
-%gobuild -o bin/snap-exec %{import_path}/cmd/snap-exec
-%gobuild -o bin/snapctl %{import_path}/cmd/snapctl
-%gobuild -o bin/snapd %{import_path}/cmd/snapd
-%gobuild -o bin/snap-update-ns %{import_path}/cmd/snap-update-ns
+GOFLAGS=
+%if 0%{?with_test_keys}
+GOFLAGS="$GOFLAGS -tags withtestkeys"
+%endif
+
+# We have to build snapd first to prevent the build from
+# building various things from the tree without additional
+# set tags.
+%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
+%gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
+%gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+%gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+%gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+%gobuild -o bin/snap-seccomp %{import_path}/cmd/snap-seccomp
 
 # Build SELinux module
 pushd ./data/selinux
@@ -355,6 +382,7 @@ popd
 # Build systemd units
 pushd ./data/systemd
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+     SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
@@ -371,7 +399,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
-install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/profiles
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
@@ -384,6 +412,7 @@ install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
+install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -411,11 +440,15 @@ popd
 
 # Install all systemd units
 pushd ./data/systemd
-%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}"
+%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snap-repair.*
+rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 popd
+
+# Remove snappy core specific scripts
+rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # Put /var/lib/snapd/snap/bin on PATH
 # Put /var/lib/snapd/desktop on XDG_DATA_DIRS
@@ -517,7 +550,7 @@ popd
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
-%dir %{_sharedstatedir}/snapd/seccomp/profiles
+%dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
@@ -532,6 +565,7 @@ popd
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
 %attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
 %{_mandir}/man5/snap-confine.5*

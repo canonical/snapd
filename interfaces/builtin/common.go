@@ -67,19 +67,13 @@ func (iface *commonInterface) Name() string {
 // MetaData returns various meta-data about this interface.
 func (iface *commonInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-<<<<<<< HEAD
-		Description: iface.description,
-		Summary:     iface.summary,
-		DocsURL:     iface.docsURL,
-=======
-		Summary:              iface.summary,
 		Description:          iface.description,
-		DocumentationURL:     iface.documentationURL,
+		Summary:              iface.summary,
+		DocsURL:              iface.docsURL,
 		ImplicitOnCore:       iface.implicitOnCore,
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
->>>>>>> 2afccb518db3b2e1e6aa710e8f4a7c357095e213
 	}
 }
 

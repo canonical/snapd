@@ -5,13 +5,13 @@ systems: [ubuntu-16.04-64]
 prepare: |
     apt install -y --no-install-recommends kpartx
 
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
     create_nested_core_vm
 
 restore: |
     apt autoremove -y --purge kpartx
 
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
     destroy_nested_core_vm
 
 debug: |
@@ -22,22 +22,24 @@ debug: |
         part=$(echo "$loops" | tail -1)
 
         tmp=$(mktemp -d)
-        mount /dev/mapper/$part $tmp
+        mount "/dev/mapper/$part" "$tmp"
 
-        grep --text "hsearch_r failed for.* No such process" $tmp/system-data/var/log/syslog
+        grep --text "hsearch_r failed for.* No such process" "$tmp/system-data/var/log/syslog"
 
-        umount $tmp
-        rm -rf $tmp
+        umount "$tmp"
+        rm -rf "$tmp"
         kpartx -ds /tmp/work-dir/ubuntu-core.img
     fi
 
-kill-timeout: 35m
+kill-timeout: 40m
 
 execute: |
-    . $TESTSLIB/nested.sh
+    . "$TESTSLIB/nested.sh"
 
-    cd $SPREAD_PATH
+    cd "$SPREAD_PATH"
     execute_remote "sudo snap install network-manager"
+    execute_remote "sudo snap install bluez"
+    execute_remote "sudo bluez.bluetoothctl -a"
     execute_remote "snap aliases" | MATCH "nmcli"
 
     # configure network-manager to take over the connection control on next reboot
@@ -54,6 +56,7 @@ execute: |
     # make sure network-manager is on charge of eth0
     execute_remote "nmcli c" | MATCH eth0
     execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
+    execute_remote "sudo bluez.bluetoothctl -a"
     # sanity check, no refresh should be done here but the command shouldn't fail
     execute_remote "sudo snap refresh"
 
@@ -67,5 +70,8 @@ execute: |
     execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
+    execute_remote "sudo bluez.bluetoothctl -a"
     # this currently fails, refresh from the old version conflicts with aliases
     # execute_remote "sudo snap refresh"
+
+    execute_remote "sudo cat /var/log/syslog" | MATCH -v "hsearch_r failed for.* No such process"

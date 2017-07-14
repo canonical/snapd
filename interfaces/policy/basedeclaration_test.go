@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -385,6 +386,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionGreengrassSupportOverride(c *C) {
+	cand := s.connectCand(c, "greengrass-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"greengrass-support\"")
+
+	plugsSlots := `
+plugs:
+  greengrass-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -446,6 +465,7 @@ var (
 		"docker-support":          {"core"},
 		"fwupd":                   {"app"},
 		"gpio":                    {"core", "gadget"},
+		"greengrass-support":      {"core"},
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
 		"iio":                     {"core", "gadget"},
@@ -492,15 +512,6 @@ var (
 	}
 )
 
-func contains(l []string, s string) bool {
-	for _, s1 := range l {
-		if s == s1 {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	all := builtin.Interfaces()
 
@@ -517,7 +528,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			continue
 		}
 		for name, snapType := range snapTypeMap {
-			ok := contains(types, name)
+			ok := strutil.ListContains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
 			slotInfo := ic.Snap.Slots[iface.Name()]
 			err := ic.Check()
@@ -557,6 +568,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	restricted := map[string]bool{
 		"classic-support":       true,
 		"docker-support":        true,
+		"greengrass-support":    true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
@@ -571,7 +583,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		// the case we continue as normal.
 		if ok {
 			for name, snapType := range snapTypeMap {
-				ok := contains(types, name)
+				ok := strutil.ListContains(types, name)
 				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
 				err := ic.Check()
 				comm := Commentf("%s by %s snap", iface.Name(), name)
@@ -683,6 +695,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,
+		"greengrass-support":    true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,

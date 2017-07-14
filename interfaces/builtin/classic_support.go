@@ -21,6 +21,20 @@ package builtin
 
 const classicSupportSummary = `special permissions for the classic snap`
 
+const classicSupportBaseDeclarationPlugs = `
+  classic-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const classicSupportBaseDeclarationSlots = `
+  classic-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const classicSupportPlugAppArmor = `
 # Description: permissions to use classic dimension. This policy is
 # intentionally not restricted. This gives device ownership to
@@ -108,6 +122,8 @@ func init() {
 		summary:               classicSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  classicSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:  classicSupportBaseDeclarationSlots,
 		connectedPlugAppArmor: classicSupportPlugAppArmor,
 		connectedPlugSecComp:  classicSupportPlugSecComp,
 	})

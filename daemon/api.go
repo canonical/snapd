@@ -246,9 +246,9 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func formatRefreshTime(t time.Time) string {
 	if t.IsZero() {
-		return "n/a"
+		return ""
 	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute))
+	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -275,11 +275,21 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": map[string]interface{}{
-			"schedule": refreshScheduleStr,
-			"last":     formatRefreshTime(lastRefresh),
-			"next":     formatRefreshTime(nextRefresh),
+		"refresh": client.RefreshInfo{
+			Schedule: refreshScheduleStr,
+			Last:     formatRefreshTime(lastRefresh),
+			Next:     formatRefreshTime(nextRefresh),
 		},
+	}
+	// NOTE: Right now we don't have a good way to differentiate if we
+	// only have partial confinement (ala AppArmor disabled and Seccomp
+	// enabled) or no confinement at all. Once we have a better system
+	// in place how we can dynamically retrieve these information from
+	// snapd we will use this here.
+	if release.ReleaseInfo.ForceDevMode() {
+		m["confinement"] = "partial"
+	} else {
+		m["confinement"] = "strict"
 	}
 
 	return SyncResponse(m, nil)
@@ -330,7 +340,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindInvalidAuthData,
 				Value:   map[string][]string{"email": {"invalid"}},
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 
@@ -343,7 +353,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	case store.Err2faFailed:
 		return SyncResponse(&resp{
@@ -352,7 +362,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Kind:    errorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
-			Status: http.StatusUnauthorized,
+			Status: 401,
 		}, nil)
 	default:
 		switch err := err.(type) {
@@ -364,7 +374,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindInvalidAuthData,
 					Value:   err,
 				},
-				Status: http.StatusBadRequest,
+				Status: 400,
 			}, nil)
 		case store.PasswordPolicyError:
 			return SyncResponse(&resp{
@@ -374,7 +384,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 					Kind:    errorKindPasswordPolicy,
 					Value:   err,
 				},
-				Status: http.StatusUnauthorized,
+				Status: 401,
 			}, nil)
 		}
 		return Unauthorized(err.Error())
@@ -1140,7 +1150,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
 		Result: &errorResult{Message: err.Error(), Kind: kind},
-		Status: http.StatusBadRequest,
+		Status: 400,
 	}, nil)
 }
 
@@ -1222,7 +1232,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 				Message: err.Error(),
 				Kind:    errorKindNotSnap,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	}
 	if err != nil {
@@ -1769,7 +1779,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	// TODO: what more info do we want to return on success?
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 	}
 }
 
@@ -2092,23 +2102,16 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 	su := a.(*asserts.SystemUser)
 
 	// cross check that the assertion is valid for the given series/model
-	contains := func(needle string, haystack []string) bool {
-		for _, s := range haystack {
-			if needle == s {
-				return true
-			}
-		}
-		return false
-	}
+
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
-	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
 	}
-	if len(su.Series()) > 0 && !contains(series, su.Series()) {
+	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
-	if len(su.Models()) > 0 && !contains(model, su.Models()) {
+	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
 	if !su.ValidAt(time.Now()) {
@@ -2259,7 +2262,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindLoginRequired,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
@@ -2268,7 +2271,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindTermsNotAccepted,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrNoPaymentMethods:
 		return SyncResponse(&resp{
@@ -2277,7 +2280,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindNoPaymentMethods,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	case store.ErrPaymentDeclined:
 		return SyncResponse(&resp{
@@ -2286,7 +2289,7 @@ func convertBuyError(err error) Response {
 				Message: err.Error(),
 				Kind:    errorKindPaymentDeclined,
 			},
-			Status: http.StatusBadRequest,
+			Status: 400,
 		}, nil)
 	default:
 		return InternalError("%v", err)
@@ -2304,17 +2307,25 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	switch a.Action {
 	case "ensure-state-soon":
-		st := c.d.overlord.State()
-		st.Lock()
-		defer st.Unlock()
 		ensureStateSoon(st)
+		return SyncResponse(true, nil)
+	case "get-base-declaration":
+		bd, err := assertstate.BaseDeclaration(st)
+		if err != nil {
+			return InternalError("cannot get base declaration: %s", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"base-declaration": string(asserts.Encode(bd)),
+		}, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
-
-	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {

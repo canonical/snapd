@@ -32,6 +32,7 @@ import (
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	ID              string        `json:"id"`
+	Title           string        `json:"title,omitempty"`
 	Summary         string        `json:"summary"`
 	Description     string        `json:"description"`
 	DownloadSize    int64         `json:"download-size"`

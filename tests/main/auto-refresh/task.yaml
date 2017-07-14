@@ -4,19 +4,25 @@ prepare: |
     snap install --devmode jq
 
 restore: |
-    . $TESTSLIB/dirs.sh
-    if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
+    . "$TESTSLIB/dirs.sh"
+    if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
         snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
         snap set core refresh.disabled=true
     fi
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    echo "Auto refresh information is shown"
+    output=$(snap refresh --time)
+    for expected in ^schedule: ^last: ^next:; do
+        echo "$output" | MATCH "$expected"
+    done
 
     echo "Install a snap from stable"
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
-    if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
+    if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
         snap set core refresh.schedule="0:00-23:59"
         snap set core refresh.disabled=false
     fi
@@ -31,7 +37,7 @@ execute: |
     systemctl start snapd.{service,socket}
 
     echo "wait for auto-refresh to happen"
-    for i in $(seq 120); do
+    for _ in $(seq 120); do
         if snap changes|grep -q "Done.*Auto-refresh snap \"test-snapd-tools\""; then
             break
         fi
@@ -44,4 +50,4 @@ execute: |
     snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
 
     echo "Ensure refresh.last is set"
-    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
+    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"

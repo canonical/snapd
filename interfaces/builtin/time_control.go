@@ -29,6 +29,14 @@ import (
 
 const timeControlSummary = `allows setting system date and time`
 
+const timeControlBaseDeclarationSlots = `
+  time-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
@@ -102,9 +110,10 @@ func (iface *timeControlInterface) Name() string {
 
 func (iface *timeControlInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary:           timeControlSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              timeControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: timeControlBaseDeclarationSlots,
 	}
 }
 
