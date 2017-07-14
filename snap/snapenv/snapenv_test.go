@@ -87,7 +87,7 @@ func (ts *HTestSuite) TestUser(c *C) {
 		"HOME":             "/root/snap/foo/17",
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", os.Geteuid()),
+		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d", os.Geteuid()),
 	})
 }
 
@@ -98,7 +98,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 		// NOTE HOME Is absent! we no longer override it
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", os.Geteuid()),
+		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d", os.Geteuid()),
 	})
 }
 
@@ -132,7 +132,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
 			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"SNAP_VERSION":      "1.0",
-			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", os.Geteuid()),
+			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d", os.Geteuid()),
 		})
 	}
 }
