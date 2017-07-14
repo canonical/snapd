@@ -183,6 +183,36 @@ type Config struct {
 	DeltaFormat  string
 }
 
+// SetAPI updates API URLs in the Config. Must not be used to change active config.
+func (cfg *Config) SetAPI(api *url.URL) error {
+	storeBaseURI, err := storeURL(api)
+	if err != nil {
+		return err
+	}
+	assertsBaseURI, err := assertsURL(storeBaseURI)
+	if err != nil {
+		return err
+	}
+
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
+	cfg.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
+	// slash at the end because snap name is appended to this with .Parse(snapName)
+	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
+	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
+	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
+	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
+
+	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+
+	return nil
+}
+
 // Store represents the ubuntu snap store
 type Store struct {
 	searchURI      *url.URL
@@ -270,22 +300,39 @@ func urlJoin(base *url.URL, paths ...string) *url.URL {
 	return &url
 }
 
-func apiURL() string {
-	// FIXME: this will become a store-url assertion
+// apiURL returns the system default base API URL.
+func apiURL() *url.URL {
+	s := "https://api.snapcraft.io/"
+	if useStaging() {
+		s = "https://api.staging.snapcraft.io/"
+	}
+	u, _ := url.Parse(s)
+	return u
+}
+
+// storeURL returns the base store URL, derived from either the given API URL
+// or an env var override.
+func storeURL(api *url.URL) (*url.URL, error) {
+	var override string
+	var overrideName string
 	// XXX: Deprecated but present for backward-compatibility: this used
 	// to be "Click Package Index".  Remove this once people have got
 	// used to SNAPPY_FORCE_API_URL instead.
-	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
-		return strings.TrimSuffix(u, "api/v1/")
+	if s := os.Getenv("SNAPPY_FORCE_CPI_URL"); s != "" && strings.HasSuffix(s, "api/v1/") {
+		overrideName = "SNAPPY_FORCE_CPI_URL"
+		override = strings.TrimSuffix(s, "api/v1/")
+	} else if s := os.Getenv("SNAPPY_FORCE_API_URL"); s != "" {
+		overrideName = "SNAPPY_FORCE_API_URL"
+		override = s
 	}
-	if u := os.Getenv("SNAPPY_FORCE_API_URL"); u != "" {
-		return u
+	if override != "" {
+		u, err := url.Parse(override)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %s", overrideName, err)
+		}
+		return u, nil
 	}
-	if useStaging() {
-		return "https://api.staging.snapcraft.io/"
-	}
-
-	return "https://api.snapcraft.io/"
+	return api, nil
 }
 
 func authLocation() string {
@@ -302,13 +349,17 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL(storeBaseURI *url.URL) string {
-	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
-		return u
+func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
+	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
+		}
+		return u, nil
 	}
 	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
 	// once new bulk-friendly APIs are designed and implemented.
-	return urlJoin(storeBaseURI, "api/v1/snaps/").String()
+	return urlJoin(storeBaseURI, "api/v1/snaps/"), nil
 }
 
 func myappsURL() string {
@@ -327,34 +378,17 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	storeBaseURI, err := url.Parse(apiURL())
+	storeBaseURI, err := storeURL(apiURL())
 	if err != nil {
 		panic(err)
 	}
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-
-	assertsBaseURI, err := url.Parse(assertsURL(storeBaseURI))
+	err = defaultConfig.SetAPI(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
-
-	// XXX: Repeating "api/" here is cumbersome, but the next generation
-	// of store APIs will probably drop that prefix (since it now
-	// duplicates the hostname), and we may want to switch to v2 APIs
-	// one at a time; so it's better to consider that as part of
-	// individual endpoint paths.
-	defaultConfig.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
-	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
-	defaultConfig.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
-	defaultConfig.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
-	defaultConfig.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
-	defaultConfig.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
-	defaultConfig.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
-
-	defaultConfig.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 }
 
 type searchResults struct {
