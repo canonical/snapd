@@ -20,11 +20,9 @@
 package corecfg
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -63,58 +61,12 @@ func updatePiConfig(path string, config map[string]string) error {
 	}
 	defer f.Close()
 
-	// build regexp
-	cfgKeys := make([]string, len(config))
-	i := 0
-	for k := range config {
-		cfgKeys[i] = k
-		i++
-	}
-	reStr := `^[ \t]*?(?P<is_comment>#?)[ \t#]*?(?P<key>[a-z_]+)=(?P<old_value>.*)$`
-	rx := regexp.MustCompile(reStr)
-
-	// now go over the content
-	found := map[string]bool{}
-	needsWrite := false
-	var toWrite []string
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		matches := rx.FindStringSubmatch(line)
-		if len(matches) > 0 && piConfigKeys[matches[2]] {
-			wasComment := (matches[1] == "#")
-			key := matches[2]
-			oldValue := matches[3]
-			found[key] = true
-			if config[key] != "" {
-				if wasComment || oldValue != config[key] {
-					line = fmt.Sprintf("%s=%s", key, config[key])
-					needsWrite = true
-				}
-			} else {
-				line = fmt.Sprintf("#%s=%s", key, oldValue)
-				if !wasComment {
-					needsWrite = true
-				}
-
-			}
-		}
-		toWrite = append(toWrite, line)
-	}
-	if err := scanner.Err(); err != nil {
+	toWrite, err := updateKeyValueStream(f, piConfigKeys, config)
+	if err != nil {
 		return err
 	}
 
-	// write anything that is missing
-	for key := range config {
-		if !found[key] && config[key] != "" {
-			needsWrite = true
-			toWrite = append(toWrite, fmt.Sprintf("%s=%s", key, config[key]))
-		}
-	}
-
-	if needsWrite {
+	if toWrite != nil {
 		s := strings.Join(toWrite, "\n")
 		return osutil.AtomicWriteFile(path, []byte(s), 0644, 0)
 	}

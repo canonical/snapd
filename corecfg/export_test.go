@@ -23,4 +23,5 @@ var (
 	UpdatePiConfig       = updatePiConfig
 	SwitchHandlePowerKey = switchHandlePowerKey
 	SwitchDisableService = switchDisableService
+	UpdateKeyValueStream = updateKeyValueStream
 )

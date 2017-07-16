@@ -74,6 +74,10 @@ func Run() error {
 	if err := handlePiConfiguration(); err != nil {
 		return err
 	}
+	// proxy.{http,https,ftp}
+	if err := handleProxyConfiguration(); err != nil {
+		return err
+	}
 
 	return nil
 }
