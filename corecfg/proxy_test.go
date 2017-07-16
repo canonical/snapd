@@ -33,50 +33,48 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type powerbtnSuite struct {
-	mockPowerBtnCfg string
+type proxySuite struct {
+	mockEtcEnvironment string
 }
 
-var _ = Suite(&powerbtnSuite{})
+var _ = Suite(&proxySuite{})
 
-func (s *powerbtnSuite) SetUpTest(c *C) {
+func (s *proxySuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
-
-	s.mockPowerBtnCfg = filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	c.Assert(err, IsNil)
+	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir, "/etc/environment")
 }
 
-func (s *powerbtnSuite) TearDownTest(c *C) {
+func (s *proxySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
-	err := corecfg.SwitchHandlePowerKey("invalid-action")
-	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)
-}
-
-func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
+func (s *proxySuite) TestConfigureProxy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
-
+	for _, action := range []string{"http", "https", "ftp"} {
 		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "system.power-key-action" ]; then
-    echo "%s"
+if [ "$1" = "get" ] && [ "$2" = "proxy.%[1]s" ]; then
+    echo "%[1]s://example.com"
 fi
 `, action))
 		defer mockSnapctl.Restore()
 
-		err := corecfg.Run()
+		// populate with content
+		err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
+PATH="/usr/bin"
+`), 0644)
 		c.Assert(err, IsNil)
 
-		// ensure nothing gets enabled/disabled when an unsupported
-		// service is set for disable
-		c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
-		content, err := ioutil.ReadFile(s.mockPowerBtnCfg)
+		err = corecfg.Run()
 		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
+
+		content, err := ioutil.ReadFile(s.mockEtcEnvironment)
+		c.Assert(err, IsNil)
+		c.Check(string(content), Equals, fmt.Sprintf(`
+PATH="/usr/bin"
+%[1]s_proxy=%[1]s://example.com`, action))
 	}
-
 }

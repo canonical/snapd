@@ -21,6 +21,8 @@ package corecfg_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -47,6 +49,7 @@ func (s *servicesSuite) SetUpSuite(c *C) {
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
 }
 
