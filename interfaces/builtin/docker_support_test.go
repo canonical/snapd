@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -137,6 +138,13 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
+
+	udevSpec := &udev.Specification{}
+	err = udevSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet := udevSpec.Snippets()[0]
+	c.Check(snippet, testutil.Contains, `KERNEL=="device-mapper", SYMLINK+="mapper/control", TAG+="snap_docker_app"`)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
@@ -171,6 +179,11 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
+
+	udevSpec := &udev.Specification{}
+	err = udevSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 0)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
