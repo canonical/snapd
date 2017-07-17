@@ -71,6 +71,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires:  systemd
+BuildRequires:  libseccomp-static
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
@@ -90,6 +91,7 @@ BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
 BuildRequires: golang(github.com/ojii/gettext.go)
+BuildRequires: golang(github.com/seccomp/libseccomp-golang)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
@@ -173,6 +175,7 @@ Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/mvo5/uboot-go/uenv)
 Requires:      golang(github.com/ojii/gettext.go)
+Requires:      golang(github.com/seccomp/libseccomp-golang)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
@@ -194,6 +197,7 @@ Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
 Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -345,6 +349,10 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+%gobuild -o bin/snap-seccomp %{import_path}/cmd/snap-seccomp
+
 # Build SELinux module
 pushd ./data/selinux
 make SHARE="%{_datadir}" TARGETS="snappy"
@@ -374,6 +382,7 @@ popd
 # Build systemd units
 pushd ./data/systemd
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+     SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
@@ -403,6 +412,7 @@ install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
+install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -430,11 +440,15 @@ popd
 
 # Install all systemd units
 pushd ./data/systemd
-%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}"
+%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snap-repair.*
+rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 popd
+
+# Remove snappy core specific scripts
+rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # Put /var/lib/snapd/snap/bin on PATH
 # Put /var/lib/snapd/desktop on XDG_DATA_DIRS

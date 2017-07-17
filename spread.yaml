@@ -65,8 +65,6 @@ backends:
             - opensuse-42.2-64:
                 workers: 1
     qemu:
-        environment:
-            APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
             - ubuntu-14.04-32:
                 username: ubuntu

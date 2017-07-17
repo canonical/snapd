@@ -203,10 +203,10 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -y -q upgrade
+            dnf -q makecache
             ;;
         opensuse-*)
-            zypper -q update -y
+            zypper -q refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -282,7 +282,7 @@ distro_install_build_snapd(){
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
             fedora-*)
-                packages="${GOHOME}"/snap-confine*.rpm "${GOPATH}"/snapd*.rpm
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
             opensuse-*)
                 packages="${GOHOME}"/snapd*.rpm

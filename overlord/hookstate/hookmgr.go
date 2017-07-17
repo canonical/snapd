@@ -115,6 +115,8 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
+	setupHooks(manager)
+
 	return manager, nil
 }
 
