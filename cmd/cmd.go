@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -156,6 +157,9 @@ func ExecInCoreSnap() {
 
 	// Did we already re-exec?
 	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		if err := os.Unsetenv("SNAP_DID_REEXEC"); err != nil {
+			panic(fmt.Sprintf("cannot unset SNAP_DID_REEXEC: %s", err))
+		}
 		return
 	}
 
