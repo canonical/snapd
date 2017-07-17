@@ -39,7 +39,7 @@ var evalSymlinks = filepath.EvalSymlinks
 type commonInterface struct {
 	name    string
 	summary string
-	docsURL string
+	docURL  string
 
 	implicitOnCore    bool
 	implicitOnClassic bool
@@ -67,7 +67,7 @@ func (iface *commonInterface) Name() string {
 func (iface *commonInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
 		Summary:              iface.summary,
-		DocsURL:              iface.docsURL,
+		DocURL:               iface.docURL,
 		ImplicitOnCore:       iface.implicitOnCore,
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,

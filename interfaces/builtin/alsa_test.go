@@ -103,5 +103,5 @@ func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
 func (s *AlsaInterfaceSuite) TestMetaData(c *C) {
 	md := interfaces.MetaDataOf(s.iface)
 	c.Assert(md.Summary, Equals, "allows access to raw ALSA devices")
-	c.Assert(md.DocsURL, Equals, "")
+	c.Assert(md.DocURL, Equals, "")
 }
