@@ -148,9 +148,10 @@ distro_install_package() {
     # will fail to install because the poor apt resolver does not get it
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-        if [[ "libudev-dev" =~ "$@" ]]; then
+        if [[ "$@" =~ "libudev-dev" ]]; then
             apt-get install -y --only-upgrade systemd
         fi
+        ;;
     esac
 
     for pkg in "$@" ; do
