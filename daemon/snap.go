@@ -27,6 +27,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -157,13 +158,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
-// appJSON contains the json for snap.AppInfo
-type appJSON struct {
-	Name        string `json:"name"`
-	Daemon      string `json:"daemon"`
-	DesktopFile string `json:"desktop-file,omitempty"`
-}
-
 // screenshotJSON contains the json for snap.ScreenshotInfo
 type screenshotJSON struct {
 	URL    string `json:"url"`
@@ -183,19 +177,17 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		appNames = append(appNames, appName)
 	}
 	sort.Strings(appNames)
-	apps := make([]appJSON, 0, len(localSnap.Apps))
-	for _, appName := range appNames {
+	apps := make([]*client.AppInfo, len(localSnap.Apps))
+	for i, appName := range appNames {
 		app := localSnap.Apps[appName]
-		var installedDesktopFile string
-		if osutil.FileExists(app.DesktopFile()) {
-			installedDesktopFile = app.DesktopFile()
+		apps[i] = &client.AppInfo{Name: app.Name}
+		if fn := app.DesktopFile(); osutil.FileExists(fn) {
+			apps[i].DesktopFile = fn
 		}
 
-		apps = append(apps, appJSON{
-			Name:        app.Name,
-			Daemon:      app.Daemon,
-			DesktopFile: installedDesktopFile,
-		})
+		if app.IsService() {
+			apps[i].ServiceInfo = &client.ServiceInfo{Daemon: app.Daemon}
+		}
 	}
 
 	// TODO: expose aliases information and state?
