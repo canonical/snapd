@@ -183,7 +183,7 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 
 	commands := make([]string, 0, len(allApps))
 	for _, app := range allApps {
-		if app.Daemon != "" {
+		if app.IsService() {
 			continue
 		}
 

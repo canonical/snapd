@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -407,7 +408,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"jailmode":         false,
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
-			"apps": []appJSON{
+			"apps": []*client.AppInfo{
 				{Name: "cmd", DesktopFile: df},
 				// no desktop file
 				{Name: "cmd2"},
