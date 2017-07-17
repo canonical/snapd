@@ -22,6 +22,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
+	"strings"
 )
 
 // Plug represents the potential of a given snap to connect to a slot.
@@ -89,6 +91,39 @@ type InterfaceOptions struct {
 // Connections returns all plugs, slots and their connections.
 func (client *Client) Connections() (interfaces Interfaces, err error) {
 	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
+	return
+}
+
+func (client *Client) Interfaces(names []string, opts *InterfaceOptions) (interfaces []*Interface, err error) {
+	query := url.Values{}
+	if opts != nil {
+		if opts.Doc {
+			// Return documentation of each selected interface.
+			query.Set("doc", "yes")
+		}
+		if opts.Plugs {
+			// Return plugs of each selected interface.
+			query.Set("plugs", "yes")
+		}
+		if opts.Slots {
+			// Return slots of each selected interface.
+			query.Set("slots", "yes")
+		}
+	}
+	// Presence of the select query option toggles the use of the new response
+	// format.
+	if opts != nil && opts.Connected {
+		// Return just the connected interfaces.
+		query.Set("select", "connected")
+	} else {
+		// Return all interfaces (both connected and disconnected).
+		query.Set("select", "all")
+	}
+	if len(names) > 0 {
+		// Return just those specific interfaces.
+		query.Set("names", strings.Join(names, ","))
+	}
+	_, err = client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
 	return
 }
 
