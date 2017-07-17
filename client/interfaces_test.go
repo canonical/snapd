@@ -27,13 +27,13 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
-func (cs *clientSuite) TestClientInterfacesCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.Interfaces()
+func (cs *clientSuite) TestClientConnectionsCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.Connections()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
-func (cs *clientSuite) TestClientInterfaces(c *check.C) {
+func (cs *clientSuite) TestClientConnections(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -61,7 +61,7 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 			]
 		}
 	}`
-	interfaces, err := cs.cli.Interfaces()
+	interfaces, err := cs.cli.Connections()
 	c.Assert(err, check.IsNil)
 	c.Check(interfaces, check.DeepEquals, client.Interfaces{
 		Plugs: []client.Plug{
