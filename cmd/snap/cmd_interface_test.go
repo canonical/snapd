@@ -139,7 +139,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 			"result": client.Interface{
 				Name:    "network",
 				Summary: "allows access to the network",
-				DocsURL: "http://example.org/about-the-network-interface",
+				DocURL:  "http://example.org/about-the-network-interface",
 				Plugs: []client.Plug{
 					{Snap: "deepin-music", Name: "network"},
 					{Snap: "http", Name: "network"},

@@ -143,7 +143,7 @@ type Interface interface {
 // depth and documents the interface in detail.
 type MetaData struct {
 	Summary string `json:"summary,omitempty"`
-	DocsURL string `json:"docs-url,omitempty"`
+	DocURL  string `json:"doc-url,omitempty"`
 
 	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
 	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`

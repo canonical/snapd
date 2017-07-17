@@ -68,7 +68,7 @@ type Interfaces struct {
 type Interface struct {
 	Name    string `json:"name,omitempty"`
 	Summary string `json:"summary,omitempty"`
-	DocsURL string `json:"docs-url,omitempty"`
+	DocURL  string `json:"doc-url,omitempty"`
 	Plugs   []Plug `json:"plugs,omitempty"`
 	Slots   []Slot `json:"slots,omitempty"`
 	Used    bool   `json:"used,omitempty"`
