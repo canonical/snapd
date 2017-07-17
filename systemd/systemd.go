@@ -20,7 +20,6 @@
 package systemd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -99,53 +98,6 @@ type Systemd interface {
 
 // A Log is a single entry in the systemd journal
 type Log map[string]string
-
-// RestartCondition encapsulates the different systemd 'restart' options
-type RestartCondition string
-
-// These are the supported restart conditions
-const (
-	RestartNever      RestartCondition = "never"
-	RestartOnSuccess  RestartCondition = "on-success"
-	RestartOnFailure  RestartCondition = "on-failure"
-	RestartOnAbnormal RestartCondition = "on-abnormal"
-	RestartOnAbort    RestartCondition = "on-abort"
-	RestartAlways     RestartCondition = "always"
-)
-
-var RestartMap = map[string]RestartCondition{
-	"never":       RestartNever,
-	"on-success":  RestartOnSuccess,
-	"on-failure":  RestartOnFailure,
-	"on-abnormal": RestartOnAbnormal,
-	"on-abort":    RestartOnAbort,
-	"always":      RestartAlways,
-}
-
-// ErrUnknownRestartCondition is returned when trying to unmarshal an unknown restart condition
-var ErrUnknownRestartCondition = errors.New("invalid restart condition")
-
-func (rc RestartCondition) String() string {
-	return string(rc)
-}
-
-// UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
-func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var v string
-
-	if err := unmarshal(&v); err != nil {
-		return err
-	}
-
-	nrc, ok := RestartMap[v]
-	if !ok {
-		return ErrUnknownRestartCondition
-	}
-
-	*rc = nrc
-
-	return nil
-}
 
 const (
 	// the default target for systemd units that we generate
