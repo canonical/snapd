@@ -6,7 +6,7 @@ environment:
 systems: [-ubuntu-core-*, -fedora-*]
 
 prepare: |
-    . "$TESTSLIB/snaps.sh"
+    . $TESTSLIB/snaps.sh
     snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
 
 execute: |
