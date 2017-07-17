@@ -144,6 +144,15 @@ distro_install_package() {
         esac
     done
 
+    # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+    # will fail to install because the poor apt resolver does not get it
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+        if [[ "libudev-dev" =~ "$@" ]]; then
+            apt-get install -y --only-upgrade systemd
+        fi
+    esac
+
     for pkg in "$@" ; do
         package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
@@ -306,124 +315,133 @@ distro_install_build_snapd(){
 }
 
 
-pkg_dependency_ubuntu_generic(){
-    echo autoconf
-    echo automake
-    echo autotools-dev
-    echo build-essential
-    echo curl
-    echo devscripts
-    echo expect
-    echo gdebi-core
-    echo git
-    echo indent
-    echo jq
-    echo libapparmor-dev
-    echo libglib2.0-dev
-    echo libseccomp-dev
-    echo libudev-dev
-    echo netcat-openbsd
-    echo pkg-config
-    echo python3-docutils
-    echo rng-tools
-    echo udev
+pkg_dependencies_ubuntu_generic(){
+    echo "
+        autoconf
+        automake
+        autotools-dev
+        build-essential
+        curl
+        devscripts
+        expect
+        gdebi-core
+        git
+        indent
+        jq
+        libapparmor-dev
+        libglib2.0-dev
+        libseccomp-dev
+        libudev-dev
+        netcat-openbsd
+        pkg-config
+        python3-docutils
+        rng-tools
+        udev
+        "
 }
 
-pkg_dependency_ubuntu_classic(){
-    echo cups
-    echo dbus-x11
-    echo jq
-    echo man
-    echo printer-driver-cups-pdf
-    echo python3-yaml
-    echo upower
+pkg_dependencies_ubuntu_classic(){
+    echo "
+        cups
+        dbus-x11
+        jq
+        man
+        printer-driver-cups-pdf
+        python3-yaml
+        upower
+        "
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            echo "linux-image-extra-$(uname -r)"
-            echo pollinate
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
             ;;
         ubuntu-16.04-32)
-            echo "linux-image-extra-$(uname -r)"
-            echo pollinate
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
             ;;
         ubuntu-16.04-64)
-            echo gccgo-6
-            echo kpartx
-            echo libvirt-bin
-            echo "linux-image-extra-$(uname -r)"
-            echo pollinate
-            echo qemu
-            echo x11-utils
-            echo xvfb
+            echo "
+                gccgo-6
+                kpartx
+                libvirt-bin
+                linux-image-extra-$(uname -r)
+                pollinate
+                qemu
+                x11-utils
+                xvfb
+                "
             ;;
         ubuntu-*)
-            echo "linux-image-extra-$(uname -r)"
-            echo pollinate
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
             ;;
         debian-*)
             ;;
     esac
 }
 
-pkg_dependency_ubuntu_core(){
-    echo "linux-image-extra-$(uname -r)"
-    echo pollinate
+pkg_dependencies_ubuntu_core(){
+    echo "
+        linux-image-extra-$(uname -r)
+        pollinate
+        "
 }
 
-pkg_dependency_fedora(){
-    echo curl
-    echo expect
-    echo git
-    echo golang
-    echo mock
-    echo redhat-lsb-core
-    echo rpm-build
+pkg_dependencies_fedora(){
+    echo "
+        curl
+        expect
+        git
+        golang
+        mock
+        redhat-lsb-core
+        rpm-build
+        "
 }
 
-pkg_dependency_opensuse(){
-    echo curl
-    echo expect
-    echo git
-    echo golang-packaging
-    echo jq
-    echo lsb-release
-    echo netcat-openbsd
-    echo osc
-    echo rng-tools
+pkg_dependencies_opensuse(){
+    echo "
+        curl
+        expect
+        git
+        golang-packaging
+        jq
+        lsb-release
+        netcat-openbsd
+        osc
+        rng-tools
+        "
 }
 
 pkg_dependencies(){
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
-            pkg_dependency_ubuntu_generic
-            pkg_dependency_ubuntu_core
+            pkg_dependencies_ubuntu_generic
+            pkg_dependencies_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            pkg_dependency_ubuntu_generic
-            pkg_dependency_ubuntu_classic
+            pkg_dependencies_ubuntu_generic
+            pkg_dependencies_ubuntu_classic
             ;;
         fedora-*)
-            pkg_dependency_fedora
+            pkg_dependencies_fedora
             ;;
         opensuse-*)
-            pkg_dependency_opensuse
+            pkg_dependencies_opensuse
             ;;
         *)
             ;;
     esac  
 }
 
-install_dependencies(){
-    pkgs=$(pkg_dependencies | tr "\n" " ")
-
-    # ensure systemd is up-to-date, if there is a mismatch libudev-dev
-    # will fail to install because the poor apt resolver does not get it
-    case "$SPREAD_SYSTEM" in
-        debian-*|ubuntu-*)
-            apt-get install -y --only-upgrade systemd
-    esac
-
-    echo "Installing the following packages: $pkgs"
+install_pkg_dependencies(){
+    pkgs=$(pkg_dependencies)
     distro_install_package $pkgs
 }
