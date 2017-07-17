@@ -7,7 +7,7 @@ details: |
 # Classic confinement isn't working yet on Fedora and openSUSE
 systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 execute: |
-    . "$TESTSLIB/dirs.sh"
+    . $TESTSLIB/dirs.sh
 
     run_install() {
         make -C test-snapd-hello-classic clean

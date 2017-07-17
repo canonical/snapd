@@ -16,7 +16,7 @@ prepare: |
         exit
     fi
 
-    . "$TESTSLIB/store.sh"
+    . $TESTSLIB/store.sh
 
     echo "Given two snaps are installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
@@ -42,12 +42,12 @@ execute: |
     fi
 
     echo "When the store is configured to make them refreshable"
-    . "$TESTSLIB/files.sh"
-    . "$TESTSLIB/store.sh"
-    init_fake_refreshes test-snapd-tools "$BLOB_DIR"
-    wait_for_file "$BLOB_DIR"/test-snapd-tools*fake1*.snap 4 .5
+    . $TESTSLIB/files.sh
+    . $TESTSLIB/store.sh
+    init_fake_refreshes test-snapd-tools $BLOB_DIR
+    wait_for_file $BLOB_DIR/test-snapd-tools*fake1*.snap 4 .5
     init_fake_refreshes test-snapd-python-webserver $BLOB_DIR
-    wait_for_file "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap 4 .5
+    wait_for_file $BLOB_DIR/test-snapd-python-webserver*fake1*.snap 4 .5
 
 
     echo "And a refresh is performed"
