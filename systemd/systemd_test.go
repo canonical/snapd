@@ -30,7 +30,6 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -358,22 +357,6 @@ Options=nodev,ro,bind
 [Install]
 WantedBy=multi-user.target
 `, snapDir))
-}
-
-func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range RestartMap {
-		bs := []byte(cond)
-		var rc RestartCondition
-
-		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, RestartMap[cond], Commentf(cond))
-	}
-}
-
-func (s *SystemdTestSuite) TestRestartCondString(c *C) {
-	for name, cond := range RestartMap {
-		c.Check(cond.String(), Equals, name, Commentf(name))
-	}
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
