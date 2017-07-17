@@ -81,6 +81,11 @@ type InterfaceAction struct {
 	Slots  []Slot `json:"slots,omitempty"`
 }
 
+// InterfaceOptions represents opt-in elements include in responses.
+type InterfaceOptions struct {
+	Doc, Plugs, Slots, Connected bool
+}
+
 // Connections returns all plugs, slots and their connections.
 func (client *Client) Connections() (interfaces Interfaces, err error) {
 	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
