@@ -305,7 +305,8 @@ distro_install_build_snapd(){
     fi
 }
 
-pkg_apt_dependencies_generic(){
+
+pkg_dependency_ubuntu_generic(){
     echo autoconf
     echo automake
     echo autotools-dev
@@ -328,7 +329,7 @@ pkg_apt_dependencies_generic(){
     echo udev
 }
 
-pkg_apt_dependencies_classic(){
+pkg_dependency_ubuntu_classic(){
     echo cups
     echo dbus-x11
     echo jq
@@ -365,7 +366,7 @@ pkg_apt_dependencies_classic(){
     esac
 }
 
-pkg_apt_dependencies_core(){
+pkg_dependency_ubuntu_core(){
     echo "linux-image-extra-$(uname -r)"
     echo pollinate
 }
@@ -395,12 +396,12 @@ pkg_dependency_opensuse(){
 pkg_dependencies(){
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
-            pkg_apt_dependencies_generic
-            pkg_apt_dependencies_core
+            pkg_dependency_ubuntu_generic
+            pkg_dependency_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            pkg_apt_dependencies_generic
-            pkg_apt_dependencies_classic
+            pkg_dependency_ubuntu_generic
+            pkg_dependency_ubuntu_classic
             ;;
         fedora-*)
             pkg_dependency_fedora
