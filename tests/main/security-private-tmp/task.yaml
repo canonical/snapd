@@ -25,7 +25,7 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     echo "When a temporary file is created by one snap"
-    expect -d -f tmp-create.exp $SNAPMOUNTDIR
+    expect -d -f tmp-create.exp
 
     if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"

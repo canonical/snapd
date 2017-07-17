@@ -29,7 +29,7 @@ restore: |
         exit
     fi
 
-    . "$TESTSLIB/store.sh"
+    . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
 
 execute: |
@@ -39,8 +39,8 @@ execute: |
     fi
 
     echo "When the store is configured to make them refreshable"
-    . "$TESTSLIB/files.sh"
-    . "$TESTSLIB/store.sh"
+    . $TESTSLIB/files.sh
+    . $TESTSLIB/store.sh
     init_fake_refreshes "$GOOD_SNAP" "$BLOB_DIR"
     wait_for_file "$BLOB_DIR"/"${GOOD_SNAP}"*fake1*.snap 4 .5
     init_fake_refreshes "$BAD_SNAP" "$BLOB_DIR"
