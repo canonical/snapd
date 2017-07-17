@@ -81,8 +81,8 @@ type InterfaceAction struct {
 	Slots  []Slot `json:"slots,omitempty"`
 }
 
-// Interfaces returns all plugs, slots and their connections.
-func (client *Client) Interfaces() (interfaces Interfaces, err error) {
+// Connections returns all plugs, slots and their connections.
+func (client *Client) Connections() (interfaces Interfaces, err error) {
 	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
 	return
 }

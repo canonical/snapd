@@ -203,7 +203,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 
 	// Ask snapd about available interfaces.
 	cli := Client()
-	ifaces, err := cli.Interfaces()
+	ifaces, err := cli.Connections()
 	if err != nil {
 		return nil
 	}
