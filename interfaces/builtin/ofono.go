@@ -279,8 +279,8 @@ const ofonoPermanentSlotUDevTag = `
 KERNEL=="tty[A-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="%[1]s"
 KERNEL=="tun[0-9]*", NAME="net/%%k", TAG+="%[1]s"
 KERNEL=="dsp", TAG+="%[1]s"
-KERNEL=="ttyLTM[0-9]", SYMLINK+="modem%e", TAG+="%[1]s"
-KERNEL=="ttyUSB[0-9]", SYMLINK+="modem%e", TAG+="%[1]s"
+KERNEL=="ttyLTM[0-9]", SYMLINK+="modem%%e", TAG+="%[1]s"
+KERNEL=="ttyUSB[0-9]", SYMLINK+="modem%%e", TAG+="%[1]s"
 `
 
 type ofonoInterface struct{}
