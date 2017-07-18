@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -90,8 +91,7 @@ type Systemd interface {
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
-	Status(service string) (string, error)
-	ServiceStatus(service string) (*ServiceStatus, error)
+	Status(services ...string) ([]*client.ServiceInfo, error)
 	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, what, where, fstype string) (string, error)
 }
@@ -153,56 +153,49 @@ func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.Read
 	return JournalctlCmd(serviceNames, n, follow)
 }
 
-var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
+var statusregex = regexp.MustCompile(`(?m)^(?:(Id|Type|ActiveState|UnitFileState)=(.*))?$`)
 
-func (s *systemd) Status(serviceName string) (string, error) {
-	status, err := s.ServiceStatus(serviceName)
-	if err != nil {
-		return "", err
-	}
-
-	return status.StatusString(), nil
-}
-
-// A ServiceStatus holds structured service status information.
-type ServiceStatus struct {
-	ServiceFileName string `json:"service-file-name"`
-	LoadState       string `json:"load-state"`
-	ActiveState     string `json:"active-state"`
-	SubState        string `json:"sub-state"`
-	UnitFileState   string `json:"unit-file-state"`
-}
-
-func (status *ServiceStatus) StatusString() string {
-	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState)
-}
-
-func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+func (s *systemd) Status(serviceNames ...string) ([]*client.ServiceInfo, error) {
+	cmd := make([]string, len(serviceNames)+2)
+	copy(cmd[2:], serviceNames)
+	cmd[0] = "show"
+	cmd[1] = "--property=Id,ActiveState,UnitFileState"
+	bs, err := SystemctlCmd(cmd...)
 	if err != nil {
 		return nil, err
 	}
 
-	status := &ServiceStatus{ServiceFileName: serviceName}
+	sts := make([]*client.ServiceInfo, len(serviceNames))
+	idx := 0
+	cur := &client.ServiceInfo{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
-		if len(bs[0]) > 0 {
-			k := string(bs[1])
-			v := string(bs[2])
-			switch k {
-			case "LoadState":
-				status.LoadState = v
-			case "ActiveState":
-				status.ActiveState = v
-			case "SubState":
-				status.SubState = v
-			case "UnitFileState":
-				status.UnitFileState = v
+		if len(bs[0]) == 0 {
+			sts[idx] = cur
+			idx++
+			if idx >= len(sts) {
+				break
 			}
+			cur = &client.ServiceInfo{}
+			continue
+		}
+		k := string(bs[1])
+		v := string(bs[2])
+		switch k {
+		case "Id":
+			cur.ServiceFileName = v
+		case "Type":
+			cur.Daemon = v
+		case "ActiveState":
+			// made to match “systemctl is-active” behaviour, at least at systemd 229
+			cur.Active = v == "active" || v == "reloading"
+		case "UnitFileState":
+			// "static" means it can't be disabled
+			cur.Enabled = v == "enabled" || v == "static"
 		}
 	}
 
-	return status, nil
+	return sts, nil
 }
 
 // Stop the given service, and wait until it has stopped.

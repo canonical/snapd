@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -166,27 +167,51 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\n" +
+			"\n" +
+			"Type=simple\nId=special.service\nActiveState=reloading\nUnitFileState=static\n" +
+			"\n" +
+			"Type=potato\nId=bar.service\nActiveState=inactive\nUnitFileState=disabled\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, []*client.ServiceInfo{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "simple",
+			ServiceFileName: "special.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "potato",
+			ServiceFileName: "bar.service",
+			Active:          false,
+			Enabled:         false,
+		},
+	})
+}
+
+func (s *SystemdTestSuite) TestStatusBork(c *C) {
+	s.outs = [][]byte{
+		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\n" +
+			"\n" +
+			"All is not well\n"),
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo")
 	c.Assert(err, IsNil)
-	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
-}
-
-func (s *SystemdTestSuite) TestStatusObj(c *C) {
-	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
-	}
-	s.errors = []error{nil}
-	out, err := New("", s.rep).ServiceStatus("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, &ServiceStatus{
-		ServiceFileName: "foo",
-		LoadState:       "LoadState",
-		ActiveState:     "ActiveState",
-		SubState:        "SubState",
-		UnitFileState:   "UnitFileState",
+	c.Check(out, DeepEquals, []*client.ServiceInfo{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		},
 	})
 }
 

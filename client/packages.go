@@ -87,7 +87,10 @@ func (a *AppInfo) IsService() bool {
 }
 
 type ServiceInfo struct {
-	Daemon string `json:"daemon"`
+	Daemon          string `json:"daemon"`
+	ServiceFileName string `json:"service-file-name"`
+	Enabled         bool   `json:"enabled"`
+	Active          bool   `json:"active"`
 }
 
 type Screenshot struct {
