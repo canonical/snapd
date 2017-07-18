@@ -15,6 +15,10 @@ install_local_devmode() {
     install_local "$1" --devmode
 }
 
+install_local_classic() {
+    install_local "$1" --classic
+}
+
 # mksnap_fast creates a snap using a faster compress algorithm (gzip)
 # than the regular snaps (which are lzma)
 mksnap_fast() {
