@@ -3,10 +3,10 @@
 . "$TESTSLIB/pkgdb.sh"
 
 init_dbus_env(){
-    export $(cat dbus.env | xargs)
+    export $(cat dbus.env)
 }
 
-start_dbus_loop_unit(){
+start_dbus_unit(){
     local executable="$1"
 
     distro_install_package dbus-x11
@@ -31,7 +31,7 @@ EOF
     fi
 }
 
-stop_dbus_loop_unit(){
+stop_dbus_unit(){
     rm -f dbus.env
     distro_purge_package dbus-x11
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then

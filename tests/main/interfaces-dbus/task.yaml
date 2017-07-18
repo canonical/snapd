@@ -25,12 +25,12 @@ prepare: |
 
     echo "And the provider dbus loop is started"
     . $TESTSLIB/dbus.sh
-    start_dbus_loop_unit $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
+    start_dbus_unit $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
     rm -f call.error
     . $TESTSLIB/dbus.sh
-    stop_dbus_loop_unit
+    stop_dbus_unit
 
 execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"

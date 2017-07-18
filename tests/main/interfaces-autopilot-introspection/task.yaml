@@ -17,12 +17,12 @@ prepare: |
 
     echo "And the provider dbus loop is started"
     . "$TESTSLIB/dbus.sh"
-    start_dbus_loop_unit $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.provider
+    start_dbus_unit $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.provider
 
 restore: |
     rm -f *.error
     . "$TESTSLIB/dbus.sh"
-    stop_dbus_loop_unit
+    stop_dbus_unit
 
 execute: |
     dbus_send(){
