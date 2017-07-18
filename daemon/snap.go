@@ -28,11 +28,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -178,6 +180,7 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 	}
 	sort.Strings(appNames)
 	apps := make([]*client.AppInfo, len(localSnap.Apps))
+	sysd := systemd.New(dirs.GlobalRootDir, nil)
 	for i, appName := range appNames {
 		app := localSnap.Apps[appName]
 		apps[i] = &client.AppInfo{Name: app.Name}
@@ -186,7 +189,11 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		}
 
 		if app.IsService() {
-			apps[i].ServiceInfo = &client.ServiceInfo{Daemon: app.Daemon}
+			// todo: look into making a single call to Status for all services
+			sts, err := sysd.Status(app.ServiceName())
+			if err == nil && len(sts) == 1 {
+				apps[i].ServiceInfo = sts[0]
+			}
 		}
 	}
 

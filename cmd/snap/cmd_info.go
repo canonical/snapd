@@ -200,6 +200,40 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
+	if len(allApps) == 0 {
+		return
+	}
+
+	services := make([]string, 0, len(allApps))
+	for _, app := range allApps {
+		if !app.IsService() {
+			continue
+		}
+
+		var active, enabled string
+		if app.Active {
+			active = "active"
+		} else {
+			active = "inactive"
+		}
+		if app.Enabled {
+			enabled = "enabled"
+		} else {
+			enabled = "disabled"
+		}
+		services = append(services, fmt.Sprintf("  %s:\t%s, %s, %s", snap.JoinSnapApp(snapName, app.Name), app.Daemon, enabled, active))
+	}
+	if len(services) == 0 {
+		return
+	}
+
+	fmt.Fprintf(w, "services:\n")
+	for _, svc := range services {
+		fmt.Fprintln(w, svc)
+	}
+}
+
 // displayChannels displays channels and tracks in the right order
 func displayChannels(w io.Writer, remote *client.Snap) {
 	// \t\t\t so we get "installed" lined up with "channels"
@@ -279,6 +313,7 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
+		maybePrintServices(w, snapName, both.Apps, termWidth)
 
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")

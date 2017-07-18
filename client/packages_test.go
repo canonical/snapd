@@ -226,6 +226,32 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"name": "hello"
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
+	si := &client.ServiceInfo{
+		Daemon:          "daemon",
+		ServiceFileName: "filename",
+		Enabled:         true,
+		Active:          false,
+	}
+	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello", ServiceInfo: si}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"name": "hello",
+		"daemon": "daemon",
+		"service-file-name": "filename",
+		"enabled": true,
+		"active": false
+	}`)
+}
+
 func (cs *clientSuite) TestAppInfoNilNotService(c *check.C) {
 	var app *client.AppInfo
 	c.Check(app.IsService(), check.Equals, false)

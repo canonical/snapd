@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -83,6 +84,10 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
+	origSysctlcmd     func(...string) ([]byte, error)
+	sysctlargses      [][]string
+	sysctlbuf         []byte
+	sysctlerr         error
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -153,11 +158,19 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = release.MockForcedDevmode(false)
 
 	snapstate.CanAutoRefresh = nil
+	s.origSysctlcmd = systemd.SystemctlCmd
+	systemd.SystemctlCmd = s.systemctl
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
+	systemd.SystemctlCmd = s.origSysctlcmd
+}
+
+func (s *apiBaseSuite) systemctl(args ...string) ([]byte, error) {
+	s.sysctlargses = append(s.sysctlargses, args)
+	return s.sysctlbuf, s.sysctlerr
 }
 
 var (
@@ -166,6 +179,7 @@ var (
 )
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
+	s.sysctlargses = nil
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
@@ -365,8 +379,20 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// we have v0 [r5] installed
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), false, "")
 	// and v1 [r10] is current
-	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "title: title\ndescription: description\nsummary: summary\napps:\n cmd:\n  command: some.cmd\n cmd2:\n  command: other.cmd\n")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
+description: description
+summary: summary
+apps:
+  cmd:
+    command: some.cmd
+  cmd2:
+    command: other.cmd
+  svc:
+    command: somed
+    daemon: simple
+`)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
+	s.sysctlbuf = []byte("Type=simple\nId=snap.foo.svc.service\nActiveState=fumbling\nUnitFileState=enabled\n")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -412,6 +438,13 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 				{Name: "cmd", DesktopFile: df},
 				// no desktop file
 				{Name: "cmd2"},
+				// service
+				{Name: "svc", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "simple",
+					ServiceFileName: "snap.foo.svc.service",
+					Enabled:         true,
+					Active:          false,
+				}},
 			},
 			"broken":  "",
 			"contact": "",
