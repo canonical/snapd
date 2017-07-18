@@ -380,12 +380,11 @@ autoreconf --force --install --verbose
 popd
 
 # Build systemd units
-pushd ./data/systemd
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+make -C data \
+     BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
-popd
 
 %install
 install -d -p %{buildroot}%{_bindir}
@@ -439,13 +438,11 @@ rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
 
 # Install all systemd units
-pushd ./data/systemd
-%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
+%make_install -C data SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
-popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
