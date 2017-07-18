@@ -616,6 +616,9 @@ func compile(content []byte, out string) error {
 			if err != nil {
 				return fmt.Errorf("cannot create seccomp filter: %s", err)
 			}
+			if err := addSecondaryArches(secFilter); err != nil {
+				return err
+			}
 			break
 		}
 
