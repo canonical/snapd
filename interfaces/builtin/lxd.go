@@ -29,6 +29,13 @@ import (
 
 const lxdSummary = `allows access to the LXD socket`
 
+const lxdBaseDeclarationSlots = `
+  lxd:
+    allow-installation: false
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const lxdConnectedPlugAppArmor = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
@@ -52,7 +59,8 @@ func (iface *lxdInterface) Name() string {
 
 func (iface *lxdInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: lxdSummary,
+		Summary:              lxdSummary,
+		BaseDeclarationSlots: lxdBaseDeclarationSlots,
 	}
 }
 

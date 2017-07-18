@@ -60,7 +60,7 @@ execute: |
     test-snapd-cups-control-consumer.lpr $TEST_FILE
     while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

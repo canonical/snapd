@@ -54,6 +54,84 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestStore(t *testing.T) { TestingT(t) }
+
+type configTestSuite struct{}
+
+var _ = Suite(&configTestSuite{})
+
+func (suite *configTestSuite) TestSetAPI(c *C) {
+	// Sanity check to prove at least one URI changes.
+	cfg := DefaultConfig()
+	c.Assert(cfg.SectionsURI.Scheme, Equals, "https")
+	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
+	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
+
+	api, err := url.Parse("http://example.com/path/prefix/")
+	c.Assert(err, IsNil)
+	err = cfg.SetAPI(api)
+	c.Assert(err, IsNil)
+
+	uris := []*url.URL{
+		cfg.SearchURI,
+		cfg.DetailsURI,
+		cfg.BulkURI,
+		cfg.SectionsURI,
+		cfg.OrdersURI,
+		cfg.BuyURI,
+		cfg.CustomersMeURI,
+		cfg.AssertionsURI,
+	}
+	for _, uri := range uris {
+		c.Assert(uri, NotNil)
+		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	for _, u := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI, cfg.AssertionsURI} {
+		c.Check(u.String(), Matches, "https://force-api.local/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.AssertionsURI, Matches, "https://force-sas.local/.*")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
+}
+
 type remoteRepoTestSuite struct {
 	testutil.BaseTest
 	store     *Store
@@ -65,8 +143,6 @@ type remoteRepoTestSuite struct {
 	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
 }
-
-func TestStore(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&remoteRepoTestSuite{})
 
@@ -1569,7 +1645,7 @@ const MockDetailsJSON = `{
     "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-    "title": "hello-world",
+    "title": "Hello World",
     "version": "6.3",
     "channel_maps_list": [
       {
@@ -1648,7 +1724,7 @@ const MockDetailsJSONnoChannelMapList = `{
     "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-    "title": "hello-world",
+    "title": "Hello World",
     "version": "6.3"
 }
 `
@@ -1758,6 +1834,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "This is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "The 'hello-world' of snaps")
+	c.Check(result.Title(), Equals, "Hello World")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Assert(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
 		{
@@ -2212,7 +2289,7 @@ const MockSearchJSON = `{
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.0"
             }
         ]
@@ -2671,7 +2748,7 @@ var MockUpdatesJSON = `
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.1"
             }
         ]
@@ -3382,7 +3459,7 @@ var MockUpdatesWithDeltasJSON = `
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
+                "title": "Hello World",
                 "version": "6.1",
                 "deltas": [{
                     "from_revision": 24,
@@ -3565,18 +3642,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		var resp struct {
-			Snaps []map[string]interface{} `json:"snaps"`
-		}
-
-		err = json.Unmarshal(jsonReq, &resp)
-		c.Assert(err, IsNil)
-
-		// XXX actually why hit the network here
-		c.Assert(resp.Snaps, HasLen, 0)
-		io.WriteString(w, `{}`)
+		c.Fatal("no network request expected")
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -3607,17 +3673,6 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := apiURL()
-
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := apiURL()
-
-	c.Check(before, Not(Equals), after)
-}
-
 func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
@@ -3640,15 +3695,82 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := assertsURL()
+	before := apiURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := assertsURL()
+	after := apiURL()
 
 	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
+	// This also depends on the API URL, but that's tested separately (see
+	// TestApiURLDependsOnEnviron).
+	api := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", ""), IsNil)
+
+	// Test in order of precedence (low first) leaving env vars set as we go ...
+
+	u, err := storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, api.String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-api.local/.*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "https://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironAPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+	// This also depends on the store API, but that's tested separately (see
+	// TestStoreURLDependsOnEnviron).
+	apiBaseURI := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	before, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	after, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
+
+	c.Check(before.String(), Not(Equals), after.String())
+	c.Check(after.String(), Equals, "https://assertions.example.org/v1/")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	_, err := assertsURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
@@ -3665,7 +3787,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://api.snapcraft.io/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://api.snapcraft.io/api/v1/snaps/metadata"), Equals, true)
-	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://api.snapcraft.io/api/v1/snaps/assertions/")
 }
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
@@ -3984,8 +4106,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	c.Check(requestRecieved, Equals, false)
 }
 
-const ordersPath = "/purchases/v1/orders"
-const customersMePath = "/purchases/v1/customers/me"
+const ordersPath = "/api/v1/snaps/purchases/orders"
+const buyPath = "/api/v1/snaps/purchases/buy"
+const customersMePath = "/api/v1/snaps/purchases/customers/me"
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4155,7 +4278,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -4163,11 +4286,11 @@ var buyTests = []struct {
 		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
 		buyStatus:         404,
 		buyErrorCode:      "not-found",
-		buyErrorMessage:   "Not found",
+		buyErrorMessage:   "Snap package not found",
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found: Snap package not found",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -4177,6 +4300,24 @@ var buyTests = []struct {
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
 		expectedError:     "payment declined",
+	},
+	{
+		// failure due to no payment methods
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "no-payment-methods",
+		buyErrorMessage:   "No payment methods associated with your account.",
+		expectedError:     "no payment methods",
+	},
+	{
+		// failure due to terms of service not accepted
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         403,
+		buyErrorCode:      "tos-not-accepted",
+		buyErrorMessage:   "You must accept the latest terms of service first.",
+		expectedError:     "terms of service not accepted",
 	},
 }
 
@@ -4194,7 +4335,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 
 	detailsURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 	c.Assert(err, IsNil)
 	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
 	c.Assert(err, IsNil)
@@ -4203,7 +4344,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	cfg := Config{
 		CustomersMeURI: customersMeURI,
 		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
+		BuyURI:         buyURI,
 	}
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
@@ -4256,7 +4397,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-				c.Check(r.URL.Path, Equals, ordersPath)
+				c.Check(r.URL.Path, Equals, buyPath)
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.expectedInput)
@@ -4288,14 +4429,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 		c.Assert(err, IsNil)
 		ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 		c.Assert(err, IsNil)
-		customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+		buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 		c.Assert(err, IsNil)
 
 		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
 		cfg := Config{
-			CustomersMeURI: customersMeURI,
-			DetailsURI:     detailsURI,
-			OrdersURI:      ordersURI,
+			DetailsURI: detailsURI,
+			OrdersURI:  ordersURI,
+			BuyURI:     buyURI,
 		}
 		repo := New(&cfg, authContext)
 		c.Assert(repo, NotNil)
@@ -4490,7 +4631,7 @@ var readyToBuyTests = []struct {
 		},
 		Test: func(c *C, err error) {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, `store reported an error: message 1`)
+			c.Check(err.Error(), Equals, `message 1`)
 		},
 		NumOfCalls: 5,
 	},

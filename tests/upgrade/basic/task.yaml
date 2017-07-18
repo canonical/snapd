@@ -19,10 +19,9 @@ execute: |
     prevsnapdver=$(snap --version|grep "snapd ")
 
     if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
-        # For debian we install the latest core snap from beta instead
-        # from stable as stable and candidate are broken at the moment.
-        # FIXME: drop this again once 2.25 landed in stable.
-        snap install --beta core
+        # For debian we install the latest core snap independently until
+        # the bug fix is on stable once 2.27 landed
+        snap install core
     fi
 
     echo Install sanity check snaps with it
@@ -38,7 +37,7 @@ execute: |
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    distro_install_local_package --allow-downgrades $GOHOME/snapd*.deb
+    distro_install_local_package --allow-downgrades "$GOHOME"/snapd*.deb
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
@@ -54,7 +53,9 @@ execute: |
     # plumbing for that into the snap command.
     if [ -e /sys/kernel/security/apparmor ]; then
         echo Hello > /var/tmp/myevil.txt
-        test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+        if test-snapd-tools.cat /var/tmp/myevil.txt; then
+            exit 1
+        fi
     fi
 
     # check that automatic aliases survived

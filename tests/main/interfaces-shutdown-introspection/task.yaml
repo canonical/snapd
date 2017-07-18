@@ -38,7 +38,7 @@ execute: |
     snap disconnect shutdown-introspection-consumer:shutdown
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    if [ "$(snap debug confinement)" = none ]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit
     fi
 

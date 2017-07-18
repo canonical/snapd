@@ -19,6 +19,8 @@
 
 package main
 
+//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
+//
 //#include <asm/ioctls.h>
 //#include <ctype.h>
 //#include <errno.h>
@@ -139,6 +141,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -625,17 +628,32 @@ func compile(content []byte, out string) error {
 		return err
 	}
 
-	fout, err := os.Create(out)
-	if err != nil {
-		return err
-	}
-	defer fout.Close()
-
 	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
 		secFilter.ExportPFC(os.Stdout)
 	}
 
-	return secFilter.ExportBPF(fout)
+	// write atomically
+	dir, err := os.Open(filepath.Dir(out))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	fout, err := os.Create(out + ".tmp")
+	if err != nil {
+		return err
+	}
+	defer fout.Close()
+	if err := secFilter.ExportBPF(fout); err != nil {
+		return err
+	}
+	if err := fout.Sync(); err != nil {
+		return err
+	}
+	if err := os.Rename(out+".tmp", out); err != nil {
+		return err
+	}
+	return dir.Sync()
 }
 
 func showSeccompLibraryVersion() error {

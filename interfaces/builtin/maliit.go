@@ -30,6 +30,15 @@ import (
 
 const maliitSummary = `allows operating as the Maliit service`
 
+const maliitBaseDeclarationSlots = `
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const maliitPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
 # Communication with maliit happens in the following stages:
@@ -123,7 +132,8 @@ func (iface *maliitInterface) Name() string {
 
 func (iface *maliitInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
-		Summary: maliitSummary,
+		Summary:              maliitSummary,
+		BaseDeclarationSlots: maliitBaseDeclarationSlots,
 	}
 }
 
