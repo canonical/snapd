@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -136,6 +137,7 @@ func InternalToolPath(tool string) string {
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
@@ -156,6 +158,9 @@ func ExecInCoreSnap() {
 
 	// Did we already re-exec?
 	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		if err := os.Unsetenv("SNAP_DID_REEXEC"); err != nil {
+			panic(fmt.Sprintf("cannot unset SNAP_DID_REEXEC: %s", err))
+		}
 		return
 	}
 
