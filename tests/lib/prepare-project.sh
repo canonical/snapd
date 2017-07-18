@@ -76,7 +76,7 @@ build_rpm() {
     mkdir -p "/tmp/pkg/snapd-$version"
     cp -rav -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
-    (cd /tmp/pkg || tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" "$extra_tar_args")
+    (cd /tmp/pkg && tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -171,12 +171,23 @@ if [ "$SPREAD_BACKEND" = external ]; then
 fi
 
 if [ "$SPREAD_BACKEND" = qemu ]; then
-   # qemu images may be built with pre-baked proxy settings that can be wrong
-   rm -f /etc/apt/apt.conf.d/90cloud-init-aptproxy
-   # treat APT_PROXY as a location of apt-cacher-ng to use
-   if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
-       printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
+   if [ -d /etc/apt/apt.conf.d ]; then
+       # qemu images may be built with pre-baked proxy settings that can be wrong
+       rm -f /etc/apt/apt.conf.d/90cloud-init-aptproxy
+       rm -f /etc/apt/apt.conf.d/99proxy
+       if [ -n "${HTTP_PROXY:-}" ]; then
+           printf 'Acquire::http::Proxy "%s";\n' "$HTTP_PROXY" >> /etc/apt/apt.conf.d/99proxy
+       fi
+       if [ -n "${HTTPS_PROXY:-}" ]; then
+           printf 'Acquire::https::Proxy "%s";\n' "$HTTPS_PROXY" >> /etc/apt/apt.conf.d/99proxy
+       fi
    fi
+   if [ -f /etc/dnf/dnf.conf ]; then
+       if [ -n "${HTTP_PROXY:-}" ]; then
+           echo "proxy=$HTTP_PROXY" >> /etc/dnf/dnf.conf
+       fi
+   fi
+   # TODO: zypper proxy, yum proxy
 fi
 
 create_test_user
