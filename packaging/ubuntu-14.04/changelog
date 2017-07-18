@@ -1,3 +1,10 @@
+snapd (2.26.10~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - Fix snap-seccomp tests in artful/trusty on i386/s390x/aarch64
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 17 Jul 2017 11:58:26 +0200
+
 snapd (2.26.9~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
