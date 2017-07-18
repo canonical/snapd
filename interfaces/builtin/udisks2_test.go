@@ -232,6 +232,7 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	c.Check(udevSpec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
+	c.Check(udevSpec.Snippets()[0], testutil.Contains, `KERNEL=="sr*|md*|fd*|sd*|mmcblk[0-9]|mspblk[0-9]", TAG+="snap_udisks2_app1"`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
