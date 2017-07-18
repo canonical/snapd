@@ -43,6 +43,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -93,6 +94,24 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 	sc, err := seccomp.GetSyscallFromNameByArch(l[0], scmpArch)
 	if err != nil {
 		return nil, err
+	}
+	// libseccomp may return negative numbers here for syscalls that
+	// are "special" for some reason. there is no "official" way to
+	// resolve them using the API to the real number. this is why
+	// we workaround there.
+	if sc < 0 {
+		/* -101 is __PNR_socket */
+		if sc == -101 && scmpArch == seccomp.ArchX86 {
+			sc = 359 /* see src/arch-x86.c socket */
+		} else if sc == -101 && scmpArch == seccomp.ArchS390X {
+			sc = 359 /* see src/arch-s390x.c socket */
+		} else if sc == -10165 && scmpArch == seccomp.ArchARM64 {
+			// -10165 is mknod on aarch64 and it is translated
+			// to mknodat. for our simulation -10165 is fine
+			// though
+		} else {
+			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
+		}
 	}
 
 	var syscallArgs [6]uint64
@@ -370,6 +389,21 @@ func (s *snapSeccompSuite) simulateBpf(c *C, seccompWhitelist, bpfInput string, 
 	s.runBpfInKernel(c, seccompWhitelist, bpfInput, expected)
 }
 
+func systemUsesSocketcall() bool {
+	// We need to skip the tests on trusty/i386 and trusty/s390x as
+	// those are using the socketcall syscall instead of the real
+	// socket syscall.
+	//
+	// See also:
+	// https://bugs.launchpad.net/ubuntu/+source/glibc/+bug/1576066
+	if release.ReleaseInfo.VersionID == "14.04" {
+		if arch.UbuntuArchitecture() == "i386" || arch.UbuntuArchitecture() == "s390x" {
+			return true
+		}
+	}
+	return false
+}
+
 // TestCompile iterates over a range of textual seccomp whitelist rules and
 // mocked kernel syscall input. For each rule, the test consists of compiling
 // the rule into a bpf program and then running that program on a virtual bpf
@@ -484,7 +518,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 	} {
-		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+    // skip socket tests if the system uses socketcall instead
+		// of socket
+		if strings.Contains(t.seccompWhitelist, "socket") && systemUsesSocketcall() {
+			continue
+		}
+		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -567,6 +606,13 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 
 // ported from test_restrictions_working_args_socket
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
+	// skip socket tests if the system uses socketcall instead
+	// of socket
+	if systemUsesSocketcall() {
+		c.Skip("cannot run when socketcall() is used")
+		return
+	}
+
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)

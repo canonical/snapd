@@ -37,6 +37,7 @@ type snapYaml struct {
 	Type             Type                   `yaml:"type"`
 	Architectures    []string               `yaml:"architectures,omitempty"`
 	Assumes          []string               `yaml:"assumes"`
+	Title            string                 `yaml:"title"`
 	Description      string                 `yaml:"description"`
 	Summary          string                 `yaml:"summary"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
@@ -154,6 +155,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Type:                typ,
 		Architectures:       architectures,
 		Assumes:             y.Assumes,
+		OriginalTitle:       y.Title,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
 		LicenseAgreement:    y.LicenseAgreement,

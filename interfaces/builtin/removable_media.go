@@ -21,6 +21,14 @@ package builtin
 
 const removableMediaSummary = `allows access to mounted removable storage`
 
+const removableMediaBaseDeclarationSlots = `
+  removable-media:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const removableMediaConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
 
@@ -35,6 +43,7 @@ func init() {
 		summary:               removableMediaSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  removableMediaBaseDeclarationSlots,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

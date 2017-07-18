@@ -20,10 +20,12 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
@@ -52,6 +54,7 @@ var (
 	selfExe = "/proc/self/exe"
 
 	syscallExec = syscall.Exec
+	osReadlink  = os.Readlink
 )
 
 // distroSupportsReExec returns true if the distribution we are running on can use re-exec.
@@ -103,7 +106,8 @@ func coreSupportsReExec(corePath string) bool {
 	return true
 }
 
-// InternalToolPath returns the path of the internal snapd tool.
+// InternalToolPath returns the path of an internal snapd tool. The tool
+// *must* be located inside /usr/lib/snapd/.
 //
 // The return value is either the path of the tool in the current distribution
 // or in the core snap (or the ubuntu-core snap). This handles spiritual
@@ -112,32 +116,28 @@ func coreSupportsReExec(corePath string) bool {
 func InternalToolPath(tool string) string {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
-	// If we are asked not to re-execute use distribution packages. This is
-	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
-		logger.Debugf("re-exec disabled by user")
+	// find the internal path relative to the running snapd, this
+	// ensure we don't rely on the state of the system (like
+	// having a valid "current" symlink).
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using tool outside core", err)
 		return distroTool
 	}
 
-	// If the distribution doesn't support re-exec or run-from-core then don't do it.
-	if !distroSupportsReExec() {
+	// ensure we never use this helper from anything but
+	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
+		panic(fmt.Sprintf("InternalToolPath can only be used from snapd, got: %s", exe))
+	}
+
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
-	// Is the tool we are after present in the core snap?
-	corePath := newCore
-	coreTool := filepath.Join(newCore, "/usr/lib/snapd", tool)
-	if !osutil.FileExists(coreTool) {
-		corePath = oldCore
-		coreTool = filepath.Join(oldCore, "/usr/lib/snapd", tool)
-	}
-
-	// If the core snap doesn't support re-exec or run-from-core then don't do it.
-	if !coreSupportsReExec(corePath) {
-		return distroTool
-	}
-
-	return coreTool
+	// if we are re-execed, then the tool is at the same location
+	// as snapd
+	return filepath.Join(filepath.Dir(exe), tool)
 }
 
 // ExecInCoreSnap makes sure you're executing the binary that ships in
@@ -152,6 +152,9 @@ func ExecInCoreSnap() {
 
 	// Did we already re-exec?
 	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		if err := os.Unsetenv("SNAP_DID_REEXEC"); err != nil {
+			panic(fmt.Sprintf("cannot unset SNAP_DID_REEXEC: %s", err))
+		}
 		return
 	}
 

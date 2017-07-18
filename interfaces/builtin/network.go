@@ -21,6 +21,13 @@ package builtin
 
 const networkSummary = `allows access to the network`
 
+const networkBaseDeclarationSlots = `
+  network:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const networkDescription = `
 The network interface allows connected plugs to access the network as a client.
 
@@ -57,6 +64,7 @@ func init() {
 		description:           networkDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBaseDeclarationSlots,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,

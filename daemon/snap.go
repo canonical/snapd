@@ -200,7 +200,7 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 
 	// TODO: expose aliases information and state?
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"description":      localSnap.Description(),
 		"developer":        about.publisher,
 		"icon":             snapIcon(localSnap),
@@ -224,6 +224,12 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		"broken":           localSnap.Broken,
 		"contact":          localSnap.Contact,
 	}
+
+	if localSnap.Title() != "" {
+		result["title"] = localSnap.Title()
+	}
+
+	return result
 }
 
 func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
@@ -262,6 +268,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
 		"contact":       remoteSnap.Contact,
+	}
+
+	if remoteSnap.Title() != "" {
+		result["title"] = remoteSnap.Title()
 	}
 
 	if len(screenshots) > 0 {

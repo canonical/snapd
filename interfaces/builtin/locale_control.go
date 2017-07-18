@@ -21,6 +21,14 @@ package builtin
 
 const localeControlSummary = `allows control over system locale`
 
+const localeControlBaseDeclarationSlots = `
+  locale-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/locale-control
 const localeControlConnectedPlugAppArmor = `
 # Description: Can manage locales directly separate from 'config ubuntu-core'.
@@ -34,6 +42,7 @@ func init() {
 		name:                  "locale-control",
 		summary:               localeControlSummary,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  localeControlBaseDeclarationSlots,
 		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
