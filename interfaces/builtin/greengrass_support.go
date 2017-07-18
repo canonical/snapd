@@ -58,7 +58,7 @@ owner /sys/fs/cgroup/*/{,system.slice/} rw,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus rw,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems rw,
 owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/{,**} rw,
-# for running under snap run --shell
+# for running just after a reboot
 owner /sys/fs/cgroup/*/user.slice/ rw,
 owner /sys/fs/cgroup/cpuset/user.slice/cpuset.cpus rw,
 owner /sys/fs/cgroup/cpuset/user.slice/cpuset.mems rw,
