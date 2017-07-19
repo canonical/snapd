@@ -19,8 +19,7 @@
 
 package main
 
-//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
-//#cgo pkg-config: --cflags --libs libseccomp
+//#cgo pkg-config: --static --cflags --libs libseccomp
 //
 //#include <asm/ioctls.h>
 //#include <ctype.h>
