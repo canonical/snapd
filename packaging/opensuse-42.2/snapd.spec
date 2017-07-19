@@ -148,14 +148,6 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
-
-# Link all the libraries needed for seccomp
-ln -s /usr/include/libseccomp/* /usr/include/
-# Remove link to seccomp as it has been disabled
-sed -e "s:-lseccomp::g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-# build snap-seccomp
 %gobuild cmd/snap-seccomp
 
 # Build C executables
