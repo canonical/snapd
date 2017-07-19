@@ -208,13 +208,11 @@ EOF
 
     if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            quiet apt install -y -q pollinate
             pollinate
         fi
 
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
-        apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 
