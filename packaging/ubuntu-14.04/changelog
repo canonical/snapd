@@ -1,3 +1,12 @@
+snapd (2.26.13~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cmd,tests: fix classic confinement confusing re-execution code
+    - cmd: fix incorrect check check for re-exec in InternalToolPath()
+    - snap-seccomp: add secondary arch for unrestricted snaps as well
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 18 Jul 2017 20:34:33 +0200
+
 snapd (2.26.10~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
