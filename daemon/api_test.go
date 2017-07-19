@@ -84,10 +84,10 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
-	origSysctlcmd     func(...string) ([]byte, error)
-	sysctlargses      [][]string
-	sysctlbuf         []byte
-	sysctlerr         error
+	origSysctlCmd     func(...string) ([]byte, error)
+	sysctlArgses      [][]string
+	sysctlBuf         []byte
+	sysctlErr         error
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -158,19 +158,19 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = release.MockForcedDevmode(false)
 
 	snapstate.CanAutoRefresh = nil
-	s.origSysctlcmd = systemd.SystemctlCmd
+	s.origSysctlCmd = systemd.SystemctlCmd
 	systemd.SystemctlCmd = s.systemctl
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
-	systemd.SystemctlCmd = s.origSysctlcmd
+	systemd.SystemctlCmd = s.origSysctlCmd
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) ([]byte, error) {
-	s.sysctlargses = append(s.sysctlargses, args)
-	return s.sysctlbuf, s.sysctlerr
+	s.sysctlArgses = append(s.sysctlArgses, args)
+	return s.sysctlBuf, s.sysctlErr
 }
 
 var (
@@ -179,7 +179,7 @@ var (
 )
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
-	s.sysctlargses = nil
+	s.sysctlArgses = nil
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
@@ -392,7 +392,7 @@ apps:
     daemon: simple
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
-	s.sysctlbuf = []byte("Type=simple\nId=snap.foo.svc.service\nActiveState=fumbling\nUnitFileState=enabled\n")
+	s.sysctlBuf = []byte("Type=simple\nId=snap.foo.svc.service\nActiveState=fumbling\nUnitFileState=enabled\n")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
