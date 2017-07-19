@@ -153,7 +153,7 @@ func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.Read
 	return JournalctlCmd(serviceNames, n, follow)
 }
 
-var statusregex = regexp.MustCompile(`(?m)^(?:(Id|Type|ActiveState|UnitFileState)=(.*))?$`)
+var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
 
 func (s *systemd) Status(serviceNames ...string) ([]*client.ServiceInfo, error) {
 	cmd := make([]string, len(serviceNames)+2)
@@ -165,17 +165,13 @@ func (s *systemd) Status(serviceNames ...string) ([]*client.ServiceInfo, error) 
 		return nil, err
 	}
 
-	sts := make([]*client.ServiceInfo, len(serviceNames))
-	idx := 0
+	sts := make([]*client.ServiceInfo, 0, len(serviceNames))
 	cur := &client.ServiceInfo{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
-			sts[idx] = cur
-			idx++
-			if idx >= len(sts) {
-				break
-			}
+			// systemctl separates data pertaining to particular services by an empty line
+			sts = append(sts, cur)
 			cur = &client.ServiceInfo{}
 			continue
 		}
@@ -192,7 +188,15 @@ func (s *systemd) Status(serviceNames ...string) ([]*client.ServiceInfo, error) 
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+		default:
+			if s.reporter != nil {
+				s.reporter.Notify(fmt.Sprintf("\"systemctl show\" returned unexpected line %q", bs[0]))
+			}
 		}
+	}
+
+	if len(sts) != len(serviceNames) {
+		return nil, fmt.Errorf("unable to get service status: expected %d results, got %d", len(serviceNames), len(sts))
 	}
 
 	return sts, nil

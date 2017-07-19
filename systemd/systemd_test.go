@@ -194,13 +194,25 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 			Enabled:         false,
 		},
 	})
+	c.Check(s.rep.msgs, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStatusBork(c *C) {
+func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 	s.outs = [][]byte{
 		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\n" +
 			"\n" +
 			"All is not well\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo")
+	c.Check(err, ErrorMatches, "unable to get service status: expected 1 results, got 2")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadReturnFormat(c *C) {
+	s.outs = [][]byte{
+		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\nPotatoes=false\n"),
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo")
@@ -213,6 +225,26 @@ func (s *SystemdTestSuite) TestStatusBork(c *C) {
 			Enabled:         true,
 		},
 	})
+	c.Check(s.rep.msgs[0], Equals, `"systemctl show" returned unexpected line "Potatoes=false"`)
+}
+
+func (s *SystemdTestSuite) TestStatusBadReturnFormatNoNotifier(c *C) {
+	s.outs = [][]byte{
+		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\nPotatoes=false\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", nil).Status("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, []*client.ServiceInfo{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		},
+	})
+	// most importantly: no panics :-)
+	c.Check(s.rep.msgs, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {

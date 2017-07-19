@@ -180,6 +180,8 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 	}
 	sort.Strings(appNames)
 	apps := make([]*client.AppInfo, len(localSnap.Apps))
+	// TODO: pass in an actual notifier here instead of nil
+	//       (Status doesn't _need_ it, but benefits from it)
 	sysd := systemd.New(dirs.GlobalRootDir, nil)
 	for i, appName := range appNames {
 		app := localSnap.Apps[appName]
@@ -189,7 +191,7 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		}
 
 		if app.IsService() {
-			// todo: look into making a single call to Status for all services
+			// TODO: look into making a single call to Status for all services
 			sts, err := sysd.Status(app.ServiceName())
 			if err == nil && len(sts) == 1 {
 				apps[i].ServiceInfo = sts[0]

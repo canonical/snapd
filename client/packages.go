@@ -72,6 +72,7 @@ type AppInfo struct {
 	*ServiceInfo `json:",omitempty"`
 }
 
+// IsService returns true if the application is a background daemon.
 func (a *AppInfo) IsService() bool {
 	if a == nil {
 		return false

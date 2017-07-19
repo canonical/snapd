@@ -31,12 +31,12 @@ type restartcondSuite struct{}
 var _ = Suite(&restartcondSuite{})
 
 func (*restartcondSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range snap.RestartMap {
-		bs := []byte(cond)
+	for name, cond := range snap.RestartMap {
+		bs := []byte(name)
 		var rc snap.RestartCondition
 
 		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, snap.RestartMap[cond], Commentf(cond))
+		c.Check(rc, Equals, cond, Commentf(name))
 	}
 }
 
