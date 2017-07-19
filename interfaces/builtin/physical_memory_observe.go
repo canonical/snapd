@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const physicalMemoryObserveSummary = `allows read access to all physical memory`
@@ -83,7 +84,7 @@ func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot)
 
 	// Creation of the slot of this type
 	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
 	}
 	return nil

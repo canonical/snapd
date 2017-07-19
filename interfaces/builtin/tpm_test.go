@@ -72,7 +72,7 @@ func (s *TpmInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "tpm",
 		Interface: "tpm",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "tpm slots only allowed on core snap")
 }
 
 func (s *TpmInterfaceSuite) TestSanitizePlug(c *C) {

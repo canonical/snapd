@@ -71,7 +71,7 @@ func (s *OpenglInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "opengl",
 		Interface: "opengl",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "opengl slots only allowed on core snap")
 }
 
 func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {

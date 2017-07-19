@@ -71,7 +71,7 @@ func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "optical-drive",
 		Interface: "optical-drive",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "optical-drive slots only allowed on core snap")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {

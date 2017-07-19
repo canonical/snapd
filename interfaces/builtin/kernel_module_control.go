@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
@@ -91,6 +92,7 @@ func (iface *kernelModuleControlInterface) MetaData() interfaces.MetaData {
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: kernelModuleControlBaseDeclarationSlots,
+		BaseDeclarationPlugs: kernelModuleControlBaseDeclarationPlugs,
 	}
 }
 
@@ -104,6 +106,12 @@ func (iface *kernelModuleControlInterface) SanitizeSlot(slot *interfaces.Slot) e
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+
+	// The snap implementing this slot must be an os snap.
+	if !(slot.Snap.Type == snap.TypeOS) {
+		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
+	}
+
 	return nil
 }
 

@@ -74,7 +74,7 @@ func (s *FuseSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "fuse-support",
 		Interface: "fuse-support",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "fuse-support slots only allowed on core snap")
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizePlug(c *C) {

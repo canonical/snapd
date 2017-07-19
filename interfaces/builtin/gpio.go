@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/snap"
 )
 
 const gpioSummary = `allows access to specifc GPIO pin`
@@ -69,7 +70,7 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeGadget || slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("gpio slots only allowed on gadget or core snaps")
 	}
 
