@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const i2cSummary = `allows access to specific I2C controller`
@@ -89,7 +90,7 @@ func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// Creation of the slot of this type
 	// is allowed only by a gadget snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeGadget || slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
 	}
 

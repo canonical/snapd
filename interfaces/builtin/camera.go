@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const cameraSummary = `allows access to all cameras`
@@ -83,6 +84,12 @@ func (iface *cameraInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+
+	// The snap implementing this slot must be an os snap.
+	if !(slot.Snap.Type == snap.TypeOS) {
+		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
+	}
+
 	return nil
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const serialPortSummary = `allows accessing a specific serial port`
@@ -83,7 +84,7 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeGadget || slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("serial-port slots only allowed on gadget or core snaps")
 	}
 

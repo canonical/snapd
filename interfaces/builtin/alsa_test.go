@@ -73,7 +73,7 @@ func (s *AlsaInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "alsa",
 		Interface: "alsa",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "alsa slots only allowed on core snap")
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {

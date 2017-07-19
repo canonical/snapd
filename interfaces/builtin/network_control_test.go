@@ -74,7 +74,7 @@ func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "network-control",
 		Interface: "network-control",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "network-control slots only allowed on core snap")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {

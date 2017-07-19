@@ -75,7 +75,7 @@ func (s *FramebufferInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "framebuffer",
 		Interface: "framebuffer",
 	}})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "framebuffer slots only allowed on core snap")
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
