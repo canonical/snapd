@@ -143,19 +143,38 @@ func InternalToolPath(tool string) string {
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
-	// If we are asked not to re-execute use distribution packages. This is
-	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
-		logger.Debugf("re-exec disabled by user")
+	// Which executable are we?
+	thisExe, err := os.Readlink(selfExe)
+	if err != nil {
+		logger.Noticef("cannot read self exec symlink (%q): %s\n", selfExe, err)
 		return
 	}
 
-	// Did we already re-exec?
-	if osutil.GetenvBool("SNAP_DID_REEXEC") {
-		if err := os.Unsetenv("SNAP_DID_REEXEC"); err != nil {
-			panic(fmt.Sprintf("cannot unset SNAP_DID_REEXEC: %s", err))
+	// What is the path of the tool we wanted to run?
+	didReExec := false
+	tool := thisExe
+	if strings.HasPrefix(tool, dirs.SnapMountDir) {
+		// Chop off the snap mount directory
+		tool = tool[len(dirs.SnapMountDir):]
+		// Chop off the base snap name and revision.
+		// Three is the number of slashees (/) in /$BASE/$REVISION/
+		tool = "/" + strings.Join(strings.Split(tool, "/")[3:], "/")
+		didReExec = true
+	}
+
+	// If we are re-executing from an old snapd (like 2.21-old which is forever
+	// present in Debian 9) then we the meaning of the SNAP_REEXEC variable is
+	// different and we may need to correct its value.
+	// In old versions of snapd SNAP_REEXEC is indicating the "we did reexec"
+	// flag instead of the "we want to reexec" preference (in subsequent
+	// versions of snapd those became SNAP_DID_REEXEC and SNAP_REEXEC
+	// respectively). Thus, if we see the current process is coming from a core
+	// snap (so it re-executed already) *and* we see that SNAP_REEXEC=0 is set
+	// then we need to just unset this variable.
+	if didReExec && os.Getenv(reExecKey) == "0" {
+		if err := os.Unsetenv(reExecKey); err != nil {
+			logger.Panicf("cannot unset %s: %s", reExecKey, err)
 		}
-		return
 	}
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
@@ -163,29 +182,43 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	// Which executable are we?
-	exe, err := os.Readlink(selfExe)
-	if err != nil {
-		return
-	}
-
-	// Is this executable in the core snap too?
+	// What is the path of the tool in the core snap?
 	corePath := newCore
-	full := filepath.Join(newCore, exe)
-	if !osutil.FileExists(full) {
+	coreTool := filepath.Join(newCore, tool)
+	if !osutil.FileExists(coreTool) {
+		logger.Debugf("tool not present in the new core snap %q", coreTool)
 		corePath = oldCore
-		full = filepath.Join(oldCore, exe)
-		if !osutil.FileExists(full) {
+		coreTool = filepath.Join(oldCore, tool)
+		if !osutil.FileExists(coreTool) {
+			logger.Debugf("tool not present in the old core snap %q", coreTool)
 			return
 		}
 	}
 
 	// If the core snap doesn't support re-exec or run-from-core then don't do it.
 	if !coreSupportsReExec(corePath) {
+		// This logs any potential reason so let's not repeat ourselves.
 		return
 	}
 
-	logger.Debugf("restarting into %q", full)
-	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscallExec(full, os.Args, env))
+	// If we are asked not to re-execute use distribution packages. This is
+	// "spiritual" re-exec so use the same environment variable to decide.
+	if !osutil.GetenvBool(reExecKey, true) {
+		logger.Debugf("re-exec disabled by user")
+		return
+	}
+
+	// Did we already re-exec this exact program?
+	coreToolDeref, err := filepath.EvalSymlinks(coreTool)
+	if err != nil {
+		logger.Noticef("cannot evaluate symlinks in %q: %s", coreTool, err)
+		return
+	}
+	if coreToolDeref == thisExe {
+		logger.Debugf("we already are running the tool we wanted to re-execute to")
+		return
+	}
+
+	logger.Debugf("restarting from %q into %q", thisExe, coreToolDeref)
+	panic(syscallExec(coreToolDeref, os.Args, os.Environ()))
 }
