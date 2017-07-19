@@ -16,7 +16,7 @@ prepare: |
         restart avahi-daemon
     else
         systemctl daemon-reload
-        systemctl restart avahi-daemon.{service,socket}
+        systemctl restart avahi-daemon.{socket,service}
     fi
 
 restore: |
