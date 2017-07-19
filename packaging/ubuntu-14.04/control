@@ -28,6 +28,7 @@ Build-Depends: autoconf,
                python3,
                python3-docutils,
                python3-markdown,
+               squashfuse,
                squashfs-tools,
                udev,
                xfslibs-dev
