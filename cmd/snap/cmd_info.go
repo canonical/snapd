@@ -27,6 +27,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -121,7 +123,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
 	fmt.Fprintf(w, "name:\t%s\n", info.Name())
-	fmt.Fprintf(w, "summary:\t%q\n", info.Summary())
+	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
 
 	var notes *Notes
 	if verbose {
@@ -237,6 +239,14 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 	}
 }
 
+func formatSummary(raw string) string {
+	s, err := yaml.Marshal(raw)
+	if err != nil {
+		return fmt.Sprintf("cannot marshal summary: %s", err)
+	}
+	return strings.TrimSpace(string(s))
+}
+
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
@@ -265,7 +275,7 @@ func (x *infoCmd) Execute([]string) error {
 		noneOK = false
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
+		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
