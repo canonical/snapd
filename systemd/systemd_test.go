@@ -205,6 +205,7 @@ UnitFileState=disabled
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
 }
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
