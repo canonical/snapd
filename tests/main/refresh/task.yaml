@@ -29,9 +29,11 @@ prepare: |
 
     flags=
     if [[ $SNAP_NAME =~ classic ]]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
-            exit
-        fi
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+        esac
         flags=--classic
     fi
 
@@ -50,9 +52,11 @@ prepare: |
 restore: |
     rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-            exit
-        fi
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+        esac
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
@@ -72,8 +76,12 @@ execute: |
         fi
     fi
 
-    if [[ $SNAP_NAME =~ classic && "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
-        exit
+    if [[ $SNAP_NAME =~ classic ]]; then
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*|fedora-*)
+                exit
+                ;;
+        esac
     fi
 
     # FIXME: currently the --list from channel doesn't work
