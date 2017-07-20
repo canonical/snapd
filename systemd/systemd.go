@@ -162,9 +162,10 @@ type ServiceStatus struct {
 }
 
 func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
+	expected := []string{"Id", "Type", "ActiveState", "UnitFileState"}
 	cmd := make([]string, len(serviceNames)+2)
 	cmd[0] = "show"
-	cmd[1] = "--property=Id,ActiveState,UnitFileState"
+	cmd[1] = "--property=" + strings.Join(expected, ",")
 	copy(cmd[2:], serviceNames)
 	bs, err := SystemctlCmd(cmd...)
 	if err != nil {
@@ -173,19 +174,14 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 
 	sts := make([]*ServiceStatus, 0, len(serviceNames))
 	cur := &ServiceStatus{}
-	expected := map[string]bool{
-		"Id":            true,
-		"Type":          true,
-		"ActiveState":   true,
-		"UnitFileState": true,
-	}
+	seen := map[string]bool{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
 			// systemctl separates data pertaining to particular services by an empty line
 			missing := make([]string, 0, len(expected))
-			for k, v := range expected {
-				if v {
+			for _, k := range expected {
+				if !seen[k] {
 					missing = append(missing, k)
 				}
 			}
@@ -202,12 +198,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 			}
 
 			cur = &ServiceStatus{}
-			expected = map[string]bool{
-				"Id":            true,
-				"Type":          true,
-				"ActiveState":   true,
-				"UnitFileState": true,
-			}
+			seen = map[string]bool{}
 			continue
 		}
 		if len(bs[3]) > 0 {
@@ -215,13 +206,6 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 		}
 		k := string(bs[1])
 		v := string(bs[2])
-		if b, ok := expected[k]; b {
-			expected[k] = false
-		} else if ok {
-			return nil, fmt.Errorf("cannot get service status: duplicate field %q in ‘systemctl show’ output", k)
-		} else {
-			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
-		}
 
 		if v == "" {
 			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’ output", k)
@@ -238,7 +222,14 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+		default:
+			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
 		}
+
+		if seen[k] {
+			return nil, fmt.Errorf("cannot get service status: duplicate field %q in ‘systemctl show’ output", k)
+		}
+		seen[k] = true
 	}
 
 	if len(sts) != len(serviceNames) {
