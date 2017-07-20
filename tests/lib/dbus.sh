@@ -9,8 +9,6 @@ init_dbus_env(){
 start_dbus_unit(){
     local executable="$1"
 
-    distro_install_package dbus-x11
-
     dbus-launch > dbus.env
     init_dbus_env
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -33,7 +31,6 @@ EOF
 
 stop_dbus_unit(){
     rm -f dbus.env
-    distro_purge_package dbus-x11
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         stop dbus-provider
         rm -f /etc/init/dbus-provider.conf
