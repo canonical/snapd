@@ -58,12 +58,14 @@ func (at *AssertionType) MaxSupportedFormat() int {
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
+	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, 0}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
 	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
+	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
 
@@ -86,8 +88,10 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
+	SnapDeveloperType.Name:   SnapDeveloperType,
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
+	RepairType.Name:          RepairType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -331,15 +335,17 @@ var _ Assertion = (*assertionBase)(nil)
 // where:
 //
 //    HEADER is a set of header entries separated by "\n"
-//    BODY can be arbitrary,
+//    BODY can be arbitrary text,
 //    SIGNATURE is the signature
+//
+// Both BODY and HEADER must be UTF8.
 //
 // A header entry for a single line value (no '\n' in it) looks like:
 //
 //   NAME ": " SIMPLEVALUE
 //
 // The format supports multiline text values (with '\n's in them) and
-// lists possibly nested with string scalars in them.
+// lists or maps, possibly nested, with string scalars in them.
 //
 // For those a header entry looks like:
 //
@@ -348,12 +354,17 @@ var _ Assertion = (*assertionBase)(nil)
 // where MULTI can be
 //
 // * (baseindent + 4)-space indented value (multiline text)
+//
 // * entries of a list each of the form:
 //
-//   " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//     " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//
+// * entries of map each of the form:
+//
+//     " "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // baseindent starts at 0 and then grows with nesting matching the
-// previous level introduction (the " "*baseindent " -" bit)
+// previous level introduction (e.g. the " "*baseindent " -" bit)
 // length minus 1.
 //
 // In general the following headers are mandatory:
@@ -369,8 +380,10 @@ var _ Assertion = (*assertionBase)(nil)
 //
 //   revision (a positive int)
 //   body-length (expected to be equal to the length of BODY)
+//   format (a positive int for the format iteration of the type used)
 //
 // Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
+//
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
 	assertionSnapshot := make([]byte, len(serializedAssertion))
@@ -416,8 +429,10 @@ type Decoder struct {
 	b              *bufio.Reader
 	err            error
 	maxHeadersSize int
-	maxBodySize    int
 	maxSigSize     int
+
+	defaultMaxBodySize int
+	typeMaxBodySize    map[*AssertionType]int
 }
 
 // initBuffer finishes a Decoder initialization by setting up the bufio.Reader,
@@ -427,16 +442,28 @@ func (d *Decoder) initBuffer() *Decoder {
 	return d
 }
 
-const defaultDecoderButSize = 4096
+const defaultDecoderBufSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
 	return (&Decoder{
-		rd:             r,
-		initialBufSize: defaultDecoderButSize,
-		maxHeadersSize: MaxHeadersSize,
-		maxBodySize:    MaxBodySize,
-		maxSigSize:     MaxSignatureSize,
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+	}).initBuffer()
+}
+
+// NewDecoderWithTypeMaxBodySize returns a Decoder to parse the stream of assertions from the reader enforcing optional per type max body sizes or the default one as fallback.
+func NewDecoderWithTypeMaxBodySize(r io.Reader, typeMaxBodySize map[*AssertionType]int) *Decoder {
+	return (&Decoder{
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+		typeMaxBodySize:    typeMaxBodySize,
 	}).initBuffer()
 }
 
@@ -515,11 +542,16 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
+	typeStr, _ := headers["type"].(string)
+	typ := Type(typeStr)
+
 	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
-	if length > d.maxBodySize {
+	if typMaxBodySize := d.typeMaxBodySize[typ]; typMaxBodySize != 0 && length > typMaxBodySize {
+		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size %d for %q assertions", length, typMaxBodySize, typ.Name)
+	} else if length > d.defaultMaxBodySize {
 		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
 	}
 
@@ -857,8 +889,19 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{wr: w}
 }
 
-// append emits an already encoded assertion into the stream with a proper required separator.
-func (enc *Encoder) append(encoded []byte) error {
+func (enc *Encoder) writeSep(last byte) error {
+	if last != '\n' {
+		_, err := enc.wr.Write(nl)
+		if err != nil {
+			return err
+		}
+	}
+	enc.nextSep = nl
+	return nil
+}
+
+// WriteEncoded writes the encoded assertion into the stream with the required separator.
+func (enc *Encoder) WriteEncoded(encoded []byte) error {
 	sz := len(encoded)
 	if sz == 0 {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
@@ -874,22 +917,45 @@ func (enc *Encoder) append(encoded []byte) error {
 		return err
 	}
 
-	if encoded[sz-1] != '\n' {
-		_, err = enc.wr.Write(nl)
-		if err != nil {
-			return err
-		}
-	}
-	enc.nextSep = nl
+	return enc.writeSep(encoded[sz-1])
+}
 
-	return nil
+// WriteContentSignature writes the content and signature of an assertion into the stream with all the required separators.
+func (enc *Encoder) WriteContentSignature(content, signature []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("internal error: content cannot be empty")
+	}
+
+	sz := len(signature)
+	if sz == 0 {
+		return fmt.Errorf("internal error: signature cannot be empty")
+	}
+
+	_, err := enc.wr.Write(enc.nextSep)
+	if err != nil {
+		return err
+	}
+
+	_, err = enc.wr.Write(content)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(nlnl)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(signature)
+	if err != nil {
+		return err
+	}
+
+	return enc.writeSep(signature[sz-1])
 }
 
 // Encode emits the assertion into the stream with the required separator.
 // Errors here are always about writing given that Encode() itself cannot error.
 func (enc *Encoder) Encode(assert Assertion) error {
-	encoded := Encode(assert)
-	return enc.append(encoded)
+	return enc.WriteContentSignature(assert.Signature())
 }
 
 // SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.

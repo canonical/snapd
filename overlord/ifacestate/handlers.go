@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,13 +56,14 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
-			return err
+			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedSnapName, affectingSnap, err)
+			continue
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}
-		snap.AddImplicitSlots(affectedSnapInfo)
+		addImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -84,12 +87,45 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	// TODO: this whole bit seems maybe that it should belong (largely) to a snapstate helper
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		if snapInfo.Type != snap.TypeOS {
+			// not core, nothing to do
+			return nil
+		}
+		if task.State().Restarting() {
+			// don't continue until we are in the restarted snapd
+			task.Logf("Waiting for restart...")
+			return &state.Retry{}
+		}
+		// if not on classic check there was no rollback
+		if !release.OnClassic {
+			// TODO: double check that we really rebooted
+			// otherwise this could be just a spurious restart
+			// of snapd
+			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+			if err == snapstate.ErrBootNameAndRevisionAgain {
+				return &state.Retry{After: 5 * time.Second}
+			}
+			if err != nil {
+				return err
+			}
+			if snapsup.Name() != name || snapInfo.Revision != rev {
+				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+			}
+		}
+	}
+
 	opts := confinementOptions(snapsup.Flags)
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	snap.AddImplicitSlots(snapInfo)
+	addImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
 	// The snap may have been updated so perform the following operation to
@@ -183,8 +219,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 
 	// Remove security artefacts of the snap.
 	if err := m.removeSnapSecurity(task, snapName); err != nil {
-		// TODO: how long to wait?
-		return &state.Retry{}
+		return err
 	}
 
 	return nil
@@ -194,6 +229,15 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		// let the first setup-profiles deal with this
+		return nil
+	}
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
@@ -385,20 +429,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
-	m := make(map[string]bool)
-	for _, conn := range conns {
-		m[conn.PlugRef.Snap] = true
-		m[conn.SlotRef.Snap] = true
-	}
-	l := make([]string, 0, len(m))
-	for name := range m {
-		l = append(l, name)
-	}
-	sort.Strings(l)
-	return l
-}
-
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -414,29 +444,37 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
-	}
-	m.repo.DisconnectAll(affectedConns)
-	affectedSnaps := snapNamesFromConns(affectedConns)
-	for _, snapName := range affectedSnaps {
+	var snapStates []snapstate.SnapState
+	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			return err
+			if err == state.ErrNoState {
+				task.Logf("skipping disconnect operation for connection %s %s, snap %q doesn't exist", plugRef, slotRef, snapName)
+				return nil
+			}
+			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
+		} else {
+			snapStates = append(snapStates, snapst)
 		}
+	}
+
+	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
+	}
+	for _, snapst := range snapStates {
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
-			return &state.Retry{}
+			return err
 		}
 	}
-	for _, conn := range affectedConns {
-		delete(conns, conn.ID())
-	}
+
+	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	delete(conns, conn.ID())
 
 	setConns(st, conns)
 	return nil

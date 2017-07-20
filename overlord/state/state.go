@@ -58,6 +58,10 @@ func (data customData) get(key string, value interface{}) error {
 }
 
 func (data customData) set(key string, value interface{}) {
+	if value == nil {
+		delete(data, key)
+		return
+	}
 	serialized, err := json.Marshal(value)
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
@@ -98,6 +102,9 @@ type State struct {
 	modified bool
 
 	cache map[interface{}]interface{}
+
+	restarting bool
+	restartLck sync.Mutex
 }
 
 // New returns a new empty state.
@@ -239,7 +246,25 @@ func (s *State) EnsureBefore(d time.Duration) {
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
 		s.backend.RequestRestart(t)
+		s.restartLck.Lock()
+		s.restarting = true
+		s.restartLck.Unlock()
 	}
+}
+
+// Restarting returns whether a restart was requested with RequestRestart
+func (s *State) Restarting() bool {
+	s.restartLck.Lock()
+	defer s.restartLck.Unlock()
+	return s.restarting
+}
+
+func MockRestarting(s *State, restarting bool) bool {
+	s.restartLck.Lock()
+	defer s.restartLck.Unlock()
+	old := s.restarting
+	s.restarting = restarting
+	return old
 }
 
 // ErrNoState represents the case of no state entry for a given key.

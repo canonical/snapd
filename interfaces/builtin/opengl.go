@@ -19,18 +19,23 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const openglSummary = `allows access to OpenGL stack`
+
+const openglBaseDeclarationSlots = `
+  opengl:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
-# Usage: reserved
 
   # specific gl libs
   /var/lib/snapd/lib/gl/ r,
   /var/lib/snapd/lib/gl/** rm,
 
+  /dev/dri/ r,
   /dev/dri/card0 rw,
   # nvidia
   @{PROC}/driver/nvidia/params r,
@@ -42,6 +47,7 @@ const openglConnectedPlugAppArmor = `
 
   # eglfs
   /dev/vchiq rw,
+  /sys/devices/pci[0-9]*/**/config r,
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
@@ -57,19 +63,14 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-const openglConnectedPlugSecComp = `
-# Description: Can access opengl.
-# Usage: reserved
-
-getsockopt
-`
-
-// NewOpenglInterface returns a new "opengl" interface.
-func NewOpenglInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "opengl",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "opengl",
+		summary:               openglSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

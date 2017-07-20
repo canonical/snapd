@@ -29,6 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -91,12 +92,27 @@ func maybePrintType(w io.Writer, t string) {
 	fmt.Fprintf(w, "type:\t%s\n", t)
 }
 
+func maybePrintID(w io.Writer, snap *client.Snap) {
+	if snap.ID != "" {
+		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
+	}
+}
+
 func tryDirect(w io.Writer, path string, verbose bool) bool {
 	path = norm(path)
 
 	snapf, err := snap.Open(path)
 	if err != nil {
 		return false
+	}
+
+	var sha3_384 string
+	if verbose && !osutil.IsDirectory(path) {
+		var err error
+		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
+		if err != nil {
+			return false
+		}
 	}
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -122,6 +138,9 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
 	maybePrintType(w, string(info.Type))
+	if sha3_384 != "" {
+		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
+	}
 
 	return true
 }
@@ -168,16 +187,7 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 			continue
 		}
 
-		// TODO: helper for this?
-		cmdStr := app.Name
-		if cmdStr != snapName {
-			cmdStr = fmt.Sprintf("%s.%s", snapName, cmdStr)
-		}
-
-		if len(app.Aliases) != 0 {
-			cmdStr = fmt.Sprintf("%s (%s)", cmdStr, strings.Join(app.Aliases, ","))
-		}
-
+		cmdStr := snap.JoinSnapApp(snapName, app.Name)
 		commands = append(commands, cmdStr)
 	}
 	if len(commands) == 0 {
@@ -187,6 +197,43 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	fmt.Fprintf(w, "commands:\n")
 	for _, cmd := range commands {
 		fmt.Fprintf(w, "  - %s\n", cmd)
+	}
+}
+
+// displayChannels displays channels and tracks in the right order
+func displayChannels(w io.Writer, remote *client.Snap) {
+	// \t\t\t so we get "installed" lined up with "channels"
+	fmt.Fprintf(w, "channels:\t\t\t\n")
+
+	// order by tracks
+	for i, tr := range remote.Tracks {
+		trackHasOpenChannel := false
+		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+			chName := fmt.Sprintf("%s/%s", tr, risk)
+			ch, ok := remote.Channels[chName]
+			if tr == "latest" {
+				chName = risk
+			}
+			var version, revision, size, notes string
+			if ok {
+				version = ch.Version
+				revision = fmt.Sprintf("(%s)", ch.Revision)
+				size = strutil.SizeToStr(ch.Size)
+				notes = NotesFromChannelSnapInfo(ch).String()
+				trackHasOpenChannel = true
+			} else {
+				if trackHasOpenChannel {
+					version = "↑"
+				} else {
+					version = "–" // that's an en dash (so yaml is happy)
+				}
+			}
+			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
+		}
+		// add separator between tracks
+		if i < len(remote.Tracks)-1 {
+			fmt.Fprintf(w, "  \t\t\t\t\n")
+		}
 	}
 }
 
@@ -222,11 +269,15 @@ func (x *infoCmd) Execute([]string) error {
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		if both.Contact != "" {
+			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
+		}
 		maybePrintPrice(w, remote, resInfo)
 		// FIXME: find out for real
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
+		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 
 		if x.Verbose {
@@ -257,17 +308,10 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
-		if remote != nil && remote.Channels != nil {
-			// \t\t\t so we get "installed" lined up with "channels"
-			fmt.Fprintf(w, "channels:\t\t\t\n")
-			for _, ch := range []string{"stable", "candidate", "beta", "edge"} {
-				m := remote.Channels[ch]
-				if m == nil {
-					continue
-				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
-			}
+		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+			displayChannels(w, remote)
 		}
+
 	}
 	w.Flush()
 

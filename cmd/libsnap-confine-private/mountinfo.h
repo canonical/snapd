@@ -20,12 +20,78 @@
 /**
  * Structure describing entire /proc/self/sc_mountinfo file
  **/
-struct sc_mountinfo;
+struct sc_mountinfo {
+	struct sc_mountinfo_entry *first;
+};
 
 /**
  * Structure describing a single entry in /proc/self/sc_mountinfo
  **/
-struct sc_mountinfo_entry;
+struct sc_mountinfo_entry {
+	/**
+	 * The mount identifier of a given mount entry.
+	 **/
+	int mount_id;
+	/**
+	 * The parent mount identifier of a given mount entry.
+	 **/
+	int parent_id;
+	unsigned dev_major, dev_minor;
+	/**
+	 * The root directory of a given mount entry.
+	 **/
+	char *root;
+	/**
+	 * The mount point of a given mount entry.
+	 **/
+	char *mount_dir;
+	/**
+	 * The mount options of a given mount entry.
+	 **/
+	char *mount_opts;
+	/**
+	 * Optional tagged data associated of a given mount entry.
+	 *
+	 * The return value is a string (possibly empty but never NULL) in the format
+	 * tag[:value]. Known tags are:
+	 *
+	 * "shared:X":
+	 * 		mount is shared in peer group X
+	 * "master:X":
+	 * 		mount is slave to peer group X
+	 * "propagate_from:X"
+	 * 		mount is slave and receives propagation from peer group X (*)
+	 * "unbindable":
+	 * 		mount is unbindable
+	 *
+	 * (*) X is the closest dominant peer group under the process's root.
+	 * If X is the immediate master of the mount, or if there's no dominant peer
+	 * group under the same root, then only the "master:X" field is present and not
+	 * the "propagate_from:X" field.
+	 **/
+	char *optional_fields;
+	/**
+	 * The file system type of a given mount entry.
+	 **/
+	char *fs_type;
+	/**
+	 * The source of a given mount entry.
+	 **/
+	char *mount_source;
+	/**
+	 * The super block options of a given mount entry.
+	 **/
+	char *super_opts;
+
+	struct sc_mountinfo_entry *next;
+
+	// Buffer holding all of the text data above.
+	//
+	// The buffer must be the last element of the structure. It is allocated
+	// along with the structure itself and does not need to be freed
+	// separately.
+	char line_buf[0];
+};
 
 /**
  * Parse a file in according to sc_mountinfo syntax.
@@ -64,83 +130,6 @@ struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
  **/
 struct sc_mountinfo_entry *sc_next_mountinfo_entry(struct sc_mountinfo_entry
 						   *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the mount identifier of a given mount entry.
- **/
-int sc_mountinfo_entry_mount_id(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the parent mount identifier of a given mount entry.
- **/
-int sc_mountinfo_entry_parent_id(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-unsigned sc_mountinfo_entry_dev_major(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-unsigned sc_mountinfo_entry_dev_minor(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the root directory of a given mount entry.
- **/
-const char *sc_mountinfo_entry_root(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the mount point of a given mount entry.
- **/
-const char *sc_mountinfo_entry_mount_dir(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the mount options of a given mount entry.
- **/
-const char *sc_mountinfo_entry_mount_opts(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get optional tagged data associated of a given mount entry.
- *
- * The return value is a string (possibly empty but never NULL) in the format
- * tag[:value]. Known tags are:
- *
- * "shared:X":
- * 		mount is shared in peer group X
- * "master:X":
- * 		mount is slave to peer group X
- * "propagate_from:X"
- * 		mount is slave and receives propagation from peer group X (*)
- * "unbindable":
- * 		mount is unbindable
- *
- * (*) X is the closest dominant peer group under the process's root.
- * If X is the immediate master of the mount, or if there's no dominant peer
- * group under the same root, then only the "master:X" field is present and not
- * the "propagate_from:X" field.
- **/
-const char *sc_mountinfo_entry_optional_fields(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the file system type of a given mount entry.
- **/
-const char *sc_mountinfo_entry_fs_type(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the source of a given mount entry.
- **/
-const char *sc_mountinfo_entry_mount_source(struct sc_mountinfo_entry *entry)
-    __attribute__ ((nonnull(1)));
-
-/**
- * Get the super block options of a given mount entry.
- **/
-const char *sc_mountinfo_entry_super_opts(struct sc_mountinfo_entry *entry)
     __attribute__ ((nonnull(1)));
 
 #endif

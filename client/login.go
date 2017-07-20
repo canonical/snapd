@@ -87,7 +87,7 @@ func (client *Client) LoggedInUser() *User {
 	return u
 }
 
-const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+const authFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
 
 func storeAuthDataFilename(homeDir string) string {
 	if fn := os.Getenv(authFileEnvKey); fn != "" {

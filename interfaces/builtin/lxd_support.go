@@ -21,7 +21,25 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
+
+const lxdSupportSummary = `allows operating as the LXD service`
+
+const lxdSupportBaseDeclarationPlugs = `
+  lxd-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const lxdSupportBaseDeclarationSlots = `
+  lxd-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const lxdSupportConnectedPlugAppArmor = `
 # Description: Can change to any apparmor profile (including unconfined) thus
@@ -37,43 +55,45 @@ const lxdSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
-type LxdSupportInterface struct{}
+type lxdSupportInterface struct{}
 
-func (iface *LxdSupportInterface) Name() string {
+func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(lxdSupportConnectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(lxdSupportConnectedPlugSecComp), nil
+func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              lxdSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationPlugs: lxdSupportBaseDeclarationPlugs,
+		BaseDeclarationSlots: lxdSupportBaseDeclarationSlots,
 	}
-	return nil, nil
 }
 
-func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *lxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&lxdSupportInterface{})
 }

@@ -32,11 +32,11 @@ import (
 )
 
 var shortChangesHelp = i18n.G("List system changes")
-var shortChangeHelp = i18n.G("List a change's tasks")
+var shortTasksHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
 The changes command displays a summary of the recent system changes performed.`)
-var longChangeHelp = i18n.G(`
-The change command displays a summary of tasks associated to an individual change.`)
+var longTasksHelp = i18n.G(`
+The tasks command displays a summary of tasks associated to an individual change.`)
 
 type cmdChanges struct {
 	Positional struct {
@@ -44,15 +44,15 @@ type cmdChanges struct {
 	} `positional-args:"yes"`
 }
 
-type cmdChange struct {
-	Positional struct {
-		ID changeID `positional-arg-name:"<id>" required:"yes"`
-	} `positional-args:"yes"`
-}
+type cmdTasks struct{ changeIDMixin }
 
 func init() {
-	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
+	addCommand("changes", shortChangesHelp, longChangesHelp,
+		func() flags.Commander { return &cmdChanges{} }, nil, nil)
+	addCommand("tasks", shortTasksHelp, longTasksHelp,
+		func() flags.Commander { return &cmdTasks{} },
+		changeIDMixinOptDesc,
+		changeIDMixinArgDesc).alias = "change"
 }
 
 type changesByTime []*client.Change
@@ -70,7 +70,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	if allDigits(c.Positional.Snap) {
 		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap tasks %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
@@ -113,9 +113,18 @@ func (c *cmdChanges) Execute(args []string) error {
 	return nil
 }
 
-func (c *cmdChange) Execute([]string) error {
+func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(string(c.Positional.ID))
+	id, err := c.GetChangeID(cli)
+	if err != nil {
+		return err
+	}
+
+	return showChange(cli, id)
+}
+
+func showChange(cli *client.Client, chid string) error {
+	chg, err := cli.Change(chid)
 	if err != nil {
 		return err
 	}

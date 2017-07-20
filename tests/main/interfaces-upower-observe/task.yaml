@@ -1,7 +1,9 @@
 summary: Ensure that the upower-observe interface works.
 
-# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
+systems:
+    - -ubuntu-core-16-*
+    # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
+    - -ubuntu-*-ppc64el
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history
@@ -17,15 +19,10 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
-    apt-get install -y upower
-
 restore: |
     rm -f upower.error
-    apt-get remove --purge -y upower
-    apt-get autoremove --purge -y
 
 execute: |
-    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN=":upower-observe +test-snapd-upower-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-upower-observe-consumer:upower-observe"
 
@@ -35,20 +32,22 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap is not able to dump info about the upower devices"
-    if su -l -c "test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error" test; then
-        echo "Expected permission error accessing upower info with disconnected plug"
-        exit 1
-    fi
-    grep -q "Permission denied" upower.error
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Then the snap is not able to dump info about the upower devices"
+        if su -l -c "test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error" test; then
+            echo "Expected permission error accessing upower info with disconnected plug"
+            exit 1
+        fi
+        grep -q "Permission denied" upower.error
 
-    echo "==================================="
+        echo "==================================="
+    fi
 
     echo "When the plug is connected"
-    snap connect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
+    snap connect test-snapd-upower-observe-consumer:upower-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to dump info about the upower devices"

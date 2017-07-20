@@ -121,13 +121,13 @@ func runCmd(cmd *exec.Cmd, errdesc string) error {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		output = bytes.TrimSpace(output)
 		if exitCode, err := ExitCode(err); err == nil {
-			return &ErrCopySpecialFile{
+			return &CopySpecialFileError{
 				desc:     errdesc,
 				exitCode: exitCode,
 				output:   output,
 			}
 		}
-		return &ErrCopySpecialFile{
+		return &CopySpecialFileError{
 			desc:   errdesc,
 			err:    err,
 			output: output,
@@ -154,15 +154,15 @@ func CopySpecialFile(path, dest string) error {
 	return runSync(filepath.Dir(dest))
 }
 
-// ErrCopySpecialFile is returned if a special file copy fails
-type ErrCopySpecialFile struct {
+// CopySpecialFileError is returned if a special file copy fails
+type CopySpecialFileError struct {
 	desc     string
 	exitCode int
 	output   []byte
 	err      error
 }
 
-func (e ErrCopySpecialFile) Error() string {
+func (e CopySpecialFileError) Error() string {
 	if e.err == nil {
 		return fmt.Sprintf("failed to %s: %q (%v)", e.desc, e.output, e.exitCode)
 	}

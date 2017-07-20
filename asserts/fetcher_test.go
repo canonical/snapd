@@ -21,7 +21,6 @@ package asserts_test
 
 import (
 	"crypto"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -61,10 +60,6 @@ func makeDigest(rev int) string {
 		panic(err)
 	}
 	return string(d)
-}
-
-func makeHexDigest(rev int) string {
-	return hex.EncodeToString(fakeHash(rev))
 }
 
 func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {

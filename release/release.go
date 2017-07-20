@@ -21,7 +21,9 @@ package release
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -35,30 +37,34 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+var (
+	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
+	requiredApparmorFeatures = []string{
+		"caps",
+		"dbus",
+		"domain",
+		"file",
+		"mount",
+		"namespaces",
+		"network",
+		"ptrace",
+		"signal",
+	}
+)
+
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
-func (os *OS) ForceDevMode() bool {
-	switch os.ID {
-	case "neon":
-		return false
-	case "ubuntu":
-		return false
-	case "ubuntu-core":
-		return false
-	case "elementary":
-		switch os.VersionID {
-		case "0.4":
-			return false
-		default:
+func (o *OS) ForceDevMode() bool {
+	for _, req := range requiredApparmorFeatures {
+		// Also ensure appamor is enabled (cannot use
+		// osutil.FileExists() here because of cyclic imports)
+		p := filepath.Join(apparmorFeaturesSysPath, req)
+		if _, err := os.Stat(p); err != nil {
 			return true
 		}
-	default:
-		// NOTE: Other distributions can move out of devmode by
-		// integrating with the interface security backends. This will
-		// be documented separately in the porting guide.
-		return true
 	}
 
+	return false
 }
 
 var (
@@ -141,4 +147,31 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 	old := ReleaseInfo
 	ReleaseInfo = *osRelease
 	return func() { ReleaseInfo = old }
+}
+
+// MockForcedDevmode fake the system to believe its in a distro
+// that is in ForcedDevmode
+func MockForcedDevmode(isDevmode bool) (restore func()) {
+	oldApparmorFeaturesSysPath := apparmorFeaturesSysPath
+
+	temp, err := ioutil.TempDir("", "mock-forced-devmode")
+	if err != nil {
+		panic(err)
+	}
+	fakeApparmorFeaturesSysPath := filepath.Join(temp, "apparmor")
+	if !isDevmode {
+		for _, req := range requiredApparmorFeatures {
+			if err := os.MkdirAll(filepath.Join(fakeApparmorFeaturesSysPath, req), 0755); err != nil {
+				panic(err)
+			}
+		}
+	}
+	apparmorFeaturesSysPath = fakeApparmorFeaturesSysPath
+
+	return func() {
+		if err := os.RemoveAll(temp); err != nil {
+			panic(err)
+		}
+		apparmorFeaturesSysPath = oldApparmorFeaturesSysPath
+	}
 }

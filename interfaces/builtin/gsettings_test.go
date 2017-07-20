@@ -23,8 +23,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type GsettingsInterfaceSuite struct {
@@ -33,23 +37,29 @@ type GsettingsInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
+const gsettingsMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [gsettings]
+`
+
 var _ = Suite(&GsettingsInterfaceSuite{
-	iface: builtin.NewGsettingsInterface(),
-	slot: &interfaces.Slot{
+	iface: builtin.MustInterface("gsettings"),
+})
+
+func (s *GsettingsInterfaceSuite) SetUpTest(c *C) {
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "gsettings",
 			Interface: "gsettings",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "gsettings",
-			Interface: "gsettings",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, gsettingsMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["gsettings"]}
+}
 
 func (s *GsettingsInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "gsettings")
@@ -78,13 +88,30 @@ func (s *GsettingsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "gsettings"`)
 }
 
+func (s *GsettingsInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `dconf.Writer`)
+}
+
 func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
+
+	// connected plugs have nil security snippet for seccomp
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 0)
+}
+
+func (s *GsettingsInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

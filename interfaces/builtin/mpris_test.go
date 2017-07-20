@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -37,22 +38,30 @@ type MprisInterfaceSuite struct {
 }
 
 var _ = Suite(&MprisInterfaceSuite{
-	iface: &builtin.MprisInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "mpris"},
-			Name:      "mpris-player",
-			Interface: "mpris",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "mpris"},
-			Name:      "mpris-client",
-			Interface: "mpris",
-		},
-	},
+	iface: builtin.MustInterface("mpris"),
 })
+
+func (s *MprisInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [mpris]
+`
+	var mockSlotSnapInfoYaml = `name: mpris
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [mpris]
+`
+
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["mpris"]}
+	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: snapInfo.Slots["mpris"]}
+}
 
 func (s *MprisInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "mpris")
@@ -68,8 +77,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 }
@@ -83,8 +91,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "@{SNAP_NAME}")
 }
@@ -98,8 +105,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid name element: \"foo.bar\"")
 	c.Assert(name, Equals, "")
@@ -116,8 +122,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, `name element \[foo\] is not a string`)
 	c.Assert(name, Equals, "")
@@ -133,8 +138,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	name, err := builtin.MprisGetName(iface, slot.Attrs)
+	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "unknown attribute 'unknown'")
 	c.Assert(name, Equals, "")
@@ -155,9 +159,12 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps are bound to the mpris slot
@@ -176,17 +183,12 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
-}
 
-func (s *MprisInterfaceSuite) TestConnectedPlugSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the mpris slot
@@ -203,9 +205,12 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.mpris.app"),`)
 }
 
 // The label glob when all apps are bound to the mpris plug
@@ -223,9 +228,12 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the mpris plug
@@ -244,9 +252,12 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the mpris plug
@@ -263,18 +274,22 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, `peer=(label="snap.mpris.app"),`)
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
 
 	// verify bind rule
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorWithName(c *C) {
@@ -284,62 +299,48 @@ slots:
  mpris-slot:
   interface: mpris
   name: foo
+apps:
+ app:
+  command: foo
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
-	iface := &builtin.MprisInterface{}
-	snippet, err := iface.PermanentSlotSnippet(slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris-client.app"})
 
 	// verify bind rule
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.foo{,.*}\",\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris-client.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.foo{,.*}\",\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorNative(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-	iface := &builtin.MprisInterface{}
-	snippet, err := iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
 
 	// verify classic rule not present
-	c.Check(string(snippet), Not(testutil.Contains), "# Allow unconfined clients to interact with the player on classic\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), Not(testutil.Contains), "# Allow unconfined clients to interact with the player on classic\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	iface := &builtin.MprisInterface{}
-	snippet, err := iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
 
 	// verify classic rule present
-	c.Check(string(snippet), testutil.Contains, "# Allow unconfined clients to interact with the player on classic\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "# Allow unconfined clients to interact with the player on classic\n")
 }
 
-func (s *MprisInterfaceSuite) TestPermanentSlotSecComp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
-}
-
-func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+func (s *MprisInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

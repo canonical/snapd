@@ -106,6 +106,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		"type": "sync",
 		"result": [{
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
@@ -126,6 +127,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:            "funky-snap-id",
+		Title:         "Title",
 		Summary:       "salutation snap",
 		Description:   "hello-world",
 		DownloadSize:  22212,
@@ -140,9 +142,6 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Private:       true,
 		DevMode:       false,
 	}})
-	otherApps, err := cs.cli.List([]string{"foo"}, nil)
-	c.Check(err, check.IsNil)
-	c.Check(otherApps, check.HasLen, 0)
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
@@ -174,6 +173,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		"type": "sync",
 		"result": {
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
 			"download-size": 6930947,
@@ -203,6 +203,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
+		Title:         "Title",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",

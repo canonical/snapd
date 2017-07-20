@@ -19,15 +19,25 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/release"
+)
+
+const fuseSupportSummary = `allows access to the FUSE file system`
+
+const fuseSupportBaseDeclarationSlots = `
+  fuse-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
 
 mount
-# for communicating with kernel
-recvmsg
 `
 
 const fuseSupportConnectedPlugAppArmor = `
@@ -73,12 +83,16 @@ deny /etc/fuse.conf r,
 #/{,usr/}bin/fusermount ixr,
 `
 
-// NewFuseControlInterface returns a new "fuse-support" interface.
-func NewFuseSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "fuse-support",
+func init() {
+	// Ubuntu 14.04 does not support the fuse-support interface.
+	registerIface(&commonInterface{
+		name:                  "fuse-support",
+		summary:               fuseSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
+		reservedForOS:         true,
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
-		reservedForOS:         true,
-	}
+	})
 }

@@ -24,11 +24,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -36,6 +39,9 @@ func init() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
+	// set here to avoid accidental submits in e.g. unit tests
+	errtracker.CrashDbURLBase = "https://daisy.ubuntu.com/"
+	errtracker.SnapdVersion = cmd.Version
 }
 
 func main() {
@@ -47,6 +53,7 @@ func main() {
 }
 
 func run() error {
+	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
@@ -60,6 +67,10 @@ func run() error {
 
 	d.Start()
 
+	// notify systemd that we are ready
+	systemd.SdNotify("READY=1")
+	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
+
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	select {
@@ -69,5 +80,6 @@ func run() error {
 		// something called Stop()
 	}
 
+	systemd.SdNotify("STOPPING=1")
 	return d.Stop()
 }

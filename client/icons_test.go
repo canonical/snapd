@@ -44,7 +44,7 @@ func (cs *clientSuite) TestClientIconHttpError(c *C) {
 }
 
 func (cs *clientSuite) TestClientIconResponseNotFound(c *C) {
-	cs.status = http.StatusNotFound
+	cs.status = 404
 	_, err := cs.cli.Icon(pkgID)
 	c.Assert(err, ErrorMatches, `.*Not Found`)
 }

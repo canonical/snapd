@@ -28,7 +28,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func findSnapDeclaration(snapID, name string, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
+type Finder interface {
+	// Find an assertion based on arbitrary headers.
+	// Provided headers must contain the primary key for the assertion type.
+	// It returns ErrNotFound if the assertion cannot be found.
+	Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error)
+}
+
+func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclaration, error) {
 	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  release.Series,
 		"snap-id": snapID,
@@ -46,7 +53,7 @@ func findSnapDeclaration(snapID, name string, db asserts.RODatabase) (*asserts.S
 }
 
 // CrossCheck tries to cross check the name, hash digest and size of a snap plus its metadata in a SideInfo with the relevant snap assertions in a database that should have been populated with them.
-func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db asserts.RODatabase) error {
+func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db Finder) error {
 	// get relevant assertions and do cross checks
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,
@@ -79,7 +86,7 @@ func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, d
 }
 
 // DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with asserts.ErrNotFound if it cannot find them.
-func DeriveSideInfo(snapPath string, db asserts.RODatabase) (*snap.SideInfo, error) {
+func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
 	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err

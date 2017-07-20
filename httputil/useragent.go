@@ -60,7 +60,30 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s", version,
+		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
+		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
+		sanitizeKernelVersion(release.KernelVersion()))
+}
+
+func sanitizeKernelVersion(in string) string {
+	out := stripUnsafeRunes(in)
+	// Arbitrary choice, limit kernel version to 25 characters
+	if len(out) > 25 {
+		out = out[:25]
+	}
+	return out
+}
+
+func safeRuneMapper(r rune) rune {
+	if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
+		return r
+	}
+	return -1
+}
+
+func stripUnsafeRunes(in string) string {
+	return strings.Map(safeRuneMapper, in)
 }
 
 // UserAgent returns the user-agent string setup through SetUserAgentFromVersion.

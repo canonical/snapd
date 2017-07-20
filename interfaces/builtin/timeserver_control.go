@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const timeserverControlSummary = `allows setting system time synchronization servers`
+
+const timeserverControlBaseDeclarationSlots = `
+  timeserver-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
@@ -29,7 +35,6 @@ const timeserverControlConnectedPlugAppArmor = `
 # Can enable system clock NTP synchronization via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -67,25 +72,22 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=unconfined),
-`
-const timeserverControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
+
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus method for controlling network time synchronization via
+# timedatectl's set-ntp command.
+/usr/bin/timedatectl{,.real} ixr,
 `
 
-// NewTimeserverControlInterface returns a new "timeserver-control" interface.
-func NewTimeserverControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "timeserver-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "timeserver-control",
+		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

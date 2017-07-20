@@ -1,0 +1,73 @@
+summary: core revert test
+
+systems: [ubuntu-16.04-64]
+
+prepare: |
+    . "$TESTSLIB/nested.sh"
+    create_nested_core_vm
+
+restore: |
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_core_vm
+
+debug: |
+    systemctl stop nested-vm || true
+    if [ -f /tmp/work-dir/ubuntu-core.img ]; then
+        loops=$(kpartx -avs /tmp/work-dir/ubuntu-core.img | cut -d' ' -f 3)
+
+        part=$(echo "$loops" | tail -1)
+
+        tmp=$(mktemp -d)
+        mount "/dev/mapper/$part" "$tmp"
+
+        grep --text "hsearch_r failed for.* No such process" "$tmp/system-data/var/log/syslog"
+
+        umount "$tmp"
+        rm -rf "$tmp"
+        kpartx -ds /tmp/work-dir/ubuntu-core.img
+    fi
+
+kill-timeout: 40m
+
+execute: |
+    . "$TESTSLIB/nested.sh"
+
+    cd "$SPREAD_PATH"
+    execute_remote "sudo snap install network-manager"
+    execute_remote "sudo snap install bluez"
+    execute_remote "sudo bluez.bluetoothctl -a"
+    execute_remote "snap aliases" | MATCH "nmcli"
+
+    # configure network-manager to take over the connection control on next reboot
+    execute_remote "sudo mv /etc/netplan/00-snapd-config.yaml /etc/netplan/00-snapd-config.yaml.back"
+    execute_remote "sudo sed -i 's/unmanaged-devices+=interface-name:eth*/#unmanaged-devices+=interface-name:eth*/' /var/snap/network-manager/current/conf.d/disable-ethernet.conf"
+
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
+    execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
+
+    wait_for_ssh
+
+    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do sleep 1 ; done
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
+    # make sure network-manager is on charge of eth0
+    execute_remote "nmcli c" | MATCH eth0
+    execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
+    execute_remote "sudo bluez.bluetoothctl -a"
+    # sanity check, no refresh should be done here but the command shouldn't fail
+    execute_remote "sudo snap refresh"
+
+    execute_remote "snap aliases" | MATCH "nmcli"
+
+    execute_remote "sudo snap revert core" || true
+
+    wait_for_ssh
+
+    while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+    execute_remote "snap aliases" | MATCH "nmcli"
+    execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
+    execute_remote "ifconfig" | MATCH eth0
+    execute_remote "sudo bluez.bluetoothctl -a"
+    # this currently fails, refresh from the old version conflicts with aliases
+    # execute_remote "sudo snap refresh"
+
+    execute_remote "sudo cat /var/log/syslog" | MATCH -v "hsearch_r failed for.* No such process"

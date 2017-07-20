@@ -30,7 +30,7 @@ import (
 type cmdInterfaces struct {
 	Interface   string `short:"i"`
 	Positionals struct {
-		Query SnapAndName `skip-help:"true"`
+		Query interfacesSlotOrPlugSpec `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -70,69 +70,70 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	}
 
 	ifaces, err := Client().Interfaces()
-	if err == nil {
-		if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
-			return fmt.Errorf(i18n.G("no interfaces found"))
+	if err != nil {
+		return err
+	}
+	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
+		return fmt.Errorf(i18n.G("no interfaces found"))
+	}
+	w := tabWriter()
+	defer w.Flush()
+	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
+	for _, slot := range ifaces.Slots {
+		if wanted := x.Positionals.Query.Snap; wanted != "" {
+			ok := wanted == slot.Snap
+			for i := 0; i < len(slot.Connections) && !ok; i++ {
+				ok = wanted == slot.Connections[i].Snap
+			}
+			if !ok {
+				continue
+			}
 		}
-		w := tabWriter()
-		fmt.Fprintln(w, i18n.G("Slot\tPlug"))
-		defer w.Flush()
-		for _, slot := range ifaces.Slots {
-			if wanted := x.Positionals.Query.Snap; wanted != "" {
-				ok := wanted == slot.Snap
-				for i := 0; i < len(slot.Connections) && !ok; i++ {
-					ok = wanted == slot.Connections[i].Snap
-				}
-				if !ok {
-					continue
-				}
+		if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Name {
+			continue
+		}
+		if x.Interface != "" && slot.Interface != x.Interface {
+			continue
+		}
+		// The OS snap is special and enable abbreviated
+		// display syntax on the slot-side of the connection.
+		if slot.Snap == "core" || slot.Snap == "ubuntu-core" {
+			fmt.Fprintf(w, ":%s\t", slot.Name)
+		} else {
+			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
+		}
+		for i := 0; i < len(slot.Connections); i++ {
+			if i > 0 {
+				fmt.Fprint(w, ",")
 			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Name {
-				continue
-			}
-			if x.Interface != "" && slot.Interface != x.Interface {
-				continue
-			}
-			// The OS snap is special and enable abbreviated
-			// display syntax on the slot-side of the connection.
-			if slot.Snap == "core" || slot.Snap == "ubuntu-core" {
-				fmt.Fprintf(w, ":%s\t", slot.Name)
+			if slot.Connections[i].Name != slot.Name {
+				fmt.Fprintf(w, "%s:%s", slot.Connections[i].Snap, slot.Connections[i].Name)
 			} else {
-				fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
+				fmt.Fprintf(w, "%s", slot.Connections[i].Snap)
 			}
-			for i := 0; i < len(slot.Connections); i++ {
-				if i > 0 {
-					fmt.Fprint(w, ",")
-				}
-				if slot.Connections[i].Name != slot.Name {
-					fmt.Fprintf(w, "%s:%s", slot.Connections[i].Snap, slot.Connections[i].Name)
-				} else {
-					fmt.Fprintf(w, "%s", slot.Connections[i].Snap)
-				}
-			}
-			// Display visual indicator for disconnected slots
-			if len(slot.Connections) == 0 {
-				fmt.Fprint(w, "-")
-			}
-			fmt.Fprintf(w, "\n")
 		}
-		// Plugs are treated differently. Since the loop above already printed each connected
-		// plug, the loop below focuses on printing just the disconnected plugs.
-		for _, plug := range ifaces.Plugs {
-			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
-				continue
-			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Name {
-				continue
-			}
-			if x.Interface != "" && plug.Interface != x.Interface {
-				continue
-			}
-			// Display visual indicator for disconnected plugs.
-			if len(plug.Connections) == 0 {
-				fmt.Fprintf(w, "-\t%s:%s\n", plug.Snap, plug.Name)
-			}
+		// Display visual indicator for disconnected slots
+		if len(slot.Connections) == 0 {
+			fmt.Fprint(w, "-")
+		}
+		fmt.Fprintf(w, "\n")
+	}
+	// Plugs are treated differently. Since the loop above already printed each connected
+	// plug, the loop below focuses on printing just the disconnected plugs.
+	for _, plug := range ifaces.Plugs {
+		if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
+			continue
+		}
+		if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Name {
+			continue
+		}
+		if x.Interface != "" && plug.Interface != x.Interface {
+			continue
+		}
+		// Display visual indicator for disconnected plugs.
+		if len(plug.Connections) == 0 {
+			fmt.Fprintf(w, "-\t%s:%s\n", plug.Snap, plug.Name)
 		}
 	}
-	return err
+	return nil
 }

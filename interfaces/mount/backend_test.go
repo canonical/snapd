@@ -81,6 +81,10 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = ioutil.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
+	snapCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.fstab")
+	err = ioutil.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	c.Assert(err, IsNil)
+
 	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
 	err = ioutil.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
@@ -92,6 +96,7 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = s.Backend.Remove("hello-world")
 	c.Assert(err, IsNil)
 
+	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
 	content, err := ioutil.ReadFile(appCanaryToStay)
@@ -119,16 +124,16 @@ slots:
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntry1 := "/src-1 /dst-1 none bind,ro 0 0"
-	fsEntry2 := "/src-2 /dst-2 none bind,ro 0 0"
+	fsEntry1 := mount.Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddSnippet(fsEntry1)
+		return spec.AddMountEntry(fsEntry1)
 	}
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet(fsEntry2)
+		return spec.AddMountEntry(fsEntry2)
 	}
 
 	// confinement options are irrelevant to this security backend
@@ -138,6 +143,13 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	// (because mount profiles are global in the whole snap)
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	sort.Strings(expected)
+	// and that we have the modern fstab file (global for snap)
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
 	// and that we have the legacy, per app/hook files as well.
 	for _, binary := range []string{"app1", "app2", "hook.configure"} {
 		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
@@ -151,7 +163,7 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddSnippet("")
+		return spec.AddMountEntry(mount.Entry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand

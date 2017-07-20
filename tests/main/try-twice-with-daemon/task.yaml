@@ -1,5 +1,5 @@
 summary: Check that try command works when daemon line is added to snap.yaml
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 environment:
   SERVICE: snap.test-snapd-service-try.service.service
@@ -10,7 +10,7 @@ execute: |
   snap try $TESTSLIB/snaps/test-snapd-service-try-v1
 
   echo "Then the snap is listed as installed with try in the notes"
-  snap list | grep -Pq "^test-snapd-service-try +.*?try"
+  snap list | MATCH "^test-snapd-service-try .* try"
 
   # Sanity check just to ensure the test and its input yaml are correct
   echo "And it doesn't have a systemd service just yet"
@@ -24,7 +24,7 @@ execute: |
   echo "When snap.yaml is updated with the daemon line added"
   echo "Then it can be tried again"
   snap try $TESTSLIB/snaps/test-snapd-service-try-v2
-  snap list | grep -Pq "^test-snapd-service-try +.*?try"
+  snap list | MATCH "^test-snapd-service-try .* try"
   echo "And a service is now loaded with systemd"
 
   expected_output="LoadState=loaded"

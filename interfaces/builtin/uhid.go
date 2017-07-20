@@ -20,11 +20,22 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
+
+const uhidSummary = `allows control over UHID devices`
+
+const uhidBaseDeclarationSlots = `
+  uhid:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const uhidConnectedPlugAppArmor = `
 # Description: Allows accessing the UHID to create kernel
@@ -34,18 +45,27 @@ const uhidConnectedPlugAppArmor = `
   /dev/uhid rw,
 `
 
-type UhidInterface struct{}
+type uhidInterface struct{}
 
-func (iface *UhidInterface) Name() string {
+func (iface *uhidInterface) Name() string {
 	return "uhid"
 }
 
-func (iface *UhidInterface) String() string {
+func (iface *uhidInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              uhidSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: uhidBaseDeclarationSlots,
+	}
+}
+
+func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
 // Check the validity of the slot
-func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// First check the type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -55,7 +75,7 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Check and possibly modify a plug
-func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -63,41 +83,25 @@ func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// No permmissions granted to slot permanently
-func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(uhidConnectedPlugAppArmor)
+	return nil
 }
 
-// Getter for the security system specific to the plug
-func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(uhidConnectedPlugAppArmor), nil
-
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-		const udevRule = `KERNEL=="uhid", TAG+="%s"`
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
-			tagSnippet.WriteString("\n")
-		}
-		return tagSnippet.Bytes(), nil
+func (iface *uhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	const udevRule = `KERNEL=="uhid", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
-	return nil, nil
+	return nil
 }
 
-// No extra permissions granted on connection
-func (iface *UhidInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permmissions granted to plug permanently
-func (iface *UhidInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *uhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declaration
 	return true
+}
+
+func init() {
+	registerIface(&uhidInterface{})
 }

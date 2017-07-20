@@ -2,9 +2,9 @@ summary: Check that snap download works
 execute: |
     verify_asserts() {
         fn="$1"
-        grep "type: account-key" "$fn"
-        grep "type: snap-declaration" "$fn"
-        grep "type: snap-revision" "$fn"
+        MATCH "type: account-key" < "$fn"
+        MATCH "type: snap-declaration" < "$fn"
+        MATCH "type: snap-revision" < "$fn"
     }
     echo "Snap download can download snaps"
     snap download test-snapd-control-consumer
@@ -22,7 +22,7 @@ execute: |
     verify_asserts classic_*.assert
 
     echo "Snap download can download snaps as user"
-    su -l -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap download test-snapd-tools" test
+    su -l -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE HTTPS_PROXY=$HTTPS_PROXY snap download test-snapd-tools" test
     ls /home/test/test-snapd-tools_*.snap
     verify_asserts /home/test/test-snapd-tools_*.assert
 restore: |

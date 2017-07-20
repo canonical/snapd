@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,6 +19,14 @@
 
 package image
 
+import (
+	"github.com/snapcore/snapd/overlord/auth"
+)
+
+func MockToolingStore(sto Store) *ToolingStore {
+	return &ToolingStore{sto: sto}
+}
+
 var (
 	LocalSnaps           = localSnaps
 	DecodeModelAssertion = decodeModelAssertion
@@ -26,3 +34,7 @@ var (
 	BootstrapToRootDir   = bootstrapToRootDir
 	InstallCloudConfig   = installCloudConfig
 )
+
+func (tsto *ToolingStore) User() *auth.UserState {
+	return tsto.user
+}

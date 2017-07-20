@@ -99,20 +99,27 @@ func checkVersion(version string) bool {
 	return true
 }
 
-type ErrSnapNeedsMode struct {
-	Mode snap.ConfinementType
+type SnapNeedsDevModeError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsMode) Error() string {
-	return fmt.Sprintf("snap %q requires %s or confinement override", e.Snap, e.Mode)
+func (e *SnapNeedsDevModeError) Error() string {
+	return fmt.Sprintf("snap %q requires devmode or confinement override", e.Snap)
 }
 
-type ErrSnapNeedsClassicSystem struct {
+type SnapNeedsClassicError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsClassicSystem) Error() string {
+func (e *SnapNeedsClassicError) Error() string {
+	return fmt.Sprintf("snap %q requires classic confinement", e.Snap)
+}
+
+type SnapNeedsClassicSystemError struct {
+	Snap string
+}
+
+func (e *SnapNeedsClassicSystemError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
@@ -128,13 +135,12 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		if flags.DevModeAllowed() {
 			return nil
 		}
-		return &ErrSnapNeedsMode{
-			Mode: c,
+		return &SnapNeedsDevModeError{
 			Snap: info.Name(),
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return &ErrSnapNeedsClassicSystem{Snap: info.Name()}
+			return &SnapNeedsClassicSystemError{Snap: info.Name()}
 		}
 
 		if flags.Classic {
@@ -145,8 +151,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 
-		return &ErrSnapNeedsMode{
-			Mode: c,
+		return &SnapNeedsClassicError{
 			Snap: info.Name(),
 		}
 	default:
@@ -272,14 +277,9 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 		return nil
 	}
 
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a %s snap on classic", kind)
-	}
-
 	currentSnap, err := currentInfo(st)
 	// in firstboot we have no gadget/kernel yet - that is ok
-	// devicestate considers that case
+	// first install rules are in devicestate!
 	if err == state.ErrNoState {
 		return nil
 	}

@@ -1,6 +1,6 @@
 summary: Check that alias symlinks work correctly
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     echo Ensure we have a os snap with snap run
@@ -10,8 +10,9 @@ prepare: |
     install_local test-snapd-tools
 
 restore: |
-    rm -f /snap/bin/test_echo
-    rm -f /snap/bin/test_cat
+    . $TESTSLIB/dirs.sh
+    rm -f $SNAPMOUNTDIR/bin/test_echo
+    rm -f $SNAPMOUNTDIR/bin/test_cat
     rm -f orig.txt
     rm -f new.txt
 
@@ -20,14 +21,17 @@ environment:
     APP/testsnapdtoolscat: test-snapd-tools.cat
     ALIAS/testsnapdtoolsecho: test_echo
     ALIAS/testsnapdtoolscat: test_cat
-    SNAP: /snap/test-snapd-tools/current
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
+    SNAP=$SNAPMOUNTDIR/test-snapd-tools/current
+
     echo Testing that creating an alias symlinks works
     $APP $SNAP/bin/cat
     $APP $SNAP/bin/cat > orig.txt 2>&1
 
-    ln -s $APP /snap/bin/$ALIAS
+    ln -s $APP $SNAPMOUNTDIR/bin/$ALIAS
 
     $ALIAS $SNAP/bin/cat
     $ALIAS $SNAP/bin/cat > new.txt 2>&1

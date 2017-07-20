@@ -37,6 +37,7 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
 
+BUILT_USING_PACKAGES=
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 # DPKG_EXPORT_BUILDFLAGS = 1
 # include /usr/share/dpkg/buildflags.mk
@@ -47,10 +48,22 @@ endif
 # security of the system.  Discuss a proper approach to this for downstreams
 # if and when they approach us
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-    VENDOR_ARGS=--enable-nvidia-ubuntu
+    # On Ubuntu 16.04 we need to produce a build that can be used on wide
+    # variety of systems. As such we prefer static linking over dynamic linking
+    # for stability, predicability and easy of deployment. We need to link some
+    # things dynamically though: udev has no stable IPC protocol between
+    # libudev and udevd so we need to link with it dynamically.
+    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
+else
+ifeq ($(shell dpkg-vendor --query Vendor),Debian)
+    VENDOR_ARGS=--disable-apparmor --disable-seccomp
+    BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
 endif
+endif
+BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
@@ -58,8 +71,16 @@ endif
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
 
+
+# The .real profile is a workaround for a bug in dpkg LP: #1673247 that causes
+# ubiquity to crash. It allows us to "move" the snap-confine profile from
+# snap-confine into snapd in a way that works with old dpkg that is in the live
+# CD image.
+#
+# Because both the usual and the .real profile describe the same binary the
+# .real profile takes priority (as it is loaded later).
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
+	dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
 	dh_installdeb
 
 override_dh_clean:
@@ -67,16 +88,17 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
 	# this will be set by the GITHUB webhook to trigger a autopkgtest
 	# we only need to run "govendor sync" here and then its ready
 	(export GOPATH="/tmp/go"; \
-	  mkdir -p $$GOPATH/src/github.com/snapcore/; \
-          cp -ar . $$GOPATH/src/github.com/snapcore/snapd; \
+	  mkdir -p /tmp/go/src/github.com/snapcore/; \
+          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
 	  go get -u github.com/kardianos/govendor; \
-	  (cd $$GOPATH/src/github.com/snapcore/snapd ; $$GOPATH/bin/govendor sync); \
-	  cp -ar $$GOPATH/src/github.com/snapcore/snapd/vendor/ .; \
+	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
+	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
         )
 endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/systemd clean
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -89,6 +111,9 @@ override_dh_auto_build:
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
+
+	# Generate the real systemd units out of the available templates
+	$(MAKE) -C data/systemd all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -108,6 +133,24 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
+	# we want the auto-update timer enabled by default
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snapd.refresh.timer
+	# but the auto-update service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-psnapd \
+		data/systemd/snapd.refresh.service
+	# we want the repair timer enabled by default
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snap-repair.timer
+	# but the repair service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-psnapd \
+		data/systemd/snap-repair.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
@@ -118,8 +161,20 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.system-shutdown.service
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_systemd_start:
+	# we want to start the auto-update timer
+	dh_systemd_start \
+		-psnapd \
+		data/systemd/snapd.refresh.timer
+	# but not start the service
+	dh_systemd_start \
+		--no-start \
+		-psnapd \
+		data/systemd/snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
@@ -131,12 +186,13 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
+	dh_systemd_start \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
-	# uboot-go is not shippable
-	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
 	# toolbelt is not shippable
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
@@ -146,15 +202,24 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+
 	# install snapd's systemd units, done here instead of
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
-	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+
+	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+else
+	# HACK: As we want to share the packaging bits between Debian and Ubuntu
+	# we have to get an empty file in place which satisfies the item in
+	# the snapd.install file.
+	install -d $(CURDIR)/debian/tmp/etc/apparmor.d
+	touch $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+endif
 	dh_install
 
 override_dh_auto_install: snap.8
@@ -166,3 +231,6 @@ snap.8:
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang
 	rm -vf snap.8
+
+override_dh_gencontrol:
+	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"

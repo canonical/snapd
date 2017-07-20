@@ -29,40 +29,47 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	Snippets []string
+	mountEntries []Entry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddSnippet(snippet string) error {
-	spec.Snippets = append(spec.Snippets, snippet)
+func (spec *Specification) AddMountEntry(e Entry) error {
+	spec.mountEntries = append(spec.mountEntries, e)
 	return nil
+}
+
+// MountEntries returns a copy of the added mount entries.
+func (spec *Specification) MountEntries() []Entry {
+	result := make([]Entry, len(spec.mountEntries))
+	copy(result, spec.mountEntries)
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
 
-// ConnectedPlug records mount-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// AddConnectedPlug records mount-specific side-effects of having a connected plug.
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		MountConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		MountConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedPlug(spec, plug, slot)
+		return iface.MountConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
-// ConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// AddConnectedSlot records mount-specific side-effects of having a connected slot.
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		MountConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		MountConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedSlot(spec, plug, slot)
+		return iface.MountConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
-// PermanentPlug records mount-specific side-effects of having a plug.
+// AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
 		MountPermanentPlug(spec *Specification, plug *interfaces.Plug) error
@@ -73,7 +80,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// PermanentSlot records mount-specific side-effects of having a slot.
+// AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
 		MountPermanentSlot(spec *Specification, slot *interfaces.Slot) error

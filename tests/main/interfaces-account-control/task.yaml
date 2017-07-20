@@ -10,14 +10,15 @@ prepare: |
     install_local account-control-consumer
 
     echo "And the account-control plug is connected"
-    . "$TESTSLIB/names.sh"
-    snap connect account-control-consumer:account-control ${core_name}
+    snap connect account-control-consumer:account-control
 
 systems: [ubuntu-core-16-64]
 
 execute: |
-    /snap/bin/account-control-consumer.useradd --extrausers alice
-    echo alice:password |/snap/bin/account-control-consumer.chpasswd
+    . $TESTSLIB/dirs.sh
+
+    $SNAPMOUNTDIR/bin/account-control-consumer.useradd --extrausers alice
+    echo alice:password | $SNAPMOUNTDIR/bin/account-control-consumer.chpasswd
 
     # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
-    # /snap/bin/account-control-consumer.userdel --extrausers alice
+    # $SNAPMOUNTDIR/bin/account-control-consumer.userdel --extrausers alice

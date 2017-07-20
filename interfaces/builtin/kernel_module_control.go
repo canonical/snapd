@@ -19,9 +19,21 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
+
+const kernelModuleControlBaseDeclarationPlugs = `
+  kernel-module-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const kernelModuleControlBaseDeclarationSlots = `
+  kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const kernelModuleControlConnectedPlugAppArmor = `
 # Description: Allow insertion, removal and querying of modules.
@@ -29,9 +41,16 @@ const kernelModuleControlConnectedPlugAppArmor = `
   capability sys_module,
   @{PROC}/modules r,
 
-  # NOTE: needed by lscpu. In the future this may be moved to system-trace or
-  # system-observe.
+  # FIXME: moved to physical-memory-observe (remove this in series 18)
   /dev/mem r,
+
+  # Required to use SYSLOG_ACTION_READ_ALL and SYSLOG_ACTION_SIZE_BUFFER when
+  # /proc/sys/kernel/dmesg_restrict is '1' (syslog(2)). These operations are
+  # required to verify kernel modules that are loaded.
+  capability syslog,
+
+  # Allow plug side to read information about loaded kernel modules
+  /sys/module/{,**} r,
 `
 
 const kernelModuleControlConnectedPlugSecComp = `
@@ -42,12 +61,16 @@ finit_module
 delete_module
 `
 
-// NewKernelModuleControlInterface returns a new "kernel-module" interface.
-func NewKernelModuleControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "kernel-module-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "kernel-module-control",
+		summary:               kernelModuleControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

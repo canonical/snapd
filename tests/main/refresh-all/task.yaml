@@ -1,6 +1,6 @@
 summary: Check that more than one snap is refreshed.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 details: |
     We use only the fake store for this test because we currently

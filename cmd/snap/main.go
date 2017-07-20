@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -75,13 +74,14 @@ type cmdInfo struct {
 	hidden                    bool
 	optDescs                  map[string]string
 	argDescs                  []argDesc
+	alias                     string
 }
 
-// commands holds information about all non-experimental commands.
+// commands holds information about all non-debug commands.
 var commands []*cmdInfo
 
-// experimentalCommands holds information about all experimental commands.
-var experimentalCommands []*cmdInfo
+// debugCommands holds information about all debug commands.
+var debugCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
@@ -98,17 +98,17 @@ func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander
 	return info
 }
 
-// addExperimentalCommand replaces parser.addCommand() in a way that is
+// addDebugCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
-// adding experimental commands.
-func addExperimentalCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+// adding debug commands.
+func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
 	}
-	experimentalCommands = append(experimentalCommands, info)
+	debugCommands = append(debugCommands, info)
 	return info
 }
 
@@ -170,6 +170,9 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+		if c.alias != "" {
+			cmd.Aliases = append(cmd.Aliases, c.alias)
+		}
 
 		opts := cmd.Options()
 		if c.optDescs != nil && len(opts) != len(c.optDescs) {
@@ -205,11 +208,28 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			arg.Description = desc
 		}
 	}
+	// Add the debug command
+	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
+	debugCommand.Hidden = true
+	if err != nil {
+		logger.Panicf("cannot add command %q: %v", "debug", err)
+	}
+	// Add all the sub-commands of the debug command
+	for _, c := range debugCommands {
+		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		if err != nil {
+			logger.Panicf("cannot add debug command %q: %v", c.name, err)
+		}
+		cmd.Hidden = c.hidden
+	}
 	return parser
 }
 
 // ClientConfig is the configuration of the Client used by all commands.
-var ClientConfig client.Config
+var ClientConfig = client.Config{
+	// we need the powerful snapd socket
+	Socket: dirs.SnapdSocket,
+}
 
 // Client returns a new client using ClientConfig as configuration.
 func Client() *client.Client {
@@ -268,7 +288,7 @@ func main() {
 
 	// no magic /o\
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, i18n.G("error: %v\n"), err)
+		fmt.Fprintf(Stderr, errorPrefix, err)
 		os.Exit(1)
 	}
 }
@@ -297,16 +317,14 @@ func run() error {
 				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
 			}
 		}
-		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
-			u, _ := user.Current()
-			if u != nil && u.Username == "root" {
-				return fmt.Errorf(i18n.G(`%s (see "snap login --help")`), e.Message)
-			}
 
-			// TRANSLATORS: %s will be a message along the lines of "login required"
-			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
+		msg, err := errorToCmdMessage("", err, nil)
+		if err != nil {
+			return err
 		}
+
+		fmt.Fprintf(Stderr, msg)
 	}
 
-	return err
+	return nil
 }

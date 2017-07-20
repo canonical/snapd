@@ -20,18 +20,28 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
+
+const timeControlSummary = `allows setting system date and time`
+
+const timeControlBaseDeclarationSlots = `
+  time-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
 # gives full access to the RTC device nodes and relevant parts of sysfs.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -66,6 +76,12 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus methods for setting the time via timedatectl's set-time and
+# set-local-rtc commands.
+/usr/bin/timedatectl{,.real} ixr,
+
 # Allow write access to system real-time clock
 # See 'man 4 rtc' for details.
 
@@ -83,32 +99,30 @@ capability sys_time,
 # device nodes.
 /sbin/hwclock ixr,
 `
-const timeControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`
 
 // The type for the rtc interface
-type TimeControlInterface struct{}
+type timeControlInterface struct{}
 
 // Getter for the name of the rtc interface
-func (iface *TimeControlInterface) Name() string {
+func (iface *timeControlInterface) Name() string {
 	return "time-control"
 }
 
-func (iface *TimeControlInterface) String() string {
+func (iface *timeControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              timeControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: timeControlBaseDeclarationSlots,
+	}
+}
+
+func (iface *timeControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *TimeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -123,7 +137,7 @@ func (iface *TimeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -131,43 +145,25 @@ func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *TimeControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(timeControlConnectedPlugAppArmor)
+	return nil
 }
 
-// Getter for the security snippet specific to the plug
-func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(timeControlConnectedPlugAppArmor), nil
-
-	case interfaces.SecuritySecComp:
-		return []byte(timeControlConnectedPlugSecComp), nil
-
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-		const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
-		}
-		return tagSnippet.Bytes(), nil
+func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
-	return nil, nil
+	return nil
 }
 
-// No extra permissions granted on connection
-func (iface *TimeControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *TimeControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *TimeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *timeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func init() {
+	registerIface(&timeControlInterface{})
 }

@@ -1,6 +1,6 @@
 summary: Checks for local install with metadata from assertions
 # XXX we would need to bother with curl there atm
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 restore: |
     rm -f test-snapd-tools_*.{snap,assert}
 execute: |
@@ -8,7 +8,7 @@ execute: |
     snap download test-snapd-tools
 
     echo "Try to install the snap without assertions"
-    (snap install test-snapd-tools_*.snap 2>&1 || true) | grep -q 'cannot find signatures with metadata for snap "test-snapd-tools.*\.snap"'
+    (snap install test-snapd-tools_*.snap 2>&1 || true) | MATCH 'cannot find signatures with metadata for snap "test-snapd-tools.*\.snap"'
 
     echo "Add its assertions"
     snap ack test-snapd-tools_*.assert
@@ -17,7 +17,7 @@ execute: |
     snap install test-snapd-tools_*.snap
 
     echo "The revision is not a local revision"
-    snap list|grep ^test-snapd-tools|grep -E " [0-9]+\s+canonical"
+    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+canonical'
 
     echo "Test it"
     test-snapd-tools.success

@@ -37,6 +37,7 @@ type SnapOptions struct {
 	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
+	Unaliased        bool   `json:"unaliased,omitempty"`
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {

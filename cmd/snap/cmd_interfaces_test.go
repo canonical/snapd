@@ -22,7 +22,9 @@ package main_test
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
 
+	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -522,6 +524,89 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	// XXX: not sure why this is returned, I guess that's what happens when a
 	// command Execute returns an error.
 	c.Assert(rest, DeepEquals, []string{"interfaces"})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Interfaces{
+				Slots: []client.Slot{
+					{
+						Snap:      "cheese",
+						Name:      "photo-trigger",
+						Interface: "bool-file",
+						Label:     "Photo trigger",
+					},
+					{
+						Snap:      "wake-up-alarm",
+						Name:      "toggle",
+						Interface: "bool-file",
+						Label:     "Alarm toggle",
+					},
+					{
+						Snap:      "wake-up-alarm",
+						Name:      "snooze",
+						Interface: "bool-file",
+						Label:     "Alarm snooze",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "-i", "bool-file"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot                  Plug\n" +
+		"cheese:photo-trigger  -\n" +
+		"wake-up-alarm:toggle  -\n" +
+		"wake-up-alarm:snooze  -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfacesCompletion(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Assert(r.Method, Equals, "GET")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": fortestingInterfaceList,
+			})
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+	os.Setenv("GO_FLAGS_COMPLETION", "verbose")
+	defer os.Unsetenv("GO_FLAGS_COMPLETION")
+
+	expected := []flags.Completion{}
+	parser := Parser()
+	parser.CompletionHandler = func(obtained []flags.Completion) {
+		c.Check(obtained, DeepEquals, expected)
+	}
+
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "potato:"}, {Item: "wake-up-alarm:"}}
+	_, err := parser.ParseArgs([]string{"interfaces", ""})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "paste-daemon:network-listening", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"interfaces", "pa"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"interfaces", "wa"})
+	c.Assert(err, IsNil)
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

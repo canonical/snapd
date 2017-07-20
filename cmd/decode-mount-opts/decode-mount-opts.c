@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "cannot parse given argument as a number\n");
 		return 1;
 	}
-	printf("%#lx is %s\n", mountflags, sc_mount_opt2str(mountflags));
+	char buf[1000];
+	printf("%#lx is %s\n", mountflags, sc_mount_opt2str(buf, sizeof buf, mountflags));
 	return 0;
 }
