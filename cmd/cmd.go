@@ -153,6 +153,7 @@ func ExecInCoreSnap() {
 	// Which executable are we?
 	exe, err := os.Readlink(selfExe)
 	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
 		return
 	}
 
