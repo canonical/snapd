@@ -14,7 +14,7 @@ execute: |
     cd "$SPREAD_PATH"
 
     tmp=$(mktemp -d)
-    trap 'rm $tmp' EXIT
+    trap 'rm -rf $tmp' EXIT
     curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread "$tmp"
 
     set +x
