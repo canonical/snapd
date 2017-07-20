@@ -36,6 +36,8 @@ var (
 	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
+	MaybePrintServices = maybePrintServices
+	MaybePrintCommands = maybePrintCommands
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

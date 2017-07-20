@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -406,7 +405,7 @@ type AppInfo struct {
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
-	RestartCond     systemd.RestartCondition
+	RestartCond     RestartCondition
 	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change

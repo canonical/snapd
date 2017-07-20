@@ -27,7 +27,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -64,9 +63,9 @@ type appYaml struct {
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 
-	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string                 `yaml:"slots,omitempty"`
-	PlugNames   []string                 `yaml:"plugs,omitempty"`
+	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
+	SlotNames   []string         `yaml:"slots,omitempty"`
+	PlugNames   []string         `yaml:"plugs,omitempty"`
 
 	BusName string `yaml:"bus-name,omitempty"`
 
