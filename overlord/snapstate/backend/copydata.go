@@ -40,6 +40,9 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 
 	if oldSnap == nil {
 		return os.MkdirAll(newSnap.DataDir(), 0755)
+	} else if oldSnap.Revision == newSnap.Revision {
+		// nothing to do
+		return nil
 	}
 
 	return copySnapData(oldSnap, newSnap)
@@ -47,6 +50,10 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
 func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
+	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
+		// nothing to do
+		return nil
+	}
 	err1 := b.RemoveSnapData(newInfo)
 	if err1 != nil {
 		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.Name(), err1)

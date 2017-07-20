@@ -20,11 +20,13 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	unix "syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -118,6 +120,21 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	if err != nil {
 		return err
 	}
+	done := make([]string, 0, len(oldDataDirs))
+	defer func() {
+		if err == nil {
+			return
+		}
+		// something went wrong, but we'd already written stuff. Fix that.
+		for _, newDir := range done {
+			if err := os.RemoveAll(newDir); err != nil {
+				logger.Noticef("while undoing creation of new data directory %q: %v", newDir, err)
+			}
+			if err := untrash(newDir); err != nil {
+				logger.Noticef("while restoring the old version of data directory %q: %v", newDir, err)
+			}
+		}
+	}()
 
 	newSuffix := filepath.Base(newSnap.DataDir())
 	for _, oldDir := range oldDataDirs {
@@ -126,6 +143,7 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
 			return err
 		}
+		done = append(done, newDir)
 	}
 
 	return nil
@@ -199,7 +217,19 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 
 		if _, err := os.Stat(newPath); err != nil {
 			if err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				return fmt.Errorf("cannot copy %q to %q: %v", oldPath, newPath, err)
+				msg := fmt.Sprintf("cannot copy %q to %q: %v", oldPath, newPath, err)
+				// remove the directory, in case it was a partial success
+				if e := os.RemoveAll(newPath); e != nil && !os.IsNotExist(e) {
+					msg += fmt.Sprintf("; and when trying to remove the partially-copied new data directory: %v", e)
+				}
+				// something went wrong but we already trashed what was there
+				// try to fix that; hope for the best
+				if e := untrash(newPath); e != nil {
+					// oh noes
+					msg += fmt.Sprintf("; and when trying to restore the old data directory: %v", e)
+				}
+
+				return errors.New(msg)
 			}
 		}
 	} else if !os.IsNotExist(err) {
