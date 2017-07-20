@@ -20,13 +20,75 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
+
+var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
+var svcAppInfos = []client.AppInfo{
+	{Name: "svc1", ServiceInfo: &client.ServiceInfo{
+		Daemon:          "simple",
+		ServiceFileName: "snap.foo.svc1.service",
+		Enabled:         false,
+		Active:          true,
+	}},
+	{Name: "svc2", ServiceInfo: &client.ServiceInfo{
+		Daemon:          "simple",
+		ServiceFileName: "snap.foo.svc2.service",
+		Enabled:         true,
+		Active:          false,
+	}},
+}
+
+var mixedAppInfos = append(append([]client.AppInfo(nil), cmdAppInfos...), svcAppInfos...)
+
+func (s *SnapSuite) TestMaybePrintServices(c *check.C) {
+	for _, infos := range [][]client.AppInfo{svcAppInfos, mixedAppInfos} {
+		var buf bytes.Buffer
+		snap.MaybePrintServices(&buf, "foo", infos, -1)
+
+		c.Check(buf.String(), check.Equals, `services:
+  foo.svc1:	simple, disabled, active
+  foo.svc2:	simple, enabled, inactive
+`)
+	}
+}
+
+func (s *SnapSuite) TestMaybePrintServicesNoServices(c *check.C) {
+	for _, infos := range [][]client.AppInfo{cmdAppInfos, nil} {
+		var buf bytes.Buffer
+		snap.MaybePrintServices(&buf, "foo", infos, -1)
+
+		c.Check(buf.String(), check.Equals, "")
+	}
+}
+
+func (s *SnapSuite) TestMaybePrintCommands(c *check.C) {
+	for _, infos := range [][]client.AppInfo{cmdAppInfos, mixedAppInfos} {
+		var buf bytes.Buffer
+		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+
+		c.Check(buf.String(), check.Equals, `commands:
+  - foo.app1
+  - foo.app2
+`)
+	}
+}
+
+func (s *SnapSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
+	for _, infos := range [][]client.AppInfo{svcAppInfos, nil} {
+		var buf bytes.Buffer
+		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+
+		c.Check(buf.String(), check.Equals, "")
+	}
+}
 
 func (s *SnapSuite) TestInfoPriced(c *check.C) {
 	n := 0
