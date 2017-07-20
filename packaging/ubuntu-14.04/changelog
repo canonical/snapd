@@ -1,3 +1,10 @@
+snapd (2.26.14~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cmd: fix incorrect re-exec when starting from snapd 2.21
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 20 Jul 2017 13:52:05 +0200
+
 snapd (2.26.13~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
