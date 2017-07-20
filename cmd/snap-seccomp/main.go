@@ -19,6 +19,8 @@
 
 package main
 
+//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
+//
 //#include <asm/ioctls.h>
 //#include <ctype.h>
 //#include <errno.h>
@@ -613,6 +615,9 @@ func compile(content []byte, out string) error {
 			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
 			if err != nil {
 				return fmt.Errorf("cannot create seccomp filter: %s", err)
+			}
+			if err := addSecondaryArches(secFilter); err != nil {
+				return err
 			}
 			break
 		}

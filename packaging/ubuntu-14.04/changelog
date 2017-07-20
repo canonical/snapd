@@ -1,3 +1,11 @@
+snapd (2.26.9~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - statically link libseccomp in snap-seccomp to fix refresh issue
+      on trusty
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 12 Jul 2017 08:27:14 +0200
+
 snapd (2.26.8~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
