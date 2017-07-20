@@ -53,7 +53,6 @@ BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
-BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
 BuildRequires:  pkg-config
@@ -149,7 +148,8 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
 
-# Remove static link to seccomp as it has been disabled and to avoid ld error
+# Removing static link to libseccomp due to libseccomp.a is not available in opensuse
+# This is not affecting due to seccomp is disabled for opensuse
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
 # build snap-seccomp
 %gobuild cmd/snap-seccomp
