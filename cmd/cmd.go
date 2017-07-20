@@ -20,8 +20,8 @@
 package cmd
 
 import (
-	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -127,7 +127,7 @@ func InternalToolPath(tool string) string {
 
 	// ensure we never use this helper from anything but
 	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
-		panic(fmt.Sprintf("InternalToolPath can only be used from snapd, got: %s", exe))
+		log.Panicf("InternalToolPath can only be used from snapd, got: %s", exe)
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
@@ -143,7 +143,7 @@ func InternalToolPath(tool string) string {
 // mustUnsetenv will os.Unsetenv the for or panic if it cannot do that
 func mustUnsetenv(key string) {
 	if err := os.Unsetenv(key); err != nil {
-		panic(fmt.Sprintf("cannot unset %s: %s", key, err))
+		log.Panicf("cannot unset %s: %s", key, err)
 	}
 }
 
