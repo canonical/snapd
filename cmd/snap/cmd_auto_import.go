@@ -84,6 +84,10 @@ func autoImportCandidates() ([]string, error) {
 		if strings.HasPrefix(mountSrc, "/dev/loop") {
 			continue
 		}
+		// skip all ram disks (unless in tests)
+		if !osutil.GetenvBool("SNAPPY_TESTING") && strings.HasPrefix(mountSrc, "/dev/ram") {
+			continue
+		}
 
 		mountPoint := l[4]
 		cand := filepath.Join(mountPoint, autoImportsName)
@@ -191,7 +195,7 @@ func tryMount(deviceName string) (string, error) {
 		os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	}
 	// not using syscall.Mount() because we don't know the fs type in advance
-	cmd := exec.Command("mount", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
+	cmd := exec.Command("mount", "-t", "ext4,vfat", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		os.Remove(tmpMountTarget)
 		err = fmt.Errorf("cannot mount %s: %s", deviceName, osutil.OutputErr(output, err))

@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -448,7 +449,7 @@ plugs:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
@@ -462,7 +463,7 @@ plugs:
           baz:
           - 1: A
 `))
-	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key in attribute map: 1`)
+	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key: 1`)
 }
 
 // Tests focusing on slots
@@ -790,7 +791,7 @@ slots:
         interface: serial-port
         foo: null
 `))
-	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid attribute scalar:.*`)
+	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
@@ -1052,6 +1053,7 @@ func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: foo
 version: 1.2
+title: Foo
 summary: foo app
 type: app
 epoch: 1*
@@ -1089,6 +1091,7 @@ slots:
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
+	c.Check(info.Title(), Equals, "Foo")
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
@@ -1360,10 +1363,7 @@ environment:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Environment, DeepEquals, map[string]string{
-		"foo": "bar",
-		"baz": "boom",
-	})
+	c.Assert(info.Environment, DeepEquals, *strutil.NewOrderedMap("foo", "bar", "baz", "boom"))
 }
 
 func (s *YamlSuite) TestSnapYamlPerAppEnvironment(c *C) {
@@ -1378,10 +1378,7 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Apps["foo"].Environment, DeepEquals, map[string]string{
-		"k1": "v1",
-		"k2": "v2",
-	})
+	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
 // classic confinement
@@ -1408,10 +1405,10 @@ apps:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 
-	c.Check(info.Apps["foo"].Aliases, DeepEquals, []string{"foo"})
-	c.Check(info.Apps["bar"].Aliases, DeepEquals, []string{"bar", "bar1"})
+	c.Check(info.Apps["foo"].LegacyAliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].LegacyAliases, DeepEquals, []string{"bar", "bar1"})
 
-	c.Check(info.Aliases, DeepEquals, map[string]*snap.AppInfo{
+	c.Check(info.LegacyAliases, DeepEquals, map[string]*snap.AppInfo{
 		"foo":  info.Apps["foo"],
 		"bar":  info.Apps["bar"],
 		"bar1": info.Apps["bar"],

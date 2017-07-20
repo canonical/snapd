@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const timezoneControlSummary = `allows setting system timezone`
+
+const timezoneControlBaseDeclarationSlots = `
+  timezone-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
@@ -29,13 +35,14 @@ const timezoneControlConnectedPlugAppArmor = `
 # Can change timezone via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object, see:
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
 /usr/share/zoneinfo/      r,
 /usr/share/zoneinfo/**    r,
 /etc/{,writable/}timezone rw,
+/etc/{,writable/}localtime rw,
+/etc/{,writable/}localtime.tmp rw, # Required for the timedatectl wrapper (LP: #1650688)
 
 # Introspection of org.freedesktop.timedate1
 dbus (send)
@@ -67,26 +74,22 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=unconfined),
+
+# As the core snap ships the timedatectl utility we can also allow
+# clients to use it now that they have access to the relevant
+# D-Bus method for setting the timezone via timedatectl's set-timezone
+# command.
+/usr/bin/timedatectl{,.real} ixr,
 `
 
-const timezoneControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`
-
-// NewTimezoneControlInterface returns a new "timezone-control" interface.
-func NewTimezoneControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "timezone-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "timezone-control",
+		summary:               timezoneControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timezoneControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

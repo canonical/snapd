@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
@@ -68,18 +69,44 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
-func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
+// ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
+// in the snap. classic set to true means classic rules apply,
+// i.e. content/presence of gadget.yaml is fully optional.
+func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	const errorFormat = "cannot read gadget snap details: %s"
+
+	if info.Type != TypeGadget {
+		return nil, fmt.Errorf(errorFormat, "not a gadget snap")
+	}
+
+	var gi GadgetInfo
 
 	gadgetYamlFn := filepath.Join(info.MountDir(), "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
+	if classic && os.IsNotExist(err) {
+		// gadget.yaml is optional for classic gadgets
+		return &gi, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
-	var gi GadgetInfo
 	if err := yaml.Unmarshal(gmeta, &gi); err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
+	}
+
+	for k, v := range gi.Defaults {
+		dflt, err := normalizeYamlValue(v)
+		if err != nil {
+			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
+		}
+		gi.Defaults[k] = dflt.(map[string]interface{})
+	}
+
+	if classic && len(gi.Volumes) == 0 {
+		// volumes can be left out on classic
+		// can still specify defaults though
+		return &gi, nil
 	}
 
 	// basic validation
@@ -91,10 +118,10 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 		switch v.Bootloader {
 		case "":
 			return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
-		case "grub", "u-boot":
+		case "grub", "u-boot", "android-boot":
 			foundBootloader = true
 		default:
-			return nil, fmt.Errorf(errorFormat, "bootloader must be either grub or u-boot")
+			return nil, fmt.Errorf(errorFormat, "bootloader must be one of grub, u-boot or android-boot")
 		}
 	}
 	if !foundBootloader {

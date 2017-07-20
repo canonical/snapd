@@ -19,16 +19,21 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const systemObserveSummary = `allows observing all processes and drivers`
+
+const systemObserveBaseDeclarationSlots = `
+  system-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # Needed by 'ps'
 @{PROC}/tty/drivers r,
@@ -51,7 +56,6 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
-@{PROC}/meminfo r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
@@ -62,20 +66,28 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
 
+#include <abstractions/dbus-strict>
+
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     member=Get{,All}
     peer=(label=unconfined),
+
+# Allow clients to introspect hostname1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugSecComp = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
@@ -83,24 +95,17 @@ const systemObserveConnectedPlugSecComp = `
 # Note: may uncomment once ubuntu-core-launcher understands @deny rules and
 # if/when we conditionally deny this in the future.
 #@deny ptrace
-
-# for connecting to /org/freedesktop/hostname1 over DBus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
 `
 
-// NewSystemObserveInterface returns a new "system-observe" interface.
-func NewSystemObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "system-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "system-observe",
+		summary:               systemObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

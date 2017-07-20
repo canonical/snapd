@@ -20,11 +20,15 @@
 package daemon
 
 import (
+	"fmt"
+
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -42,6 +47,10 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
+
+func (s *daemonSuite) SetUpSuite(c *check.C) {
+	snapstate.CanAutoRefresh = nil
+}
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
@@ -94,14 +103,14 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, http.StatusUnauthorized, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
 		req.RemoteAddr = "uid=0;" + req.RemoteAddr
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
-		c.Check(rec.Code, check.Equals, http.StatusOK)
+		c.Check(rec.Code, check.Equals, 200)
 	}
 
 	req, err := http.NewRequest("POTATO", "", nil)
@@ -110,7 +119,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, http.StatusMethodNotAllowed)
+	c.Check(rec.Code, check.Equals, 405)
 }
 
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
@@ -215,24 +224,52 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 
 type witnessAcceptListener struct {
 	net.Listener
-	accept chan struct{}
+
+	accept  chan struct{}
+	accept1 bool
+
+	closed    chan struct{}
+	closed1   bool
+	closedLck sync.Mutex
 }
 
 func (l *witnessAcceptListener) Accept() (net.Conn, error) {
-	close(l.accept)
+	if !l.accept1 {
+		l.accept1 = true
+		close(l.accept)
+	}
 	return l.Listener.Accept()
+}
+
+func (l *witnessAcceptListener) Close() error {
+	err := l.Listener.Close()
+	if l.closed != nil {
+		l.closedLck.Lock()
+		defer l.closedLck.Unlock()
+		if !l.closed1 {
+			l.closed1 = true
+			close(l.closed)
+		}
+	}
+	return err
 }
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
+	st := d.overlord.State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
+	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
 
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{l, snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	d.Start()
 
@@ -265,14 +302,20 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d := newTestDaemon(c)
+	// mark as already seeded
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
+	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
 
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{l, snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	d.Start()
 	defer d.Stop()
@@ -306,5 +349,95 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	case <-d.Dying():
 	case <-time.After(2 * time.Second):
 		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
+}
+
+func (s *daemonSuite) TestGracefulStop(c *check.C) {
+	d := newTestDaemon(c)
+
+	responding := make(chan struct{})
+	doRespond := make(chan bool, 1)
+
+	d.router.HandleFunc("/endp", func(w http.ResponseWriter, r *http.Request) {
+		close(responding)
+		if <-doRespond {
+			w.Write([]byte("OKOK"))
+		} else {
+			w.Write([]byte("Gone"))
+		}
+		return
+	})
+
+	st := d.overlord.State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
+	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	snapdClosed := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
+
+	d.Start()
+
+	snapdAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdAccepting)
+	}()
+
+	snapAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapAccepting)
+	}()
+
+	<-snapdAccepting
+	<-snapAccepting
+
+	alright := make(chan struct{})
+
+	go func() {
+		res, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
+		c.Assert(err, check.IsNil)
+		c.Check(res.StatusCode, check.Equals, 200)
+		body, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		c.Assert(err, check.IsNil)
+		c.Check(string(body), check.Equals, "OKOK")
+		close(alright)
+	}()
+	go func() {
+		<-snapdClosed
+		time.Sleep(200 * time.Millisecond)
+		doRespond <- true
+	}()
+
+	<-responding
+	err = d.Stop()
+	doRespond <- false
+	c.Check(err, check.IsNil)
+
+	select {
+	case <-alright:
+	case <-time.After(2 * time.Second):
+		c.Fatal("never got proper response")
 	}
 }

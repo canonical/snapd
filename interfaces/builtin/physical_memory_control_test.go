@@ -23,9 +23,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type PhysicalMemoryControlInterfaceSuite struct {
@@ -35,7 +38,7 @@ type PhysicalMemoryControlInterfaceSuite struct {
 }
 
 var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
-	iface: &builtin.PhysicalMemoryControlInterface{},
+	iface: builtin.MustInterface("physical-memory-control"),
 })
 
 func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
@@ -52,15 +55,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-physical-memory:
-    interface: physical-memory-control
 apps:
   app-accessing-physical-memory:
     command: foo
-    plugs: [plug-for-physical-memory]
+    plugs: [physical-memory-control]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-physical-memory"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["physical-memory-control"]}
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
@@ -91,7 +91,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeIncorrectInterface(c *
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := []byte(`
+	expectedSnippet1 := `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical
 # memory.
 #
@@ -101,16 +101,24 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # (eg, X without KMS, dosemu, etc).
 capability sys_rawio,
 /dev/mem rw,
-`)
-	expectedSnippet2 := []byte(`KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"
-`)
+`
+	expectedSnippet2 := `KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"`
 
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-physical-memory"})
+	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-physical-memory")
+	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet := udevSpec.Snippets()[0]
+	c.Assert(snippet, DeepEquals, expectedSnippet2)
+}
+
+func (s *PhysicalMemoryControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

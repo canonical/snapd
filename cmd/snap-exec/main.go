@@ -28,6 +28,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -42,7 +44,7 @@ var opts struct {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Printf("cannot snap-exec: %s\n", err)
+		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -87,11 +89,17 @@ func run() error {
 	return snapExecApp(snapApp, revision, opts.Command, extraArgs)
 }
 
+const defaultShell = "/bin/bash"
+
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
 	case "shell":
-		cmd = "/bin/bash"
+		cmd = defaultShell
+	case "complete":
+		if app.Completer != "" {
+			cmd = defaultShell
+		}
 	case "stop":
 		cmd = app.StopCommand
 	case "reload":
@@ -141,13 +149,20 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
-	env := append(os.Environ(), app.Env()...)
+	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
-	if command == "shell" {
-		fullCmd = "/bin/bash"
+	switch command {
+	case "shell":
+		fullCmd = defaultShell
 		cmdArgs = nil
+	case "complete":
+		fullCmd = defaultShell
+		cmdArgs = []string{
+			dirs.CompletionHelper,
+			filepath.Join(app.Snap.MountDir(), app.Completer),
+		}
 	}
 	fullCmdArgs := []string{fullCmd}
 	fullCmdArgs = append(fullCmdArgs, cmdArgs...)

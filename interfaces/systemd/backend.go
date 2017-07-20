@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@
 package systemd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,9 +35,6 @@ import (
 	sysd "github.com/snapcore/snapd/systemd"
 )
 
-// FIXME: This backend unmarshals snippets as JSON. This is a hack that needs to be fixed
-// by making the interface methods get a typed backend object to talk to instead.
-
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct{}
 
@@ -47,43 +43,20 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySystemd
 }
 
-func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
-	paths, err := filepath.Glob(filepath.Join(dir, glob))
-	if err != nil {
-		return err
-	}
-	for _, path := range paths {
-		service := filepath.Base(path)
-		if content[service] == nil {
-			if err := systemd.Disable(service); err != nil {
-				logger.Noticef("cannot disable service %q: %s", service, err)
-			}
-			if err := systemd.Stop(service, 5*time.Second); err != nil {
-				logger.Noticef("cannot stop service %q: %s", service, err)
-			}
-		}
-	}
-	return nil
-}
-
+// Setup creates and starts systemd services specific to a given snap.
+//
+// This method should be called after changing plug, slots, connections between
+// them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	// Record all the extra systemd services for this snap.
 	snapName := snapInfo.Name()
-	rawSnippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySystemd)
+	// Get the services that apply to this snap
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain systemd security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
-	snippets, err := unmarshalRawSnippetMap(rawSnippets)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal systemd snippets for snap %q: %s", snapName, err)
-	}
-	snippet, err := mergeSnippetMap(snippets)
-	if err != nil {
-		return fmt.Errorf("cannot merge systemd snippets for snap %q: %s", snapName, err)
-	}
-	content, err := renderSnippet(snippet)
-	if err != nil {
-		return fmt.Errorf("cannot render systemd snippets for snap %q: %s", snapName, err)
-	}
+	content := deriveContent(spec.(*Specification), snapInfo)
+	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
@@ -119,6 +92,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	return errEnsure
 }
 
+// Remove disables, stops and removes systemd services of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	// Remove all the files matching snap glob
@@ -142,56 +116,47 @@ func (b *Backend) Remove(snapName string) error {
 	return errEnsure
 }
 
-func unmarshalRawSnippetMap(rawSnippetMap map[string][][]byte) (map[string][]*Snippet, error) {
-	richSnippetMap := make(map[string][]*Snippet)
-	for tag, rawSnippets := range rawSnippetMap {
-		for _, rawSnippet := range rawSnippets {
-			richSnippet := &Snippet{}
-			err := json.Unmarshal(rawSnippet, &richSnippet)
-			if err != nil {
-				return nil, err
-			}
-			richSnippetMap[tag] = append(richSnippetMap[tag], richSnippet)
-		}
-	}
-	return richSnippetMap, nil
+// NewSpecification returns a new systemd specification.
+func (b *Backend) NewSpecification() interfaces.Specification {
+	return &Specification{}
 }
 
-// Flatten, deduplicate and check for conflicts in the services in the given snippet map
-func mergeSnippetMap(snippetMap map[string][]*Snippet) (*Snippet, error) {
-	services := make(map[string]Service)
-	for _, snippets := range snippetMap {
-		for _, snippet := range snippets {
-			for name, service := range snippet.Services {
-				if old, present := services[name]; present {
-					if old != service {
-						return nil, fmt.Errorf("interface require conflicting system needs")
-					}
-				} else {
-					services[name] = service
-				}
-			}
-		}
+// deriveContent computes .service files based on requests made to the specification.
+func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
+	services := spec.Services()
+	if len(services) == 0 {
+		return nil
 	}
-	return &Snippet{Services: services}, nil
-}
-
-func renderSnippet(snippet *Snippet) (map[string]*osutil.FileState, error) {
 	content := make(map[string]*osutil.FileState)
-	for name, service := range snippet.Services {
+	for name, service := range services {
 		content[name] = &osutil.FileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}
 	}
-	return content, nil
+	return content
+}
+
+func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
+	paths, err := filepath.Glob(filepath.Join(dir, glob))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		service := filepath.Base(path)
+		if content[service] == nil {
+			if err := systemd.Disable(service); err != nil {
+				logger.Noticef("cannot disable service %q: %s", service, err)
+			}
+			if err := systemd.Stop(service, 5*time.Second); err != nil {
+				logger.Noticef("cannot stop service %q: %s", service, err)
+			}
+		}
+	}
+	return nil
 }
 
 type dummyReporter struct{}
 
 func (dr *dummyReporter) Notify(msg string) {
-}
-
-func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

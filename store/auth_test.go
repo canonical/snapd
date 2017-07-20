@@ -20,6 +20,7 @@
 package store
 
 import (
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -112,7 +113,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -243,7 +244,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(data, NotNil)
 		c.Assert(string(data), Equals, `{"discharge_macaroon":"soft-expired-serialized-discharge-macaroon"}`)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -289,6 +290,47 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 	c.Assert(nonce, Equals, "the-nonce")
 }
 
+func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n < 4 {
+			w.WriteHeader(500)
+		} else {
+			io.WriteString(w, mockStoreReturnNonce)
+		}
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := requestStoreDeviceNonce()
+	c.Assert(err, IsNil)
+	c.Assert(nonce, Equals, "the-nonce")
+	c.Assert(n, Equals, 4)
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	_, err := requestStoreDeviceNonce()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot get nonce from store: store server returned status 500`)
+	c.Assert(n, Equals, 5)
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
+	MyAppsDeviceNonceAPI = "http://nonexistingserver121321.com/identity/api/v1/nonces"
+	_, err := requestStoreDeviceNonce()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot get nonce from store.*`)
+}
+
 func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnNoNonce)
@@ -304,7 +346,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	}))
 	defer mockServer.Close()
@@ -365,7 +407,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte("error body"))
 		n++
 	}))
@@ -376,4 +418,14 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
+}
+
+func (s *authTestSuite) TestStringish(c *C) {
+	var x stringList
+
+	c.Check(json.Unmarshal([]byte(`"hello"`), &x), IsNil)
+	c.Check(x, DeepEquals, stringList([]string{"hello"}))
+
+	c.Check(json.Unmarshal([]byte(`["hello", "world"]`), &x), IsNil)
+	c.Check(x, DeepEquals, stringList([]string{"hello", "world"}))
 }

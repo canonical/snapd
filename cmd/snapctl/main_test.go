@@ -46,7 +46,7 @@ type snapctlSuite struct {
 var _ = Suite(&snapctlSuite{})
 
 func (s *snapctlSuite) SetUpTest(c *C) {
-	os.Setenv("SNAP_CONTEXT", "snap-context-test")
+	os.Setenv("SNAP_COOKIE", "snap-context-test")
 	n := 0
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -75,14 +75,14 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 	s.expectedArgs = []string{}
 
 	fakeAuthPath := filepath.Join(c.MkDir(), "auth.json")
-	os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", fakeAuthPath)
+	os.Setenv("SNAPD_AUTH_DATA_FILENAME", fakeAuthPath)
 	err := ioutil.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *snapctlSuite) TearDownTest(c *C) {
-	os.Unsetenv("SNAP_CONTEXT")
-	os.Unsetenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
+	os.Unsetenv("SNAP_COOKIE")
+	os.Unsetenv("SNAPD_AUTH_DATA_FILENAME")
 	clientConfig.BaseURL = ""
 	s.server.Close()
 	os.Args = s.oldArgs
@@ -106,7 +106,7 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 }
 
 func (s *snapctlSuite) TestSnapctlHelp(c *C) {
-	os.Unsetenv("SNAP_CONTEXT")
+	os.Unsetenv("SNAP_COOKIE")
 	s.expectedContextID = ""
 
 	os.Args = []string{"snapctl", "-h"}

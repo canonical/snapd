@@ -66,6 +66,28 @@ void die(const char *msg)
 	exit(1);
 }
 
+int sc_read_reboot_arg(char *arg, size_t max_size)
+{
+	FILE *f;
+
+	// This file is used by systemd to pass around a reboot parameter See
+	// https://github.com/systemd/systemd/blob/v229/src/basic/def.h#L44
+	f = fopen("/run/systemd/reboot-param", "r");
+	if (!f) {
+		return -1;
+	}
+
+	if (!fgets(arg, max_size, f)) {
+		fclose(f);
+		return -1;
+	}
+	arg[strcspn(arg, "\n")] = '\0';
+
+	kmsg("reboot arg is %s", arg);
+	fclose(f);
+	return 0;
+}
+
 static void detach_loop(const char *src)
 {
 	int fd = open(src, O_RDONLY);
@@ -100,9 +122,9 @@ bool umount_all()
 		had_writable = false;
 		did_umount = false;
 		while (cur) {
-			const char *dir = sc_mountinfo_entry_mount_dir(cur);
-			const char *src = sc_mountinfo_entry_mount_source(cur);
-			unsigned major = sc_mountinfo_entry_dev_major(cur);
+			const char *dir = cur->mount_dir;
+			const char *src = cur->mount_source;
+			unsigned major = cur->dev_major;
 
 			cur = sc_next_mountinfo_entry(cur);
 

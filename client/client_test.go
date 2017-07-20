@@ -66,7 +66,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.rsps = nil
 	cs.req = nil
 	cs.header = nil
-	cs.status = http.StatusOK
+	cs.status = 200
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
@@ -170,12 +170,38 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	c.Check(authorization, Equals, "")
 }
 
+func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
+	email, err := cs.cli.WhoAmI()
+	c.Assert(err, IsNil)
+	c.Check(email, Equals, "")
+}
+
+func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
+	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+
+	email, err := cs.cli.WhoAmI()
+	c.Check(err, NotNil)
+	c.Check(email, Equals, "")
+}
+
+func (cs *clientSuite) TestClientWhoAmISomebody(c *C) {
+	mockUserData := client.User{
+		Email: "foo@example.com",
+	}
+	c.Assert(client.TestWriteAuth(mockUserData), IsNil)
+
+	email, err := cs.cli.WhoAmI()
+	c.Check(err, IsNil)
+	c.Check(email, Equals, "foo@example.com")
+}
+
 func (cs *clientSuite) TestClientSysInfo(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
                       "os-release": {"id": "ubuntu", "version-id": "16.04"},
-                      "on-classic": true}}`
+                      "on-classic": true,
+                      "confinement": "strict"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -185,7 +211,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 			ID:        "ubuntu",
 			VersionID: "16.04",
 		},
-		OnClassic: true,
+		OnClassic:   true,
+		Confinement: "strict",
 	})
 }
 
@@ -252,7 +279,9 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New(nil)
+	cli := client.New(&client.Config{
+		Socket: dirs.SnapSocket,
+	})
 	options := &client.SnapCtlOptions{
 		ContextID: "foo",
 		Args:      []string{"bar", "--baz"},
@@ -433,10 +462,37 @@ func (cs *clientSuite) TestUsers(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      [{"username": "foo","email":"foo@example.com"},
                       {"username": "bar","email":"bar@example.com"}]}`
-	sysInfo, err := cs.cli.Users()
+	users, err := cs.cli.Users()
 	c.Check(err, IsNil)
-	c.Check(sysInfo, DeepEquals, []*client.User{
+	c.Check(users, DeepEquals, []*client.User{
 		{Username: "foo", Email: "foo@example.com"},
 		{Username: "bar", Email: "bar@example.com"},
 	})
+}
+
+func (cs *clientSuite) TestDebugEnsureStateSoon(c *C) {
+	cs.rsp = `{"type": "sync", "result":true}`
+	err := cs.cli.Debug("ensure-state-soon", nil, nil)
+	c.Check(err, IsNil)
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(data, DeepEquals, []byte(`{"action":"ensure-state-soon"}`))
+}
+
+func (cs *clientSuite) TestDebugGeneric(c *C) {
+	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
+
+	var result []string
+	err := cs.cli.Debug("do-something", []string{"param1", "param2"}, &result)
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, []string{"res1", "res2"})
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
 }

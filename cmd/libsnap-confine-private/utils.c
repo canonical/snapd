@@ -116,9 +116,14 @@ static bool getenv_bool(const char *name)
 	return value;
 }
 
+bool sc_is_debug_enabled()
+{
+	return getenv_bool("SNAP_CONFINE_DEBUG");
+}
+
 void debug(const char *msg, ...)
 {
-	if (getenv_bool("SNAP_CONFINE_DEBUG")) {
+	if (sc_is_debug_enabled()) {
 		va_list va;
 		va_start(va, msg);
 		fprintf(stderr, "DEBUG: ");

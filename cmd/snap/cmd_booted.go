@@ -45,6 +45,6 @@ func (x *cmdBooted) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	fmt.Fprintf(Stderr, "booted command is deprecated")
+	fmt.Fprintf(Stderr, "booted command is deprecated\n")
 	return nil
 }

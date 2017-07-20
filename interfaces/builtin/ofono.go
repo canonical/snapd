@@ -20,15 +20,32 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
+const ofonoSummary = `allows operating as the ofono service`
+
+const ofonoBaseDeclarationSlots = `
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const ofonoPermanentSlotAppArmor = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # to create ppp network interfaces
 capability net_admin,
@@ -109,8 +126,8 @@ dbus (receive, send)
 `
 
 const ofonoConnectedPlugAppArmor = `
-# Description: Allow using Ofono service. Reserved because this gives
-# privileged access to the Ofono service.
+# Description: Allow using Ofono service. This gives privileged access to the
+# Ofono service.
 
 #include <abstractions/dbus-strict>
 
@@ -119,6 +136,15 @@ dbus (receive, send)
     bus=system
     path=/{,**}
     interface=org.ofono.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service on non-classic (due to the path,
+# allowing on classic would reveal too much for unconfined)
+dbus (send)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
@@ -129,40 +155,30 @@ dbus (receive, send)
     path=/{,**}
     interface=org.ofono.*
     peer=(label=unconfined),
+
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 `
 
 const ofonoPermanentSlotSecComp = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # Communicate with DBus, netlink, rild
 accept
 accept4
 bind
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`
-
-const ofonoConnectedPlugSecComp = `
-# Description: Allow using ofono service. Reserved because this gives
-# privileged access to the ofono service.
-
-# Can communicate with DBus system service
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
+socket AF_NETLINK - NETLINK_ROUTE
+# libudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const ofonoPermanentSlotDBus = `
@@ -185,7 +201,7 @@ const ofonoPermanentSlotDBus = `
 </policy>
 `
 
-const ofonoPermanentSlotUdev = `
+const ofonoPermanentSlotUDev = `
 ## Concatenation of all ofono udev rules (plugins/*.rules in ofono sources)
 ## Note that ofono uses this for very few modems and that in most cases it finds
 ## modems by checking directly in code udev events, so changes here will be rare
@@ -254,71 +270,72 @@ ATTRS{idVendor}=="1c9e", ATTRS{idProduct}=="9605", ENV{ID_USB_INTERFACE_NUM}=="0
 LABEL="ofono_speedup_end"
 `
 
-type OfonoInterface struct{}
+type ofonoInterface struct{}
 
-func (iface *OfonoInterface) Name() string {
+func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *OfonoInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(ofonoConnectedPlugAppArmor), old, new, -1)
-		if release.OnClassic {
-			// Let confined apps access unconfined ofono on classic
-			snippet = append(snippet, ofonoConnectedPlugAppArmorClassic...)
-		}
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(ofonoConnectedPlugSecComp), nil
+func (iface *ofonoInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              ofonoSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
 	}
-	return nil, nil
 }
 
-func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(ofonoPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(ofonoPermanentSlotSecComp), nil
-	case interfaces.SecurityUDev:
-		return []byte(ofonoPermanentSlotUdev), nil
-	case interfaces.SecurityDBus:
-		return []byte(ofonoPermanentSlotDBus), nil
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
+	if release.OnClassic {
+		// Let confined apps access unconfined ofono on classic
+		spec.AddSnippet(ofonoConnectedPlugAppArmorClassic)
 	}
-	return nil, nil
+	return nil
+
 }
 
-func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(ofonoConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
-}
-
-func (iface *OfonoInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *OfonoInterface) LegacyAutoConnect() bool {
-	return false
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotUDev)
+	return nil
 }
 
-func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotSecComp)
+	return nil
+}
+
+func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&ofonoInterface{})
 }

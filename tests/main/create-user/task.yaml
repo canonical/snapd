@@ -1,6 +1,6 @@
 summary: Ensure create-user functionality
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
@@ -24,7 +24,7 @@ execute: |
     [[ "$obtained" =~ "$expected" ]]
 
     echo "ensure user exists in /etc/passwd"
-    grep -qE "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" /etc/passwd
+    MATCH "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" < /etc/passwd
 
     echo "ensure proper sudoers.d file"
-    grep -q "$USER_NAME ALL=(ALL) NOPASSWD:ALL" /etc/sudoers.d/create-user-$USER_NAME
+    MATCH "$USER_NAME ALL=\(ALL\) NOPASSWD:ALL" < /etc/sudoers.d/create-user-$USER_NAME

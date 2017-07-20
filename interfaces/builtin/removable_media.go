@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const removableMediaSummary = `allows access to mounted removable storage`
+
+const removableMediaBaseDeclarationSlots = `
+  removable-media:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const removableMediaConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
@@ -31,11 +37,14 @@ const removableMediaConnectedPlugAppArmor = `
 /{,run/}media/*/** rw,
 `
 
-// NewRemovableMediaInterface returns a new "removable-media" interface.
-func NewRemovableMediaInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "removable-media",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "removable-media",
+		summary:               removableMediaSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  removableMediaBaseDeclarationSlots,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

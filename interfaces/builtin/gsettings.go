@@ -19,15 +19,19 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const gsettingsSummary = `allows access to any gsettings item of current user`
+
+const gsettingsBaseDeclarationSlots = `
+  gsettings:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
 # gsettings and allows adjusting settings of other applications.
-# Usage: reserved
 
 #include <abstractions/dbus-session-strict>
 
@@ -40,27 +44,13 @@ dbus (receive, send)
     peer=(label=unconfined),
 `
 
-const gsettingsConnectedPlugSecComp = `
-# Description: Can access global gsettings of the user's session. Restricted
-# because this gives privileged access to sensitive information stored in
-# gsettings and allows adjusting settings of other applications.
-
-# dbus
-connect
-getsockname
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
-// NewGsettingsInterface returns a new "gsettings" interface.
-func NewGsettingsInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "gsettings",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "gsettings",
+		summary:               gsettingsSummary,
+		implicitOnClassic:     true,
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
-		connectedPlugSecComp:  gsettingsConnectedPlugSecComp,
+		baseDeclarationSlots:  gsettingsBaseDeclarationSlots,
 		reservedForOS:         true,
-	}
+	})
 }

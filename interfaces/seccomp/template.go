@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,53 +20,25 @@
 package seccomp
 
 // defaultTemplate contains default seccomp template.
-//
 // It can be overridden for testing using MockTemplate().
-//
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/templates/ubuntu-core/16.04/default
 var defaultTemplate = []byte(`
 # Description: Allows access to app-specific directories and basic runtime
-# Usage: common
 #
+# The default seccomp policy is default deny with a whitelist of allowed
+# syscalls. The default policy is intended to be safe for any application to
+# use and should be evaluated in conjunction with other security backends (eg
+# AppArmor). For example, a few particularly problematic syscalls that are left
+# out of the default policy are (non-exhaustive):
+# - kexec_load
+# - create_module, init_module, finit_module, delete_module (kernel modules)
+# - name_to_handle_at (history of vulnerabilities)
+# - open_by_handle_at (history of vulnerabilities)
+# - ptrace (can be used to break out of sandbox with <4.8 kernels)
+# - add_key, keyctl, request_key (kernel keyring)
 
-# Dangerous syscalls that we don't ever want to allow.
-# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
-# if/when we conditionally deny these in the future.
-
-# kexec
-#@deny kexec_load
-
-# kernel modules
-#@deny create_module
-#@deny init_module
-#@deny finit_module
-#@deny delete_module
-
-# these have a history of vulnerabilities, are not widely used, and
-# open_by_handle_at has been used to break out of docker containers by brute
-# forcing the handle value: http://stealth.openwall.net/xSports/shocker.c
-#@deny name_to_handle_at
-#@deny open_by_handle_at
-
-# Explicitly deny ptrace since it can be abused to break out of the seccomp
-# sandbox
-#@deny ptrace
-
-# Explicitly deny capability mknod so apps can't create devices
-#@deny mknod
-#@deny mknodat
-
-# Explicitly deny (u)mount so apps can't change mounts in their namespace
-#@deny mount
-#@deny umount
-#@deny umount2
-
-# Explicitly deny kernel keyring access
-#@deny add_key
-#@deny keyctl
-#@deny request_key
-
-# end dangerous syscalls
+#
+# Allowed accesses
+#
 
 access
 faccessat
@@ -109,6 +81,12 @@ clock_gettime
 clock_nanosleep
 clone
 close
+
+# needed by ls -l
+connect
+
+chroot
+
 creat
 dup
 dup2
@@ -230,6 +208,16 @@ mlock2
 mlockall
 mmap
 mmap2
+
+# Allow mknod for regular files, pipes and sockets (and not block or char
+# devices)
+mknod - |S_IFREG -
+mknodat - - |S_IFREG -
+mknod - |S_IFIFO -
+mknodat - - |S_IFIFO -
+mknod - |S_IFSOCK -
+mknodat - - |S_IFSOCK -
+
 modify_ldt
 mprotect
 
@@ -289,6 +277,13 @@ readahead
 readdir
 readlink
 readlinkat
+
+# allow reading from sockets
+recv
+recvfrom
+recvmsg
+recvmmsg
+
 remap_file_pages
 
 removexattr
@@ -345,6 +340,13 @@ semctl
 semget
 semop
 semtimedop
+
+# allow sending to sockets
+send
+sendto
+sendmsg
+sendmmsg
+
 sendfile
 sendfile64
 
@@ -405,9 +407,52 @@ sigsuspend
 sigtimedwait
 sigwaitinfo
 
-# needed by ls -l
-socket
-connect
+# AppArmor mediates AF_UNIX/AF_LOCAL via 'unix' rules and all other AF_*
+# domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
+# we can allow 'socket' for all domains except AF_NETLINK and let AppArmor
+# handle the rest.
+socket AF_UNIX
+socket AF_LOCAL
+socket AF_INET
+socket AF_INET6
+socket AF_IPX
+socket AF_X25
+socket AF_AX25
+socket AF_ATMPVC
+socket AF_APPLETALK
+socket AF_PACKET
+socket AF_ALG
+socket AF_CAN
+socket AF_BRIDGE
+socket AF_NETROM
+socket AF_ROSE
+socket AF_NETBEUI
+socket AF_SECURITY
+socket AF_KEY
+socket AF_ASH
+socket AF_ECONET
+socket AF_SNA
+socket AF_IRDA
+socket AF_PPPOX
+socket AF_WANPIPE
+socket AF_BLUETOOTH
+socket AF_RDS
+socket AF_LLC
+socket AF_TIPC
+socket AF_IUCV
+socket AF_RXRPC
+socket AF_ISDN
+socket AF_PHONET
+socket AF_IEEE802154
+socket AF_CAIF
+socket AF_NFC
+socket AF_VSOCK
+socket AF_MPLS
+socket AF_IB
+
+# For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
+# seccomp arg filtering of netlink families.
+# socket AF_NETLINK - -
 
 # needed by snapctl
 getsockopt
@@ -504,3 +549,18 @@ pwritev
 # of socket(), bind(), connect(), etc individually.
 socketcall
 `)
+
+// Go's net package attempts to bind early to check whether IPv6 is available or not.
+// For systems with apparmor enabled, this will be mediated and cause an error to be
+// returned. Without apparmor, the call goes through to seccomp and the process is
+// killed instead of just getting the error.
+//
+// For that reason once apparmor is disabled the seccomp profile is given access
+// to bind, so that these processes are not improperly killed. There is on going
+// work to make seccomp return an error in those cases as well and log the error.
+// Once that's in place we can drop this hack.
+const bindSyscallWorkaround = `
+# Add bind() for systems with only Seccomp enabled to workaround
+# LP #1644573
+bind
+`

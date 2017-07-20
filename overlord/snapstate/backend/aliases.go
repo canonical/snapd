@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,59 +35,31 @@ type Alias struct {
 	Target string `json:"target"`
 }
 
-// MissingAliases returns the subset of aliases that are missing on disk.
-func (b Backend) MissingAliases(aliases []*Alias) ([]*Alias, error) {
-	var res []*Alias
-	for _, cand := range aliases {
-		_, err := os.Lstat(filepath.Join(dirs.SnapBinariesDir, cand.Name))
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-			res = append(res, cand)
-		}
-	}
-	return res, nil
-}
-
 // MatchingAliases returns the subset of aliases that exist on disk and have the expected targets.
-func (b Backend) MatchingAliases(aliases []*Alias) ([]*Alias, error) {
-	var res []*Alias
-	for _, cand := range aliases {
-		fn := filepath.Join(dirs.SnapBinariesDir, cand.Name)
-		fileInfo, err := os.Lstat(fn)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-			continue
-		}
-		if (fileInfo.Mode() & os.ModeSymlink) != 0 {
-			target, err := os.Readlink(fn)
-			if err != nil {
-				return nil, err
-			}
-			if target == cand.Target {
-				res = append(res, cand)
-			}
-		}
-	}
-	return res, nil
-}
 
 // UpdateAliases adds and removes the given aliases.
 func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
-	for _, alias := range add {
-		err := os.Symlink(alias.Target, filepath.Join(dirs.SnapBinariesDir, alias.Name))
-		if err != nil {
-			return fmt.Errorf("cannot create alias symlink: %v", err)
-		}
-	}
-
+	removed := make(map[string]bool, len(remove))
 	for _, alias := range remove {
 		err := os.Remove(filepath.Join(dirs.SnapBinariesDir, alias.Name))
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot remove alias symlink: %v", err)
+		}
+		removed[alias.Name] = true
+	}
+
+	for _, alias := range add {
+		p := filepath.Join(dirs.SnapBinariesDir, alias.Name)
+
+		if !removed[alias.Name] {
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot remove alias symlink: %v", err)
+			}
+		}
+
+		err := os.Symlink(alias.Target, p)
+		if err != nil {
+			return fmt.Errorf("cannot create alias symlink: %v", err)
 		}
 	}
 	return nil

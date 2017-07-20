@@ -19,12 +19,24 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+const networkSummary = `allows access to the network`
+
+const networkBaseDeclarationSlots = `
+  network:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
+const networkDescription = `
+The network interface allows connected plugs to access the network as a client.
+
+The core snap provides the slot that is shared by all the snaps.
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
-# Usage: common
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -35,39 +47,26 @@ const networkConnectedPlugAppArmor = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
-# Usage: common
 bind
-connect
-getpeername
-getsockname
-getsockopt
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 shutdown
 
-# LP: #1446748 - limit this to AF_UNIX/AF_LOCAL and perhaps AF_NETLINK
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
+# FIXME: some kernels require this with common functions in go's 'net' library.
+# While this should remain in network-bind, network-control and
+# network-observe, for series 16 also have it here to not break existing snaps.
+# Future snapd series may remove this in the future. LP: #1689536
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
-// NewNetworkInterface returns a new "network" interface.
-func NewNetworkInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network",
+		summary:               networkSummary,
+		description:           networkDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBaseDeclarationSlots,
 		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

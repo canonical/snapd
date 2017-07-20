@@ -52,12 +52,13 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityDBus)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
+
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, snippets)
+	content, err := b.deriveContent(spec.(*Specification), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -85,13 +86,13 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// combineSnippets combines security snippets collected from all the interfaces
+// deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		appSnippets := snippets[securityTag]
-		if len(appSnippets) == 0 {
+		appSnippets := spec.SnippetForTag(securityTag)
+		if appSnippets == "" {
 			continue
 		}
 		if content == nil {
@@ -103,8 +104,8 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		hookSnippets := snippets[securityTag]
-		if len(hookSnippets) == 0 {
+		hookSnippets := spec.SnippetForTag(securityTag)
+		if hookSnippets == "" {
 			continue
 		}
 		if content == nil {
@@ -117,13 +118,10 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 	return content, nil
 }
 
-func addContent(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snippet string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	buffer.Write(xmlHeader)
-	for _, snippet := range executableSnippets {
-		buffer.Write(snippet)
-		buffer.WriteRune('\n')
-	}
+	buffer.WriteString(snippet)
 	buffer.Write(xmlFooter)
 
 	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.FileState{
@@ -133,5 +131,5 @@ func addContent(securityTag string, executableSnippets [][]byte, content map[str
 }
 
 func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+	return &Specification{}
 }

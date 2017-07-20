@@ -20,16 +20,19 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
 
 const unity8PimCommonPermanentSlotAppArmor = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -80,40 +83,30 @@ dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
 	peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=session
+    path=/org/gnome/Evolution
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const unity8PimCommonPermanentSlotSecComp = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`
-
-const unity8PimCommonConnectedPlugSecComp = `
-# Description: Allow using EDS service. Reserved because this gives
-# privileged access to the eds service.
-
-# Can communicate with DBus system service
-recv
-recvmsg
-send
-sendto
-sendmsg
 `
 
 type unity8PimCommonInterface struct {
 	name                  string
+	summary               string
+	baseDeclarationSlots  string
 	permanentSlotAppArmor string
 	connectedSlotAppArmor string
 	connectedPlugAppArmor string
@@ -123,61 +116,53 @@ func (iface *unity8PimCommonInterface) Name() string {
 	return iface.name
 }
 
-func (iface *unity8PimCommonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-
-		originalSnippet := append([]byte(unity8PimCommonConnectedPlugAppArmor), iface.connectedPlugAppArmor...)
-		snippet := bytes.Replace(originalSnippet, old, new, -1)
-
-		// classic mode
-		if release.OnClassic {
-			// Let confined apps access unconfined service on classic
-			classicSnippet := bytes.Replace(originalSnippet, old, []byte("unconfined"), -1)
-			snippet = append(snippet, classicSnippet...)
-		}
-
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(unity8PimCommonConnectedPlugSecComp), nil
-	default:
-		return nil, nil
+func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              iface.summary,
+		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}
 }
 
-func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(unity8PimCommonPermanentSlotAppArmor)
-		snippet = append(snippet, iface.permanentSlotAppArmor...)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(unity8PimCommonPermanentSlotSecComp), nil
-	case interfaces.SecurityDBus:
-		//FIXME: Implement support after session services are available.
-		return nil, nil
-	default:
-		return nil, nil
-	}
+func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	//FIXME: Implement support after session services are available.
+	return nil
 }
 
-func (iface *unity8PimCommonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := []byte(unity8PimCommonConnectedSlotAppArmor)
-		snippet = append(snippet, iface.connectedSlotAppArmor...)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
+func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+
+	originalSnippet := unity8PimCommonConnectedPlugAppArmor + "\n" + iface.connectedPlugAppArmor
+	spec.AddSnippet(strings.Replace(originalSnippet, old, new, -1))
+
+	// classic mode
+	if release.OnClassic {
+		// Let confined apps access unconfined service on classic
+		spec.AddSnippet(strings.Replace(originalSnippet, old, "unconfined", -1))
 	}
-	return nil, nil
+
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity8PimCommonPermanentSlotAppArmor)
+	spec.AddSnippet(iface.permanentSlotAppArmor)
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := unity8PimCommonConnectedSlotAppArmor
+	snippet += "\n" + iface.connectedSlotAppArmor
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity8PimCommonPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *unity8PimCommonInterface) SanitizePlug(plug *interfaces.Plug) error {

@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const networkControlSummary = `allows configuring networking and network namespaces`
+
+const networkControlBaseDeclarationSlots = `
+  network-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
@@ -60,6 +66,10 @@ network sna,
 @{PROC}/sys/net/netfilter/ r,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
+
+# read netfilter module parameters
+/sys/module/nf_*/                r,
+/sys/module/nf_*/parameters/{,*} r,
 
 # networking tools
 /{,usr/}{,s}bin/arp ixr,
@@ -123,12 +133,18 @@ capability setuid,
 
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # TUN/TAP
 /dev/net/tun rw,
 # These are dynamically created via ioctl() on /dev/net/tun
 /dev/tun[0-9]{,[0-9]*} rw,
 /dev/tap[0-9]{,[0-9]*} rw,
+
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
 
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via
@@ -184,10 +200,6 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
-sendmsg
-sendto
-recvfrom
-recvmsg
 
 mount
 umount
@@ -195,14 +207,27 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# For various network related netlink sockets
+socket AF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
+socket AF_NETLINK - NETLINK_ISCSI
+socket AF_NETLINK - NETLINK_RDMA
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkControlInterface returns a new "network-control" interface.
-func NewNetworkControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network-control",
+		summary:               networkControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

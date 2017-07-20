@@ -20,11 +20,22 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
+
+const physicalMemoryControlSummary = `allows write access to all physical memory`
+
+const physicalMemoryControlBaseDeclarationSlots = `
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const physicalMemoryControlConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical
@@ -39,19 +50,28 @@ capability sys_rawio,
 `
 
 // The type for physical-memory-control interface
-type PhysicalMemoryControlInterface struct{}
+type physicalMemoryControlInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *PhysicalMemoryControlInterface) Name() string {
+func (iface *physicalMemoryControlInterface) Name() string {
 	return "physical-memory-control"
 }
 
-func (iface *PhysicalMemoryControlInterface) String() string {
+func (iface *physicalMemoryControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              physicalMemoryControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: physicalMemoryControlBaseDeclarationSlots,
+	}
+}
+
+func (iface *physicalMemoryControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *PhysicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *physicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -66,7 +86,7 @@ func (iface *PhysicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot)
 }
 
 // Checks and possibly modifies a plug
-func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *physicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -74,41 +94,25 @@ func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *PhysicalMemoryControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *physicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(physicalMemoryControlConnectedPlugAppArmor)
+	return nil
 }
 
-// Getter for the security snippet specific to the plug
-func (iface *PhysicalMemoryControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(physicalMemoryControlConnectedPlugAppArmor), nil
-
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-		const udevRule = `KERNEL=="mem", TAG+="%s"`
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
-			tagSnippet.WriteString("\n")
-		}
-		return tagSnippet.Bytes(), nil
+func (iface *physicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	const udevRule = `KERNEL=="mem", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
-	return nil, nil
+	return nil
 }
 
-// No extra permissions granted on connection
-func (iface *PhysicalMemoryControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *PhysicalMemoryControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *PhysicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *physicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func init() {
+	registerIface(&physicalMemoryControlInterface{})
 }

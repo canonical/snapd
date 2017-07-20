@@ -45,7 +45,7 @@ type PlugRef struct {
 }
 
 // String returns the "snap:plug" representation of a plug reference.
-func (ref *PlugRef) String() string {
+func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
@@ -67,11 +67,11 @@ type SlotRef struct {
 }
 
 // String returns the "snap:slot" representation of a slot reference.
-func (ref *SlotRef) String() string {
+func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Interfaces holds information about a list of plugs and slots, and their connections.
+// Interfaces holds information about a list of plugs and slots, their connections and interface meta-data.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
@@ -120,71 +120,44 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
-	// PermanentPlugSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the plug is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a plug of a given interface even before the plug is connected to a
-	// slot.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedPlugSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a plug of a given interface connected to a slot in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot. If the
-	// slot is not necessary then consider using PermanentPlugSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// PermanentSlotSnippet returns the snippet of text for the given security
-	// system that is used during the whole lifetime of affected applications,
-	// whether the slot is connected or not.
-	//
-	// Permanent security snippet can be used to grant permissions to a snap that
-	// has a slot of a given interface even before the first connection to that
-	// slot is made.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// ConnectedSlotSnippet returns the snippet of text for the given security
-	// system that is used by affected application, while a specific connection
-	// between a plug and a slot exists.
-	//
-	// Connection-specific security snippet can be used to grant permission to
-	// a snap that has a slot of a given interface connected to a plug in
-	// another snap.
-	//
-	// The snippet should be specific to both the plug and the slot, if the
-	// plug is not necessary then consider using PermanentSlotSnippet()
-	// instead.
-	//
-	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface or when the interface
-	// doesn't recognize the security system.
-	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// MetaData describes various meta-data of a given interface.
+//
+// The Summary must be a one-line string of length suitable for listing views.
+// The Description must describe the purpose of the interface in non-technical
+// terms. The DocumentationURL can point to website (e.g. a forum thread) that
+// goes into more depth and documents the interface in detail.
+type MetaData struct {
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	DocumentationURL string `json:"documentation-url,omitempty"`
+
+	// ImplicitOnCore controls if a slot is automatically added to core (non-classic) systems.
+	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
+	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
+	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationPlugs string
+	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	BaseDeclarationSlots string
+}
+
+// IfaceMetaData returns the meta-data of the given interface.
+func IfaceMetaData(iface Interface) (md MetaData) {
+	type metaDataProvider interface {
+		MetaData() MetaData
+	}
+	if iface, ok := iface.(metaDataProvider); ok {
+		md = iface.MetaData()
+	}
+	return md
 }
 
 // Specification describes interactions between backends and interfaces.
@@ -194,9 +167,9 @@ type Specification interface {
 	// AddPermanentPlug records side-effects of having a plug.
 	AddPermanentPlug(iface Interface, plug *Plug) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
+	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
+	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 }
 
 // SecuritySystem is a name of a security system.

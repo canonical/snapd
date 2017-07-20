@@ -32,24 +32,32 @@ import (
 // common checks used when decoding/assembling assertions
 
 func checkExistsString(headers map[string]interface{}, name string) (string, error) {
-	value, ok := headers[name]
+	return checkExistsStringWhat(headers, name, "header")
+}
+
+func checkExistsStringWhat(m map[string]interface{}, name, what string) (string, error) {
+	value, ok := m[name]
 	if !ok {
-		return "", fmt.Errorf("%q header is mandatory", name)
+		return "", fmt.Errorf("%q %s is mandatory", name, what)
 	}
 	s, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("%q header must be a string", name)
+		return "", fmt.Errorf("%q %s must be a string", name, what)
 	}
 	return s, nil
 }
 
 func checkNotEmptyString(headers map[string]interface{}, name string) (string, error) {
-	s, err := checkExistsString(headers, name)
+	return checkNotEmptyStringWhat(headers, name, "header")
+}
+
+func checkNotEmptyStringWhat(m map[string]interface{}, name, what string) (string, error) {
+	s, err := checkExistsStringWhat(m, name, what)
 	if err != nil {
 		return "", err
 	}
 	if len(s) == 0 {
-		return "", fmt.Errorf("%q header should not be empty", name)
+		return "", fmt.Errorf("%q %s should not be empty", name, what)
 	}
 	return s, nil
 }
@@ -124,29 +132,37 @@ func checkInt(headers map[string]interface{}, name string) (int, error) {
 }
 
 func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
-	dateStr, err := checkNotEmptyString(headers, name)
+	return checkRFC3339DateWhat(headers, name, "header")
+}
+
+func checkRFC3339DateWhat(m map[string]interface{}, name, what string) (time.Time, error) {
+	dateStr, err := checkNotEmptyStringWhat(m, name, what)
 	if err != nil {
 		return time.Time{}, err
 	}
 	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
+		return time.Time{}, fmt.Errorf("%q %s is not a RFC3339 date: %v", name, what, err)
 	}
 	return date, nil
 }
 
 func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
-	value, ok := headers[name]
+	return checkRFC3339DateWithDefaultWhat(headers, name, "header", defl)
+}
+
+func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string, defl time.Time) (time.Time, error) {
+	value, ok := m[name]
 	if !ok {
 		return defl, nil
 	}
 	dateStr, ok := value.(string)
 	if !ok {
-		return time.Time{}, fmt.Errorf("%q header must be a string", name)
+		return time.Time{}, fmt.Errorf("%q %s must be a string", name, what)
 	}
 	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
+		return time.Time{}, fmt.Errorf("%q %s is not a RFC3339 date: %v", name, what, err)
 	}
 	return date, nil
 }
@@ -217,12 +233,16 @@ func checkStringListMatches(headers map[string]interface{}, name string, pattern
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
-	s, err := checkNotEmptyString(headers, name)
+	return checkStringMatchesWhat(headers, name, "header", pattern)
+}
+
+func checkStringMatchesWhat(headers map[string]interface{}, name, what string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return "", err
 	}
 	if !pattern.MatchString(s) {
-		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+		return "", fmt.Errorf("%q %s contains invalid characters: %q", name, what, s)
 	}
 	return s, nil
 }

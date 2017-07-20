@@ -50,7 +50,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	// Collect all the mount snipptes
+	// Record all changes to the mount system for this snap.
 	snapName := snapInfo.Name()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -58,13 +58,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
-	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
 	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
+	}
+	if err := UpdateSnapNamespace(snapName); err != nil {
+		return fmt.Errorf("cannot update mount namespace of snap %q: %s", snapName, err)
 	}
 	return nil
 }
@@ -73,7 +76,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
@@ -83,18 +86,20 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
-	// No snippets? Nothing to do!
-	if len(spec.Snippets) == 0 {
+	// No entries? Nothing to do!
+	if len(spec.mountEntries) == 0 {
 		return nil
 	}
 	// Compute the contents of the fstab file. It should contain all the mount
 	// rules collected by the backend controller.
 	var buffer bytes.Buffer
-	for _, snippet := range spec.Snippets {
-		fmt.Fprintf(&buffer, "%s\n", snippet)
+	for _, entry := range spec.mountEntries {
+		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
 	content := make(map[string]*osutil.FileState)
+	// Add the new per-snap fstab file. This file will be read by snap-confine.
+	content[fmt.Sprintf("snap.%s.fstab", snapInfo.Name())] = fstate
 	// Add legacy per-app/per-hook fstab files. Those are identical but
 	// snap-confine doesn't yet load it from a per-snap location. This can be
 	// safely removed once snap-confine is updated.
@@ -107,6 +112,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	return content
 }
 
+// NewSpecification returns a new mount specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }

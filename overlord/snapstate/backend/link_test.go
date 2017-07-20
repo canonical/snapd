@@ -210,3 +210,11 @@ apps:
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 }
+
+func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
+	info := &snap.Info{
+		SuggestedName: "foo",
+	}
+	err := s.be.LinkSnap(info)
+	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
+}

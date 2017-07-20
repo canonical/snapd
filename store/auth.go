@@ -26,10 +26,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"gopkg.in/macaroon.v1"
-	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/httputil"
 )
@@ -51,10 +49,33 @@ var (
 	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
+// a stringList is something that can be deserialized from a JSON
+// []string or a string, like the values of the "extra" documents in
+// error responses
+type stringList []string
+
+func (sish *stringList) UnmarshalJSON(bs []byte) error {
+	var ss []string
+	e1 := json.Unmarshal(bs, &ss)
+	if e1 == nil {
+		*sish = stringList(ss)
+		return nil
+	}
+
+	var s string
+	e2 := json.Unmarshal(bs, &s)
+	if e2 == nil {
+		*sish = stringList([]string{s})
+		return nil
+	}
+
+	return e1
+}
+
 type ssoMsg struct {
-	Code    string              `json:"code"`
-	Message string              `json:"message"`
-	Extra   map[string][]string `json:"extra"`
+	Code    string                `json:"code"`
+	Message string                `json:"message"`
+	Extra   map[string]stringList `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
@@ -84,25 +105,14 @@ func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 
 // retryPostRequestDecodeJSON calls retryPostRequest and decodes the response into either success or failure.
 func retryPostRequestDecodeJSON(endpoint string, headers map[string]string, data []byte, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return retryPostRequest(endpoint, headers, data, func(ok bool, resp *http.Response) error {
-		result := success
-		if !ok {
-			result = failure
-		}
-		if result != nil {
-			return json.NewDecoder(resp.Body).Decode(result)
-		}
-		return nil
+	return retryPostRequest(endpoint, headers, data, func(resp *http.Response) error {
+		return decodeJSONBody(resp, success, failure)
 	})
 }
 
 // retryPostRequest calls doRequest and decodes the response in a retry loop.
-func retryPostRequest(endpoint string, headers map[string]string, data []byte, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
-	var attempt *retry.Attempt
-	startTime := time.Now()
-	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(endpoint, attempt, startTime)
-
+func retryPostRequest(endpoint string, headers map[string]string, data []byte, readResponseBody func(resp *http.Response) error) (*http.Response, error) {
+	return httputil.RetryRequest(endpoint, func() (*http.Response, error) {
 		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
@@ -111,40 +121,8 @@ func retryPostRequest(endpoint string, headers map[string]string, data []byte, d
 			req.Header.Set(k, v)
 		}
 
-		resp, err = httpClient.Do(req)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		} else {
-			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
-			// always decode on success; decode failures only if body is not empty
-			if !ok && resp.ContentLength == 0 {
-				resp.Body.Close()
-				break
-			}
-			err = decode(ok, resp)
-			resp.Body.Close()
-			if err != nil {
-				if shouldRetryError(attempt, err) {
-					continue
-				} else {
-					return nil, err
-				}
-			}
-		}
-		// break out from retry loop
-		break
-	}
-	maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
-
-	return resp, err
+		return httpClient.Do(req)
+	}, readResponseBody, defaultRetryStrategy)
 }
 
 // requestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
@@ -219,7 +197,9 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		case "TWOFACTOR_FAILURE":
 			return "", Err2faFailed
 		case "INVALID_DATA":
-			return "", ErrInvalidAuthData(msg.Extra)
+			return "", InvalidAuthDataError(msg.Extra)
+		case "PASSWORD_POLICY_ERROR":
+			return "", PasswordPolicyError(msg.Extra)
 		}
 
 		if msg.Message != "" {
@@ -315,8 +295,8 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
 	}
 
-	_, err = retryPostRequest(MyAppsDeviceSessionAPI, headers, deviceJSONData, func(ok bool, resp *http.Response) error {
-		if ok {
+	_, err = retryPostRequest(MyAppsDeviceSessionAPI, headers, deviceJSONData, func(resp *http.Response) error {
+		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
 		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,28 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-var fwupdPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the fwupd service. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+const fwupdSummary = `allows operating as the fwupd service`
+
+const fwupdBaseDeclarationSlots = `
+  fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
+const fwupdPermanentSlotAppArmor = `
+# Description: Allow operating as the fwupd service. This gives privileged
+# access to the system.
 
   # Allow read/write access for old efivars sysfs interface
   capability sys_admin,
@@ -84,12 +97,11 @@ var fwupdPermanentSlotAppArmor = []byte(`
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
-`)
+`
 
-var fwupdConnectedPlugAppArmor = []byte(`
-# Description: Allow using fwupd service. Reserved because this gives
-# privileged access to the fwupd service.
-# Usage: reserved
+const fwupdConnectedPlugAppArmor = `
+# Description: Allow using fwupd service. This gives # privileged access to the
+# fwupd service.
 
   #Can access the network
   #include <abstractions/nameservice>
@@ -110,12 +122,20 @@ var fwupdConnectedPlugAppArmor = []byte(`
       path=/
       interface=org.freedesktop.DBus.Properties
       peer=(label=###SLOT_SECURITY_TAGS###),
-`)
 
-var fwupdConnectedSlotAppArmor = []byte(`
-# Description: Allow firmware update using fwupd service. Reserved because this gives
-# privileged access to the fwupd service.
-# Usage: reserved
+  # Allow clients to introspect the service on non-classic (due to the path,
+  # allowing on classic would reveal too much for unconfined)
+  dbus (send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const fwupdConnectedSlotAppArmor = `
+# Description: Allow firmware update using fwupd service. This gives privileged
+# access to the fwupd service.
 
   # Allow traffic to/from org.freedesktop.DBus for fwupd service
   dbus (receive, send)
@@ -142,9 +162,9 @@ var fwupdConnectedSlotAppArmor = []byte(`
       path=/org/freedesktop/fwupd{,/**}
       interface=org.freedesktop.fwupd
       peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var fwupdPermanentSlotDBus = []byte(`
+const fwupdPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
@@ -156,99 +176,89 @@ var fwupdPermanentSlotDBus = []byte(`
     <deny own="org.freedesktop.fwupd"/>
     <deny send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
 </policy>
-`)
+`
 
-var fwupdPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the fwupd service. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+const fwupdPermanentSlotSecComp = `
+# Description: Allow operating as the fwupd service. This gives privileged
+# access to the system.
 # Can communicate with DBus system service
 bind
-getsockname
-recvfrom
-recvmsg
-sendmsg
-sendto
-setsockopt
-`)
-
-var fwupdConnectedPlugSecComp = []byte(`
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.
-# Usage: reserved
 bind
-getsockname
-getsockopt
-recvfrom
-recvmsg
-sendmsg
-sendto
-setsockopt
-`)
+`
 
-// FwupdInterface type
-type FwupdInterface struct{}
+// fwupdInterface type
+type fwupdInterface struct{}
 
-// Name of the FwupdInterface
-func (iface *FwupdInterface) Name() string {
+// Name of the fwupdInterface
+func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-// PermanentPlugSnippet - no slot snippets provided
-func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *fwupdInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              fwupdSummary,
+		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
+	}
 }
 
-// ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return fwupdConnectedPlugSecComp, nil
-	}
-	return nil, nil
+func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(fwupdPermanentSlotDBus)
+	return nil
 }
 
-// PermanentSlotSnippet returns security snippets for slot at install
-func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return fwupdPermanentSlotAppArmor, nil
-	case interfaces.SecurityDBus:
-		return fwupdPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return fwupdPermanentSlotSecComp, nil
-	}
-	return nil, nil
+func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-// ConnectedSlotSnippet returns security snippets for slot at connection
-func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(fwupdPermanentSlotAppArmor)
+	return nil
+
+}
+
+func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(fwupdConnectedPlugSecComp)
+	return nil
+}
+
+func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(fwupdPermanentSlotSecComp)
+	return nil
 }
 
 // SanitizePlug checks the plug definition is valid
-func (iface *FwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
 // SanitizeSlot checks the slot definition is valid
-func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&fwupdInterface{})
 }

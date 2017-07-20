@@ -19,20 +19,28 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const opticalDriveSummary = `allows read access to optical drives`
+
+const opticalDriveBaseDeclarationSlots = `
+  optical-drive:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
+@{PROC}/sys/dev/cdrom/info r,
 `
 
-// NewOpticalDriveInterface returns a new "optical-drive" interface.
-func NewOpticalDriveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "optical-drive",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "optical-drive",
+		summary:               opticalDriveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

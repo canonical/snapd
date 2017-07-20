@@ -4,10 +4,6 @@ summary: Basic network-control consumer snap
 description: A basic snap declaring a plug on network-control
 
 apps:
-  query:
-    command: bin/query
-    plugs: [network-control]
-
-  add-arp-entry:
-    command: bin/add-arp-entry
+  cmd:
+    command: bin/cmd
     plugs: [network-control]

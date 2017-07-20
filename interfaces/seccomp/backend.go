@@ -28,7 +28,7 @@
 // There is no binary cache for seccomp, each time the launcher starts an
 // application the profile is parsed and re-compiled.
 //
-// The actual profiles are stored in /var/lib/snappy/seccomp/profiles.
+// The actual profiles are stored in /var/lib/snappy/seccomp/bpf/*.{src,bin}.
 // This directory is hard-coded in ubuntu-core-launcher.
 package seccomp
 
@@ -36,12 +36,39 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+var osReadlink = os.Readlink
+
+func seccompToBpfPath() string {
+	// FIXME: use cmd.InternalToolPath here once:
+	//   https://github.com/snapcore/snapd/pull/3512
+	// is merged
+	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
+		return snapSeccomp
+	}
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return snapSeccomp
+	}
+
+	// if we are re-execed, then snap-seccomp is at the same location
+	// as snapd
+	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
+}
 
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
@@ -60,15 +87,17 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
-	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, opts, snippets)
+
+	// Get the snippets that apply to this snap
+	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
+
 	glob := interfaces.SecurityTagGlob(snapName)
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -78,6 +107,18 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
+
+	for baseName := range content {
+		in := filepath.Join(dirs.SnapSeccompDir, baseName)
+		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
+
+		seccompToBpf := seccompToBpfPath()
+		cmd := exec.Command(seccompToBpf, "compile", in, out)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
 	return nil
 }
 
@@ -91,27 +132,28 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// combineSnippets combines security snippets collected from all the interfaces
+// deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-		addContent(appInfo.SecurityTag(), opts, snippets, content)
-	}
-
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), opts, snippets, content)
+		securityTag := hookInfo.SecurityTag()
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
+	}
+	for _, appInfo := range snapInfo.Apps {
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		securityTag := appInfo.SecurityTag()
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -123,17 +165,23 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 	}
 
 	buffer.Write(defaultTemplate)
-	for _, snippet := range snippets[securityTag] {
-		buffer.Write(snippet)
-		buffer.WriteRune('\n')
+	buffer.WriteString(snippetForTag)
+
+	// For systems with force-devmode we need to apply a workaround
+	// to avoid failing hooks. See description in template.go for
+	// more details.
+	if release.ReleaseInfo.ForceDevMode() {
+		buffer.WriteString(bindSyscallWorkaround)
 	}
 
-	content[securityTag] = &osutil.FileState{
+	path := fmt.Sprintf("%s.src", securityTag)
+	content[path] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
 }
 
+// NewSpecification returns an empty seccomp specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+	return &Specification{}
 }

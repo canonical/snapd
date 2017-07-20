@@ -90,7 +90,8 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	if (sc_nonfatal_mkpath(dest_dir, 0755) < 0) {
 		die("cannot create empty directory at %s", dest_dir);
 	}
-	const char *flags_str = sc_mount_opt2str(flags);
+	char buf[1000];
+	const char *flags_str = sc_mount_opt2str(buf, sizeof buf, flags);
 	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
 	      flags_str);
 	if (mount(src_dir, dest_dir, NULL, flags, NULL) != 0) {
@@ -115,6 +116,19 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	debug("creating writable mimic directory %s based on %s", mimic_dir,
 	      ref_dir);
 	sc_quirk_setup_tmpfs(mimic_dir);
+
+	// Now copy the ownership and permissions of the mimicked directory
+	struct stat stat_buf;
+	if (stat(ref_dir, &stat_buf) < 0) {
+		die("cannot stat %s", ref_dir);
+	}
+	if (chown(mimic_dir, stat_buf.st_uid, stat_buf.st_gid) < 0) {
+		die("cannot chown for %s", mimic_dir);
+	}
+	if (chmod(mimic_dir, stat_buf.st_mode) < 0) {
+		die("cannot chmod for %s", mimic_dir);
+	}
+
 	debug("bind-mounting all the files from the reference directory");
 	DIR *dirp __attribute__ ((cleanup(sc_cleanup_closedir))) = NULL;
 	dirp = opendir(ref_dir);

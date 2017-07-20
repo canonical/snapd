@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,6 +49,26 @@ var (
 	maxGoneTime = 5 * time.Second
 	pollTime    = 100 * time.Millisecond
 )
+
+type waitMixin struct {
+	NoWait bool `long:"no-wait" hidden:"true"`
+}
+
+// TODO: use waitMixin outside of cmd_snap_op.go
+
+var waitDescs = mixinDescs{
+	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
+}
+
+var noWait = errors.New("no wait for op")
+
+func (wmx *waitMixin) wait(cli *client.Client, id string) (*client.Change, error) {
+	if wmx.NoWait {
+		fmt.Fprintf(Stdout, "%s\n", id)
+		return nil, noWait
+	}
+	return wait(cli, id)
+}
 
 func wait(cli *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
@@ -174,6 +194,8 @@ and the snap can easily be enabled again.
 `)
 
 type cmdRemove struct {
+	waitMixin
+
 	Revision   string `long:"revision"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>" required:"1"`
@@ -181,19 +203,24 @@ type cmdRemove struct {
 }
 
 func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
-	name := x.Positional.Snaps[0]
+	name := string(x.Positional.Snaps[0])
 
 	cli := Client()
-	changeID, err := cli.Remove(string(name), opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
-		fmt.Fprintf(Stderr, e.Message+"\n")
+	changeID, err := cli.Remove(name, opts)
+	if err != nil {
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
+	}
+
+	_, err = x.wait(cli, changeID)
+	if err == noWait {
 		return nil
 	}
 	if err != nil {
-		return err
-	}
-
-	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
 
@@ -213,7 +240,10 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
-	chg, err := wait(cli, changeID)
+	chg, err := x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -302,6 +332,12 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
+	if !strings.Contains(mx.Channel, "/") && mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
+		// shortcut to jump to a different track, e.g.
+		// snap install foo --channel=3.4 # implies 3.4/stable
+		mx.Channel += "/stable"
+	}
+
 	return nil
 }
 
@@ -374,6 +410,8 @@ func (mx modeMixin) setModes(opts *client.SnapOptions) {
 }
 
 type cmdInstall struct {
+	waitMixin
+
 	channelMixin
 	modeMixin
 	Revision string `long:"revision"`
@@ -382,6 +420,8 @@ type cmdInstall struct {
 	// alias for --dangerous, deprecated but we need to support it
 	// because we released 2.14.2 with --force-dangerous
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
+
+	Unaliased bool `long:"unaliased"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
@@ -414,17 +454,21 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, i18n.G("snap %q is already installed, see \"snap refresh --help\"\n"), name)
-		return nil
-	}
 	if err != nil {
-		return err
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	setupAbortHandler(changeID)
 
-	chg, err := wait(cli, changeID)
+	chg, err := x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -458,7 +502,10 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 
 	setupAbortHandler(changeID)
 
-	chg, err := wait(cli, changeID)
+	chg, err := x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -503,6 +550,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Channel:   x.Channel,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
+		Unaliased: x.Unaliased,
 	}
 	x.setModes(opts)
 
@@ -523,25 +571,31 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
+	waitMixin
+
 	channelMixin
 	modeMixin
 
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
+	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-func refreshMany(snaps []string, opts *client.SnapOptions) error {
+func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.RefreshMany(snaps, opts)
 	if err != nil {
 		return err
 	}
 
-	chg, err := wait(cli, changeID)
+	chg, err := x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -560,25 +614,51 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 	return nil
 }
 
-func refreshOne(name string, opts *client.SnapOptions) error {
+func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.Refresh(name, opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNoUpdateAvailable {
-		fmt.Fprintf(Stderr, e.Message+"\n")
+	if err != nil {
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
+	}
+
+	_, err = x.wait(cli, changeID)
+	if err == noWait {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 
-	if _, err := wait(cli, changeID); err != nil {
-		return err
-	}
-
 	return showDone([]string{name}, "refresh")
 }
 
-func listRefresh() error {
+func (x *cmdRefresh) showRefreshTimes() error {
+	cli := Client()
+	sysinfo, err := cli.SysInfo()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	if sysinfo.Refresh.Last != "" {
+		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
+	} else {
+		fmt.Fprintf(Stdout, "last: n/a\n")
+	}
+	if sysinfo.Refresh.Next != "" {
+		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	} else {
+		fmt.Fprintf(Stdout, "next: n/a\n")
+	}
+	return nil
+}
+
+func (x *cmdRefresh) listRefresh() error {
 	cli := Client()
 	snaps, _, err := cli.Find(&client.FindOptions{
 		Refresh: true,
@@ -612,12 +692,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		return err
 	}
 
+	if x.Time {
+		if x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+		}
+
+		return x.showRefreshTimes()
+	}
+
 	if x.List {
 		if x.asksForMode() || x.asksForChannel() {
 			return errors.New(i18n.G("--list does not take mode nor channel flags"))
 		}
 
-		return listRefresh()
+		return x.listRefresh()
 	}
 
 	if len(x.Positional.Snaps) == 0 && os.Getenv("SNAP_REFRESH_FROM_TIMER") == "1" {
@@ -636,7 +724,7 @@ func (x *cmdRefresh) Execute([]string) error {
 			Revision:         x.Revision,
 		}
 		x.setModes(opts)
-		return refreshOne(names[0], opts)
+		return x.refreshOne(names[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -647,14 +735,30 @@ func (x *cmdRefresh) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
-	return refreshMany(names, nil)
+	return x.refreshMany(names, nil)
 }
 
 type cmdTry struct {
+	waitMixin
+
 	modeMixin
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
 	} `positional-args:"yes"`
+}
+
+func hasSnapcraftYaml() bool {
+	for _, loc := range []string{
+		"snap/snapcraft.yaml",
+		"snapcraft.yaml",
+		".snapcraft.yaml",
+	} {
+		if osutil.FileExists(loc) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (x *cmdTry) Execute([]string) error {
@@ -667,7 +771,7 @@ func (x *cmdTry) Execute([]string) error {
 	x.setModes(opts)
 
 	if name == "" {
-		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
+		if hasSnapcraftYaml() && osutil.IsDirectory("prime") {
 			name = "prime"
 		} else {
 			if osutil.FileExists("meta/snap.yaml") {
@@ -686,11 +790,19 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	changeID, err := cli.Try(path, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
+		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+	}
 	if err != nil {
 		return err
 	}
 
-	chg, err := wait(cli, changeID)
+	chg, err := x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -719,6 +831,8 @@ func (x *cmdTry) Execute([]string) error {
 }
 
 type cmdEnable struct {
+	waitMixin
+
 	Positional struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -733,7 +847,10 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	_, err = wait(cli, changeID)
+	_, err = x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -743,6 +860,8 @@ func (x *cmdEnable) Execute([]string) error {
 }
 
 type cmdDisable struct {
+	waitMixin
+
 	Positional struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -757,7 +876,10 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	_, err = wait(cli, changeID)
+	_, err = x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -767,11 +889,13 @@ func (x *cmdDisable) Execute([]string) error {
 }
 
 type cmdRevert struct {
+	waitMixin
+
 	modeMixin
 	Revision   string `long:"revision"`
 	Positional struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
-	} `positional-args:"yes"`
+	} `positional-args:"yes" required:"yes"`
 }
 
 var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
@@ -802,7 +926,11 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	if _, err := wait(cli, changeID); err != nil {
+	_, err = x.wait(cli, changeID)
+	if err == noWait {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 
@@ -858,23 +986,25 @@ func (x cmdSwitch) Execute(args []string) error {
 
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
-		map[string]string{"revision": i18n.G("Remove only the given revision")}, nil)
+		waitDescs.also(map[string]string{"revision": i18n.G("Remove only the given revision")}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
-		channelDescs.also(modeDescs).also(map[string]string{
+		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
+			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
-		channelDescs.also(modeDescs).also(map[string]string{
+		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":          i18n.G("Refresh to the given revision"),
-			"list":              i18n.G("Show available snaps for refresh"),
+			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
+			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
-	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
-	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)
-	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} }, nil, nil)
-	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, modeDescs.also(map[string]string{
+	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
+	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)
+	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} }, waitDescs, nil)
+	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
 		"revision": "Revert to the given revision",
 	}), nil)
 	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, nil, nil)
