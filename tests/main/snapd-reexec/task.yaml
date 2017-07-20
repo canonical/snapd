@@ -26,7 +26,7 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting from .* into .*"
 
     . $TESTSLIB/dirs.sh
 

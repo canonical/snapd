@@ -20,7 +20,7 @@ execute: |
 
     echo "Ensure we re-exec by default"
     snap list
-    journalctl | MATCH "DEBUG: restarting into"
+    journalctl | MATCH "DEBUG: restarting from .* into .*"
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs

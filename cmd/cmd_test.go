@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -111,6 +110,22 @@ func (s *cmdSuite) mockReExecFor(c *C, coreDir, toolName string) func() {
 	}
 	s.fakeInternalTool(c, coreDir, toolName)
 	c.Assert(os.Symlink(filepath.Join("/usr/lib/snapd", toolName), selfExe), IsNil)
+
+	return func() {
+		for i := len(restore) - 1; i >= 0; i-- {
+			restore[i]()
+		}
+	}
+}
+
+func (s *cmdSuite) mockDidReExec(c *C, coreDir, toolName string) func() {
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	restore := []func(){
+		s.mockReExecingEnv(),
+		cmd.MockSelfExe(selfExe),
+	}
+	s.fakeInternalTool(c, coreDir, toolName)
+	c.Assert(os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd/", toolName), selfExe), IsNil)
 
 	return func() {
 		for i := len(restore) - 1; i >= 0; i-- {
@@ -232,7 +247,6 @@ func (s *cmdSuite) TestExecInCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.newCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
@@ -242,7 +256,6 @@ func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.oldCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInCoreSnapBailsNoCoreSupport(c *C) {
@@ -286,10 +299,7 @@ func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
 }
 
 func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
-
-	os.Setenv("SNAP_DID_REEXEC", "1")
-	defer os.Unsetenv("SNAP_DID_REEXEC")
+	defer s.mockDidReExec(c, s.newCore, "potato")()
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
@@ -303,4 +313,19 @@ func (s *cmdSuite) TestExecInCoreSnapDisabled(c *C) {
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
+}
+
+func (s *cmdSuite) TestReReExecFromAncientSnapd(c *C) {
+	// Mock an system in which we re-executed potato from ancient snapd.
+	defer s.mockDidReExec(c, s.newCore, "potato")()
+
+	// Set SNAP_REEXEC=0 as set by ancient snapd (2.21) after re-execution.
+	os.Setenv("SNAP_REEXEC", "0")
+	defer os.Unsetenv("SNAP_REEXEC")
+
+	// Consider re-executing the tool again.
+	cmd.ExecInCoreSnap()
+
+	// Check that we unset SNAP_REEXEC.
+	c.Assert(os.Getenv("SNAP_REEXEC"), Equals, "")
 }
