@@ -217,7 +217,12 @@ func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 }
 
 func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
-	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd")
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return "/usr/bin/potato", nil
+	})
+	defer restore()
+
+	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
 }
 
 func (s *cmdSuite) TestExecInCoreSnap(c *C) {
