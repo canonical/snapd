@@ -31,7 +31,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -167,16 +166,27 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\n" +
-			"\n" +
-			"Type=simple\nId=special.service\nActiveState=reloading\nUnitFileState=static\n" +
-			"\n" +
-			"Type=potato\nId=bar.service\nActiveState=inactive\nUnitFileState=disabled\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=bar.service
+ActiveState=reloading
+UnitFileState=static
+
+Type=potato
+Id=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo", "bar", "baz")
+	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service")
 	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, []*client.ServiceInfo{
+	c.Check(out, DeepEquals, []*ServiceStatus{
 		{
 			Daemon:          "simple",
 			ServiceFileName: "foo.service",
@@ -184,12 +194,12 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 			Enabled:         true,
 		}, {
 			Daemon:          "simple",
-			ServiceFileName: "special.service",
+			ServiceFileName: "bar.service",
 			Active:          true,
 			Enabled:         true,
 		}, {
 			Daemon:          "potato",
-			ServiceFileName: "bar.service",
+			ServiceFileName: "baz.service",
 			Active:          false,
 			Enabled:         false,
 		},
@@ -199,52 +209,100 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 	s.outs = [][]byte{
-		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\n" +
-			"\n" +
-			"All is not well\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo")
-	c.Check(err, ErrorMatches, "unable to get service status: expected 1 results, got 2")
+	out, err := New("", s.rep).Status("foo.service")
+	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStatusBadReturnFormat(c *C) {
+func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
 	s.outs = [][]byte{
-		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\nPotatoes=false\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, []*client.ServiceInfo{
-		{
-			Daemon:          "simple",
-			ServiceFileName: "foo.service",
-			Active:          true,
-			Enabled:         true,
-		},
-	})
-	c.Check(s.rep.msgs[0], Equals, `"systemctl show" returned unexpected line "Potatoes=false"`)
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
+	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStatusBadReturnFormatNoNotifier(c *C) {
+func (s *SystemdTestSuite) TestStatusBadField(c *C) {
 	s.outs = [][]byte{
-		[]byte("Type=simple\nId=foo.service\nActiveState=active\nUnitFileState=enabled\nPotatoes=false\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes=false
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", nil).Status("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, []*client.ServiceInfo{
-		{
-			Daemon:          "simple",
-			ServiceFileName: "foo.service",
-			Active:          true,
-			Enabled:         true,
-		},
-	})
-	// most importantly: no panics :-)
-	c.Check(s.rep.msgs, IsNil)
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
+	c.Check(out, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {

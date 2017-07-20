@@ -86,8 +86,8 @@ type apiBaseSuite struct {
 	trustedRestorer   func()
 	origSysctlCmd     func(...string) ([]byte, error)
 	sysctlArgses      [][]string
-	sysctlBuf         []byte
-	sysctlErr         error
+	sysctlBufs        [][]byte
+	sysctlErrs        []error
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -168,9 +168,21 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	systemd.SystemctlCmd = s.origSysctlCmd
 }
 
-func (s *apiBaseSuite) systemctl(args ...string) ([]byte, error) {
+func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
-	return s.sysctlBuf, s.sysctlErr
+
+	if args[0] != "show" {
+		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
+	}
+
+	if len(s.sysctlErrs) > 0 {
+		err, s.sysctlErrs = s.sysctlErrs[0], s.sysctlErrs[1:]
+	}
+	if len(s.sysctlBufs) > 0 {
+		buf, s.sysctlBufs = s.sysctlBufs[0], s.sysctlBufs[1:]
+	}
+
+	return buf, err
 }
 
 var (
@@ -387,12 +399,42 @@ apps:
     command: some.cmd
   cmd2:
     command: other.cmd
-  svc:
-    command: somed
+  svc1:
+    command: somed1
     daemon: simple
+  svc2:
+    command: somed2
+    daemon: forking
+  svc3:
+    command: somed3
+    daemon: oneshot
+  svc4:
+    command: somed4
+    daemon: notify
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
-	s.sysctlBuf = []byte("Type=simple\nId=snap.foo.svc.service\nActiveState=fumbling\nUnitFileState=enabled\n")
+	s.sysctlBufs = [][]byte{
+		[]byte(`Type=simple
+Id=snap.foo.svc1.service
+ActiveState=fumbling
+UnitFileState=enabled
+`),
+		[]byte(`Type=forking
+Id=snap.foo.svc2.service
+ActiveState=active
+UnitFileState=disabled
+`),
+		[]byte(`Type=oneshot
+Id=snap.foo.svc3.service
+ActiveState=reloading
+UnitFileState=static
+`),
+		[]byte(`Type=notify
+Id=snap.foo.svc4.service
+ActiveState=inactive
+UnitFileState=potatoes
+`),
+	}
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -438,11 +480,29 @@ apps:
 				{Name: "cmd", DesktopFile: df},
 				// no desktop file
 				{Name: "cmd2"},
-				// service
-				{Name: "svc", ServiceInfo: &client.ServiceInfo{
+				// services
+				{Name: "svc1", ServiceInfo: &client.ServiceInfo{
 					Daemon:          "simple",
-					ServiceFileName: "snap.foo.svc.service",
+					ServiceFileName: "snap.foo.svc1.service",
 					Enabled:         true,
+					Active:          false,
+				}},
+				{Name: "svc2", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "forking",
+					ServiceFileName: "snap.foo.svc2.service",
+					Enabled:         false,
+					Active:          true,
+				}},
+				{Name: "svc3", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "oneshot",
+					ServiceFileName: "snap.foo.svc3.service",
+					Enabled:         true,
+					Active:          true,
+				}},
+				{Name: "svc4", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "notify",
+					ServiceFileName: "snap.foo.svc4.service",
+					Enabled:         false,
 					Active:          false,
 				}},
 			},

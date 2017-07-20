@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -192,9 +193,17 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 
 		if app.IsService() {
 			// TODO: look into making a single call to Status for all services
-			sts, err := sysd.Status(app.ServiceName())
-			if err == nil && len(sts) == 1 {
-				apps[i].ServiceInfo = sts[0]
+			if sts, err := sysd.Status(app.ServiceName()); err != nil {
+				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
+			} else if len(sts) != 1 {
+				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
+			} else {
+				apps[i].ServiceInfo = &client.ServiceInfo{
+					Daemon:          sts[0].Daemon,
+					ServiceFileName: sts[0].ServiceFileName,
+					Enabled:         sts[0].Enabled,
+					Active:          sts[0].Active,
+				}
 			}
 		}
 	}
