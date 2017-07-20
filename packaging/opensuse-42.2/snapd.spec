@@ -148,6 +148,10 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
+
+# Remove static link to seccomp as it has been disabled and to avoid ld error
+sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
+# build snap-seccomp
 %gobuild cmd/snap-seccomp
 
 # Build C executables
