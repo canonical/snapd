@@ -20,6 +20,8 @@
 package polkit
 
 import (
+	"errors"
+
 	"github.com/godbus/dbus"
 )
 
@@ -30,54 +32,55 @@ const (
 	CheckAuthorizationAllowUserInteraction CheckAuthorizationFlags = 0x01
 )
 
-// CheckAuthorization queries polkit to determine whether a subject is
-// authorized to perform an action.
-func CheckAuthorization(subject Subject, actionId string, details map[string]string, flags CheckAuthorizationFlags) (result AuthorizationResult, err error) {
-	s, err := subject.serialize()
-	if err != nil {
-		return
-	}
+var (
+	ErrDismissed           = errors.New("Authorization request dismissed")
+	ErrInteractionRequired = errors.New("Authorization requires interaction")
+)
+
+func checkAuthorization(subject subject, actionId string, details map[string]string, flags CheckAuthorizationFlags) (bool, error) {
 	bus, err := dbus.SystemBus()
 	if err != nil {
-		return
+		return false, err
 	}
 	authority := bus.Object("org.freedesktop.PolicyKit1",
 		"/org/freedesktop/PolicyKit1/Authority")
 
+	var result authorizationResult
 	err = authority.Call(
 		"org.freedesktop.PolicyKit1.Authority.CheckAuthorization", 0,
-		s, actionId, details, flags, "").Store(&result)
-	return
+		subject, actionId, details, flags, "").Store(&result)
+	if err != nil && !result.IsAuthorized {
+		if result.IsChallenge {
+			err = ErrInteractionRequired
+		} else if result.Details["polkit.dismissed"] != "" {
+			err = ErrDismissed
+		}
+	}
+	return result.IsAuthorized, err
 }
 
-type serializedSubject struct {
+// CheckAuthorizationForPid queries polkit to determine whether a process is
+// authorized to perform an action.
+func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags CheckAuthorizationFlags) (bool, error) {
+	subject := subject{
+		Kind:    "unix-process",
+		Details: make(map[string]dbus.Variant),
+	}
+	subject.Details["pid"] = dbus.MakeVariant(pid)
+	if startTime, err := getStartTimeForPid(pid); err == nil {
+		subject.Details["start-time"] = dbus.MakeVariant(startTime)
+	} else {
+		return false, err
+	}
+	return checkAuthorization(subject, actionId, details, flags)
+}
+
+type subject struct {
 	Kind    string
 	Details map[string]dbus.Variant
 }
 
-type Subject interface {
-	serialize() (serializedSubject, error)
-}
-
-type ProcessSubject struct {
-	Pid       int
-	StartTime uint64
-}
-
-func (s ProcessSubject) serialize() (serializedSubject, error) {
-	details := make(map[string]dbus.Variant)
-	details["pid"] = dbus.MakeVariant(uint32(s.Pid))
-	if s.StartTime == 0 {
-		var err error
-		if s.StartTime, err = getStartTimeForPid(s.Pid); err != nil {
-			return serializedSubject{}, err
-		}
-	}
-	details["start-time"] = dbus.MakeVariant(s.StartTime)
-	return serializedSubject{"unix-process", details}, nil
-}
-
-type AuthorizationResult struct {
+type authorizationResult struct {
 	IsAuthorized bool
 	IsChallenge  bool
 	Details      map[string]string

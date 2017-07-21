@@ -32,7 +32,7 @@ import (
 //
 // The implementation is intended to be compatible with polkit:
 //    https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
-func getStartTimeForPid(pid int) (uint64, error) {
+func getStartTimeForPid(pid uint32) (uint64, error) {
 	filename := fmt.Sprintf("/proc/%d/stat", pid)
 	file, err := os.Open(filename)
 	if err != nil {

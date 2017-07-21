@@ -31,18 +31,18 @@ import (
 var errNoID = errors.New("no pid/uid found")
 
 const (
-	ucrednetNoProcess = uint64(0)
+	ucrednetNoProcess = uint32(0)
 	ucrednetNobody    = uint32((1 << 32) - 1)
 )
 
-func ucrednetGet(remoteAddr string) (pid uint64, uid uint32, err error) {
+func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, err error) {
 	pid = ucrednetNoProcess
 	uid = ucrednetNobody
 	for _, token := range strings.Split(remoteAddr, ";") {
 		var v uint64
 		if strings.HasPrefix(token, "pid=") {
-			if v, err = strconv.ParseUint(token[4:], 10, 64); err == nil {
-				pid = v
+			if v, err = strconv.ParseUint(token[4:], 10, 32); err == nil {
+				pid = uint32(v)
 			} else {
 				break
 			}

@@ -47,19 +47,19 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
-	authResult polkit.AuthorizationResult
+	authorized bool
 	err        error
 }
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorization(subject polkit.Subject, actionId string, details map[string]string, flags polkit.CheckAuthorizationFlags) (polkit.AuthorizationResult, error) {
-	return s.authResult, s.err
+func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckAuthorizationFlags) (bool, error) {
+	return s.authorized, s.err
 }
 
 func (s *daemonSuite) SetUpSuite(c *check.C) {
 	snapstate.CanAutoRefresh = nil
-	polkitCheckAuthorization = s.checkAuthorization
+	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
@@ -70,12 +70,12 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
-	s.authResult = polkit.AuthorizationResult{}
+	s.authorized = false
 	s.err = nil
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorization = polkit.CheckAuthorization
+	polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -222,11 +222,11 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c), ActionID: "polkit.action"}
 
 	// polkit says user is not authorised
-	s.authResult.IsAuthorized = false
+	s.authorized = false
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 
 	// polkit grants authorisation
-	s.authResult.IsAuthorized = true
+	s.authorized = true
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 
 	// an error occurs communicating with polkit
