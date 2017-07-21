@@ -149,6 +149,112 @@ func (r *Repository) UsedInterfaces() map[string]bool {
 	return used
 }
 
+// QueryOptions describes options for QueryInterfaces.
+//
+// Names: return just this subset if non-empty.
+// Doc: return documentation.
+// Plugs: return information about plugs.
+// Slots: return information about slots.
+// Connected: only consider interfaces with at least one connection.
+type QueryOptions struct {
+	Names                        []string
+	Doc, Plugs, Slots, Connected bool
+}
+
+func (r *Repository) queryInterface(iface Interface, opts *QueryOptions) *InterfaceInfo {
+	// NOTE: QueryOptions.Connected is handled by QueryInterfaces
+	md := MetaDataOf(iface)
+	ifaceName := iface.Name()
+	ii := &InterfaceInfo{
+		Name:     ifaceName,
+		MetaData: MetaData{Summary: md.Summary},
+	}
+	if opts != nil && opts.Doc {
+		// Collect documentation URL
+		ii.MetaData.DocURL = md.DocURL
+	}
+	if opts != nil && opts.Plugs {
+		// Collect all plugs of this interface type.
+		for _, snapName := range sortedSnapNamesWithPlugs(r.plugs) {
+			for _, plugName := range sortedPlugNames(r.plugs[snapName]) {
+				plugInfo := r.plugs[snapName][plugName].PlugInfo
+				if plugInfo.Interface == ifaceName {
+					ii.Plugs = append(ii.Plugs, plugInfo)
+				}
+			}
+		}
+	}
+	if opts != nil && opts.Slots {
+		// Collect all slots of this interface type.
+		for _, snapName := range sortedSnapNamesWithSlots(r.slots) {
+			for _, slotName := range sortedSlotNames(r.slots[snapName]) {
+				slotInfo := r.slots[snapName][slotName].SlotInfo
+				if slotInfo.Interface == ifaceName {
+					ii.Slots = append(ii.Slots, slotInfo)
+				}
+			}
+		}
+	}
+	return ii
+}
+
+// QueryInterfaces returns information about interfaces in the system.
+//
+// If names is empty then all interfaces are considered. Query options decide
+// which data to return but can also skip interfaces without connections. See
+// the documentation of QueryOptions for details.
+func (r *Repository) QueryInterfaces(opts *QueryOptions) []*InterfaceInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// If necessary compute the set of interfaces with any connections.
+	var connected map[string]bool
+	if opts != nil && opts.Connected {
+		connected = make(map[string]bool)
+		for _, plugMap := range r.slotPlugs {
+			for plug, ok := range plugMap {
+				if ok {
+					connected[plug.Interface] = true
+				}
+			}
+		}
+		for _, slotMap := range r.plugSlots {
+			for slot, ok := range slotMap {
+				if ok {
+					connected[slot.Interface] = true
+				}
+			}
+		}
+	}
+
+	// If weren't asked about specific interfaces then query every interface.
+	var names []string
+	if opts == nil || len(opts.Names) == 0 {
+		for _, iface := range r.ifaces {
+			name := iface.Name()
+			if connected == nil || connected[name] {
+				// Optionally filter out interfaces without connections.
+				names = append(names, name)
+			}
+		}
+	} else {
+		names = make([]string, len(opts.Names))
+		copy(names, opts.Names)
+	}
+	sort.Strings(names)
+
+	// Query each interface we are interested in.
+	infos := make([]*InterfaceInfo, 0, len(names))
+	for _, name := range names {
+		if iface, ok := r.ifaces[name]; ok {
+			if connected == nil || connected[name] {
+				infos = append(infos, r.queryInterface(iface, opts))
+			}
+		}
+	}
+	return infos
+}
+
 // InterfaceInfo returns information about a specific interface.
 func (r *Repository) InterfaceInfo(name string) *InterfaceInfo {
 	r.m.Lock()
