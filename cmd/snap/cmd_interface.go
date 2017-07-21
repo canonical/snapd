@@ -67,14 +67,24 @@ func (x *cmdInterface) Execute(args []string) error {
 	if x.Positionals.Interface != "" {
 		// Show one interface in detail.
 		name := string(x.Positionals.Interface)
-		iface, err := Client().Interface(name)
+		ifaces, err := Client().Interfaces(&client.InterfaceQueryOptions{
+			Names: []string{name},
+			Doc:   true,
+			Plugs: true,
+			Slots: true,
+		})
 		if err != nil {
 			return err
 		}
-		x.showOneInterface(&iface)
+		if len(ifaces) == 0 {
+			return fmt.Errorf(i18n.G("no such interface"))
+		}
+		x.showOneInterface(ifaces[0])
 	} else {
 		// Show an overview of available interfaces.
-		ifaces, err := Client().InterfaceIndex()
+		ifaces, err := Client().Interfaces(&client.InterfaceQueryOptions{
+			Connected: !x.ShowAll,
+		})
 		if err != nil {
 			return err
 		}
@@ -141,14 +151,12 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	}
 }
 
-func (x *cmdInterface) showManyInterfaces(infos []client.Interface) {
+func (x *cmdInterface) showManyInterfaces(infos []*client.Interface) {
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Name\tSummary"))
 	for _, iface := range infos {
-		if x.ShowAll || iface.Used {
-			fmt.Fprintf(w, "%s\t%s\n", iface.Name, iface.Summary)
-		}
+		fmt.Fprintf(w, "%s\t%s\n", iface.Name, iface.Summary)
 	}
 }
 

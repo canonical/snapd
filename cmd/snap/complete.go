@@ -294,15 +294,14 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 type interfaceName string
 
 func (s interfaceName) Complete(match string) []flags.Completion {
-	cli := Client()
-	ifaces, err := cli.InterfaceIndex()
+	ifaces, err := Client().Interfaces(nil)
 	if err != nil {
 		return nil
 	}
 
 	ret := make([]flags.Completion, 0, len(ifaces))
 	for _, iface := range ifaces {
-		if iface.Used && strings.HasPrefix(iface.Name, match) {
+		if strings.HasPrefix(iface.Name, match) {
 			ret = append(ret, flags.Completion{Item: iface.Name, Description: iface.Summary})
 		}
 	}
