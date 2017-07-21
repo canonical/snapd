@@ -84,7 +84,7 @@ type Command struct {
 	d *Daemon
 }
 
-var polkitCheckAuthorization = polkit.CheckAuthorization
+var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if user != nil {
@@ -101,13 +101,12 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		if c.ActionID != "" {
-			subject := polkit.ProcessSubject{Pid: int(pid)}
-			if result, err := polkitCheckAuthorization(subject, c.ActionID, nil, polkit.CheckAuthorizationAllowUserInteraction); err == nil {
-				if result.IsAuthorized {
+			if authorized, err := polkitCheckAuthorizationForPid(pid, c.ActionID, nil, polkit.CheckAuthorizationAllowUserInteraction); err == nil {
+				if authorized {
 					// polkit says user is authorised
 					return true
 				}
-			} else {
+			} else if err != polkit.ErrDismissed {
 				logger.Noticef("polkit error: %s", err)
 			}
 		}
