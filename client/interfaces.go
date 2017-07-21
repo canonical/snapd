@@ -83,45 +83,39 @@ type InterfaceAction struct {
 	Slots  []Slot `json:"slots,omitempty"`
 }
 
-// InterfaceOptions represents opt-in elements include in responses.
-type InterfaceOptions struct {
-	Doc, Plugs, Slots, Connected bool
-}
-
 // Connections returns all plugs, slots and their connections.
 func (client *Client) Connections() (interfaces Interfaces, err error) {
 	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
 	return
 }
 
-func (client *Client) Interfaces(names []string, opts *InterfaceOptions) (interfaces []*Interface, err error) {
+// InterfaceQueryOptions represents opt-in elements include in responses.
+type InterfaceQueryOptions struct {
+	Names                        []string
+	Doc, Plugs, Slots, Connected bool
+}
+
+func (client *Client) Interfaces(opts *InterfaceQueryOptions) (interfaces []*Interface, err error) {
 	query := url.Values{}
+	if opts != nil && len(opts.Names) > 0 {
+		query.Set("names", strings.Join(opts.Names, ",")) // Return just those specific interfaces.
+	}
 	if opts != nil {
 		if opts.Doc {
-			// Return documentation of each selected interface.
-			query.Set("doc", "yes")
+			query.Set("doc", "yes") // Return documentation of each selected interface.
 		}
 		if opts.Plugs {
-			// Return plugs of each selected interface.
-			query.Set("plugs", "yes")
+			query.Set("plugs", "yes") // Return plugs of each selected interface.
 		}
 		if opts.Slots {
-			// Return slots of each selected interface.
-			query.Set("slots", "yes")
+			query.Set("slots", "yes") // Return slots of each selected interface.
 		}
 	}
-	// Presence of the select query option toggles the use of the new response
-	// format.
+	// NOTE: Presence of "select" triggers the use of the new response format.
 	if opts != nil && opts.Connected {
-		// Return just the connected interfaces.
-		query.Set("select", "connected")
+		query.Set("select", "connected") // Return just the connected interfaces.
 	} else {
-		// Return all interfaces (both connected and disconnected).
-		query.Set("select", "all")
-	}
-	if len(names) > 0 {
-		// Return just those specific interfaces.
-		query.Set("names", strings.Join(names, ","))
+		query.Set("select", "all") // Return all interfaces.
 	}
 	_, err = client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
 	return
