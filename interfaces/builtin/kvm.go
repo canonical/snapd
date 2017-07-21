@@ -39,7 +39,7 @@ const kvmBaseDeclarationSlots = `
 
 const kvmConnectedPlugAppArmor = `
 # Description: Allow write access to kvm.
-# See 'man 4 mem' for details.
+# See 'man kvm' for details.
 
 /dev/kvm rw,
 `
