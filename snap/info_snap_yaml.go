@@ -42,6 +42,7 @@ type snapYaml struct {
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
+	Base             string                 `yaml:"base,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
@@ -161,6 +162,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		LicenseVersion:      y.LicenseVersion,
 		Epoch:               epoch,
 		Confinement:         confinement,
+		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),
 		LegacyAliases:       make(map[string]*AppInfo),
 		Hooks:               make(map[string]*HookInfo),

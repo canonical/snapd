@@ -156,6 +156,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	Epoch            string
+	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
 	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
