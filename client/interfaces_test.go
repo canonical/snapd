@@ -29,7 +29,8 @@ import (
 
 func (cs *clientSuite) TestClientInterfacesOptionEncoding(c *check.C) {
 	// Choose some options
-	_, _ = cs.cli.Interfaces(nil, &client.InterfaceOptions{
+	_, _ = cs.cli.Interfaces(&client.InterfaceQueryOptions{
+		Names:     []string{"a", "b"},
 		Doc:       true,
 		Plugs:     true,
 		Slots:     true,
@@ -37,7 +38,8 @@ func (cs *clientSuite) TestClientInterfacesOptionEncoding(c *check.C) {
 	})
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
-	c.Check(cs.req.URL.RawQuery, check.Equals, "doc=yes&plugs=yes&select=connected&slots=yes")
+	c.Check(cs.req.URL.RawQuery, check.Equals,
+		"doc=yes&names=a%2Cb&plugs=yes&select=connected&slots=yes")
 }
 
 func (cs *clientSuite) TestClientInterfacesAll(c *check.C) {
@@ -50,7 +52,7 @@ func (cs *clientSuite) TestClientInterfacesAll(c *check.C) {
 			{"name": "iface-c", "summary": "the C iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(nil, nil)
+	ifaces, err := cs.cli.Interfaces(nil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This uses the select=all query option to indicate that new response
@@ -76,8 +78,9 @@ func (cs *clientSuite) TestClientInterfacesConnected(c *check.C) {
 			{"name": "iface-c", "summary": "the C iface"}
 		]
 	}`
-	opts := &client.InterfaceOptions{Connected: true}
-	ifaces, err := cs.cli.Interfaces(nil, opts)
+	ifaces, err := cs.cli.Interfaces(&client.InterfaceQueryOptions{
+		Connected: true,
+	})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This uses select=connected to ignore interfaces that just sit on some
 	// snap but are not connected to anything.
@@ -112,13 +115,14 @@ func (cs *clientSuite) TestClientInterfacesSelectedDetails(c *check.C) {
 			}
 		]
 	}`
-	opts := &client.InterfaceOptions{Doc: true, Plugs: true, Slots: true}
-	ifaces, err := cs.cli.Interfaces([]string{"iface-a"}, opts)
+	opts := &client.InterfaceQueryOptions{Names: []string{"iface-a"}, Doc: true, Plugs: true, Slots: true}
+	ifaces, err := cs.cli.Interfaces(opts)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This enables documentation, plugs, slots, chooses a specific interface
 	// (iface-a), and uses select=all to indicate that new response is desired.
-	c.Check(cs.req.URL.RawQuery, check.Equals, "doc=yes&names=iface-a&plugs=yes&select=all&slots=yes")
+	c.Check(cs.req.URL.RawQuery, check.Equals,
+		"doc=yes&names=iface-a&plugs=yes&select=all&slots=yes")
 	c.Assert(err, check.IsNil)
 	c.Check(ifaces, check.DeepEquals, []*client.Interface{
 		{
@@ -140,7 +144,7 @@ func (cs *clientSuite) TestClientInterfacesMultiple(c *check.C) {
 			{"name": "iface-b", "summary": "the B iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces([]string{"iface-a", "iface-b"}, nil)
+	ifaces, err := cs.cli.Interfaces(&client.InterfaceQueryOptions{Names: []string{"iface-a", "iface-b"}})
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This chooses a specific interfaces (iface-a, iface-b)
