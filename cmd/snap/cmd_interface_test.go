@@ -61,23 +61,19 @@ Help Options:
 func (s *SnapSuite) TestInterfaceList(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "select=connected")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.Interface{{
+			"result": []*client.Interface{{
 				Name:    "network",
 				Summary: "allows access to the network",
-				Used:    true,
 			}, {
 				Name:    "network-bind",
 				Summary: "allows providing services on the network",
-				Used:    true,
-			}, {
-				Name:    "unused",
-				Summary: "just an unused interface, nothing to see here",
 			}},
 		})
 	})
@@ -95,20 +91,19 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 func (s *SnapSuite) TestInterfaceListAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "select=all")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.Interface{{
+			"result": []*client.Interface{{
 				Name:    "network",
 				Summary: "allows access to the network",
-				Used:    true,
 			}, {
 				Name:    "network-bind",
 				Summary: "allows providing services on the network",
-				Used:    true,
 			}, {
 				Name:    "unused",
 				Summary: "just an unused interface, nothing to see here",
@@ -130,13 +125,14 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 func (s *SnapSuite) TestInterfaceDetails(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface/network")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "doc=yes&names=network&plugs=yes&select=all&slots=yes")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interface{
+			"result": []*client.Interface{{
 				Name:    "network",
 				Summary: "allows access to the network",
 				DocURL:  "http://example.org/about-the-network-interface",
@@ -145,7 +141,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 					{Snap: "http", Name: "network"},
 				},
 				Slots: []client.Slot{{Snap: "core", Name: "network"}},
-			},
+			}},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interface", "network"})
@@ -167,13 +163,14 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interface/serial-port")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "doc=yes&names=serial-port&plugs=yes&select=all&slots=yes")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interface{
+			"result": []*client.Interface{{
 				Name:    "serial-port",
 				Summary: "allows providing or using a specific serial port",
 				Plugs: []client.Plug{
@@ -189,7 +186,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 						"path":     "/dev/ttyS0",
 					},
 				}},
-			},
+			}},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interface", "--attrs", "serial-port"})
@@ -213,26 +210,19 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 
 func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/interface":
-			c.Assert(r.Method, Equals, "GET")
-			EncodeResponseBody(c, w, map[string]interface{}{
-				"type": "sync",
-				"result": []client.Interface{{
-					Name:    "network",
-					Summary: "allows access to the network",
-					Used:    true,
-				}, {
-					Name:    "network-bind",
-					Summary: "allows providing services on the network",
-					Used:    true,
-				}, {
-					Name: "unused",
-				}},
-			})
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
+		c.Assert(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "select=all")
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": []*client.Interface{{
+				Name:    "network",
+				Summary: "allows access to the network",
+			}, {
+				Name:    "network-bind",
+				Summary: "allows providing services on the network",
+			}},
+		})
 	})
 	os.Setenv("GO_FLAGS_COMPLETION", "verbose")
 	defer os.Unsetenv("GO_FLAGS_COMPLETION")
