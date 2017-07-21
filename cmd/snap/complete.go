@@ -13,8 +13,7 @@ import (
 type installedSnapName string
 
 func (s installedSnapName) Complete(match string) []flags.Completion {
-	cli := Client()
-	snaps, err := cli.List(nil, nil)
+	snaps, err := Client().List(nil, nil)
 	if err != nil {
 		return nil
 	}
@@ -35,8 +34,7 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 	if len(match) < 3 {
 		return nil
 	}
-	cli := Client()
-	snaps, _, err := cli.Find(&client.FindOptions{
+	snaps, _, err := Client().Find(&client.FindOptions{
 		Prefix: true,
 		Query:  match,
 	})
@@ -71,8 +69,7 @@ func (s anySnapName) Complete(match string) []flags.Completion {
 type changeID string
 
 func (s changeID) Complete(match string) []flags.Completion {
-	cli := Client()
-	changes, err := cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	changes, err := Client().Changes(&client.ChangesOptions{Selector: client.ChangesAll})
 	if err != nil {
 		return nil
 	}
@@ -202,8 +199,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	parts := strings.SplitN(match, ":", 2)
 
 	// Ask snapd about available interfaces.
-	cli := Client()
-	ifaces, err := cli.Connections()
+	ifaces, err := Client().Connections()
 	if err != nil {
 		return nil
 	}
