@@ -86,6 +86,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	appsCmd,
 	debugCmd,
 }
 
@@ -137,6 +138,12 @@ var (
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
+	}
+
+	appsCmd = &Command{
+		Path:   "/v2/apps",
+		UserOK: true,
+		GET:    getAppsInfo,
 	}
 
 	snapConfCmd = &Command{
@@ -2512,4 +2519,28 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	wanted := wantedAppInfos{services: true, commands: true}
+	if wantedStr := query.Get("wanted"); wantedStr != "" {
+		wantedList := strings.Split(wantedStr, ",")
+		if !strutil.ListContains(wantedList, "services") {
+			wanted.services = false
+		}
+		if !strutil.ListContains(wantedList, "commands") {
+			wanted.commands = false
+		}
+		if !(wanted.services || wanted.commands) {
+			return BadRequest(`"wanted" query parameter must have at least one of "services" or "commands" set`)
+		}
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), wanted, splitQS(query.Get("apps")))
+	if rsp != nil {
+		return rsp
+	}
+
+	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
 }

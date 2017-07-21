@@ -290,3 +290,28 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 
 	return ret
 }
+
+type serviceName string
+
+func (s serviceName) Complete(match string) []flags.Completion {
+	cli := Client()
+	apps, err := cli.AppInfos(nil, &client.AppInfoWanted{Services: true})
+	if err != nil {
+		return nil
+	}
+
+	snaps := map[string]bool{}
+	var ret []flags.Completion
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		if !snaps[app.Snap] {
+			snaps[app.Snap] = true
+			ret = append(ret, flags.Completion{Item: app.Snap})
+		}
+		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
+	}
+
+	return ret
+}
