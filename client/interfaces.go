@@ -73,7 +73,6 @@ type Interface struct {
 	DocURL  string `json:"doc-url,omitempty"`
 	Plugs   []Plug `json:"plugs,omitempty"`
 	Slots   []Slot `json:"slots,omitempty"`
-	Used    bool   `json:"used,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
@@ -118,20 +117,6 @@ func (client *Client) Interfaces(opts *InterfaceQueryOptions) (interfaces []*Int
 		query.Set("select", "all") // Return all interfaces.
 	}
 	_, err = client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
-	return
-}
-
-// InterfaceIndex returns the list of all interface names.
-//
-// The result will only have three fields populated, Name, Summary and Used.
-func (client *Client) InterfaceIndex() (ifaces []Interface, err error) {
-	_, err = client.doSync("GET", "/v2/interface", nil, nil, nil, &ifaces)
-	return
-}
-
-// Interface returns all interfaces, their meta-data, plugs and slots.
-func (client *Client) Interface(name string) (iface Interface, err error) {
-	_, err = client.doSync("GET", "/v2/interface/"+name, nil, nil, nil, &iface)
 	return
 }
 
