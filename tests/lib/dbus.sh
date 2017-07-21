@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=tests/lib/pkgdb.sh
-. "$TESTSLIB/pkgdb.sh"
 
 init_dbus_env(){
     export $(cat dbus.env)
