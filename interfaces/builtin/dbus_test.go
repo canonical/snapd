@@ -292,6 +292,7 @@ plugs:
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	apparmorSpec := &apparmor.Specification{}
+	release.OnClassic = true
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
@@ -341,6 +342,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 	apparmorSpec := &apparmor.Specification{}
+	release.OnClassic = true
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.systemSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
