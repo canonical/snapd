@@ -196,27 +196,6 @@ func (s *RepositorySuite) TestInterfacesInfo(c *C) {
 	})
 }
 
-// Tests for Repository.InterfaceInfo
-
-func (s *RepositorySuite) TestInterfaceInfo(c *C) {
-	// Asking about unknown interfaces returns nil.
-	c.Assert(s.emptyRepo.InterfaceInfo(s.iface.Name()), IsNil)
-
-	// Add an interface with some plugs/slots.
-	c.Assert(s.emptyRepo.AddInterface(s.iface), IsNil)
-	c.Assert(s.emptyRepo.AddPlug(s.plug), IsNil)
-	c.Assert(s.emptyRepo.AddSlot(s.slot), IsNil)
-
-	// Asking about an existing interface returns correct data.
-	c.Assert(s.emptyRepo.InterfaceInfo(s.iface.Name()), DeepEquals, &InterfaceInfo{
-		Name:     s.iface.Name(),
-		MetaData: MetaDataOf(s.iface),
-		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
-		Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
-		Used:     true,
-	})
-}
-
 // Tests for Repository.AllInterfaces
 
 func (s *RepositorySuite) TestAllInterfaces(c *C) {
