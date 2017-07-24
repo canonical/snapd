@@ -3,8 +3,10 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
+systems: [-ubuntu-core-*, -fedora-*]
+
 prepare: |
-    . "$TESTSLIB/snaps.sh"
+    . $TESTSLIB/snaps.sh
     snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
 
 execute: |
@@ -19,14 +21,6 @@ execute: |
         exit 1
     fi
 
-    if [[ "$SPREAD_SYSTEM" =~ core ]]; then
-        echo "Check that the classic snap is not installable even with --classic"
-        ( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 && exit 1 || true ) | MATCH $'cannot install snap file: classic confinement is only supported on classic\n *systems'
-        echo "Not from the store either"
-        ( snap install --classic "$CLASSIC_SNAP" 2>&1 && exit 1 || true ) | MATCH "requires classic confinement"
-
-        exit 0
-    fi
     echo "Check that the classic snap works (it skips the entire sandbox)"
     snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap"
     touch /tmp/lala
