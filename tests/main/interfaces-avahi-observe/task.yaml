@@ -40,7 +40,7 @@ execute: |
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat avahi.error | MATCH "org.freedesktop.DBus.Error.AccessDenied"
+        MATCH "org.freedesktop.DBus.Error.AccessDenied" < avahi.error
     fi
 
     echo "When the plug is connected"

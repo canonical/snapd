@@ -1,5 +1,7 @@
 summary: Ensure that the security rules related to device cgroups work.
 
+# We don't run the native kernel on these distributions yet so we can't
+# load kernel modules coming from distribution packages yet.
 systems: [-fedora-*, -opensuse-*]
 
 environment:
