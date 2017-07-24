@@ -70,6 +70,7 @@ Depends: adduser,
          util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},
          ${shlibs:Depends}
+Recommends: squashfuse
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23~14.04)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23~14.04)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
