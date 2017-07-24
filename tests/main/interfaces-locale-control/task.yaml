@@ -10,7 +10,7 @@ summary: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to access the /etc/default/locale
-    file both for reading and writing.
+    file both for reading and writing. This path doesn't exist on the excluded distributions.
 
 prepare: |
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
