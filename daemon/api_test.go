@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -64,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,6 +84,10 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
+	origSysctlCmd     func(...string) ([]byte, error)
+	sysctlArgses      [][]string
+	sysctlBufs        [][]byte
+	sysctlErrs        []error
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -152,11 +158,31 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = release.MockForcedDevmode(false)
 
 	snapstate.CanAutoRefresh = nil
+	s.origSysctlCmd = systemd.SystemctlCmd
+	systemd.SystemctlCmd = s.systemctl
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
+	systemd.SystemctlCmd = s.origSysctlCmd
+}
+
+func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
+	s.sysctlArgses = append(s.sysctlArgses, args)
+
+	if args[0] != "show" {
+		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
+	}
+
+	if len(s.sysctlErrs) > 0 {
+		err, s.sysctlErrs = s.sysctlErrs[0], s.sysctlErrs[1:]
+	}
+	if len(s.sysctlBufs) > 0 {
+		buf, s.sysctlBufs = s.sysctlBufs[0], s.sysctlBufs[1:]
+	}
+
+	return buf, err
 }
 
 var (
@@ -165,6 +191,7 @@ var (
 )
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
+	s.sysctlArgses = nil
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
@@ -364,8 +391,50 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// we have v0 [r5] installed
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), false, "")
 	// and v1 [r10] is current
-	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "title: title\ndescription: description\nsummary: summary\napps:\n cmd:\n  command: some.cmd\n cmd2:\n  command: other.cmd\n")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
+description: description
+summary: summary
+apps:
+  cmd:
+    command: some.cmd
+  cmd2:
+    command: other.cmd
+  svc1:
+    command: somed1
+    daemon: simple
+  svc2:
+    command: somed2
+    daemon: forking
+  svc3:
+    command: somed3
+    daemon: oneshot
+  svc4:
+    command: somed4
+    daemon: notify
+`)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
+	s.sysctlBufs = [][]byte{
+		[]byte(`Type=simple
+Id=snap.foo.svc1.service
+ActiveState=fumbling
+UnitFileState=enabled
+`),
+		[]byte(`Type=forking
+Id=snap.foo.svc2.service
+ActiveState=active
+UnitFileState=disabled
+`),
+		[]byte(`Type=oneshot
+Id=snap.foo.svc3.service
+ActiveState=reloading
+UnitFileState=static
+`),
+		[]byte(`Type=notify
+Id=snap.foo.svc4.service
+ActiveState=inactive
+UnitFileState=potatoes
+`),
+	}
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -407,10 +476,35 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"jailmode":         false,
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
-			"apps": []appJSON{
+			"apps": []*client.AppInfo{
 				{Name: "cmd", DesktopFile: df},
 				// no desktop file
 				{Name: "cmd2"},
+				// services
+				{Name: "svc1", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "simple",
+					ServiceFileName: "snap.foo.svc1.service",
+					Enabled:         true,
+					Active:          false,
+				}},
+				{Name: "svc2", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "forking",
+					ServiceFileName: "snap.foo.svc2.service",
+					Enabled:         false,
+					Active:          true,
+				}},
+				{Name: "svc3", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "oneshot",
+					ServiceFileName: "snap.foo.svc3.service",
+					Enabled:         true,
+					Active:          true,
+				}},
+				{Name: "svc4", ServiceInfo: &client.ServiceInfo{
+					Daemon:          "notify",
+					ServiceFileName: "snap.foo.svc4.service",
+					Enabled:         false,
+					Active:          false,
+				}},
 			},
 			"broken":  "",
 			"contact": "",
