@@ -93,36 +93,6 @@ func (r *Repository) AllInterfaces() []Interface {
 	return ifaces
 }
 
-func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	infos := make(map[string]*InterfaceInfo)
-
-	// Collect meta-data of each interface
-	for _, iface := range r.ifaces {
-		infos[iface.Name()] = &InterfaceInfo{Name: iface.Name(), MetaData: MetaDataOf(iface)}
-	}
-
-	// Collect infos of all plugs and slots.
-	for _, snapName := range sortedSnapNamesWithPlugs(r.plugs) {
-		for _, plugName := range sortedPlugNames(r.plugs[snapName]) {
-			plug := r.plugs[snapName][plugName]
-			ifaceName := plug.Interface
-			infos[ifaceName].Plugs = append(infos[ifaceName].Plugs, plug.PlugInfo)
-		}
-	}
-	for _, snapName := range sortedSnapNamesWithSlots(r.slots) {
-		for _, slotName := range sortedSlotNames(r.slots[snapName]) {
-			slot := r.slots[snapName][slotName]
-			ifaceName := slot.Interface
-			infos[ifaceName].Slots = append(infos[ifaceName].Slots, slot.SlotInfo)
-		}
-	}
-
-	return infos
-}
-
 // QueryOptions describes options for QueryInterfaces.
 //
 // Names: return just this subset if non-empty.
