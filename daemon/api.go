@@ -75,8 +75,6 @@ var api = []*Command{
 	snapCmd,
 	snapConfCmd,
 	interfacesCmd,
-	interfaceIndexCmd,
-	interfaceDetailCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	stateChangeCmd,
@@ -152,18 +150,6 @@ var (
 		UserOK: true,
 		GET:    interfacesConnectionsMultiplexer,
 		POST:   changeInterfaces,
-	}
-
-	interfaceIndexCmd = &Command{
-		Path:   "/v2/interface",
-		UserOK: true,
-		GET:    getInterfaceIndex,
-	}
-
-	interfaceDetailCmd = &Command{
-		Path:   "/v2/interface/{name}",
-		UserOK: true,
-		GET:    getInterfaceDetail,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -1640,39 +1626,6 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
-}
-
-// getInterfaceIndex returns a list of known interfaces along with their summary.
-func getInterfaceIndex(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.AllInterfaces()
-	used := repo.UsedInterfaces()
-	type IfaceOverview struct {
-		Name    string `json:"name,omitempty"`
-		Summary string `json:"summary,omitempty"`
-		Used    bool   `json:"used,omitempty"`
-	}
-	result := make([]IfaceOverview, 0, len(ifaces))
-	for _, iface := range ifaces {
-		ifaceName := iface.Name()
-		result = append(result, IfaceOverview{
-			Name:    ifaceName,
-			Summary: interfaces.MetaDataOf(iface).Summary,
-			Used:    used[ifaceName],
-		})
-	}
-	return SyncResponse(result, nil)
-}
-
-// getInterfaceDetail returns details about a specific interface.
-func getInterfaceDetail(c *Command, r *http.Request, user *auth.UserState) Response {
-	ifaceName := muxVars(r)["name"]
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ii := repo.InterfaceInfo(ifaceName)
-	if ii == nil {
-		return NotFound("cannot find interface named %q", ifaceName)
-	}
-	return SyncResponse(ii, nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.

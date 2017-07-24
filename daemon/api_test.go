@@ -3304,6 +3304,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	})
 }
 
+/**
 // Tests for GET /v2/interface (note: singular!)
 
 func (s *apiSuite) TestInterfaceIndex(c *check.C) {
@@ -3419,6 +3420,8 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 		"type":        "error",
 	})
 }
+
+**/
 
 // Test for POST /v2/interfaces
 
