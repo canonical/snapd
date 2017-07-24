@@ -30,7 +30,6 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -167,28 +166,144 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=bar.service
+ActiveState=reloading
+UnitFileState=static
+
+Type=potato
+Id=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo")
+	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service")
 	c.Assert(err, IsNil)
-	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
+	c.Check(out, DeepEquals, []*ServiceStatus{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "simple",
+			ServiceFileName: "bar.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "potato",
+			ServiceFileName: "baz.service",
+			Active:          false,
+			Enabled:         false,
+		},
+	})
+	c.Check(s.rep.msgs, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
 }
 
-func (s *SystemdTestSuite) TestStatusObj(c *C) {
+func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).ServiceStatus("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, &ServiceStatus{
-		ServiceFileName: "foo",
-		LoadState:       "LoadState",
-		ActiveState:     "ActiveState",
-		SubState:        "SubState",
-		UnitFileState:   "UnitFileState",
-	})
+	out, err := New("", s.rep).Status("foo.service")
+	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes=false
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
+	c.Check(out, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
@@ -358,22 +473,6 @@ Options=nodev,ro,bind
 [Install]
 WantedBy=multi-user.target
 `, snapDir))
-}
-
-func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range RestartMap {
-		bs := []byte(cond)
-		var rc RestartCondition
-
-		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, RestartMap[cond], Commentf(cond))
-	}
-}
-
-func (s *SystemdTestSuite) TestRestartCondString(c *C) {
-	for name, cond := range RestartMap {
-		c.Check(cond.String(), Equals, name, Commentf(name))
-	}
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
