@@ -123,32 +123,6 @@ func (r *Repository) InterfaceInfos() map[string]*InterfaceInfo {
 	return infos
 }
 
-// UsedInterfaces returns a map representing the set of interfaces that are actively used.
-//
-// An interface is used if the repository has a plug or slot using that
-// interface, with the exception of the core snap which contains a number of
-// implicit slots that don't automatically count as used unless.
-func (r *Repository) UsedInterfaces() map[string]bool {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	used := make(map[string]bool)
-
-	for _, plugMap := range r.plugs {
-		for _, plug := range plugMap {
-			used[plug.Interface] = true
-		}
-	}
-	for _, slotMap := range r.slots {
-		for _, slot := range slotMap {
-			if slot.Snap.Type != snap.TypeOS {
-				used[slot.Interface] = true
-			}
-		}
-	}
-	return used
-}
-
 // QueryOptions describes options for QueryInterfaces.
 //
 // Names: return just this subset if non-empty.

@@ -196,49 +196,6 @@ func (s *RepositorySuite) TestInterfacesInfo(c *C) {
 	})
 }
 
-// Tests for Repository.UsedInterfaces
-
-func (s *RepositorySuite) TestUsedInterfaces(c *C) {
-	// Add three interfaces, used, unused and implicit. The used interface has
-	// a plug, the unused interface is not used anywhere and the implicit
-	// interface has a slot on the core snap.
-	usedPlug := &ifacetest.TestInterface{InterfaceName: "used-plug"}
-	usedSlot := &ifacetest.TestInterface{InterfaceName: "used-slot"}
-	implicitSlot := &ifacetest.TestInterface{InterfaceName: "implicit-slot"}
-	unused := &ifacetest.TestInterface{InterfaceName: "unused"}
-
-	c.Assert(s.emptyRepo.AddInterface(usedPlug), IsNil)
-	c.Assert(s.emptyRepo.AddInterface(usedSlot), IsNil)
-	c.Assert(s.emptyRepo.AddInterface(implicitSlot), IsNil)
-	c.Assert(s.emptyRepo.AddInterface(unused), IsNil)
-
-	// Add a plug and an implicit slot corresponding to used and implicit, respectively.
-	snapInfo1 := snaptest.MockInfo(c, `
-name: snap1
-plugs:
-    used-plug:
-`, nil)
-	c.Assert(s.emptyRepo.AddPlug(&Plug{PlugInfo: snapInfo1.Plugs["used-plug"]}), IsNil)
-
-	snapInfo2 := snaptest.MockInfo(c, `
-name: snap2
-slots:
-    used-slot:
-`, nil)
-	c.Assert(s.emptyRepo.AddSlot(&Slot{SlotInfo: snapInfo2.Slots["used-slot"]}), IsNil)
-
-	snapInfo3 := snaptest.MockInfo(c, `
-name: snap3
-type: os
-slots:
-    implicit-slot:
-`, nil)
-	c.Assert(s.emptyRepo.AddSlot(&Slot{SlotInfo: snapInfo3.Slots["implicit-slot"]}), IsNil)
-
-	// We can now check that UsedInterfaces behaves correctly.
-	c.Assert(s.emptyRepo.UsedInterfaces(), DeepEquals, map[string]bool{"used-plug": true, "used-slot": true})
-}
-
 // Tests for Repository.InterfaceInfo
 
 func (s *RepositorySuite) TestInterfaceInfo(c *C) {
