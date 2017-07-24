@@ -58,6 +58,46 @@ Help Options:
 	c.Assert(rest, DeepEquals, []string{})
 }
 
+func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "select=connected")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": []*client.Interface{},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interface"})
+	c.Assert(err, ErrorMatches, "no interfaces currently connected")
+	c.Assert(rest, DeepEquals, []string{"interface"})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "select=all")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": []*client.Interface{},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interface", "--all"})
+	c.Assert(err, ErrorMatches, "no interfaces found")
+	c.Assert(rest, DeepEquals, []string{"--all"}) // XXX: feels like a bug in go-flags.
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
 func (s *SnapSuite) TestInterfaceList(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
