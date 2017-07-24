@@ -1,7 +1,6 @@
 name:    core-support
 summary: special permissions for the core snap
 plugs:
-  - snap: core
-    plug: core-support-plug
+  - "core:core-support-plug"
 slots:
-  - snap: core
+  - core
