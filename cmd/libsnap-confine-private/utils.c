@@ -120,6 +120,10 @@ bool sc_is_debug_enabled()
 {
 	return getenv_bool("SNAP_CONFINE_DEBUG", false);
 }
+
+bool sc_is_reexec_enabled()
+{
+	return getenv_bool("SNAP_REEXEC", true);
 }
 
 void debug(const char *msg, ...)

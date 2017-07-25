@@ -37,6 +37,11 @@ void debug(const char *fmt, ...);
  **/
 bool sc_is_debug_enabled();
 
+/**
+ * Return true if re-execution is enabled.
+ **/
+bool sc_is_reexec_enabled();
+
 void write_string_to_file(const char *filepath, const char *buf);
 
 /**
