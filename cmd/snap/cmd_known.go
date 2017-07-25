@@ -31,20 +31,6 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type assertTypeName string
-
-func (n assertTypeName) Complete(match string) []flags.Completion {
-	names := asserts.TypeNames()
-	ret := make([]flags.Completion, 0, len(names))
-	for _, name := range names {
-		if strings.HasPrefix(name, match) {
-			ret = append(ret, flags.Completion{Item: name})
-		}
-	}
-
-	return ret
-}
-
 type cmdKnown struct {
 	KnownOptions struct {
 		// XXX: how to get a list of assert types for completion?

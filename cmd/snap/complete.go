@@ -87,6 +87,24 @@ func (s changeID) Complete(match string) []flags.Completion {
 	return ret
 }
 
+type assertTypeName string
+
+func (n assertTypeName) Complete(match string) []flags.Completion {
+	cli := Client()
+	names, err := cli.AssertionTypes()
+	if err != nil {
+		return nil
+	}
+	ret := make([]flags.Completion, 0, len(names))
+	for _, name := range names {
+		if strings.HasPrefix(name, match) {
+			ret = append(ret, flags.Completion{Item: name})
+		}
+	}
+
+	return ret
+}
+
 type keyName string
 
 func (s keyName) Complete(match string) []flags.Completion {
