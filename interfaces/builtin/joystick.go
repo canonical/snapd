@@ -20,11 +20,8 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/snap"
 )
 
 const joystickSummary = `allows access to joystick devices`
@@ -70,26 +67,13 @@ func (iface *joystickInterface) String() string {
 
 // SanitizeSlot checks the validity of the defined slot.
 func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
+	ensureSlotIfaceMatch(iface, slot)
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *joystickInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-
-	// Currently nothing is checked on the plug side
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

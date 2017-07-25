@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
 )
 
 const hardwareRandomControlSummary = `allows control over the hardware random number generator`
@@ -73,22 +72,13 @@ func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
 
 // Check validity of the defined slot
 func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
+	ensureSlotIfaceMatch(iface, slot)
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *hardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	// Currently nothing is checked on the plug side
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

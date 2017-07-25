@@ -75,7 +75,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "physical-memory-control",
 		Interface: "physical-memory-control",
 	}})
-	c.Assert(err, ErrorMatches, "physical-memory-control slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "physical-memory-control slots are reserved for the operating system snap")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizePlug(c *C) {

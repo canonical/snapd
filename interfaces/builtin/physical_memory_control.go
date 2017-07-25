@@ -72,25 +72,13 @@ func (iface *physicalMemoryControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *physicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
+	ensureSlotIfaceMatch(iface, slot)
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *physicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

@@ -131,10 +131,12 @@ func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slo
 }
 
 func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 
