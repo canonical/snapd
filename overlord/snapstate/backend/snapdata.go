@@ -226,6 +226,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 				// try to fix that; hope for the best
 				if e := untrash(newPath); e != nil {
 					// oh noes
+					// TODO: issue a warning to the user that data was lost
 					msg += fmt.Sprintf("; and when trying to restore the old data directory: %v", e)
 				}
 
