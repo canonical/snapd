@@ -14,8 +14,7 @@ execute: |
     . "$TESTSLIB/snaps.sh"
 
     echo Install previous version...
-    dpkg -l snapd snap-confine || true
-    distro_install_build_snapd
+    distro_install_package snap-confine snapd
 
     prevsnapdver=$(snap --version|grep "snapd ")
 
@@ -42,7 +41,7 @@ execute: |
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     pkg_extention="$(distro_get_package_extention)"
-    distro_install_local_package --allow-downgrades "$GOHOME"/snapd*."$pkg_extention"
+    distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extention"
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
