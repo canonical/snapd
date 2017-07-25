@@ -1,4 +1,5 @@
 #!/bin/bash
+
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 # shellcheck source=tests/lib/systemd.sh
@@ -49,7 +50,7 @@ setup_fake_store(){
     systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} -assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "And snapd is configured to use the controlled store"
-    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 }
 
 teardown_fake_store(){

@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -134,6 +133,7 @@ type SideInfo struct {
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Contact           string   `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -147,6 +147,7 @@ type Info struct {
 	Architectures []string
 	Assumes       []string
 
+	OriginalTitle       string
 	OriginalSummary     string
 	OriginalDescription string
 
@@ -155,6 +156,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	Epoch            string
+	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
 	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
@@ -204,6 +206,14 @@ func (s *Info) Name() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// Title returns the blessed title for the snap.
+func (s *Info) Title() string {
+	if s.EditedTitle != "" {
+		return s.EditedTitle
+	}
+	return s.OriginalTitle
 }
 
 // Summary returns the blessed summary for the snap.
@@ -396,7 +406,7 @@ type AppInfo struct {
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
-	RestartCond     systemd.RestartCondition
+	RestartCond     RestartCondition
 	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change

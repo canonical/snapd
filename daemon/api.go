@@ -269,6 +269,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			Next:     formatRefreshTime(nextRefresh),
 		},
 	}
+	// NOTE: Right now we don't have a good way to differentiate if we
+	// only have partial confinement (ala AppArmor disabled and Seccomp
+	// enabled) or no confinement at all. Once we have a better system
+	// in place how we can dynamically retrieve these information from
+	// snapd we will use this here.
+	if release.ReleaseInfo.ForceDevMode() {
+		m["confinement"] = "partial"
+	} else {
+		m["confinement"] = "strict"
+	}
 
 	return SyncResponse(m, nil)
 }
@@ -2053,23 +2063,16 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 	su := a.(*asserts.SystemUser)
 
 	// cross check that the assertion is valid for the given series/model
-	contains := func(needle string, haystack []string) bool {
-		for _, s := range haystack {
-			if needle == s {
-				return true
-			}
-		}
-		return false
-	}
+
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
-	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
 	}
-	if len(su.Series()) > 0 && !contains(series, su.Series()) {
+	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
-	if len(su.Models()) > 0 && !contains(model, su.Models()) {
+	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
 	if !su.ValidAt(time.Now()) {
