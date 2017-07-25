@@ -91,5 +91,19 @@ func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
 }
 
 func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions")
+			fmt.Fprintln(w, `{"type": "sync", "result": { "types": [ "account", "... more stuff ...", "validation" ] } }`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
 	c.Check(snap.AssertTypeNameCompletion("v"), check.DeepEquals, []flags.Completion{{Item: "validation"}})
 }

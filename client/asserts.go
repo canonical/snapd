@@ -44,7 +44,9 @@ func (client *Client) Ack(b []byte) error {
 
 // AssertionTypes returns a list of assertion type names.
 func (client *Client) AssertionTypes() ([]string, error) {
-	var types struct{ Types []string }
+	var types struct {
+		Types []string `json:"types"`
+	}
 	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get assertion type names: %v", err)
