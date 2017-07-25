@@ -80,6 +80,14 @@ func (s *bootstrapSuite) TestFindSnapName5(c *C) {
 	c.Assert(result, Equals, (*string)(nil))
 }
 
+// Check that if the 1st argument is an option then it is skipped.
+func (s *bootstrapSuite) TestFindSnapName6(c *C) {
+	buf := []byte("arg0\x00--option\x00snap\x00\x00")
+	result := update.FindSnapName(buf)
+	c.Assert(result, NotNil)
+	c.Assert(*result, Equals, "snap")
+}
+
 // Check that if argv0 is returned as expected
 func (s *bootstrapSuite) TestFindArgv0(c *C) {
 	buf := []byte("arg0\x00argv1\x00")
