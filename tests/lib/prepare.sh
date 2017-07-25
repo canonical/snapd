@@ -187,9 +187,8 @@ EOF
         systemctl stop snapd.{service,socket}
         systemctl daemon-reload
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
-        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
-        for unit in $services $mounts; do
+        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
+        for unit in $units; do
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
@@ -201,7 +200,7 @@ EOF
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
             umount "$core" || true
         fi
-        for unit in $mounts $services; do
+        for unit in $units; do
             systemctl start "$unit"
         done
         systemctl start snapd.socket
@@ -209,13 +208,11 @@ EOF
 
     if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            quiet apt install -y -q pollinate
             pollinate
         fi
 
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
-        apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 

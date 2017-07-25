@@ -45,9 +45,6 @@ func (s *nsSuite) SetUpTest(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 	// Anything that just gives us no-reexec.
 	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "fedora"}))
-
-	os.Setenv("SNAP_REEXEC", "0")
-	s.AddCleanup(func() { os.Unsetenv("SNAP_REEXEC") })
 }
 
 func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
