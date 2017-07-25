@@ -286,10 +286,9 @@ func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
 }
 
 func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
-
-	os.Setenv("SNAP_DID_REEXEC", "1")
-	defer os.Unsetenv("SNAP_DID_REEXEC")
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	c.Assert(err, IsNil)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

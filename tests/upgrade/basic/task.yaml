@@ -11,6 +11,7 @@ execute: |
         exit 0
     fi
     . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/snaps.sh"
 
     echo Install previous version...
     dpkg -l snapd snap-confine || true
@@ -27,6 +28,7 @@ execute: |
     echo Install sanity check snaps with it
     snap install test-snapd-tools
     snap install test-snapd-auto-aliases
+    install_local_classic test-snapd-classic-confinement
 
     echo Sanity check installs
     test-snapd-tools.echo Hello | grep Hello
@@ -47,6 +49,7 @@ execute: |
     snap list | grep test-snapd-tools
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test-snapd-classic-confinement.recurse 5
 
     # only test if confinement works and we actually have apparmor available
     # FIXME: this will be converted to a better check once we added the

@@ -23,9 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -52,6 +54,25 @@ var _ = Suite(&OpenvSwitchSupportInterfaceSuite{
 		},
 	},
 })
+
+func (s *OpenvSwitchSupportInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [openvswitch-support]
+`
+	s.slot = &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+			Name:      "openvswitch-support",
+			Interface: "openvswitch-support",
+		},
+	}
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["openvswitch-support"]}
+}
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "openvswitch-support")
@@ -87,6 +108,12 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"openvswitch": true,
 	})
+
+	apparmorSpec := &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/uuidd/request rw")
 }
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestInterfaces(c *C) {
