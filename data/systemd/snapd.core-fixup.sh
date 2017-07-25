@@ -38,3 +38,6 @@ done
 find /etc/cloud /var/lib/cloud /var/lib/snapd -printf '%M %U %G %p\n' > /var/lib/snapd/device/ownership-change.after.tmp
 find  /writable/system-data /writable/system-data/var /writable/system-data/var/lib /writable/system-data/boot /writable/system-data/etc -maxdepth 0 -printf '%M %U %G %p\n' >> /var/lib/snapd/device/ownership-change.after.tmp
 mv /var/lib/snapd/device/ownership-change.after.tmp /var/lib/snapd/device/ownership-change.after
+
+# ensure things are really on disk
+sync
