@@ -28,11 +28,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
 var opts struct {
-	Positionals struct {
+	FromSnapConfine bool `long:"from-snap-confine"`
+	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
 }
@@ -77,8 +79,18 @@ func run() error {
 		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
 	}
 	defer lock.Close()
-	if err := lock.Lock(); err != nil {
-		return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
+
+	if opts.FromSnapConfine {
+		// When --from-snap-conifne is passed then we just ensure that the
+		// namespace is locked. This is used by snap-confine to use
+		// snap-update-ns to apply mount profiles.
+		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
+			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", snapName)
+		}
+	} else {
+		if err := lock.Lock(); err != nil {
+			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
+		}
 	}
 
 	// Read the desired and current mount profiles. Note that missing files

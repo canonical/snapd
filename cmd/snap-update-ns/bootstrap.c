@@ -82,11 +82,30 @@ find_snap_name(char* buf, size_t num_read)
     if (argv0_len + 1 >= num_read) {
         return NULL;
     }
-    char* snap_name = &buf[argv0_len + 1];
+    // Skip the --from-snap-confine option if we see one.
+    size_t pos = argv0_len + 1;
+    if (buf[pos] == '-') {
+        pos += strlen(&buf[pos]) + 1;
+    }
+    char *snap_name = &buf[pos];
     if (*snap_name == '\0') {
         return NULL;
     }
     return snap_name;
+}
+
+const char *
+find_1st_option(char *buf, size_t num_read)
+{
+    size_t argv0_len = strnlen(buf, num_read);
+    if (argv0_len + 1 >= num_read) {
+        return NULL;
+    }
+    size_t pos = argv0_len + 1;
+    if (buf[pos] == '-') {
+        return &buf[pos];
+    }
+    return NULL;
 }
 
 // setns_into_snap switches mount namespace into that of a given snap.
@@ -177,6 +196,14 @@ void bootstrap(void)
     // proper error message but this just ensures we don't try to open / setns
     // anything unusual.
     if (partially_validate_snap_name(snap_name) < 0) {
+        return;
+    }
+
+    // When we are running under "--from-snap-confine" option skip the setns
+    // call as snap-confine has already placed us in the right namespace.
+    const char *option = find_1st_option(cmdline, (size_t)num_read);
+    if (option != NULL && strncmp(option, "--from-snap-confine",
+                strlen("--from-snap-confine")) == 0) {
         return;
     }
 
