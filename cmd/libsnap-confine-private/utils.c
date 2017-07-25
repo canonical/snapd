@@ -99,10 +99,10 @@ static int str2bool(const char *text, bool * value)
  * and "0". All other values are treated as false and a diagnostic message is
  * printed to stderr.
  **/
-static bool getenv_bool(const char *name)
+static bool getenv_bool(const char *name, bool default_value)
 {
 	const char *str_value = getenv(name);
-	bool value;
+	bool value = default_value;
 	if (str2bool(str_value, &value) < 0) {
 		if (errno == EINVAL) {
 			fprintf(stderr,
@@ -118,7 +118,8 @@ static bool getenv_bool(const char *name)
 
 bool sc_is_debug_enabled()
 {
-	return getenv_bool("SNAP_CONFINE_DEBUG");
+	return getenv_bool("SNAP_CONFINE_DEBUG", false);
+}
 }
 
 void debug(const char *msg, ...)
