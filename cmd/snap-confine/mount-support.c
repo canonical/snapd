@@ -29,6 +29,8 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/classic.h"
@@ -135,22 +137,9 @@ static void setup_private_pts()
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
-/*
- * Setup mount profiles as described by snapd.
- *
- * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
- * and executes the mount requests described there.
- *
- * Currently only bind mounts are allowed. All bind mounts are read only by
- * default though the `rw` flag can be used.
- *
- * This function is called with the rootfs being "consistent" so that it is
- * either the core snap on an all-snap system or the core snap + punched holes
- * on a classic system.
- **/
-static void sc_setup_mount_profiles(const char *snap_name)
+static void setup_mount_profiles_directly(const char *snap_name)
 {
-	debug("%s: %s", __FUNCTION__, snap_name);
+	debug("setting up mount profiles directly");
 
 	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
@@ -204,6 +193,107 @@ static void sc_setup_mount_profiles(const char *snap_name)
 		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
 			die("cannot append entry to the current mount profile");
 		}
+	}
+}
+
+// Find snap-update-ns, returns NULL if one cannot be found.
+static const char *find_snap_update_ns()
+{
+	// Note that at this stage we _may_ be after pivot_root but we cannot rely
+	// on this. If we did pivot_root then the base snap _may_ contain the tool
+	// but we, again, cannot rely on that.
+	const char *const reexec_tools[] = {
+		SNAP_MOUNT_DIR "/core/current/usr/lib/snapd/snap-update-ns",
+		"/snap/core/current/usr/lib/snapd/snap-update-ns",
+		NULL,
+	};
+	const char *const distro_tools[] = {
+		SC_HOSTFS_DIR "/usr/lib/snapd/snap-update-ns",
+		SC_HOSTFS_DIR "/usr/libexec/snapd/snap-update-ns",
+		"/usr/lib/snapd/snap-update-ns",
+		"/usr/libexec/snapd/snap-update-ns",
+		NULL,
+	};
+	if (sc_is_reexec_enabled()) {
+		for (const char *const *tool = reexec_tools; *tool != NULL;
+		     ++tool) {
+			if (access(*tool, F_OK | X_OK) == 0) {
+				return *tool;
+			}
+		}
+	}
+	for (const char *const *tool = distro_tools; *tool != NULL; ++tool) {
+		if (access(*tool, F_OK | X_OK) == 0) {
+			return *tool;
+		}
+	}
+	return NULL;
+}
+
+static void setup_mount_profiles_via_snap_update_ns(const char *snap_update_ns,
+						    const char *snap_name)
+{
+	debug("calling snap-update-ns to initialize mount namespace");
+	pid_t child = fork();
+	if (child < 0) {
+		die("cannot fork to run snap-update-ns");
+	}
+	if (child == 0) {
+		// We are the child, execute snap-update-ns
+		char *snap_name_copy
+		    __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		snap_name_copy = strdup(snap_name);
+		if (snap_name_copy == NULL) {
+			die("cannot copy snap name");
+		}
+		char *argv[] = {
+			"snap-update-ns", "--from-snap-confine", snap_name_copy,
+			NULL
+		};
+		char *envp[] = { NULL };
+		debug("execv(%s, %s %s %s,)", snap_update_ns, argv[0], argv[1],
+		      argv[2]);
+		execve(snap_update_ns, argv, envp);
+		die("cannot execute snap-update-ns");
+	} else {
+		// Wait for snap-update-ns to finish.
+		int status = 0;
+		debug("waiting for snap-update-ns to finish...");
+		if (waitpid(child, &status, 0) < 0) {
+			die("cannot wait for snap-update-ns process");
+		}
+		if (WIFEXITED(status)) {
+			if (WEXITSTATUS(status) != 0) {
+				die("snap-update-ns failed with code %d",
+				    WEXITSTATUS(status));
+			}
+		} else {
+			die("snap-update-ns failed abnormally");
+		}
+	}
+}
+
+/*
+ * Setup mount profiles as described by snapd.
+ *
+ * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
+ * and executes the mount requests described there.
+ *
+ * Currently only bind mounts are allowed. All bind mounts are read only by
+ * default though the `rw` flag can be used.
+ *
+ * This function is called with the rootfs being "consistent" so that it is
+ * either the core snap on an all-snap system or the core snap + punched holes
+ * on a classic system.
+ **/
+static void sc_setup_mount_profiles(const char *snap_name)
+{
+	const char *snap_update_ns = find_snap_update_ns();
+	if (snap_update_ns != NULL) {
+		setup_mount_profiles_via_snap_update_ns(snap_update_ns,
+							snap_name);
+	} else {
+		setup_mount_profiles_directly(snap_name);
 	}
 }
 

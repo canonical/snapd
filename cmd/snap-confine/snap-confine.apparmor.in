@@ -377,4 +377,7 @@
 
     # Allow snap-confine to be killed
     signal (receive) peer=unconfined,
+
+    # Allow snap-confine to use snap-update-ns
+    /{,{,var/lib/snapd/}snap/core/*/,var/lib/snapd/hostfs/}usr/lib{,exec}/snapd/snap-update-ns Ux,
 }
