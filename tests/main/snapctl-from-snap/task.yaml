@@ -9,6 +9,8 @@ restore: |
     rm snapctl-from-snap_1.0_all.snap
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     check_cookie_exists() {
       COOKIE_FILE=$1
       if ! test -f $COOKIE_FILE ; then
@@ -39,11 +41,11 @@ execute: |
     check_cookie_exists $COOKIE_FILE
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
-    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
+    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    /snap/bin/snapctl-from-snap.snapctl-set foo=123
-    /snap/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
+    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-set foo=123
+    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
 
     echo "Verify configuration value with snap get"
     snap get snapctl-from-snap foo | MATCH 123

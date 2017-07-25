@@ -85,8 +85,8 @@ const unity7ConnectedPlugAppArmor = `
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
-/usr/local/bin/xdg-open ixr,
-/usr/local/share/applications/{,*} r,
+/usr/bin/xdg-open ixr,
+/usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
 dbus (send)
     bus=session

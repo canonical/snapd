@@ -7,7 +7,7 @@ send "ls /dev/pts\n"
 expect "\[0-9]*ptmx" {} timeout { exit 1 }
 
 # Launch app and checks contents of /dev/pts, should have only ptmx
-spawn su -l -c "/snap/bin/test-snapd-tools.sh" test
+spawn su -l -c "$env(SNAPMOUNTDIR)/bin/test-snapd-tools.sh" test
 expect "bash-4.3\\$" {} timeout { exit 1 }
 send "ls /dev/pts\n"
 expect {
