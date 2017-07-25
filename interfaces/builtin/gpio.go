@@ -63,14 +63,9 @@ func (iface *gpioInterface) MetaData() interfaces.MetaData {
 
 // SanitizeSlot checks the slot definition is valid
 func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Paranoid check this right interface type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("gpio slots only allowed on gadget or core snaps")
+	ensureSlotIfaceMatch(iface, slot)
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Must have a GPIO number
@@ -90,12 +85,7 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks the plug definition is valid
 func (iface *gpioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// Make sure right interface type
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-
-	// Plug is good
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

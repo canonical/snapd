@@ -84,10 +84,12 @@ func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 }
 
 func (iface *pppInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *pppInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

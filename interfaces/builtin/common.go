@@ -20,14 +20,12 @@
 package builtin
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 )
 
 type evalSymlinksFn func(string) (string, error)
@@ -82,20 +80,16 @@ func (iface *commonInterface) MetaData() interfaces.MetaData {
 // If the reservedForOS flag is set then only slots on core snap
 // are allowed.
 func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if iface.reservedForOS && slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.name)
+	ensureSlotIfaceMatch(iface, slot)
+	if iface.reservedForOS {
+		return sanitizeSlotReservedForOS(iface, slot)
 	}
 	return nil
 }
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }

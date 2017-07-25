@@ -300,10 +300,12 @@ func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 }
 
 func (iface *locationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *locationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

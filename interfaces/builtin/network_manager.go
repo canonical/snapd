@@ -442,10 +442,12 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 }
 
 func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

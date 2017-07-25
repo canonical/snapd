@@ -246,11 +246,13 @@ func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 
 // SanitizePlug checks the plug definition is valid
 func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 // SanitizeSlot checks the slot definition is valid
 func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -154,16 +153,12 @@ func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccom
 }
 
 func (iface *storageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *storageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

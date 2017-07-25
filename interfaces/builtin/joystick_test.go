@@ -74,7 +74,7 @@ func (s *JoystickInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "joystick",
 		Interface: "joystick",
 	}})
-	c.Assert(err, ErrorMatches, "joystick slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "joystick slots are reserved for the operating system snap")
 }
 
 func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {

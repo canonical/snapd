@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -129,16 +128,12 @@ func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

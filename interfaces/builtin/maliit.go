@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -163,17 +162,13 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
+func (iface *maliitInterface) SanitizePlug(plug *interfaces.Plug) error {
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

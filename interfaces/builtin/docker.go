@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -76,16 +74,12 @@ func (iface *dockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *dockerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *dockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

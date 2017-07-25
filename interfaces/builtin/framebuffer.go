@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -68,24 +66,13 @@ func (iface *framebufferInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
+	ensureSlotIfaceMatch(iface, slot)
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *framebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 	// Currently nothing is checked on the plug side
 	return nil
 }

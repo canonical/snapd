@@ -77,14 +77,9 @@ var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$"
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Check slot is of right type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("serial-port slots only allowed on gadget or core snaps")
+	ensureSlotIfaceMatch(iface, slot)
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Check slot has a path attribute identify serial device
@@ -130,10 +125,7 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *serialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// NOTE: currently we don't check anything on the plug side.
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

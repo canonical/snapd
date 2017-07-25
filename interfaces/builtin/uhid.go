@@ -66,20 +66,13 @@ func (iface *uhidInterface) String() string {
 
 // Check the validity of the slot
 func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// First check the type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 
 // Check and possibly modify a plug
 func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

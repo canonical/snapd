@@ -264,13 +264,12 @@ func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
 }
 
 func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 
 func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
+	ensurePlugIfaceMatch(iface, plug)
 
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool

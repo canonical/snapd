@@ -67,15 +67,9 @@ var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
+	ensureSlotIfaceMatch(iface, slot)
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Validate the path
@@ -95,10 +89,7 @@ func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // Checks and possibly modifies a plug
 func (iface *i2cInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
+	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
