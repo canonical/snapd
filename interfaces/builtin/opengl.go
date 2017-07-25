@@ -57,6 +57,8 @@ const openglConnectedPlugAppArmor = `
   # eglfs
   /dev/vchiq rw,
   /sys/devices/pci[0-9]*/**/config r,
+  /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
+  /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
