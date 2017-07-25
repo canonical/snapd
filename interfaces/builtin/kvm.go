@@ -25,9 +25,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
-const kvmSummary = `allows access to kvm`
+const kvmSummary = `allows access to the kvm device`
 
 const kvmBaseDeclarationSlots = `
   kvm:
@@ -56,6 +57,7 @@ func (iface *kvmInterface) MetaData() interfaces.MetaData {
 	return interfaces.MetaData{
 		Summary:              kvmSummary,
 		ImplicitOnClassic:    true,
+		ImplicitOnCore:       true,
 		BaseDeclarationSlots: kvmBaseDeclarationSlots,
 	}
 }
@@ -68,12 +70,12 @@ func (iface *kvmInterface) String() string {
 func (iface *kvmInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 
 	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
+	// is allowed only by a os snap
+	if !(slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
 	}
 	return nil

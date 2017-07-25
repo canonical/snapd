@@ -93,7 +93,7 @@ func (s *kvmInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *kvmInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
 # Description: Allow write access to kvm.
-# See 'man 4 mem' for details.
+# See 'man kvm' for details.
 
 /dev/kvm rw,
 `
