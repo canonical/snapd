@@ -308,14 +308,6 @@ func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.
 	return true
 }
 
-func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&browserSupportInterface{})
 }

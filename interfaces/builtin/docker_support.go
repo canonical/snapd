@@ -595,10 +595,6 @@ func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.S
 	return true
 }
 
-func (iface *dockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&dockerSupportInterface{})
 }
