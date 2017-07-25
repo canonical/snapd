@@ -26,8 +26,13 @@ import (
 )
 
 var (
-	RegisterIface          = registerIface
-	ResolveSpecialVariable = resolveSpecialVariable
+	RegisterIface                     = registerIface
+	ResolveSpecialVariable            = resolveSpecialVariable
+	EnsureSlotIfaceMatch              = ensureSlotIfaceMatch
+	EnsurePlugIfaceMatch              = ensurePlugIfaceMatch
+	SanitizeSlotReservedForOS         = sanitizeSlotReservedForOS
+	SanitizeSlotReservedForOSOrGadget = sanitizeSlotReservedForOSOrGadget
+	SanitizeSlotReservedForOSOrApp    = sanitizeSlotReservedForOSOrApp
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
