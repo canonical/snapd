@@ -45,7 +45,7 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 .PHONY: hack
 hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
 	sudo install -D -m 4755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 
 ##
