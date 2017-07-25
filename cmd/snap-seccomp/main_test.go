@@ -237,6 +237,8 @@ int main(int argc, char **argv) {
    int l[7];
    for (int i=0; i<7;i++)
       l[i] = atoi(argv[i+1]);
+   // There might be architecture-specific requirements. see "man syscall"
+   // for details.
    syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
    syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
 }
@@ -248,7 +250,7 @@ func lastKmsg() string {
 		return err.Error()
 	}
 	l := strings.Split(string(output), "\n")
-	return l[len(l)-2]
+	return fmt.Sprintf("Showing last 10 lines of dmesg:\n%s", strings.Join(l[len(l)-10:], "\n"))
 }
 
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
@@ -276,7 +278,6 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	c.Assert(err, IsNil)
-
 }
 
 func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput string, expected int) {
@@ -309,6 +310,10 @@ set_thread_area
 		c.Logf("cannot use non-native in runBpfInKernel")
 		return
 	}
+	// Note that we will need to also skip: fadvise64_64,
+	//   ftruncate64, posix_fadvise, pread64, pwrite64, readahead,
+	//   sync_file_range, and truncate64.
+	// Once we start using those. See `man syscall`
 	if strings.Contains(bpfInput, "PR_SET_ENDIAN") {
 		c.Logf("cannot run PR_SET_ENDIAN in runBpfInKernel, this actually switches the endianess and the program crashes")
 		return
@@ -352,7 +357,7 @@ set_thread_area
 	}
 }
 
-// simulateBpf:
+// simulateBpf first:
 //  1. runs main.Compile() which will catch syntax errors and output to a file
 //  2. takes the output file from main.Compile and loads it via
 //     decodeBpfFromFile
@@ -360,10 +365,17 @@ set_thread_area
 //     snapd functions
 //  4. runs the parsed bpf through a bpf VM
 //
+// Then simulateBpf runs the policy through the kernel by calling
+// runBpfInKernel() which:
+//  1. runs main.Compile()
+//  2. the program in seccompBpfLoaderContent with the output file as an
+//     argument
+//  3. the program in seccompBpfLoaderContent loads the output file BPF into
+//     the kernel and executes the program in seccompBpfRunnerContent with the
+//     syscall and arguments specified by the test
+//
 // In this manner, in addition to verifying policy syntax we are able to
-// unit test the resulting bpf in several ways approximating the kernels
-// behaviour (approximating because this parser is not the kernel's seccomp
-// parser).
+// unit test the resulting bpf in several ways.
 //
 // Full testing of applied policy is done elsewhere via spread tests.
 func (s *snapSeccompSuite) simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
@@ -518,12 +530,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 	} {
-    // skip socket tests if the system uses socketcall instead
+		// skip socket tests if the system uses socketcall instead
 		// of socket
 		if strings.Contains(t.seccompWhitelist, "socket") && systemUsesSocketcall() {
 			continue
 		}
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
