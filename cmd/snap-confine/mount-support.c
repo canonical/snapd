@@ -333,8 +333,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 						 config->rootfs_dir, dir);
 				sc_must_snprintf(dst, sizeof dst, "%s%s",
 						 scratch_dir, dir);
-				sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-				sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+				if (access(src, F_OK) == 0
+				    && access(dst, F_OK) == 0) {
+					sc_do_mount(src, dst, NULL, MS_BIND,
+						    NULL);
+					sc_do_mount("none", dst, NULL, MS_SLAVE,
+						    NULL);
+				}
 			}
 		}
 	}
