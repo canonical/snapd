@@ -32,6 +32,7 @@ import (
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	ID              string        `json:"id"`
+	Title           string        `json:"title,omitempty"`
 	Summary         string        `json:"summary"`
 	Description     string        `json:"description"`
 	DownloadSize    int64         `json:"download-size"`
@@ -66,8 +67,31 @@ type Snap struct {
 }
 
 type AppInfo struct {
-	Name   string `json:"name"`
-	Daemon string `json:"daemon"`
+	Name         string `json:"name"`
+	DesktopFile  string `json:"desktop-file,omitempty"`
+	*ServiceInfo `json:",omitempty"`
+}
+
+// IsService returns true if the application is a background daemon.
+func (a *AppInfo) IsService() bool {
+	if a == nil {
+		return false
+	}
+	if a.ServiceInfo == nil {
+		return false
+	}
+	if a.ServiceInfo.Daemon == "" {
+		return false
+	}
+
+	return true
+}
+
+type ServiceInfo struct {
+	Daemon          string `json:"daemon"`
+	ServiceFileName string `json:"service-file-name"`
+	Enabled         bool   `json:"enabled"`
+	Active          bool   `json:"active"`
 }
 
 type Screenshot struct {

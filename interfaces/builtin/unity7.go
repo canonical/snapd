@@ -85,8 +85,8 @@ const unity7ConnectedPlugAppArmor = `
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
-/usr/local/bin/xdg-open ixr,
-/usr/local/share/applications/{,*} r,
+/usr/bin/xdg-open ixr,
+/usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
@@ -215,6 +215,12 @@ dbus (send)
     interface=org.a11y.Bus
     member=GetAddress
     peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
 
 # unfortunate, but org.a11y.atspi is not designed for separation
 dbus (receive, send)
@@ -314,6 +320,13 @@ dbus (receive)
     path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=unconfined),
 
 # app-indicators

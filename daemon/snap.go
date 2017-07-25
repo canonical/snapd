@@ -27,11 +27,15 @@ import (
 	"sort"
 	"time"
 
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -157,13 +161,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
-// appJSON contains the json for snap.AppInfo
-type appJSON struct {
-	Name        string `json:"name"`
-	Daemon      string `json:"daemon"`
-	DesktopFile string `json:"desktop-file,omitempty"`
-}
-
 // screenshotJSON contains the json for snap.ScreenshotInfo
 type screenshotJSON struct {
 	URL    string `json:"url"`
@@ -183,24 +180,37 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		appNames = append(appNames, appName)
 	}
 	sort.Strings(appNames)
-	apps := make([]appJSON, 0, len(localSnap.Apps))
-	for _, appName := range appNames {
+	apps := make([]*client.AppInfo, len(localSnap.Apps))
+	// TODO: pass in an actual notifier here instead of nil
+	//       (Status doesn't _need_ it, but benefits from it)
+	sysd := systemd.New(dirs.GlobalRootDir, nil)
+	for i, appName := range appNames {
 		app := localSnap.Apps[appName]
-		var installedDesktopFile string
-		if osutil.FileExists(app.DesktopFile()) {
-			installedDesktopFile = app.DesktopFile()
+		apps[i] = &client.AppInfo{Name: app.Name}
+		if fn := app.DesktopFile(); osutil.FileExists(fn) {
+			apps[i].DesktopFile = fn
 		}
 
-		apps = append(apps, appJSON{
-			Name:        app.Name,
-			Daemon:      app.Daemon,
-			DesktopFile: installedDesktopFile,
-		})
+		if app.IsService() {
+			// TODO: look into making a single call to Status for all services
+			if sts, err := sysd.Status(app.ServiceName()); err != nil {
+				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
+			} else if len(sts) != 1 {
+				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
+			} else {
+				apps[i].ServiceInfo = &client.ServiceInfo{
+					Daemon:          sts[0].Daemon,
+					ServiceFileName: sts[0].ServiceFileName,
+					Enabled:         sts[0].Enabled,
+					Active:          sts[0].Active,
+				}
+			}
+		}
 	}
 
 	// TODO: expose aliases information and state?
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"description":      localSnap.Description(),
 		"developer":        about.publisher,
 		"icon":             snapIcon(localSnap),
@@ -224,6 +234,12 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		"broken":           localSnap.Broken,
 		"contact":          localSnap.Contact,
 	}
+
+	if localSnap.Title() != "" {
+		result["title"] = localSnap.Title()
+	}
+
+	return result
 }
 
 func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
@@ -262,6 +278,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
 		"contact":       remoteSnap.Contact,
+	}
+
+	if remoteSnap.Title() != "" {
+		result["title"] = remoteSnap.Title()
 	}
 
 	if len(screenshots) > 0 {
