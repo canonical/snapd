@@ -315,7 +315,7 @@ distro_install_build_snapd(){
     fi
 }
 
-distro_get_package_extention() {
+distro_get_package_extension() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             echo "deb"
