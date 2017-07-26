@@ -39,7 +39,7 @@ func (cs *clientSuite) TestClientInterfacesOptionEncoding(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	c.Check(cs.req.URL.RawQuery, check.Equals,
-		"doc=yes&names=a%2Cb&plugs=yes&select=connected&slots=yes")
+		"doc=true&names=a%2Cb&plugs=true&select=connected&slots=true")
 }
 
 func (cs *clientSuite) TestClientInterfacesAll(c *check.C) {
@@ -122,7 +122,7 @@ func (cs *clientSuite) TestClientInterfacesSelectedDetails(c *check.C) {
 	// This enables documentation, plugs, slots, chooses a specific interface
 	// (iface-a), and uses select=all to indicate that new response is desired.
 	c.Check(cs.req.URL.RawQuery, check.Equals,
-		"doc=yes&names=iface-a&plugs=yes&select=all&slots=yes")
+		"doc=true&names=iface-a&plugs=true&select=all&slots=true")
 	c.Assert(err, check.IsNil)
 	c.Check(ifaces, check.DeepEquals, []*client.Interface{
 		{

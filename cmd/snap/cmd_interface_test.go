@@ -166,7 +166,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(r.URL.RawQuery, Equals, "doc=yes&names=network&plugs=yes&select=all&slots=yes")
+		c.Check(r.URL.RawQuery, Equals, "doc=true&names=network&plugs=true&select=all&slots=true")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -204,7 +204,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(r.URL.RawQuery, Equals, "doc=yes&names=serial-port&plugs=yes&select=all&slots=yes")
+		c.Check(r.URL.RawQuery, Equals, "doc=true&names=serial-port&plugs=true&select=all&slots=true")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
