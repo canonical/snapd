@@ -3819,6 +3819,14 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestGetAsserts(c *check.C) {
+	s.daemon(c)
+	resp := assertsCmd.GET(assertsCmd, nil, nil).(*resp)
+	c.Check(resp.Status, check.Equals, 200)
+	c.Check(resp.Type, check.Equals, ResponseTypeSync)
+	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
+}
+
 func assertAdd(st *state.State, a asserts.Assertion) {
 	st.Lock()
 	defer st.Unlock()
