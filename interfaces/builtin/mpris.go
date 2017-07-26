@@ -238,14 +238,6 @@ func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	return true
 }
 
-func (iface *mprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *mprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&mprisInterface{})
 }

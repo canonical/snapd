@@ -204,10 +204,6 @@ func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	return false
 }
 
-func (iface *serialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&serialPortInterface{})
 }
