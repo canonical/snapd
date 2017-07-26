@@ -88,8 +88,11 @@ func (r *Repository) AddInterface(i Interface) error {
 // Slots: return information about slots.
 // Connected: only consider interfaces with at least one connection.
 type InfoOptions struct {
-	Names                        []string
-	Doc, Plugs, Slots, Connected bool
+	Names     []string
+	Doc       bool
+	Plugs     bool
+	Slots     bool
+	Connected bool
 }
 
 func (r *Repository) queryInterface(iface Interface, opts *InfoOptions) *InterfaceInfo {
