@@ -204,8 +204,8 @@ func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
 
-func (iface *dbusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dbusSummary,
 		BaseDeclarationSlots: dbusBaseDeclarationSlots,
 	}

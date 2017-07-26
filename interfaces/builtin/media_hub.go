@@ -162,8 +162,8 @@ func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *mediaHubInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mediaHubSummary,
 		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
 	}

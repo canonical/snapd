@@ -542,8 +542,8 @@ func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dockerSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

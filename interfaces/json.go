@@ -27,10 +27,10 @@ import (
 type plugJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
+	Interface   string                 `json:"interface,omitempty"`
 	Attrs       map[string]interface{} `json:"attrs,omitempty"`
 	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
+	Label       string                 `json:"label,omitempty"`
 	Connections []SlotRef              `json:"connections,omitempty"`
 }
 
@@ -55,10 +55,10 @@ func (plug *Plug) MarshalJSON() ([]byte, error) {
 type slotJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
+	Interface   string                 `json:"interface,omitempty"`
 	Attrs       map[string]interface{} `json:"attrs,omitempty"`
 	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
+	Label       string                 `json:"label,omitempty"`
 	Connections []PlugRef              `json:"connections,omitempty"`
 }
 
@@ -76,5 +76,43 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 		Apps:        names,
 		Label:       slot.Label,
 		Connections: slot.Connections,
+	})
+}
+
+// interfaceInfoJSON aids in marshaling Info into JSON.
+type interfaceInfoJSON struct {
+	Name    string      `json:"name,omitempty"`
+	Summary string      `json:"summary,omitempty"`
+	DocURL  string      `json:"doc-url,omitempty"`
+	Plugs   []*plugJSON `json:"plugs,omitempty"`
+	Slots   []*slotJSON `json:"slots,omitempty"`
+}
+
+// MarshalJSON returns the JSON encoding of Info.
+func (info *Info) MarshalJSON() ([]byte, error) {
+	plugs := make([]*plugJSON, 0, len(info.Plugs))
+	for _, plug := range info.Plugs {
+		plugs = append(plugs, &plugJSON{
+			Snap:  plug.Snap.Name(),
+			Name:  plug.Name,
+			Attrs: plug.Attrs,
+			Label: plug.Label,
+		})
+	}
+	slots := make([]*slotJSON, 0, len(info.Slots))
+	for _, slot := range info.Slots {
+		slots = append(slots, &slotJSON{
+			Snap:  slot.Snap.Name(),
+			Name:  slot.Name,
+			Attrs: slot.Attrs,
+			Label: slot.Label,
+		})
+	}
+	return json.Marshal(&interfaceInfoJSON{
+		Name:    info.Name,
+		Summary: info.Summary,
+		DocURL:  info.DocURL,
+		Plugs:   plugs,
+		Slots:   slots,
 	})
 }
