@@ -154,8 +154,10 @@ var (
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/v2/assertions",
-		POST: doAssert,
+		Path:   "/v2/assertions",
+		UserOK: true,
+		GET:    getAssertTypeNames,
+		POST:   doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
@@ -1713,6 +1715,12 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
+	return SyncResponse(map[string][]string{
+		"types": asserts.TypeNames(),
+	}, nil)
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
