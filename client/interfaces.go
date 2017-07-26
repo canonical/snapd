@@ -91,8 +91,11 @@ func (client *Client) Connections() (Interfaces, error) {
 
 // InterfaceOptions represents opt-in elements include in responses.
 type InterfaceOptions struct {
-	Names                        []string
-	Doc, Plugs, Slots, Connected bool
+	Names     []string
+	Doc       bool
+	Plugs     bool
+	Slots     bool
+	Connected bool
 }
 
 func (client *Client) Interfaces(opts *InterfaceOptions) (interfaces []*Interface, err error) {
