@@ -6,7 +6,8 @@ description: |
 base: test-snapd-base-bare
 apps:
   busybox-static:
-    command: busybox
+    command: bin/busybox
+    no-wrapper: true
 
 parts:
   busybox-static:
