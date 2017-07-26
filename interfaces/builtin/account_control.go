@@ -21,13 +21,6 @@ package builtin
 
 const accountControlSummary = `allows managing non-system user accounts`
 
-const accountControlDescription = `
-The account-control interface allows connected plugs to create, modify and
-delete non-system users as well as to change account passwords.
-
-The core snap provides the slot that is shared by all the snaps.
-`
-
 const accountControlBaseDeclarationSlots = `
   account-control:
     allow-installation:
@@ -79,7 +72,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "account-control",
 		summary:               accountControlSummary,
-		description:           accountControlDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  accountControlBaseDeclarationSlots,

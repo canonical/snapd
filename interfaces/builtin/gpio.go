@@ -54,8 +54,8 @@ func (iface *gpioInterface) Name() string {
 	return "gpio"
 }
 
-func (iface *gpioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              gpioSummary,
 		BaseDeclarationSlots: gpioBaseDeclarationSlots,
 	}
@@ -132,10 +132,6 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 func (iface *gpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *gpioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

@@ -201,8 +201,8 @@ func (iface *ubuntuDownloadManagerInterface) Name() string {
 	return "ubuntu-download-manager"
 }
 
-func (iface *ubuntuDownloadManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ubuntuDownloadManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ubuntuDownloadManagerSummary,
 		BaseDeclarationSlots: ubuntuDownloadManagerBaseDeclarationSlots,
 	}

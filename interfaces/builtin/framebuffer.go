@@ -53,8 +53,8 @@ func (iface *framebufferInterface) Name() string {
 	return "framebuffer"
 }
 
-func (iface *framebufferInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *framebufferInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              framebufferSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
