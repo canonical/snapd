@@ -49,8 +49,8 @@ func (iface *serialPortInterface) Name() string {
 	return "serial-port"
 }
 
-func (iface *serialPortInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *serialPortInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              serialPortSummary,
 		BaseDeclarationSlots: serialPortBaseDeclarationSlots,
 	}

@@ -65,8 +65,8 @@ func (iface *pppInterface) Name() string {
 	return "ppp"
 }
 
-func (iface *pppInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *pppInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              pppSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

@@ -71,7 +71,7 @@ func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Interfaces holds information about a list of plugs and slots, their connections and interface meta-data.
+// Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
@@ -136,12 +136,12 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
-// MetaData describes various meta-data of a given interface.
+// StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
 // The DocsURL can point to website (e.g. a forum thread) that goes into more
 // depth and documents the interface in detail.
-type MetaData struct {
+type StaticInfo struct {
 	Summary string `json:"summary,omitempty"`
 	DocURL  string `json:"doc-url,omitempty"`
 
@@ -156,15 +156,15 @@ type MetaData struct {
 	BaseDeclarationSlots string
 }
 
-// MetaDataOf returns the meta-data of the given interface.
-func MetaDataOf(iface Interface) (md MetaData) {
+// StaticInfoOf returns the static-info of the given interface.
+func StaticInfoOf(iface Interface) (si StaticInfo) {
 	type metaDataProvider interface {
-		MetaData() MetaData
+		StaticInfo() StaticInfo
 	}
 	if iface, ok := iface.(metaDataProvider); ok {
-		md = iface.MetaData()
+		si = iface.StaticInfo()
 	}
-	return md
+	return si
 }
 
 // Specification describes interactions between backends and interfaces.

@@ -41,7 +41,7 @@ type TestInterfaceSuite struct {
 var _ = Suite(&TestInterfaceSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		InterfaceMetaData: interfaces.MetaData{
+		InterfaceStaticInfo: interfaces.StaticInfo{
 			Summary: "summary",
 		},
 	},
@@ -66,8 +66,8 @@ func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "test")
 }
 
-func (s *TestInterfaceSuite) TestMetaData(c *C) {
-	c.Assert(interfaces.MetaDataOf(s.iface), Equals, interfaces.MetaData{
+func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
+	c.Assert(interfaces.StaticInfoOf(s.iface), Equals, interfaces.StaticInfo{
 		Summary: "summary",
 	})
 }

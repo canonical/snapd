@@ -49,8 +49,8 @@ func (iface *hidrawInterface) Name() string {
 	return "hidraw"
 }
 
-func (iface *hidrawInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *hidrawInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              hidrawSummary,
 		BaseDeclarationSlots: hidrawBaseDeclarationSlots,
 	}

@@ -97,15 +97,15 @@ type InfoOptions struct {
 
 func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	// NOTE: InfoOptions.Connected is handled by Info
-	md := MetaDataOf(iface)
+	si := StaticInfoOf(iface)
 	ifaceName := iface.Name()
 	ii := &Info{
 		Name:    ifaceName,
-		Summary: md.Summary,
+		Summary: si.Summary,
 	}
 	if opts != nil && opts.Doc {
 		// Collect documentation URL
-		ii.DocURL = md.DocURL
+		ii.DocURL = si.DocURL
 	}
 	if opts != nil && opts.Plugs {
 		// Collect all plugs of this interface type.
