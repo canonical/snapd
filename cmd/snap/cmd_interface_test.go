@@ -239,10 +239,9 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		"  - minicom\n" +
 		"slots:\n" +
 		"  - gizmo-gadget:debug-serial-port (serial port for debugging):\n" +
-		"      attributes:\n" +
-		"        header:   pin-array\n" +
-		"        location: internal\n" +
-		"        path:     /dev/ttyS0\n"
+		"      header:   pin-array\n" +
+		"      location: internal\n" +
+		"      path:     /dev/ttyS0\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
