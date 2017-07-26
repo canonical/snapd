@@ -161,6 +161,13 @@
 
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+
+    mount options=(rw rbind) /usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+
+    mount options=(rw rbind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
+
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,

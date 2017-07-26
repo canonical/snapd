@@ -217,6 +217,7 @@ struct sc_mount_config {
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
 	bool on_classic_distro;
+	bool uses_base_snap;
 };
 
 /**
@@ -342,6 +343,20 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				}
 			}
 		}
+	}
+	if (config->uses_base_snap) {
+		// snapd dir
+		const char *src = "/usr/lib/snapd";
+		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
+		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+
+		// FIXME: snapctl tool
+		// snapd dir
+		//src = "/usr/bin/snapctl";
+		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
+		//sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+		//sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -560,6 +575,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.on_classic_distro = true,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -576,6 +592,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		struct sc_mount_config all_snap_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&all_snap_config);
 	}
