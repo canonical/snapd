@@ -1,0 +1,15 @@
+name: test-snapd-busybox-static
+version: 1.0
+summary: Statically linked busybox for test
+description: |
+  Statically linked busybox for test useful for e.g. bare base testing
+apps:
+  busybox-static:
+    command: busybox
+
+parts:
+  busybox-static:
+    plugin: dump
+    stage-packages: [busybox-static]
+    snap:
+      - bin/busybox
