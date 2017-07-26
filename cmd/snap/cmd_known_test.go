@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -87,4 +88,22 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
 	c.Assert(err, check.ErrorMatches, `missing primary header "model" to query remote assertion`)
+}
+
+func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions")
+			fmt.Fprintln(w, `{"type": "sync", "result": { "types": [ "account", "... more stuff ...", "validation" ] } }`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	c.Check(snap.AssertTypeNameCompletion("v"), check.DeepEquals, []flags.Completion{{Item: "validation"}})
 }
