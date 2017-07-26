@@ -348,8 +348,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// snapd dir
 		const char *src = "/usr/lib/snapd";
 		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+		sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
                 //        /usr/bin/snapctl, we will need an empty file
@@ -359,8 +359,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
                 //        and in the base snap case adjust PATH
 		//src = "/usr/bin/snapctl";
 		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
-		//sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-		//sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+		//sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
+		//sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
