@@ -351,8 +351,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
-		// FIXME: snapctl tool
-		// snapd dir
+		// FIXME: snapctl tool - our apparmor policy wants it in
+                //        /usr/bin/snapctl, we will need an empty file
+                //        here from the base snap or we need to move it
+                //        into a different location and just symlink it
+                //        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
+                //        and in the base snap case adjust PATH
 		//src = "/usr/bin/snapctl";
 		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
 		//sc_do_mount(src, dst, NULL, MS_BIND, NULL);
