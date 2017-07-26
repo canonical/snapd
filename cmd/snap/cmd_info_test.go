@@ -32,18 +32,18 @@ import (
 
 var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
 var svcAppInfos = []client.AppInfo{
-	{Name: "svc1", ServiceInfo: &client.ServiceInfo{
-		Daemon:          "simple",
-		ServiceFileName: "snap.foo.svc1.service",
-		Enabled:         false,
-		Active:          true,
-	}},
-	{Name: "svc2", ServiceInfo: &client.ServiceInfo{
-		Daemon:          "simple",
-		ServiceFileName: "snap.foo.svc2.service",
-		Enabled:         true,
-		Active:          false,
-	}},
+	{
+		Name:    "svc1",
+		Daemon:  "simple",
+		Enabled: false,
+		Active:  true,
+	},
+	{
+		Name:    "svc2",
+		Daemon:  "simple",
+		Enabled: true,
+		Active:  false,
+	},
 }
 
 var mixedAppInfos = append(append([]client.AppInfo(nil), cmdAppInfos...), svcAppInfos...)

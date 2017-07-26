@@ -477,34 +477,35 @@ UnitFileState=potatoes
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
 			"apps": []*client.AppInfo{
-				{Snap: "foo", Name: "cmd", DesktopFile: df},
-				// no desktop file
-				{Snap: "foo", Name: "cmd2"},
-				// services
-				{Snap: "foo", Name: "svc1", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "simple",
-					ServiceFileName: "snap.foo.svc1.service",
-					Enabled:         true,
-					Active:          false,
-				}},
-				{Snap: "foo", Name: "svc2", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "forking",
-					ServiceFileName: "snap.foo.svc2.service",
-					Enabled:         false,
-					Active:          true,
-				}},
-				{Snap: "foo", Name: "svc3", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "oneshot",
-					ServiceFileName: "snap.foo.svc3.service",
-					Enabled:         true,
-					Active:          true,
-				}},
-				{Snap: "foo", Name: "svc4", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "notify",
-					ServiceFileName: "snap.foo.svc4.service",
-					Enabled:         false,
-					Active:          false,
-				}},
+				{
+					Snap: "foo", Name: "cmd",
+					DesktopFile: df,
+				}, {
+					// no desktop file
+					Snap: "foo", Name: "cmd2",
+				}, {
+					// services
+					Snap: "foo", Name: "svc1",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+				}, {
+					Snap: "foo", Name: "svc2",
+					Daemon:  "forking",
+					Enabled: false,
+					Active:  true,
+				}, {
+					Snap: "foo", Name: "svc3",
+					Daemon:  "oneshot",
+					Enabled: true,
+					Active:  true,
+				},
+				{
+					Snap: "foo", Name: "svc4",
+					Daemon:  "notify",
+					Enabled: false,
+					Active:  false,
+				},
 			},
 			"broken":  "",
 			"contact": "",
@@ -5672,20 +5673,17 @@ UnitFileState=enabled
 	svcs := rsp.Result.([]*client.AppInfo)
 	c.Assert(svcs, check.HasLen, 1)
 	c.Check(svcs, testutil.DeepContains, &client.AppInfo{
-		Snap: "snap-a",
-		Name: "svc2",
-		ServiceInfo: &client.ServiceInfo{
-			Daemon:          "simple",
-			ServiceFileName: "snap.snap-a.svc2.service",
-			Active:          true,
-			Enabled:         true,
-		},
+		Snap:    "snap-a",
+		Name:    "svc2",
+		Daemon:  "simple",
+		Active:  true,
+		Enabled: true,
 	})
 }
 
 func (s *appSuite) TestAppInfosForOne(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-a.svc1"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 1)
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
@@ -5694,54 +5692,43 @@ func (s *appSuite) TestAppInfosForOne(c *check.C) {
 
 func (s *appSuite) TestAppInfosForAll(c *check.C) {
 	type T struct {
-		wanted wantedAppInfos
-		snaps  []*snap.Info
-		names  []string
+		opts  appInfoOptions
+		snaps []*snap.Info
+		names []string
 	}
 
 	for _, t := range []T{
 		{
-			wanted: wantedAppInfos{services: true},
-			names:  []string{"svc1", "svc2", "svc3"},
-			snaps:  []*snap.Info{s.infoA, s.infoA, s.infoB},
+			opts:  appInfoOptions{service: true},
+			names: []string{"svc1", "svc2", "svc3"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB},
 		},
 		{
-			wanted: wantedAppInfos{commands: true},
-			names:  []string{"cmd1", "cmd2", "cmd3"},
-			snaps:  []*snap.Info{s.infoB, s.infoD, s.infoD},
-		},
-		{
-			wanted: wantedAppInfos{services: true, commands: true},
-			names:  []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3"},
-			snaps:  []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD},
+			opts:  appInfoOptions{},
+			names: []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD},
 		},
 	} {
-		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.wanted))
+		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.opts))
 
 		st := s.d.overlord.State()
-		appInfos, rsp := appInfosFor(st, t.wanted, nil)
-		c.Assert(rsp, check.IsNil, check.Commentf("%s", t.wanted))
+		appInfos, rsp := appInfosFor(st, nil, t.opts)
+		c.Assert(rsp, check.IsNil, check.Commentf("%s", t.opts))
 		names := make([]string, len(appInfos))
 		for i, appInfo := range appInfos {
 			names[i] = appInfo.Name
 		}
-		c.Assert(names, check.DeepEquals, t.names, check.Commentf("%s", t.wanted))
+		c.Assert(names, check.DeepEquals, t.names, check.Commentf("%s", t.opts))
 
 		for i := range appInfos {
-			c.Check(appInfos[i].Snap, check.DeepEquals, t.snaps[i], check.Commentf("%s: %s", t.wanted, t.names[i]))
+			c.Check(appInfos[i].Snap, check.DeepEquals, t.snaps[i], check.Commentf("%s: %s", t.opts, t.names[i]))
 		}
 	}
-	// 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
-	// c.Check(appInfos[0].Name, check.Equals, "svc1")
-	// c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
-	// c.Check(appInfos[1].Name, check.Equals, "svc2")
-	// c.Check(appInfos[2].Snap, check.DeepEquals, s.infoB)
-	// c.Check(appInfos[2].Name, check.Equals, "svc3")
 }
 
 func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-a"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
 	sort.Sort(bySnapApp(appInfos))
@@ -5754,7 +5741,7 @@ func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 
 func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-a", "snap-a.svc1"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
 	sort.Sort(bySnapApp(appInfos))
@@ -5767,7 +5754,7 @@ func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 
 func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{
+	appInfos, rsp := appInfosFor(st, []string{
 		"snap-b.svc3",
 		"snap-a.svc2",
 		"snap-a.svc1",
@@ -5776,7 +5763,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 		"snap-a.svc1",
 		"snap-b",
 		"snap-a",
-	})
+	}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
 	sort.Sort(bySnapApp(appInfos))
@@ -5791,7 +5778,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 
 func (s *appSuite) TestAppInfosForAppless(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-c"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-c"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
 	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
@@ -5800,7 +5787,7 @@ func (s *appSuite) TestAppInfosForAppless(c *check.C) {
 
 func (s *appSuite) TestAppInfosForMissingApp(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-c.whatever"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-c.whatever"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
 	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
@@ -5809,7 +5796,7 @@ func (s *appSuite) TestAppInfosForMissingApp(c *check.C) {
 
 func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
 	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, wantedAppInfos{services: true}, []string{"snap-x"})
+	appInfos, rsp := appInfosFor(st, []string{"snap-x"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
 	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindSnapNotFound)

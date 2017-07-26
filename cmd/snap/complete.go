@@ -295,7 +295,7 @@ type serviceName string
 
 func (s serviceName) Complete(match string) []flags.Completion {
 	cli := Client()
-	apps, err := cli.AppInfos(nil, &client.AppInfoWanted{Services: true})
+	apps, err := cli.Apps(nil, client.AppOptions{Service: true})
 	if err != nil {
 		return nil
 	}

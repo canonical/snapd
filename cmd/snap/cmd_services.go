@@ -28,18 +28,18 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type svcStatus struct {
+type svcServices struct {
 	Positional struct {
 		ServiceNames []serviceName `positional-arg-name:"<service>"`
 	} `positional-args:"yes"`
 }
 
 var (
-	shortStatusHelp = i18n.G("Query the status of services")
+	shortServicesHelp = i18n.G("Query the status of services")
 )
 
 func init() {
-	addCommand("status", shortStatusHelp, "", func() flags.Commander { return &svcStatus{} }, nil, nil)
+	addCommand("services", shortServicesHelp, "", func() flags.Commander { return &svcServices{} }, nil, nil)
 }
 
 func svcNames(s []serviceName) []string {
@@ -50,12 +50,12 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
-func (s *svcStatus) Execute(args []string) error {
+func (s *svcServices) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	services, err := Client().AppInfos(svcNames(s.Positional.ServiceNames), &client.AppInfoWanted{Services: true})
+	services, err := Client().Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{Service: true})
 	if err != nil {
 		return err
 	}
@@ -65,14 +65,8 @@ func (s *svcStatus) Execute(args []string) error {
 
 	fmt.Fprintln(w, i18n.G("Snap\tService\tActive\tEnabled"))
 
-	lastSnap := ""
 	for _, svc := range services {
-		snapMaybe := ""
-		if svc.Snap != lastSnap {
-			snapMaybe = svc.Snap
-			lastSnap = svc.Snap
-		}
-		fmt.Fprintf(w, "%s\t%s\t%t\t%t\n", snapMaybe, svc.Name, svc.Active, svc.Enabled)
+		fmt.Fprintf(w, "%s\t%s\t%t\t%t\n", svc.Snap, svc.Name, svc.Active, svc.Enabled)
 	}
 
 	return nil

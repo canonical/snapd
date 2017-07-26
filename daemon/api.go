@@ -2523,21 +2523,18 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-	wanted := wantedAppInfos{services: true, commands: true}
-	if wantedStr := query.Get("wanted"); wantedStr != "" {
-		wantedList := strings.Split(wantedStr, ",")
-		if !strutil.ListContains(wantedList, "services") {
-			wanted.services = false
-		}
-		if !strutil.ListContains(wantedList, "commands") {
-			wanted.commands = false
-		}
-		if !(wanted.services || wanted.commands) {
-			return BadRequest(`"wanted" query parameter must have at least one of "services" or "commands" set`)
-		}
+
+	opts := appInfoOptions{}
+	switch sel := query.Get("select"); sel {
+	case "":
+		// nothing to do
+	case "service":
+		opts.service = true
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), wanted, splitQS(query.Get("apps")))
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("apps")), opts)
 	if rsp != nil {
 		return rsp
 	}

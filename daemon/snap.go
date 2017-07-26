@@ -183,6 +183,10 @@ func (a bySnapApp) Less(i, j int) bool {
 	return iName < jName
 }
 
+// this differs from snap.SplitSnapApp in the handling of the
+// snap-only case:
+//   snap.SplitSnapApp("foo") is ("foo", "foo"),
+//   splitAppName("foo") is ("foo", "").
 func splitAppName(s string) (snap, app string) {
 	if idx := strings.IndexByte(s, '.'); idx > -1 {
 		return s[:idx], s[idx+1:]
@@ -191,28 +195,21 @@ func splitAppName(s string) (snap, app string) {
 	return s, ""
 }
 
-type wantedAppInfos struct {
-	services bool
-	commands bool
+type appInfoOptions struct {
+	service bool
 }
 
-func (w wantedAppInfos) String() string {
-	if w.services {
-		if w.commands {
-			return "app"
-		}
+func (opts appInfoOptions) String() string {
+	if opts.service {
 		return "service"
 	}
-	if !w.commands {
-		logger.Panicf("wanted neither services nor commands")
-	}
 
-	return "command"
+	return "app"
 }
 
 // appInfosFor returns a sorted list apps described by names.
 //
-// * If names is empty, returns all apps of the wanted kidns (which
+// * If names is empty, returns all apps of the wanted kinds (which
 //   could be an empty list).
 // * An element of names can be a snap name, in which case all apps
 //   from the snap of the wanted kind are included in the result (and
@@ -225,7 +222,7 @@ func (w wantedAppInfos) String() string {
 //
 // It's a programming error to call this with wanted having neither
 // services nor commands set.
-func appInfosFor(st *state.State, wanted wantedAppInfos, names []string) ([]*snap.AppInfo, Response) {
+func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
 	snapNames := make(map[string]bool)
 	requested := make(map[string]bool)
 	for _, name := range names {
@@ -245,19 +242,13 @@ func appInfosFor(st *state.State, wanted wantedAppInfos, names []string) ([]*sna
 		snapName := snp.info.Name()
 		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
-			if app.IsService() {
-				if wanted.services {
-					apps = append(apps, app)
-				}
-			} else {
-				if wanted.commands {
-					apps = append(apps, app)
-				}
+			if !opts.service || app.IsService() {
+				apps = append(apps, app)
 			}
 		}
 
 		if len(apps) == 0 && requested[snapName] {
-			return nil, AppNotFound("snap %q has no %ss", snapName, wanted)
+			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
 		}
 
 		includeAll := len(requested) == 0 || requested[snapName]
@@ -281,7 +272,7 @@ func appInfosFor(st *state.State, wanted wantedAppInfos, names []string) ([]*sna
 				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
 			} else {
 				snap, app := splitAppName(k)
-				return nil, AppNotFound("snap %q has no %s %q", snap, wanted, app)
+				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
 			}
 		}
 	}
@@ -313,12 +304,9 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []*client.AppInfo {
 			} else if len(sts) != 1 {
 				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
 			} else {
-				out[i].ServiceInfo = &client.ServiceInfo{
-					Daemon:          sts[0].Daemon,
-					ServiceFileName: sts[0].ServiceFileName,
-					Enabled:         sts[0].Enabled,
-					Active:          sts[0].Active,
-				}
+				out[i].Daemon = sts[0].Daemon
+				out[i].Enabled = sts[0].Enabled
+				out[i].Active = sts[0].Active
 			}
 		}
 	}

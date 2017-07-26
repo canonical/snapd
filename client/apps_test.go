@@ -30,20 +30,17 @@ import (
 
 func mksvc(snap, app string) *client.AppInfo {
 	return &client.AppInfo{
-		Snap: snap,
-		Name: app,
-		ServiceInfo: &client.ServiceInfo{
-			ServiceFileName: fmt.Sprintf("snap.%s.%s.service", snap, app),
-			Daemon:          "simple",
-			Active:          true,
-			Enabled:         true,
-		},
+		Snap:    snap,
+		Name:    app,
+		Daemon:  "simple",
+		Active:  true,
+		Enabled: true,
 	}
 
 }
 
 func (cs *clientSuite) testClientAppInfos(c *check.C) ([]*client.AppInfo, error) {
-	services, err := cs.cli.AppInfos([]string{"foo", "bar"}, nil)
+	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()

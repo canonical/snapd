@@ -20,16 +20,18 @@
 package client
 
 import (
-	"errors"
 	"net/url"
 	"strings"
 )
 
+// AppInfo describes a single snap application.
 type AppInfo struct {
-	Snap         string `json:"snap,omitempty"`
-	Name         string `json:"name"`
-	DesktopFile  string `json:"desktop-file,omitempty"`
-	*ServiceInfo `json:",omitempty"`
+	Snap        string `json:"snap,omitempty"`
+	Name        string `json:"name"`
+	DesktopFile string `json:"desktop-file,omitempty"`
+	Daemon      string `json:"daemon,omitempty"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	Active      bool   `json:"active,omitempty"`
 }
 
 // IsService returns true if the application is a background daemon.
@@ -37,48 +39,30 @@ func (a *AppInfo) IsService() bool {
 	if a == nil {
 		return false
 	}
-	if a.ServiceInfo == nil {
-		return false
-	}
-	if a.ServiceInfo.Daemon == "" {
+	if a.Daemon == "" {
 		return false
 	}
 
 	return true
 }
 
-type ServiceInfo struct {
-	Daemon          string `json:"daemon"`
-	ServiceFileName string `json:"service-file-name"`
-	Enabled         bool   `json:"enabled"`
-	Active          bool   `json:"active"`
+// AppOptions represent the options of the Apps call.
+type AppOptions struct {
+	Service bool
 }
 
-// AppInfoWanted can be used to specify what kind of app is of
-// interest.
-type AppInfoWanted struct {
-	Services bool
-	Commands bool
-}
-
-// AppInfos returns information about all matching apps. Each name can
-// be either a snap or a snap.app. If names is empty, list all.
+// Apps returns information about all matching apps. Each name can be
+// either a snap or a snap.app. If names is empty, list all.
 //
-// Use wanted to include apps of the given kind; nil means all.
-func (client *Client) AppInfos(names []string, wanted *AppInfoWanted) ([]*AppInfo, error) {
+// If opts.Service is true, only return apps with daemon != "";
+// otherwise, return all.
+func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) {
 	q := make(url.Values)
 	if len(names) > 0 {
 		q.Add("apps", strings.Join(names, ","))
 	}
-	if wanted != nil && !(wanted.Services && wanted.Commands) {
-		if !wanted.Services && !wanted.Commands {
-			return nil, errors.New("cannot pass in an empty AppInfoWanted")
-		}
-		wantedStr := "services"
-		if wanted.Commands {
-			wantedStr = "commands"
-		}
-		q.Add("wanted", wantedStr)
+	if opts.Service {
+		q.Add("select", "service")
 	}
 
 	var appInfos []*AppInfo
