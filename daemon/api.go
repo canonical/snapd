@@ -1620,7 +1620,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		Connected: pselect == "connected",
 	}
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.QueryInterfaces(opts), nil)
+	return SyncResponse(repo.Info(opts), nil)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
