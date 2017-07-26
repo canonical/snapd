@@ -238,8 +238,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		"plugs:\n" +
 		"  - minicom\n" +
 		"slots:\n" +
-		"  - \"gizmo-gadget:debug-serial-port\":\n" +
-		"      label: serial port for debugging\n" +
+		"  - gizmo-gadget:debug-serial-port (serial port for debugging):\n" +
 		"      attributes:\n" +
 		"        header:   pin-array\n" +
 		"        location: internal\n" +

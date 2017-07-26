@@ -113,20 +113,21 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	if len(iface.Plugs) > 0 {
 		fmt.Fprintf(w, "plugs:\n")
 		for _, plug := range iface.Plugs {
+			var labelPart string
+			if plug.Label != "" {
+				labelPart = fmt.Sprintf(" (%s)", plug.Label)
+			}
 			if plug.Name == iface.Name {
-				fmt.Fprintf(w, "  - %s", plug.Snap)
+				fmt.Fprintf(w, "  - %s%s", plug.Snap, labelPart)
 			} else {
-				fmt.Fprintf(w, `  - "%s:%s"`, plug.Snap, plug.Name)
+				fmt.Fprintf(w, `  - %s:%s%s`, plug.Snap, plug.Name, labelPart)
 			}
 			// Print a colon which will make the snap:plug element a key-value
-			// yaml object so that we can write the label or attributes.
-			if plug.Label != "" || len(plug.Attrs) > 0 && x.ShowAttrs {
+			// yaml object so that we can write the attributes.
+			if len(plug.Attrs) > 0 && x.ShowAttrs {
 				fmt.Fprintf(w, ":\n")
 			} else {
 				fmt.Fprintf(w, "\n")
-			}
-			if plug.Label != "" {
-				fmt.Fprintf(w, "      label:\t%s\n", plug.Label)
 			}
 			x.showAttrs(w, plug.Attrs, "      ")
 		}
@@ -134,20 +135,21 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 	if len(iface.Slots) > 0 {
 		fmt.Fprintf(w, "slots:\n")
 		for _, slot := range iface.Slots {
+			var labelPart string
+			if slot.Label != "" {
+				labelPart = fmt.Sprintf(" (%s)", slot.Label)
+			}
 			if slot.Name == iface.Name {
-				fmt.Fprintf(w, "  - %s", slot.Snap)
+				fmt.Fprintf(w, "  - %s%s", slot.Snap, labelPart)
 			} else {
-				fmt.Fprintf(w, `  - "%s:%s"`, slot.Snap, slot.Name)
+				fmt.Fprintf(w, `  - %s:%s%s`, slot.Snap, slot.Name, labelPart)
 			}
 			// Print a colon which will make the snap:slot element a key-value
-			// yaml object so that we can write the label or attributes.
-			if slot.Label != "" || len(slot.Attrs) > 0 && x.ShowAttrs {
+			// yaml object so that we can write the attributes.
+			if len(slot.Attrs) > 0 && x.ShowAttrs {
 				fmt.Fprintf(w, ":\n")
 			} else {
 				fmt.Fprintf(w, "\n")
-			}
-			if slot.Label != "" {
-				fmt.Fprintf(w, "      label:\t%s\n", slot.Label)
 			}
 			x.showAttrs(w, slot.Attrs, "      ")
 		}
