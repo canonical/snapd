@@ -77,8 +77,8 @@ type Interfaces struct {
 	Slots []*Slot `json:"slots"`
 }
 
-// InterfaceInfo holds information about a given interface and its instances.
-type InterfaceInfo struct {
+// Info holds information about a given interface and its instances.
+type Info struct {
 	Name     string
 	MetaData MetaData
 	Plugs    []*snap.PlugInfo
