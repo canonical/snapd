@@ -48,14 +48,14 @@ func (a *AppInfo) IsService() bool {
 
 // AppOptions represent the options of the Apps call.
 type AppOptions struct {
+	// If Service is true, only return apps that are services
+	// (app.IsService() is true); otherwise, return all.
 	Service bool
 }
 
 // Apps returns information about all matching apps. Each name can be
-// either a snap or a snap.app. If names is empty, list all.
-//
-// If opts.Service is true, only return apps with daemon != "";
-// otherwise, return all.
+// either a snap or a snap.app. If names is empty, list all (that
+// satisfy opts).
 func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) {
 	q := make(url.Values)
 	if len(names) > 0 {

@@ -39,7 +39,7 @@ func mksvc(snap, app string) *client.AppInfo {
 
 }
 
-func (cs *clientSuite) testClientAppInfos(c *check.C) ([]*client.AppInfo, error) {
+func testClientApps(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
 	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
 	c.Check(cs.req.Method, check.Equals, "GET")
@@ -50,19 +50,37 @@ func (cs *clientSuite) testClientAppInfos(c *check.C) ([]*client.AppInfo, error)
 	return services, err
 }
 
+func testClientAppsService(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
+	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Service: true})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
+	c.Check(cs.req.Method, check.Equals, "GET")
+	query := cs.req.URL.Query()
+	c.Check(query, check.HasLen, 2)
+	c.Check(query.Get("apps"), check.Equals, "foo,bar")
+	c.Check(query.Get("select"), check.Equals, "service")
+
+	return services, err
+}
+
+var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService}
+
 func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
 	expected := []*client.AppInfo{mksvc("foo", "foo"), mksvc("bar", "bar1")}
 	buf, err := json.Marshal(expected)
 	c.Assert(err, check.IsNil)
 	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
-	actual, err := cs.testClientAppInfos(c)
-	c.Assert(err, check.IsNil)
-	c.Check(actual, check.DeepEquals, expected)
+	for _, chkr := range appcheckers {
+		actual, err := chkr(cs, c)
+		c.Assert(err, check.IsNil)
+		c.Check(actual, check.DeepEquals, expected)
+	}
 }
 
 func (cs *clientSuite) TestClientServiceGetSad(c *check.C) {
 	cs.err = fmt.Errorf("xyzzy")
-	actual, err := cs.testClientAppInfos(c)
-	c.Assert(err, check.ErrorMatches, ".* xyzzy")
-	c.Check(actual, check.HasLen, 0)
+	for _, chkr := range appcheckers {
+		actual, err := chkr(cs, c)
+		c.Assert(err, check.ErrorMatches, ".* xyzzy")
+		c.Check(actual, check.HasLen, 0)
+	}
 }

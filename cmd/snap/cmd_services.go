@@ -63,10 +63,18 @@ func (s *svcServices) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Snap\tService\tActive\tEnabled"))
+	fmt.Fprintln(w, i18n.G("Snap\tService\tStartup\tCurrent"))
 
 	for _, svc := range services {
-		fmt.Fprintf(w, "%s\t%s\t%t\t%t\n", svc.Snap, svc.Name, svc.Active, svc.Enabled)
+		startup := i18n.G("disabled")
+		if svc.Enabled {
+			startup = i18n.G("enabled")
+		}
+		current := i18n.G("inactive")
+		if svc.Active {
+			current = i18n.G("active")
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
 	}
 
 	return nil
