@@ -1,5 +1,7 @@
 summary: Ensure that the network-observe interface works
 
+systems: [-fedora-*, -opensuse-*]
+
 details: |
     The network-observe interface allows a snap to query the network status information.
 
@@ -23,7 +25,7 @@ prepare: |
     snap install --dangerous network-observe-consumer_1.0_all.snap
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
