@@ -95,7 +95,7 @@ type InfoOptions struct {
 	Connected bool
 }
 
-func (r *Repository) queryInterface(iface Interface, opts *InfoOptions) *InterfaceInfo {
+func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *InterfaceInfo {
 	// NOTE: InfoOptions.Connected is handled by QueryInterfaces
 	md := MetaDataOf(iface)
 	ifaceName := iface.Name()
@@ -182,7 +182,7 @@ func (r *Repository) QueryInterfaces(opts *InfoOptions) []*InterfaceInfo {
 	for _, name := range names {
 		if iface, ok := r.ifaces[name]; ok {
 			if connected == nil || connected[name] {
-				infos = append(infos, r.queryInterface(iface, opts))
+				infos = append(infos, r.interfaceInfo(iface, opts))
 			}
 		}
 	}
