@@ -7,7 +7,7 @@ base: test-snapd-base-bare
 apps:
   busybox-static:
     command: bin/busybox
-    no-wrapper: true
+    wrapper: none
 
 parts:
   busybox-static:
