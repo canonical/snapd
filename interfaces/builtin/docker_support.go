@@ -542,8 +542,8 @@ func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dockerSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -593,10 +593,6 @@ func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *dockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
