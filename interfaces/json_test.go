@@ -110,12 +110,12 @@ func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 	})
 }
 
-func (s *JSONSuite) TestInterfaceInfoMarshalJSON(c *C) {
+func (s *JSONSuite) TestInfoMarshalJSON(c *C) {
 	md := MetaData{
 		Summary: "interface summary",
 		DocURL:  "http://example.org/",
 	}
-	ifaceInfo := &InterfaceInfo{
+	ifaceInfo := &Info{
 		Name:     "iface",
 		MetaData: md,
 		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},

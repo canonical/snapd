@@ -79,7 +79,7 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// interfaceInfoJSON aids in marshaling InterfaceInfo into JSON.
+// interfaceInfoJSON aids in marshaling Info into JSON.
 type interfaceInfoJSON struct {
 	Name    string      `json:"name,omitempty"`
 	Summary string      `json:"summary,omitempty"`
@@ -89,8 +89,8 @@ type interfaceInfoJSON struct {
 	Used    bool        `json:"used,omitempty"`
 }
 
-// MarshalJSON returns the JSON encoding of InterfaceInfo.
-func (info *InterfaceInfo) MarshalJSON() ([]byte, error) {
+// MarshalJSON returns the JSON encoding of Info.
+func (info *Info) MarshalJSON() ([]byte, error) {
 	plugs := make([]*plugJSON, 0, len(info.Plugs))
 	for _, plug := range info.Plugs {
 		plugs = append(plugs, &plugJSON{

@@ -95,11 +95,11 @@ type InfoOptions struct {
 	Connected bool
 }
 
-func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *InterfaceInfo {
+func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	// NOTE: InfoOptions.Connected is handled by QueryInterfaces
 	md := MetaDataOf(iface)
 	ifaceName := iface.Name()
-	ii := &InterfaceInfo{
+	ii := &Info{
 		Name:     ifaceName,
 		MetaData: MetaData{Summary: md.Summary},
 	}
@@ -137,7 +137,7 @@ func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Interfac
 // If names is empty then all interfaces are considered. Query options decide
 // which data to return but can also skip interfaces without connections. See
 // the documentation of InfoOptions for details.
-func (r *Repository) QueryInterfaces(opts *InfoOptions) []*InterfaceInfo {
+func (r *Repository) QueryInterfaces(opts *InfoOptions) []*Info {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -178,7 +178,7 @@ func (r *Repository) QueryInterfaces(opts *InfoOptions) []*InterfaceInfo {
 	sort.Strings(names)
 
 	// Query each interface we are interested in.
-	infos := make([]*InterfaceInfo, 0, len(names))
+	infos := make([]*Info, 0, len(names))
 	for _, name := range names {
 		if iface, ok := r.ifaces[name]; ok {
 			if connected == nil || connected[name] {
