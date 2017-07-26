@@ -29,7 +29,7 @@ import (
 
 func (cs *clientSuite) TestClientInterfacesOptionEncoding(c *check.C) {
 	// Choose some options
-	_, _ = cs.cli.Interfaces(&client.InterfaceQueryOptions{
+	_, _ = cs.cli.Interfaces(&client.InterfaceOptions{
 		Names:     []string{"a", "b"},
 		Doc:       true,
 		Plugs:     true,
@@ -78,7 +78,7 @@ func (cs *clientSuite) TestClientInterfacesConnected(c *check.C) {
 			{"name": "iface-c", "summary": "the C iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(&client.InterfaceQueryOptions{
+	ifaces, err := cs.cli.Interfaces(&client.InterfaceOptions{
 		Connected: true,
 	})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
@@ -115,7 +115,7 @@ func (cs *clientSuite) TestClientInterfacesSelectedDetails(c *check.C) {
 			}
 		]
 	}`
-	opts := &client.InterfaceQueryOptions{Names: []string{"iface-a"}, Doc: true, Plugs: true, Slots: true}
+	opts := &client.InterfaceOptions{Names: []string{"iface-a"}, Doc: true, Plugs: true, Slots: true}
 	ifaces, err := cs.cli.Interfaces(opts)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
@@ -144,7 +144,7 @@ func (cs *clientSuite) TestClientInterfacesMultiple(c *check.C) {
 			{"name": "iface-b", "summary": "the B iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(&client.InterfaceQueryOptions{Names: []string{"iface-a", "iface-b"}})
+	ifaces, err := cs.cli.Interfaces(&client.InterfaceOptions{Names: []string{"iface-a", "iface-b"}})
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This chooses a specific interfaces (iface-a, iface-b)

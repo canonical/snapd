@@ -89,13 +89,13 @@ func (client *Client) Connections() (Interfaces, error) {
 	return ifaces, err
 }
 
-// InterfaceQueryOptions represents opt-in elements include in responses.
-type InterfaceQueryOptions struct {
+// InterfaceOptions represents opt-in elements include in responses.
+type InterfaceOptions struct {
 	Names                        []string
 	Doc, Plugs, Slots, Connected bool
 }
 
-func (client *Client) Interfaces(opts *InterfaceQueryOptions) (interfaces []*Interface, err error) {
+func (client *Client) Interfaces(opts *InterfaceOptions) (interfaces []*Interface, err error) {
 	query := url.Values{}
 	if opts != nil && len(opts.Names) > 0 {
 		query.Set("names", strings.Join(opts.Names, ",")) // Return just those specific interfaces.
