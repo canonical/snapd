@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
@@ -59,6 +60,16 @@ KERNEL=="linux-user-bde", TAG+="###SLOT_SECURITY_TAGS###"
 KERNEL=="linux-kernel-bde", TAG+="###SLOT_SECURITY_TAGS###"
 KERNEL=="linux-bcm-knet", TAG+="###SLOT_SECURITY_TAGS###"
 `
+
+// The upstream linux kernel doesn't come with support for the
+// necessary kernel modules we need to drive a Broadcom ASIC.
+// All necessary modules need to be loaded on demand if the
+// kernel the device runs with provides them.
+var broadcomAsicControlConnectedPlugKMod = []string{
+	"linux-user-bde",
+	"linux-kernel-bde",
+	"linux-bcm-knet",
+}
 
 // The type for broadcom-asic-control interface
 type broadcomAsicControlInterface struct{}
@@ -115,6 +126,16 @@ func (iface *broadcomAsicControlInterface) UDevConnectedPlug(spec *udev.Specific
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 		snippet := strings.Replace(broadcomAsicControlConnectedPlugUDev, old, tag, -1)
 		spec.AddSnippet(snippet)
+	}
+	return nil
+}
+
+func (iface *broadcomAsicControlInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	for _, kmod := range broadcomAsicControlConnectedPlugKMod {
+		err := spec.AddModule(kmod)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

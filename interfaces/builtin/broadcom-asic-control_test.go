@@ -23,8 +23,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"	
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -111,6 +112,17 @@ func (s *BroadcomAsicControlSuite) TestUsedSecuritySystems(c *C) {
 	snippets := udevSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
 	c.Assert(snippets[0], testutil.Contains, expectedUDevLine)
+	// .. and for kmod
+	expectedModules := map[string]bool{
+		"linux-user-bde":   true,
+		"linux-kernel-bde": true,
+		"linux-bcm-knet":   true,
+	}
+	kmodSpec := &kmod.Specification{}
+	err = kmodSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	modules := kmodSpec.Modules()
+	c.Assert(modules, DeepEquals, expectedModules)
 }
 
 func (s *BroadcomAsicControlSuite) TestInterfaces(c *C) {
