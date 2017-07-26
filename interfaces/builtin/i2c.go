@@ -49,8 +49,8 @@ func (iface *i2cInterface) Name() string {
 	return "i2c"
 }
 
-func (iface *i2cInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *i2cInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              i2cSummary,
 		BaseDeclarationSlots: i2cBaseDeclarationSlots,
 	}
@@ -131,10 +131,6 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *i2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-func (iface *i2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

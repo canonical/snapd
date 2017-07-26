@@ -254,8 +254,8 @@ func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              browserSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -306,14 +306,6 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 
 func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
-}
-
-func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
