@@ -129,7 +129,7 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 			} else {
 				fmt.Fprintf(w, "\n")
 			}
-			x.showAttrs(w, plug.Attrs, "      ")
+			x.showAttrs(w, plug.Attrs, "    ")
 		}
 	}
 	if len(iface.Slots) > 0 {
@@ -151,7 +151,7 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 			} else {
 				fmt.Fprintf(w, "\n")
 			}
-			x.showAttrs(w, slot.Attrs, "      ")
+			x.showAttrs(w, slot.Attrs, "    ")
 		}
 	}
 }
@@ -174,7 +174,6 @@ func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, inde
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	fmt.Fprintf(w, "%sattributes:\n", indent)
 	for _, name := range names {
 		value := attrs[name]
 		switch value.(type) {
