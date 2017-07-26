@@ -86,7 +86,6 @@ type interfaceInfoJSON struct {
 	DocURL  string      `json:"doc-url,omitempty"`
 	Plugs   []*plugJSON `json:"plugs,omitempty"`
 	Slots   []*slotJSON `json:"slots,omitempty"`
-	Used    bool        `json:"used,omitempty"`
 }
 
 // MarshalJSON returns the JSON encoding of Info.
@@ -115,6 +114,5 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 		DocURL:  info.DocURL,
 		Plugs:   plugs,
 		Slots:   slots,
-		Used:    info.Used,
 	})
 }
