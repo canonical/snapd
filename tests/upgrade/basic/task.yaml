@@ -13,10 +13,10 @@ execute: |
     . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/snaps.sh"
 
-    echo "Remove snapd, snapd-selinux and snap-confine "
+    echo "Remove snapd, snapd-selinux and snap-confine"
     distro_purge_package snapd snapd-selinux snap-confine
 
-    echo "Install previous snapd version from the store""
+    echo "Install previous snapd version from the store"
     distro_install_package snap-confine snapd
 
     prevsnapdver=$(snap --version|grep "snapd ")
