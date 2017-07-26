@@ -149,10 +149,6 @@ func (iface *iioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 	return true
 }
 
-func (iface *iioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&iioInterface{})
 }

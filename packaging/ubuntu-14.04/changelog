@@ -1,3 +1,26 @@
+snapd (2.26.14~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cmd: fix incorrect re-exec when starting from snapd 2.21
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 20 Jul 2017 13:52:05 +0200
+
+snapd (2.26.13~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - cmd,tests: fix classic confinement confusing re-execution code
+    - cmd: fix incorrect check check for re-exec in InternalToolPath()
+    - snap-seccomp: add secondary arch for unrestricted snaps as well
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 18 Jul 2017 20:34:33 +0200
+
+snapd (2.26.10~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1690083
+    - Fix snap-seccomp tests in artful/trusty on i386/s390x/aarch64
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 17 Jul 2017 11:58:26 +0200
+
 snapd (2.26.9~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1690083
