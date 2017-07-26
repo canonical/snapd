@@ -84,7 +84,6 @@ type Info struct {
 	DocURL  string
 	Plugs   []*snap.PlugInfo
 	Slots   []*snap.SlotInfo
-	Used    bool
 }
 
 // ConnRef holds information about plug and slot reference that form a particular connection.
