@@ -19,6 +19,15 @@
 
 package builtin
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
+)
+
 const broadcomAsicControlSummary = `allows using the broadcom-asic kernel module`
 
 const broadcomAsicControlDescription = `
@@ -49,15 +58,76 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 /dev/linux-bcm-knet wr,
 `
 
+const broadcomAsicControlConnectedPlugUDev = `
+KERNEL=="linux-user-bde", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="linux-kernel-bde", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="linux-bcm-knet", TAG+="###SLOT_SECURITY_TAGS###"
+`
+
+// The type for broadcom-asic-control interface
+type broadcomAsicControlInterface struct{}
+
+// Getter for the name of the broadcom-asic-control interface
+func (iface *broadcomAsicControlInterface) Name() string {
+	return "broadcom-asic-control"
+}
+
+func (iface *broadcomAsicControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              broadcomAsicControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: broadcomAsicControlBaseDeclarationSlots,
+	}
+}
+
+func (iface *broadcomAsicControlInterface) String() string {
+	return iface.Name()
+}
+
+// Check validity of the defined slot
+func (iface *broadcomAsicControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	// Does it have right type?
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	// Creation of the slot of this type is allowed only by a gadget or os snap
+	if !(slot.Snap.Type == "os") {
+		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
+	}
+	return nil
+}
+
+// Checks and possibly modifies a plug
+func (iface *broadcomAsicControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	// Currently nothing is checked on the plug side
+	return nil
+}
+
+func (iface *broadcomAsicControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(broadcomAsicControlConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *broadcomAsicControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		snippet := strings.Replace(broadcomAsicControlConnectedPlugUDev, old, tag, -1)
+		spec.AddSnippet(snippet)
+	}
+	return nil
+}
+
+func (iface *broadcomAsicControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// Allow what is allowed in the declarations
+	return true
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "broadcom-asic-control",
-		summary:               broadcomAsicControlSummary,
-		description:           broadcomAsicControlDescription,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  broadcomAsicControlBaseDeclarationSlots,
-		connectedPlugAppArmor: broadcomAsicControlConnectedPlugAppArmor,
-		reservedForOS:         true,
-	})
+	registerIface(&broadcomAsicControlInterface{})
 }
