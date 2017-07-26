@@ -148,7 +148,7 @@ var (
 	interfacesCmd = &Command{
 		Path:   "/v2/interfaces",
 		UserOK: true,
-		GET:    getInterfaces,
+		GET:    interfacesConnectionsMultiplexer,
 		POST:   changeInterfaces,
 	}
 
@@ -1591,8 +1591,41 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-// getInterfaces returns all plugs and slots.
+// interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
+func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		return getLegacyConnections(c, r, user)
+	} else {
+		return getInterfaces(c, r, user)
+	}
+}
+
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	q := r.URL.Query()
+	pselect := q.Get("select")
+	if pselect != "all" && pselect != "connected" {
+		return BadRequest("unsupported select qualifier")
+	}
+	var names []string
+	namesStr := q.Get("names")
+	if namesStr != "" {
+		names = strings.Split(namesStr, ",")
+	}
+
+	opts := &interfaces.InfoOptions{
+		Names:     names,
+		Doc:       q.Get("doc") == "true",
+		Plugs:     q.Get("plugs") == "true",
+		Slots:     q.Get("slots") == "true",
+		Connected: pselect == "connected",
+	}
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Info(opts), nil)
+}
+
+func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
 }
