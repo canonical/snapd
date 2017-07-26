@@ -103,8 +103,8 @@ func (iface *unity8Interface) Name() string {
 	return "unity8"
 }
 
-func (iface *unity8Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity8Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              unity8Summary,
 		BaseDeclarationPlugs: unity8BaseDeclarationPlugs,
 		BaseDeclarationSlots: unity8BaseDeclarationSlots,

@@ -1850,9 +1850,9 @@ func (s *RepositorySuite) TestInfo(c *C) {
 	r := s.emptyRepo
 
 	// Add some test interfaces.
-	i1 := &ifacetest.TestInterface{InterfaceName: "i1", InterfaceMetaData: MetaData{Summary: "i1 summary", DocURL: "http://example.com/i1"}}
-	i2 := &ifacetest.TestInterface{InterfaceName: "i2", InterfaceMetaData: MetaData{Summary: "i2 summary", DocURL: "http://example.com/i2"}}
-	i3 := &ifacetest.TestInterface{InterfaceName: "i3", InterfaceMetaData: MetaData{Summary: "i3 summary", DocURL: "http://example.com/i3"}}
+	i1 := &ifacetest.TestInterface{InterfaceName: "i1", InterfaceStaticInfo: StaticInfo{Summary: "i1 summary", DocURL: "http://example.com/i1"}}
+	i2 := &ifacetest.TestInterface{InterfaceName: "i2", InterfaceStaticInfo: StaticInfo{Summary: "i2 summary", DocURL: "http://example.com/i2"}}
+	i3 := &ifacetest.TestInterface{InterfaceName: "i3", InterfaceStaticInfo: StaticInfo{Summary: "i3 summary", DocURL: "http://example.com/i3"}}
 	c.Assert(r.AddInterface(i1), IsNil)
 	c.Assert(r.AddInterface(i2), IsNil)
 	c.Assert(r.AddInterface(i3), IsNil)

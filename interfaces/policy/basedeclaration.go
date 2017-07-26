@@ -168,7 +168,7 @@ func composeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
 		return nil, err
 	}
 	for _, iface := range ifaces {
-		plugPolicy := interfaces.MetaDataOf(iface).BaseDeclarationPlugs
+		plugPolicy := interfaces.StaticInfoOf(iface).BaseDeclarationPlugs
 		if _, err := buf.WriteString(trimTrailingNewline(plugPolicy)); err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ func composeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
 		return nil, err
 	}
 	for _, iface := range ifaces {
-		slotPolicy := interfaces.MetaDataOf(iface).BaseDeclarationSlots
+		slotPolicy := interfaces.StaticInfoOf(iface).BaseDeclarationSlots
 		if _, err := buf.WriteString(trimTrailingNewline(slotPolicy)); err != nil {
 			return nil, err
 		}

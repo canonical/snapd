@@ -52,8 +52,8 @@ func (iface *boolFileInterface) Name() string {
 	return "bool-file"
 }
 
-func (iface *boolFileInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              boolFileSummary,
 		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
 	}

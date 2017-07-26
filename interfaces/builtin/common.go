@@ -63,9 +63,9 @@ func (iface *commonInterface) Name() string {
 	return iface.name
 }
 
-// MetaData returns various meta-data about this interface.
-func (iface *commonInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+// StaticInfo returns various meta-data about this interface.
+func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iface.summary,
 		DocURL:               iface.docURL,
 		ImplicitOnCore:       iface.implicitOnCore,

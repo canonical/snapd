@@ -54,8 +54,8 @@ func (iface *gpioInterface) Name() string {
 	return "gpio"
 }
 
-func (iface *gpioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              gpioSummary,
 		BaseDeclarationSlots: gpioBaseDeclarationSlots,
 	}

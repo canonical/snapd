@@ -3406,7 +3406,7 @@ func (s *apiSuite) TestInterfaceIndex(c *check.C) {
 
 	s.mockIface(c, &ifacetest.TestInterface{
 		InterfaceName: "test",
-		InterfaceMetaData: interfaces.MetaData{
+		InterfaceStaticInfo: interfaces.StaticInfo{
 			Summary: "summary",
 		},
 	})
@@ -3447,7 +3447,7 @@ func (s *apiSuite) TestInterfaceDetail(c *check.C) {
 
 	s.mockIface(c, &ifacetest.TestInterface{
 		InterfaceName: "test",
-		InterfaceMetaData: interfaces.MetaData{
+		InterfaceStaticInfo: interfaces.StaticInfo{
 			Summary: "summary",
 		},
 	})

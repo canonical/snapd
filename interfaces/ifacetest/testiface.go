@@ -36,8 +36,8 @@ import (
 // It is public so that it can be consumed from other packages.
 type TestInterface struct {
 	// InterfaceName is the name of this interface
-	InterfaceName     string
-	InterfaceMetaData interfaces.MetaData
+	InterfaceName       string
+	InterfaceStaticInfo interfaces.StaticInfo
 	// AutoConnectCallback is the callback invoked inside AutoConnect
 	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
@@ -115,8 +115,8 @@ func (t *TestInterface) Name() string {
 	return t.InterfaceName
 }
 
-func (t *TestInterface) MetaData() interfaces.MetaData {
-	return t.InterfaceMetaData
+func (t *TestInterface) StaticInfo() interfaces.StaticInfo {
+	return t.InterfaceStaticInfo
 }
 
 // SanitizePlug checks and possibly modifies a plug.

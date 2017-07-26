@@ -57,8 +57,8 @@ func (iface *iioInterface) Name() string {
 	return "iio"
 }
 
-func (iface *iioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *iioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iioSummary,
 		BaseDeclarationSlots: iioBaseDeclarationSlots,
 	}

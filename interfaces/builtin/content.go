@@ -57,8 +57,8 @@ func (iface *contentInterface) Name() string {
 	return "content"
 }
 
-func (iface *contentInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              contentSummary,
 		BaseDeclarationSlots: contentBaseDeclarationSlots,
 	}

@@ -49,8 +49,8 @@ func (iface *i2cInterface) Name() string {
 	return "i2c"
 }
 
-func (iface *i2cInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *i2cInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              i2cSummary,
 		BaseDeclarationSlots: i2cBaseDeclarationSlots,
 	}

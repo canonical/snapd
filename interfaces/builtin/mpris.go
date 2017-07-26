@@ -157,8 +157,8 @@ func (iface *mprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *mprisInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mprisSummary,
 		BaseDeclarationSlots: mprisBaseDeclarationSlots,
 	}
