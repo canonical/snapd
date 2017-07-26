@@ -126,10 +126,10 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 			// yaml object so that we can write the attributes.
 			if len(plug.Attrs) > 0 && x.ShowAttrs {
 				fmt.Fprintf(w, ":\n")
+				x.showAttrs(w, plug.Attrs, "    ")
 			} else {
 				fmt.Fprintf(w, "\n")
 			}
-			x.showAttrs(w, plug.Attrs, "    ")
 		}
 	}
 	if len(iface.Slots) > 0 {
@@ -148,10 +148,10 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 			// yaml object so that we can write the attributes.
 			if len(slot.Attrs) > 0 && x.ShowAttrs {
 				fmt.Fprintf(w, ":\n")
+				x.showAttrs(w, slot.Attrs, "    ")
 			} else {
 				fmt.Fprintf(w, "\n")
 			}
-			x.showAttrs(w, slot.Attrs, "    ")
 		}
 	}
 }
@@ -166,7 +166,7 @@ func (x *cmdInterface) showManyInterfaces(infos []*client.Interface) {
 }
 
 func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, indent string) {
-	if len(attrs) == 0 || !x.ShowAttrs {
+	if len(attrs) == 0 {
 		return
 	}
 	names := make([]string, 0, len(attrs))
