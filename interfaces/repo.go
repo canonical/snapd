@@ -80,7 +80,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	return nil
 }
 
-// InfoOptions describes options for QueryInterfaces.
+// InfoOptions describes options for Info.
 //
 // Names: return just this subset if non-empty.
 // Doc: return documentation.
@@ -96,7 +96,7 @@ type InfoOptions struct {
 }
 
 func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
-	// NOTE: InfoOptions.Connected is handled by QueryInterfaces
+	// NOTE: InfoOptions.Connected is handled by Info
 	md := MetaDataOf(iface)
 	ifaceName := iface.Name()
 	ii := &Info{
@@ -132,12 +132,12 @@ func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	return ii
 }
 
-// QueryInterfaces returns information about interfaces in the system.
+// Info returns information about interfaces in the system.
 //
 // If names is empty then all interfaces are considered. Query options decide
 // which data to return but can also skip interfaces without connections. See
 // the documentation of InfoOptions for details.
-func (r *Repository) QueryInterfaces(opts *InfoOptions) []*Info {
+func (r *Repository) Info(opts *InfoOptions) []*Info {
 	r.m.Lock()
 	defer r.m.Unlock()
 
