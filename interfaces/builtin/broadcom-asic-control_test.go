@@ -23,8 +23,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/apparmor"	
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -79,7 +80,7 @@ func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
 		Name:      "broadcom-asic-control",
 		Interface: "broadcom-asic-control",
 	}})
-	c.Assert(err, ErrorMatches, "broadcom-asic-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "broadcom-asic-control slots only allowed on core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
@@ -102,6 +103,14 @@ func (s *BroadcomAsicControlSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, expectedAppArmorLine)
+	// .. and for udev
+	expectedUDevLine := "KERNEL==\"linux-user-bde\", TAG+=\"snap_other_app2\"\n"
+	udevSpec := &udev.Specification{}
+	err = udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	c.Assert(err, IsNil)
+	snippets := udevSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(snippets[0], testutil.Contains, expectedUDevLine)
 }
 
 func (s *BroadcomAsicControlSuite) TestInterfaces(c *C) {
