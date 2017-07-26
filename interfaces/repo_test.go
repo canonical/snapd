@@ -1895,31 +1895,31 @@ slots:
 	})
 
 	// We can choose specific interfaces, unknown names are just skipped.
-	infos = r.QueryInterfaces(&QueryOptions{Names: []string{"i2", "i4"}})
+	infos = r.QueryInterfaces(&InfoOptions{Names: []string{"i2", "i4"}})
 	c.Assert(infos, DeepEquals, []*InterfaceInfo{
 		{Name: "i2", MetaData: MetaData{Summary: "i2 summary"}},
 	})
 
 	// We can ask for documentation.
-	infos = r.QueryInterfaces(&QueryOptions{Names: []string{"i2"}, Doc: true})
+	infos = r.QueryInterfaces(&InfoOptions{Names: []string{"i2"}, Doc: true})
 	c.Assert(infos, DeepEquals, []*InterfaceInfo{
 		{Name: "i2", MetaData: MetaData{Summary: "i2 summary", DocURL: "http://example.com/i2"}},
 	})
 
 	// We can ask for a list of plugs.
-	infos = r.QueryInterfaces(&QueryOptions{Names: []string{"i2"}, Plugs: true})
+	infos = r.QueryInterfaces(&InfoOptions{Names: []string{"i2"}, Plugs: true})
 	c.Assert(infos, DeepEquals, []*InterfaceInfo{
 		{Name: "i2", MetaData: MetaData{Summary: "i2 summary"}, Plugs: []*snap.PlugInfo{s1.Plugs["i2"]}},
 	})
 
 	// We can ask for a list of slots too.
-	infos = r.QueryInterfaces(&QueryOptions{Names: []string{"i2"}, Slots: true})
+	infos = r.QueryInterfaces(&InfoOptions{Names: []string{"i2"}, Slots: true})
 	c.Assert(infos, DeepEquals, []*InterfaceInfo{
 		{Name: "i2", MetaData: MetaData{Summary: "i2 summary"}, Slots: []*snap.SlotInfo{s3.Slots["i2"]}},
 	})
 
 	// We can also ask for only those interfaces that have connected plugs or slots.
-	infos = r.QueryInterfaces(&QueryOptions{Connected: true})
+	infos = r.QueryInterfaces(&InfoOptions{Connected: true})
 	c.Assert(infos, DeepEquals, []*InterfaceInfo{
 		{Name: "i1", MetaData: MetaData{Summary: "i1 summary"}},
 		{Name: "i2", MetaData: MetaData{Summary: "i2 summary"}},

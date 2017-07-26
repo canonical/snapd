@@ -1612,7 +1612,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		names = strings.Split(namesStr, ",")
 	}
 
-	opts := &interfaces.QueryOptions{
+	opts := &interfaces.InfoOptions{
 		Names:     names,
 		Doc:       q.Get("doc") == "true",
 		Plugs:     q.Get("plugs") == "true",
