@@ -232,14 +232,6 @@ func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plu
 	return nil
 }
 
-func (iface *contentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *contentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&contentInterface{})
 }

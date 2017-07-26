@@ -426,14 +426,6 @@ func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
 	return true
 }
 
-func (iface *dbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *dbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&dbusInterface{})
 }

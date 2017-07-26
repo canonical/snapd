@@ -151,14 +151,6 @@ func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) 
 	return true
 }
 
-func (iface *boolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *boolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
-
 func init() {
 	registerIface(&boolFileInterface{})
 }
