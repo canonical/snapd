@@ -207,8 +207,8 @@ func (iface *locationControlInterface) Name() string {
 	return "location-control"
 }
 
-func (iface *locationControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              locationControlSummary,
 		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
 	}
