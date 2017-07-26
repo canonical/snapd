@@ -190,9 +190,9 @@ func (cs *clientSuite) TestClientConnections(c *check.C) {
 			]
 		}
 	}`
-	interfaces, err := cs.cli.Connections()
+	conns, err := cs.cli.Connections()
 	c.Assert(err, check.IsNil)
-	c.Check(interfaces, check.DeepEquals, client.Interfaces{
+	c.Check(conns, check.DeepEquals, client.Connections{
 		Plugs: []client.Plug{
 			{
 				Snap:      "canonical-pi2",
