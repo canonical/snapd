@@ -1,0 +1,4 @@
+name: test-snapd-base-bare
+version: 1.0
+type: base
+summary: Empty base snap for snapd testing
