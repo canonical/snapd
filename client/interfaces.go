@@ -83,9 +83,10 @@ type InterfaceAction struct {
 }
 
 // Connections returns all plugs, slots and their connections.
-func (client *Client) Connections() (interfaces Interfaces, err error) {
-	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
-	return
+func (client *Client) Connections() (Interfaces, error) {
+	var ifaces Interfaces
+	_, err := client.doSync("GET", "/v2/interfaces", nil, nil, nil, &ifaces)
+	return ifaces, err
 }
 
 // InterfaceQueryOptions represents opt-in elements include in responses.
