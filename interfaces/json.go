@@ -111,8 +111,8 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(&interfaceInfoJSON{
 		Name:    info.Name,
-		Summary: info.MetaData.Summary,
-		DocURL:  info.MetaData.DocURL,
+		Summary: info.Summary,
+		DocURL:  info.DocURL,
 		Plugs:   plugs,
 		Slots:   slots,
 		Used:    info.Used,

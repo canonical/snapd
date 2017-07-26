@@ -111,15 +111,12 @@ func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 }
 
 func (s *JSONSuite) TestInfoMarshalJSON(c *C) {
-	md := MetaData{
+	ifaceInfo := &Info{
+		Name:    "iface",
 		Summary: "interface summary",
 		DocURL:  "http://example.org/",
-	}
-	ifaceInfo := &Info{
-		Name:     "iface",
-		MetaData: md,
-		Plugs:    []*snap.PlugInfo{s.plug.PlugInfo},
-		Slots:    []*snap.SlotInfo{s.slot.SlotInfo},
+		Plugs:   []*snap.PlugInfo{s.plug.PlugInfo},
+		Slots:   []*snap.SlotInfo{s.slot.SlotInfo},
 	}
 	data, err := json.Marshal(ifaceInfo)
 	c.Assert(err, IsNil)

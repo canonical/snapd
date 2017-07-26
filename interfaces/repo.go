@@ -100,12 +100,12 @@ func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	md := MetaDataOf(iface)
 	ifaceName := iface.Name()
 	ii := &Info{
-		Name:     ifaceName,
-		MetaData: MetaData{Summary: md.Summary},
+		Name:    ifaceName,
+		Summary: md.Summary,
 	}
 	if opts != nil && opts.Doc {
 		// Collect documentation URL
-		ii.MetaData.DocURL = md.DocURL
+		ii.DocURL = md.DocURL
 	}
 	if opts != nil && opts.Plugs {
 		// Collect all plugs of this interface type.

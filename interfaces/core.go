@@ -79,11 +79,12 @@ type Interfaces struct {
 
 // Info holds information about a given interface and its instances.
 type Info struct {
-	Name     string
-	MetaData MetaData
-	Plugs    []*snap.PlugInfo
-	Slots    []*snap.SlotInfo
-	Used     bool
+	Name    string
+	Summary string
+	DocURL  string
+	Plugs   []*snap.PlugInfo
+	Slots   []*snap.SlotInfo
+	Used    bool
 }
 
 // ConnRef holds information about plug and slot reference that form a particular connection.
