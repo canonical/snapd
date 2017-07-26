@@ -1614,9 +1614,9 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	opts := &interfaces.QueryOptions{
 		Names:     names,
-		Doc:       q.Get("doc") == "yes",
-		Plugs:     q.Get("plugs") == "yes",
-		Slots:     q.Get("slots") == "yes",
+		Doc:       q.Get("doc") == "true",
+		Plugs:     q.Get("plugs") == "true",
+		Slots:     q.Get("slots") == "true",
 		Connected: pselect == "connected",
 	}
 	repo := c.d.overlord.InterfaceManager().Repository()

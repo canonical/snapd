@@ -105,13 +105,13 @@ func (client *Client) Interfaces(opts *InterfaceOptions) (interfaces []*Interfac
 	}
 	if opts != nil {
 		if opts.Doc {
-			query.Set("doc", "yes") // Return documentation of each selected interface.
+			query.Set("doc", "true") // Return documentation of each selected interface.
 		}
 		if opts.Plugs {
-			query.Set("plugs", "yes") // Return plugs of each selected interface.
+			query.Set("plugs", "true") // Return plugs of each selected interface.
 		}
 		if opts.Slots {
-			query.Set("slots", "yes") // Return slots of each selected interface.
+			query.Set("slots", "true") // Return slots of each selected interface.
 		}
 	}
 	// NOTE: Presence of "select" triggers the use of the new response format.
