@@ -30,10 +30,6 @@ import (
 
 const broadcomAsicControlSummary = `allows using the broadcom-asic kernel module`
 
-const broadcomAsicControlDescription = `
-The broadcom-asic-control interfaces allows connected plugs to read and sometimes
-write files required to use the broadcom asic kernel module.`
-
 const broadcomAsicControlBaseDeclarationSlots = `
   broadcom-asic-control:
     allow-installation:
