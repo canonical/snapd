@@ -64,19 +64,17 @@ func (s *SystemTraceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SystemTraceInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "system-trace",
 		Interface: "system-trace",
-	}})
-	c.Assert(err, ErrorMatches, "system-trace slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "system-trace slots are reserved for the operating system snap")
 }
 
 func (s *SystemTraceInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {

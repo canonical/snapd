@@ -66,19 +66,18 @@ func (s *NetworkControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "network-control",
 		Interface: "network-control",
-	}})
-	c.Assert(err, ErrorMatches, "network-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"network-control slots are reserved for the operating system snap")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *NetworkControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

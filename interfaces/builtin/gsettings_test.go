@@ -66,19 +66,18 @@ func (s *GsettingsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *GsettingsInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "gsettings",
 		Interface: "gsettings",
-	}})
-	c.Assert(err, ErrorMatches, "gsettings slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"gsettings slots are reserved for the operating system snap")
 }
 
 func (s *GsettingsInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *GsettingsInterfaceSuite) TestConnectedPlugSnippet(c *C) {
