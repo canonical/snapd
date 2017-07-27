@@ -75,11 +75,6 @@ func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *hardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *hardwareRandomControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(hardwareRandomControlConnectedPlugAppArmor)
 	return nil

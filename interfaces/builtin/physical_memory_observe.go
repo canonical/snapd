@@ -71,11 +71,6 @@ func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *physicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *physicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
 	return nil

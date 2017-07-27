@@ -136,14 +136,6 @@ func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification,
 	return nil
 }
 
-func (iface *networkStatusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *networkStatusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *networkStatusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

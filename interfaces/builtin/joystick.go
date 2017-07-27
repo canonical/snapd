@@ -70,11 +70,6 @@ func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *joystickInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 // AppArmorConnectedPlug adds the necessary appamor snippet to the spec that
 // allows access to joystick devices.
 func (iface *joystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -83,11 +83,6 @@ func (iface *ioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error 
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *ioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *ioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
 	return nil

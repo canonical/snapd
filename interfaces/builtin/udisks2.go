@@ -406,14 +406,6 @@ func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification,
 	return nil
 }
 
-func (iface *udisks2Interface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *udisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

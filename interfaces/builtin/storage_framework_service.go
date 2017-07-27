@@ -152,14 +152,6 @@ func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccom
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *storageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *storageFrameworkServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }

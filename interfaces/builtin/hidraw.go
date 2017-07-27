@@ -116,12 +116,6 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *hidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// NOTE: currently we don't check anything on the plug side.
-	return nil
-}
-
 func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {

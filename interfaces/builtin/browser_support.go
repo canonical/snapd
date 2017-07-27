@@ -263,10 +263,6 @@ func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool

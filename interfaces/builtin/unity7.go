@@ -567,10 +567,6 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }

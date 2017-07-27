@@ -323,14 +323,6 @@ func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

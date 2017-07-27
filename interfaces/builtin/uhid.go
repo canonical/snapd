@@ -64,16 +64,6 @@ func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
-// Check the validity of the slot
-func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-// Check and possibly modify a plug
-func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil

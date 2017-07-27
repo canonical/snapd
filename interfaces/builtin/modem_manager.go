@@ -1227,14 +1227,6 @@ func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifica
 	return nil
 }
 
-func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *modemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

@@ -299,14 +299,6 @@ func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *locationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *locationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *locationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
