@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,7 @@
 package builtin
 
 import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
-
-	"github.com/snapcore/snapd/snap"
 )
 
 const fuseSupportSummary = `allows access to the FUSE file system`
@@ -99,74 +91,16 @@ const fuseSupportConnectedPlugUdev = `
 KERNEL=="fuse", TAG+="%s"
 `
 
-// The type for fuse-support interface
-type fuseSupportInterface struct{}
-
-// Getter for the name of the fuse support interface
-func (iface *fuseSupportInterface) Name() string {
-	return "fuse-support"
-}
-
-func (iface *fuseSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              fuseSupportSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		BaseDeclarationSlots: fuseSupportBaseDeclarationSlots,
-	}
-}
-
-func (iface *fuseSupportInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *fuseSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *fuseSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *fuseSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(fuseSupportConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *fuseSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(fuseSupportConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *fuseSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(fuseSupportConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *fuseSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&fuseSupportInterface{})
+	registerIface(&commonInterface{
+		name:                  "fuse-support",
+		summary:               fuseSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
+		reservedForOS:         true,
+		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
+		connectedPlugUdev:     fuseSupportConnectedPlugUdev,
+	})
 }

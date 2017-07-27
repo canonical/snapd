@@ -71,7 +71,7 @@ func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "camera",
 		Interface: "camera",
 	}})
-	c.Assert(err, ErrorMatches, "camera slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "camera slots are reserved for the operating system snap")
 }
 
 func (s *CameraInterfaceSuite) TestSanitizePlug(c *C) {

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -50,6 +51,7 @@ type commonInterface struct {
 
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
+	connectedPlugUdev      string
 	reservedForOS          bool
 	rejectAutoConnectPairs bool
 
@@ -155,6 +157,16 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.connectedPlugSecComp != "" {
 		spec.AddSnippet(iface.connectedPlugSecComp)
+	}
+	return nil
+}
+
+func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	if iface.connectedPlugUdev != "" {
+		for appName := range plug.Apps {
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+			spec.AddSnippet(fmt.Sprintf(iface.connectedPlugUdev, tag))
+		}
 	}
 	return nil
 }

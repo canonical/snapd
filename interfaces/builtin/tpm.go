@@ -19,15 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
-
 const tpmSummary = `allows access to the Trusted Platform Module device`
 
 const tpmBaseDeclarationSlots = `
@@ -52,69 +43,15 @@ const tpmConnectedPlugUdev = `
 KERNEL=="tpm*", TAG+="%s"
 `
 
-// The type for tpm interface
-type tpmInterface struct{}
-
-// Getter for the name of the tpm interface
-func (iface *tpmInterface) Name() string {
-	return "tpm"
-}
-
-func (iface *tpmInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              tpmSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: tpmBaseDeclarationSlots,
-	}
-}
-
-func (iface *tpmInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *tpmInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *tpmInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *tpmInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(tpmConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *tpmInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(tpmConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *tpmInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&tpmInterface{})
+	registerIface(&commonInterface{
+		name:                  "tpm",
+		summary:               tpmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  tpmBaseDeclarationSlots,
+		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
+		connectedPlugUdev:     tpmConnectedPlugUdev,
+		reservedForOS:         true,
+	})
 }

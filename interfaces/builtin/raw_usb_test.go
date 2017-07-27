@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,7 +72,7 @@ func (s *RawUsbSuite) TestSanitizeSlot(c *C) {
 		Name:      "raw-usb",
 		Interface: "raw-usb",
 	}})
-	c.Assert(err, ErrorMatches, "raw-usb slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "raw-usb slots are reserved for the operating system snap")
 }
 
 func (s *RawUsbSuite) TestSanitizePlug(c *C) {

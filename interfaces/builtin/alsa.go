@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,15 +18,6 @@
  */
 
 package builtin
-
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
 
 const alsaSummary = `allows access to raw ALSA devices`
 
@@ -69,70 +60,17 @@ KERNEL=="timer",          NAME="snd/%%k", TAG+="%[1]s"
 KERNEL=="seq",            NAME="snd/%%k", TAG+="%[1]s"
 `
 
-// The type for alsa interface
-type alsaInterface struct{}
-
-// Getter for the name of the alsa interface
-func (iface *alsaInterface) Name() string {
-	return "alsa"
-}
-
-func (iface *alsaInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              alsaSummary,
-		Description:          alsaDescription,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: alsaBaseDeclarationSlots,
-	}
-}
-
-func (iface *alsaInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *alsaInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *alsaInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *alsaInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(alsaConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *alsaInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(alsaConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *alsaInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&alsaInterface{})
+	registerIface(&commonInterface{
+		name:                  "alsa",
+		summary:               alsaSummary,
+		description:           alsaDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  alsaBaseDeclarationSlots,
+		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
+		connectedPlugUdev:     alsaConnectedPlugUdev,
+		reservedForOS:         true,
+	})
+
 }
