@@ -20,6 +20,7 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -194,7 +195,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 				break // wut
 			}
 			if cur.ServiceFileName != serviceNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)], cur.ServiceFileName)
+				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.ServiceFileName)
 			}
 
 			cur = &ServiceStatus{}
@@ -323,23 +324,31 @@ func IsTimeout(err error) bool {
 
 const myFmt = "2006-01-02T15:04:05.000000Z07:00"
 
+func (l Log) Time() (time.Time, error) {
+	sus, ok := l["__REALTIME_TIMESTAMP"]
+	if !ok {
+		return time.Time{}, errors.New("no timestamp")
+	}
+	// according to systemd.journal-fields(7) it's microseconds as a decimal string
+	us, err := strconv.ParseInt(sus, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("timestamp not a decimal number: %#v", sus)
+	}
+
+	return time.Unix(us/1000000, 1000*(us%1000000)).UTC(), nil
+}
+
 // Timestamp of the Log, formatted like RFC3339 to µs precision.
 //
 // If no timestamp, the string "-(no timestamp!)-" -- and something is
 // wrong with your system. Some other "impossible" error conditions
 // also result in "-(errror message)-" timestamps.
 func (l Log) Timestamp() string {
-	t := "-(no timestamp!)-"
-	if sus, ok := l["__REALTIME_TIMESTAMP"]; ok {
-		// according to systemd.journal-fields(7) it's microseconds as a decimal string
-		if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
-			t = time.Unix(us/1000000, 1000*(us%1000000)).UTC().Format(myFmt)
-		} else {
-			t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
-		}
+	t, err := l.Time()
+	if err != nil {
+		return fmt.Sprintf("-(%v)-", err)
 	}
-
-	return t
+	return t.Format(myFmt)
 }
 
 // Message of the Log, if any; otherwise, "-".

@@ -245,6 +245,21 @@ Potatoes
 	c.Check(out, IsNil)
 }
 
+func (s *SystemdTestSuite) TestStatusBadId(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=bar.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
+	c.Check(out, IsNil)
+}
+
 func (s *SystemdTestSuite) TestStatusBadField(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
@@ -393,14 +408,14 @@ func (s *SystemdTestSuite) TestLogPID(c *C) {
 }
 
 func (s *SystemdTestSuite) TestTimestamp(c *C) {
-	c.Check(Log{}.Timestamp(), Equals, "-(no timestamp!)-")
+	c.Check(Log{}.Timestamp(), Equals, "-(no timestamp)-")
 	c.Check(Log{"__REALTIME_TIMESTAMP": "what"}.Timestamp(), Equals, `-(timestamp not a decimal number: "what")-`)
 	c.Check(Log{"__REALTIME_TIMESTAMP": "0"}.Timestamp(), Equals, "1970-01-01T00:00:00.000000Z")
 	c.Check(Log{"__REALTIME_TIMESTAMP": "42"}.Timestamp(), Equals, "1970-01-01T00:00:00.000042Z")
 }
 
 func (s *SystemdTestSuite) TestLogString(c *C) {
-	c.Check(Log{}.String(), Equals, "-(no timestamp!)- -[-]: -")
+	c.Check(Log{}.String(), Equals, "-(no timestamp)- -[-]: -")
 	c.Check(Log{
 		"__REALTIME_TIMESTAMP": "0",
 	}.String(), Equals, "1970-01-01T00:00:00.000000Z -[-]: -")
