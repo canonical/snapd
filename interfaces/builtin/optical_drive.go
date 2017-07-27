@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,15 +18,6 @@
  */
 
 package builtin
-
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
 
 const opticalDriveSummary = `allows read access to optical drives`
 
@@ -51,69 +42,14 @@ const opticalDriveConnectedPlugUdev = `
 KERNEL=="sr[0-9]*", NAME="%%k", SYMLINK+="scd%%n", TAG+="%s"
 `
 
-// The type for optical interface
-type opticalDriveInterface struct{}
-
-// Getter for the name of the optical drive interface
-func (iface *opticalDriveInterface) Name() string {
-	return "optical-drive"
-}
-
-func (iface *opticalDriveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              opticalDriveSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: opticalDriveBaseDeclarationSlots,
-	}
-}
-
-func (iface *opticalDriveInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *opticalDriveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *opticalDriveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *opticalDriveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(opticalDriveConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *opticalDriveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(opticalDriveConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *opticalDriveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&opticalDriveInterface{})
+	registerIface(&commonInterface{
+		name:                  "optical-drive",
+		summary:               opticalDriveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
+		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
+		connectedPlugUdev:     opticalDriveConnectedPlugUdev,
+		reservedForOS:         true,
+	})
 }

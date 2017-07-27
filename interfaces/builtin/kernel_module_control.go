@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,16 +18,6 @@
  */
 
 package builtin
-
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
 
 const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
 
@@ -78,75 +68,17 @@ const kernelModuleControlConnectedPlugUdev = `
 KERNEL=="mem", TAG+="%s"
 `
 
-// The type for kernel module control interface
-type kernelModuleControlInterface struct{}
-
-// Getter for the name of the kernel module control interface
-func (iface *kernelModuleControlInterface) Name() string {
-	return "kernel-module-control"
-}
-
-func (iface *kernelModuleControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              kernelModuleControlSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: kernelModuleControlBaseDeclarationSlots,
-		BaseDeclarationPlugs: kernelModuleControlBaseDeclarationPlugs,
-	}
-}
-
-func (iface *kernelModuleControlInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *kernelModuleControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *kernelModuleControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *kernelModuleControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(kernelModuleControlConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *kernelModuleControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(kernelModuleControlConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *kernelModuleControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(kernelModuleControlConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *kernelModuleControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&kernelModuleControlInterface{})
+	registerIface(&commonInterface{
+		name:                  "kernel-module-control",
+		summary:               kernelModuleControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
+		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
+		connectedPlugUdev:     kernelModuleControlConnectedPlugUdev,
+		reservedForOS:         true,
+	})
 }

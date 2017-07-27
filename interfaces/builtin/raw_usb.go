@@ -19,15 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
-
 const rawusbSummary = `allows raw access to all USB devices`
 
 const rawusbBaseDeclarationSlots = `
@@ -62,69 +53,15 @@ const rawusbConnectedPlugUdev = `
 SUBSYSTEMS=="usb", TAG+="%s"
 `
 
-// The type for raw usb interface
-type rawusbInterface struct{}
-
-// Getter for the name of the optical drive interface
-func (iface *rawusbInterface) Name() string {
-	return "raw-usb"
-}
-
-func (iface *rawusbInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              rawusbSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: rawusbBaseDeclarationSlots,
-	}
-}
-
-func (iface *rawusbInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *rawusbInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *rawusbInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *rawusbInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(rawusbConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *rawusbInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(rawusbConnectedPlugUdev, tag))
-	}
-	return nil
-}
-
-func (iface *rawusbInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
-
 func init() {
-	registerIface(&rawusbInterface{})
+	registerIface(&commonInterface{
+		name:                  "raw-usb",
+		summary:               rawusbSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
+		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
+		connectedPlugUdev:     rawusbConnectedPlugUdev,
+		reservedForOS:         true,
+	})
 }
