@@ -97,9 +97,7 @@ func (s *svcLogs) Execute(args []string) error {
 	}
 
 	sN := -1
-	if s.N == "all" {
-		sN = -1
-	} else {
+	if s.N != "all" {
 		n, err := strconv.ParseInt(s.N, 0, 32)
 		if n < 0 || err != nil {
 			return fmt.Errorf(i18n.G("invalid argument for flag ‘-n’: expected a non-negative integer argument, or “all”."))
