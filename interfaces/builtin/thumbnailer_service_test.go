@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -77,13 +76,6 @@ apps:
 
 func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {
 	c.Check(s.iface.Name(), Equals, "thumbnailer-service")
-}
-
-func (s *ThumbnailerServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "thumbnailer-service"`)
-	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "thumbnailer-service"`)
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {

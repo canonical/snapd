@@ -72,13 +72,11 @@ func (iface *physicalMemoryControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *physicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *physicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

@@ -137,12 +137,10 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 }
 
 func (iface *thumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *thumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

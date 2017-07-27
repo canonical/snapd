@@ -121,17 +121,11 @@ func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 	err = s.iface.SanitizeSlot(s.badPathSlot)
 	c.Assert(err, ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches,
-		`slot is not of interface "bool-file"`)
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.badInterfacePlug) }, PanicMatches,
-		`plug is not of interface "bool-file"`)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {

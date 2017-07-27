@@ -79,13 +79,6 @@ func (s *TpmInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *TpmInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "tpm"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "tpm"`)
-}
-
 func (s *TpmInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}

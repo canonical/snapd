@@ -82,12 +82,10 @@ func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 }
 
 func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

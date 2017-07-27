@@ -165,12 +165,10 @@ func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specif
 }
 
 func (iface *unity8PimCommonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

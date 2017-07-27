@@ -404,13 +404,11 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }
 
 func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
 }

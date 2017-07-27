@@ -81,13 +81,6 @@ func (s *GreengrassSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *GreengrassSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "greengrass-support"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "greengrass-support"`)
-}
-
 func (s *GreengrassSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)

@@ -80,13 +80,6 @@ func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *AlsaInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "alsa"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "alsa"`)
-}
-
 func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}

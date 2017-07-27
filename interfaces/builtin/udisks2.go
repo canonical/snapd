@@ -407,12 +407,10 @@ func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification,
 }
 
 func (iface *udisks2Interface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

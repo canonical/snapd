@@ -81,13 +81,6 @@ func (s *Unity7InterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *Unity7InterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other-snap"}}) },
-		PanicMatches, `slot is not of interface "unity7"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other-snap"}}) },
-		PanicMatches, `plug is not of interface "unity7"`)
-}
-
 func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}

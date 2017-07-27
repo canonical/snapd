@@ -153,12 +153,10 @@ func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccom
 }
 
 func (iface *storageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *storageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

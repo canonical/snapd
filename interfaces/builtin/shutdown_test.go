@@ -78,13 +78,6 @@ func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *ShutdownInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "shutdown"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "shutdown"`)
-}
-
 func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)

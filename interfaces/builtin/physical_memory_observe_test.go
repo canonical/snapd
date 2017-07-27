@@ -84,13 +84,6 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PhysicalMemoryObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "physical-memory-observe"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "physical-memory-observe"`)
-}
-
 func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
 # Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical

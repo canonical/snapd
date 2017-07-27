@@ -161,12 +161,10 @@ func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specificati
 }
 
 func (iface *pulseAudioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

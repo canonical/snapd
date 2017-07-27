@@ -237,12 +237,10 @@ func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 }
 
 func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

@@ -80,13 +80,11 @@ func (iface *ioPortsControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *ioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *ioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

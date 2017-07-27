@@ -94,13 +94,6 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "openvswitch-support"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "openvswitch-support"`)
-}
-
 func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	spec := &kmod.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)

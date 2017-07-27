@@ -221,12 +221,10 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 }
 
 func (iface *mprisInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	_, err := iface.getName(slot.Attrs)
 	return err
 }

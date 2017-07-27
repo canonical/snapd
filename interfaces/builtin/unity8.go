@@ -128,12 +128,10 @@ func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

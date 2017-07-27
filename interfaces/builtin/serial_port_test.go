@@ -227,9 +227,6 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
-
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "serial-port"`)
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {

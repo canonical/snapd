@@ -137,12 +137,10 @@ func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification,
 }
 
 func (iface *networkStatusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *networkStatusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

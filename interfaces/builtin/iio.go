@@ -75,7 +75,6 @@ var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -97,7 +96,6 @@ func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // Checks and possibly modifies a plug
 func (iface *iioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

@@ -123,13 +123,11 @@ func (iface *timeControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

@@ -167,8 +167,6 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 
 	err = s.iface.SanitizeSlot(s.testUDevBadValue8)
 	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
-
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "iio"`)
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {

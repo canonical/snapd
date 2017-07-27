@@ -42,20 +42,6 @@ var _ = Suite(&utilsSuite{
 	slotGadget: &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}}},
 })
 
-func (s *utilsSuite) TestEnsureSlotIfaceMatch(c *C) {
-	slotIface := &interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "iface"}}
-	slotOther := &interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}
-	builtin.EnsureSlotIfaceMatch(s.iface, slotIface)
-	c.Assert(func() { builtin.EnsureSlotIfaceMatch(s.iface, slotOther) }, PanicMatches, `slot is not of interface "iface"`)
-}
-
-func (s *utilsSuite) TestEnsurePlugIfaceMatch(c *C) {
-	plugIface := &interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "iface"}}
-	plugOther := &interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}
-	builtin.EnsurePlugIfaceMatch(s.iface, plugIface)
-	c.Assert(func() { builtin.EnsurePlugIfaceMatch(s.iface, plugOther) }, PanicMatches, `plug is not of interface "iface"`)
-}
-
 func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {
 	errmsg := "iface slots are reserved for the operating system snap"
 	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotOS), IsNil)

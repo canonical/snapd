@@ -71,7 +71,6 @@ var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -119,7 +118,6 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *hidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
