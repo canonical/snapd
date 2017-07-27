@@ -121,7 +121,7 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --disable-seccomp --libexecdir=/usr/lib/snapd
+%configure --disable-apparmor --libexecdir=/usr/lib/snapd
 
 %build
 # Build golang executables
@@ -148,8 +148,7 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
 
-# Removing static link to libseccomp due to libseccomp.a is not available in opensuse
-# This is not affecting due to seccomp is disabled for opensuse
+# This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
 # build snap-seccomp
 %gobuild cmd/snap-seccomp
