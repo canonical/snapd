@@ -606,7 +606,7 @@ func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	secFilter, err = seccomp.NewFilter(seccomp.ActKill)
+	secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(C.EPERM))
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}
