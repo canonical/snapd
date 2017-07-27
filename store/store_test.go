@@ -1440,9 +1440,9 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
 				io.WriteString(w, "response-data")
 			}
-		case "/identity/api/v1/nonces":
+		case "/api/v1/auth/nonces":
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
+		case "/api/v1/auth/sessions":
 			authorization := r.Header.Get("X-Device-Authorization")
 			if authorization == "" {
 				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
@@ -1459,8 +1459,8 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/auth/nonces"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/auth/sessions"
 
 	// make sure device session is not set
 	t.device.SessionMacaroon = ""
