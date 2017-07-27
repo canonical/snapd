@@ -219,8 +219,8 @@ func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              upowerObserveSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,

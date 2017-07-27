@@ -204,8 +204,8 @@ func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
 
-func (iface *dbusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dbusSummary,
 		BaseDeclarationSlots: dbusBaseDeclarationSlots,
 	}
@@ -416,14 +416,6 @@ func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *dbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *dbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

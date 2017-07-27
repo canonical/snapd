@@ -51,8 +51,8 @@ func (iface *joystickInterface) Name() string {
 	return "joystick"
 }
 
-func (iface *joystickInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *joystickInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              joystickSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

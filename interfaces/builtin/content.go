@@ -57,8 +57,8 @@ func (iface *contentInterface) Name() string {
 	return "content"
 }
 
-func (iface *contentInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              contentSummary,
 		BaseDeclarationSlots: contentBaseDeclarationSlots,
 	}
@@ -223,14 +223,6 @@ func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plu
 			return err
 		}
 	}
-	return nil
-}
-
-func (iface *contentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *contentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

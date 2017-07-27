@@ -52,8 +52,8 @@ func (iface *boolFileInterface) Name() string {
 	return "bool-file"
 }
 
-func (iface *boolFileInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              boolFileSummary,
 		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
 	}
@@ -137,14 +137,6 @@ func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 // By default we allow what declarations allowed.
 func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
-}
-
-func (iface *boolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *boolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

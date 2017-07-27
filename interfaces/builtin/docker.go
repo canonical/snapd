@@ -56,8 +56,8 @@ func (iface *dockerInterface) Name() string {
 	return "docker"
 }
 
-func (iface *dockerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dockerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dockerSummary,
 		BaseDeclarationSlots: dockerBaseDeclarationSlots,
 	}

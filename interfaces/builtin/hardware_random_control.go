@@ -61,8 +61,8 @@ func (iface *hardwareRandomControlInterface) Name() string {
 	return "hardware-random-control"
 }
 
-func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *hardwareRandomControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              hardwareRandomControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

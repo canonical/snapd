@@ -346,10 +346,7 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

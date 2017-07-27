@@ -57,8 +57,8 @@ func (iface *physicalMemoryObserveInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *physicalMemoryObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              physicalMemoryObserveSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

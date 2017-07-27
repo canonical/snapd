@@ -157,8 +157,8 @@ func (iface *mprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *mprisInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mprisSummary,
 		BaseDeclarationSlots: mprisBaseDeclarationSlots,
 	}
@@ -228,14 +228,6 @@ func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *mprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *mprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
