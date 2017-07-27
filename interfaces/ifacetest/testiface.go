@@ -20,8 +20,6 @@
 package ifacetest
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -116,9 +114,6 @@ func (t *TestInterface) Name() string {
 
 // SanitizePlug checks and possibly modifies a plug.
 func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if t.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", t))
-	}
 	if t.SanitizePlugCallback != nil {
 		return t.SanitizePlugCallback(plug)
 	}
@@ -127,9 +122,6 @@ func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // SanitizeSlot checks and possibly modifies a slot.
 func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if t.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", t))
-	}
 	if t.SanitizeSlotCallback != nil {
 		return t.SanitizeSlotCallback(slot)
 	}
