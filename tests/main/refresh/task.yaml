@@ -52,11 +52,9 @@ prepare: |
 restore: |
     rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
-        case "$SPREAD_SYSTEM" in
-            ubuntu-core-*|fedora-*)
-                exit
-                ;;
-        esac
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
