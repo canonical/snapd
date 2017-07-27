@@ -194,12 +194,10 @@ func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification
 }
 
 func (iface *mediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *mediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

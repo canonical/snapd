@@ -135,12 +135,10 @@ func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.
 }
 
 func (iface *onlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *onlineAccountsServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

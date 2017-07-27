@@ -67,13 +67,11 @@ func (iface *joystickInterface) String() string {
 
 // SanitizeSlot checks the validity of the defined slot.
 func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *joystickInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

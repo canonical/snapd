@@ -71,7 +71,6 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 // SanitizeSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
 func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
@@ -87,8 +86,6 @@ func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
-	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
 

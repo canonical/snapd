@@ -176,8 +176,6 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 
 	err = s.iface.SanitizeSlot(s.testUDevBadValue7)
 	c.Assert(err, ErrorMatches, "i2c slot must have a path attribute")
-
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "i2c"`)
 }
 
 func (s *I2cInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {

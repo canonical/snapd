@@ -1228,12 +1228,10 @@ func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifica
 }
 
 func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

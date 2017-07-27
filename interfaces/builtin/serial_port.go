@@ -77,7 +77,6 @@ var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$"
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -125,7 +124,6 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks and possibly modifies a plug.
 func (iface *serialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

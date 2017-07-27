@@ -246,12 +246,10 @@ func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 }
 
 func (iface *locationControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *locationControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

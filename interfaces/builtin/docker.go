@@ -74,12 +74,10 @@ func (iface *dockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *dockerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *dockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

@@ -324,12 +324,10 @@ func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 }
 
 func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

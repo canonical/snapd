@@ -163,12 +163,10 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 }
 
 func (iface *maliitInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
 func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 

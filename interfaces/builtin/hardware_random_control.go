@@ -72,13 +72,11 @@ func (iface *hardwareRandomControlInterface) MetaData() interfaces.MetaData {
 
 // Check validity of the defined slot
 func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *hardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

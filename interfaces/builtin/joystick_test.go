@@ -82,13 +82,6 @@ func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *JoystickInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "joystick"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "joystick"`)
-}
-
 func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet := `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).

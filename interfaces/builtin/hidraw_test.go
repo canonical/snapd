@@ -167,9 +167,6 @@ func (s *HidrawInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, ErrorMatches, "hidraw path attribute must be a valid device node")
 	}
-
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "hidraw"`)
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {

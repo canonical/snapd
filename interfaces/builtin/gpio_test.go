@@ -108,9 +108,6 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 	// slots with number attribute that isnt a number
 	err = s.iface.SanitizeSlot(s.gadgetBadNumberSlot)
 	c.Assert(err, ErrorMatches, "gpio slot number attribute must be an int")
-
-	// Must be right interface type
-	c.Assert(func() { s.iface.SanitizeSlot(s.gadgetBadInterfaceSlot) }, PanicMatches, `slot is not of interface "gpio"`)
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
@@ -128,9 +125,6 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.gadgetPlug)
 	c.Assert(err, IsNil)
-
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {

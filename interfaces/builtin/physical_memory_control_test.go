@@ -83,13 +83,6 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "physical-memory-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "physical-memory-control"`)
-}
-
 func (s *PhysicalMemoryControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
 # Description: With kernels with STRICT_DEVMEM=n, write access to all physical

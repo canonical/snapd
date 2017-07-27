@@ -63,7 +63,6 @@ func (iface *gpioInterface) MetaData() interfaces.MetaData {
 
 // SanitizeSlot checks the slot definition is valid
 func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -85,7 +84,6 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 // SanitizePlug checks the plug definition is valid
 func (iface *gpioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 

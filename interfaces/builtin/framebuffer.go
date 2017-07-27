@@ -66,13 +66,11 @@ func (iface *framebufferInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 // Checks and possibly modifies a plug
 func (iface *framebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	// Currently nothing is checked on the plug side
 	return nil
 }

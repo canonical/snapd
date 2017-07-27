@@ -66,13 +66,11 @@ func (iface *uhidInterface) String() string {
 
 // Check the validity of the slot
 func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	ensureSlotIfaceMatch(iface, slot)
 	return nil
 }
 
 // Check and possibly modify a plug
 func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
-	ensurePlugIfaceMatch(iface, plug)
 	return nil
 }
 
