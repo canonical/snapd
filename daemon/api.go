@@ -86,6 +86,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	appsCmd,
 	debugCmd,
 }
 
@@ -137,6 +138,12 @@ var (
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
+	}
+
+	appsCmd = &Command{
+		Path:   "/v2/apps",
+		UserOK: true,
+		GET:    getAppsInfo,
 	}
 
 	snapConfCmd = &Command{
@@ -2553,4 +2560,25 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+
+	opts := appInfoOptions{}
+	switch sel := query.Get("select"); sel {
+	case "":
+		// nothing to do
+	case "service":
+		opts.service = true
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
 }
