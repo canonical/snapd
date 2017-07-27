@@ -59,7 +59,7 @@ type AppOptions struct {
 func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) {
 	q := make(url.Values)
 	if len(names) > 0 {
-		q.Add("apps", strings.Join(names, ","))
+		q.Add("names", strings.Join(names, ","))
 	}
 	if opts.Service {
 		q.Add("select", "service")

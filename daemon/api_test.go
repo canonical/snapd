@@ -5790,7 +5790,7 @@ ActiveState=active
 UnitFileState=enabled
 `[1:])}
 
-	req, err := http.NewRequest("GET", "/v2/apps?apps=snap-a.svc2", nil)
+	req, err := http.NewRequest("GET", "/v2/apps?names=snap-a.svc2", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := getAppsInfo(appsCmd, req, nil).(*resp)

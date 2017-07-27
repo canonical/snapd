@@ -45,7 +45,7 @@ func testClientApps(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
 	c.Check(query, check.HasLen, 1)
-	c.Check(query.Get("apps"), check.Equals, "foo,bar")
+	c.Check(query.Get("names"), check.Equals, "foo,bar")
 
 	return services, err
 }
@@ -56,7 +56,7 @@ func testClientAppsService(cs *clientSuite, c *check.C) ([]*client.AppInfo, erro
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
 	c.Check(query, check.HasLen, 2)
-	c.Check(query.Get("apps"), check.Equals, "foo,bar")
+	c.Check(query.Get("names"), check.Equals, "foo,bar")
 	c.Check(query.Get("select"), check.Equals, "service")
 
 	return services, err
