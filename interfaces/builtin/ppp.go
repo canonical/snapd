@@ -83,14 +83,6 @@ func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 	return spec.AddModule(pppConnectedPlugKmod)
 }
 
-func (iface *pppInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pppInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *pppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

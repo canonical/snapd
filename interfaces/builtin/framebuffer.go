@@ -69,12 +69,6 @@ func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *framebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
 func (iface *framebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(framebufferConnectedPlugAppArmor)
 	return nil

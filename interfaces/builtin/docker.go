@@ -73,14 +73,6 @@ func (iface *dockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *dockerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *dockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *dockerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

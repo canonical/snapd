@@ -127,14 +127,6 @@ func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

@@ -94,11 +94,6 @@ func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// Checks and possibly modifies a plug
-func (iface *iioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {

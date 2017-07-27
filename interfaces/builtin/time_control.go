@@ -126,11 +126,6 @@ func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(timeControlConnectedPlugAppArmor)
 	return nil

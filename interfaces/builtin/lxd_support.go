@@ -81,14 +81,6 @@ func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 	return nil
 }
 
-func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *lxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

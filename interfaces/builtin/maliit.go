@@ -162,14 +162,6 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *maliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

@@ -82,11 +82,6 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// SanitizePlug checks the plug definition is valid
-func (iface *gpioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks

@@ -86,12 +86,6 @@ func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// NOTE: currently we don't check anything on the plug side.
-	return nil
-}
-
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)

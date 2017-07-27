@@ -84,11 +84,6 @@ func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	gpioSnippet := `
 /sys/class/gpio/export rw,

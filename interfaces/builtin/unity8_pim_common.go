@@ -164,14 +164,6 @@ func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specif
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *unity8PimCommonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

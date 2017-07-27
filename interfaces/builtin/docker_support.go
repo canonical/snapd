@@ -571,10 +571,6 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *dockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
