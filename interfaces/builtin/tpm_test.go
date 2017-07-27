@@ -64,19 +64,18 @@ func (s *TpmInterfaceSuite) TestName(c *C) {
 }
 
 func (s *TpmInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "tpm",
 		Interface: "tpm",
-	}})
-	c.Assert(err, ErrorMatches, "tpm slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"tpm slots are reserved for the operating system snap")
 }
 
 func (s *TpmInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *TpmInterfaceSuite) TestUsedSecuritySystems(c *C) {

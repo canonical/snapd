@@ -79,8 +79,7 @@ func (s *Unity8ContactsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestUsedSecuritySystems(c *C) {

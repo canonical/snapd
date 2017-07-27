@@ -67,19 +67,18 @@ func (s *FramebufferInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "framebuffer",
 		Interface: "framebuffer",
-	}})
-	c.Assert(err, ErrorMatches, "framebuffer slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"framebuffer slots are reserved for the operating system snap")
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -72,19 +72,18 @@ func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "bluetooth-control",
 		Interface: "bluetooth-control",
-	}})
-	c.Assert(err, ErrorMatches, "bluetooth-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"bluetooth-control slots are reserved for the operating system snap")
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

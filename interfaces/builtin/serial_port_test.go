@@ -212,40 +212,29 @@ func (s *SerialPortInterfaceSuite) TestName(c *C) {
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6, s.testSlot7} {
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, IsNil)
+		c.Assert(slot.Sanitize(s.iface), IsNil)
 	}
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	// Slots without the "path" attribute are rejected.
-	err := s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches, `serial-port slot must have a path attribute`)
+	c.Assert(s.missingPathSlot.Sanitize(s.iface), ErrorMatches, `serial-port slot must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
 	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3, s.badPathSlot4, s.badPathSlot5, s.badPathSlot6, s.badPathSlot7, s.badPathSlot8, s.badPathSlot9, s.badPathSlot10} {
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "serial-port path attribute must be a valid device node")
+		c.Assert(slot.Sanitize(s.iface), ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUDev1)
-	c.Assert(err, IsNil)
-
-	err = s.iface.SanitizeSlot(s.testUDev2)
-	c.Assert(err, IsNil)
+	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUDevBadValue1)
-	c.Assert(err, ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue2)
-	c.Assert(err, ErrorMatches, "serial-port usb-product attribute not valid: 65536")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue3)
-	c.Assert(err, ErrorMatches, "serial-port path attribute specifies invalid symlink location")
+	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
+	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "serial-port usb-product attribute not valid: 65536")
+	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "serial-port path attribute specifies invalid symlink location")
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
