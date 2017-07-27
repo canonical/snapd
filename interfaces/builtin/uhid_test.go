@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -70,6 +71,12 @@ func (s *UhidInterfaceSuite) TestName(c *C) {
 func (s *UhidInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "uhid",
+		Interface: "uhid",
+	}})
+	c.Assert(err, ErrorMatches, "uhid slots are reserved for the operating system snap")
 }
 
 func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
