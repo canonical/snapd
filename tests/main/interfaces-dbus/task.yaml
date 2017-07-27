@@ -20,9 +20,6 @@ prepare: |
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
 
-    echo "And the D-bus X11 dependencies are installed"
-    distro_install_package dbus-x11
-
     echo "And a snap declaring a matching dbus plug is installed"
     snap install --edge test-snapd-dbus-consumer
 
@@ -51,7 +48,6 @@ prepare: |
 restore: |
     . "$TESTSLIB/pkgdb.sh"
     rm -f call.error dbus.env
-    distro_purge_package dbus-x11
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         stop dbus-provider
         rm -f /etc/init/dbus-provider.conf
@@ -72,7 +68,7 @@ execute: |
     echo "And plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    if [ "$(snap debug confinement)" = none ]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 

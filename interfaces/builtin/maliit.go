@@ -130,8 +130,8 @@ func (iface *maliitInterface) Name() string {
 	return "maliit"
 }
 
-func (iface *maliitInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              maliitSummary,
 		BaseDeclarationSlots: maliitBaseDeclarationSlots,
 	}

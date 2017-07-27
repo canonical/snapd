@@ -2,6 +2,10 @@ summary: Ensure that the cups interface works.
 
 systems:
     - -ubuntu-core-16-*
+    # Default cups/cups-pdf configuration on these distributions isn't
+    # working yet without further tweaks.
+    - -opensuse-*
+    - -fedora-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -23,10 +27,6 @@ prepare: |
     echo "Given a snap declaring a cups plug is installed"
     snap install test-snapd-cups-control-consumer
 
-    echo "And the pdf printer is available"
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package --no-install-recommends cups printer-driver-cups-pdf
-
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         # Not all distributions are starting the cups service directly after
         # the package was installed.
@@ -38,8 +38,6 @@ prepare: |
     fi
 
 restore: |
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package cups printer-driver-cups-pdf
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
@@ -60,7 +58,7 @@ execute: |
     test-snapd-cups-control-consumer.lpr $TEST_FILE
     while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

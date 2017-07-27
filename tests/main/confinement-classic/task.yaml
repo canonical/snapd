@@ -4,7 +4,8 @@ details: |
     classic confinement can be executed correctly. There are two variants of
     this test (classic and jailmode) and the snap (this particular one) should
     function correctly in both cases.
-systems: [-ubuntu-core-16-*]
+# Classic confinement isn't working yet on Fedora and openSUSE
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
 execute: |
     . $TESTSLIB/dirs.sh
 
@@ -17,7 +18,7 @@ execute: |
     run_install --classic
     $SNAPMOUNTDIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
-    if [ "$(snap debug confinement)" = none ]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
