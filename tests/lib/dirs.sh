@@ -1,11 +1,11 @@
 #!/bin/sh
 
-export SNAPMOUNTDIR=/snap
+export SNAP_MOUNT_DIR=/snap
 export LIBEXECDIR=/usr/lib
 
 case "$SPREAD_SYSTEM" in
     fedora-*)
-        export SNAPMOUNTDIR=/var/lib/snapd/snap
+        export SNAP_MOUNT_DIR=/var/lib/snapd/snap
         export LIBEXECDIR=/usr/libexec
         ;;
     *)
