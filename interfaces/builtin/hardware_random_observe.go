@@ -56,8 +56,8 @@ func (iface *hardwareRandomObserveInterface) Name() string {
 	return "hardware-random-observe"
 }
 
-func (iface *hardwareRandomObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *hardwareRandomObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              hardwareRandomObserveSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

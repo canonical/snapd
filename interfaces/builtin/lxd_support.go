@@ -61,8 +61,8 @@ func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *lxdSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              lxdSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

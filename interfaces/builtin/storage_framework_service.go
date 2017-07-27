@@ -117,8 +117,8 @@ func (iface *storageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
 }
 
-func (iface *storageFrameworkServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              storageFrameworkServiceSummary,
 		BaseDeclarationSlots: storageFrameworkServiceBaseDeclarationSlots,
 	}

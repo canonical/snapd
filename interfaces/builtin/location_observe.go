@@ -261,8 +261,8 @@ func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *locationObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *locationObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              locationObserveSummary,
 		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
 	}

@@ -542,8 +542,8 @@ func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *unity7Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              unity7Summary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: unity7BaseDeclarationSlots,

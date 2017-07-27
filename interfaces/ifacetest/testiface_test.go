@@ -39,7 +39,12 @@ type TestInterfaceSuite struct {
 }
 
 var _ = Suite(&TestInterfaceSuite{
-	iface: &ifacetest.TestInterface{InterfaceName: "test"},
+	iface: &ifacetest.TestInterface{
+		InterfaceName: "test",
+		InterfaceStaticInfo: interfaces.StaticInfo{
+			Summary: "summary",
+		},
+	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
@@ -59,6 +64,12 @@ var _ = Suite(&TestInterfaceSuite{
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "test")
+}
+
+func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
+	c.Assert(interfaces.StaticInfoOf(s.iface), Equals, interfaces.StaticInfo{
+		Summary: "summary",
+	})
 }
 
 // TestInterface has provisions to customize validation

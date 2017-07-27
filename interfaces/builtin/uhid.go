@@ -51,8 +51,8 @@ func (iface *uhidInterface) Name() string {
 	return "uhid"
 }
 
-func (iface *uhidInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *uhidInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              uhidSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

@@ -105,8 +105,8 @@ func (iface *networkStatusInterface) Name() string {
 	return "network-status"
 }
 
-func (iface *networkStatusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkStatusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkStatusSummary,
 		BaseDeclarationSlots: networkStatusBaseDeclarationSlots,
 	}

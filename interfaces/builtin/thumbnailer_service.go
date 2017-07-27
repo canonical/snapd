@@ -102,8 +102,8 @@ func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              thumbnailerServiceSummary,
 		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
 	}
