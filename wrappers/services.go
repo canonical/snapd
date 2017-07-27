@@ -216,14 +216,9 @@ WantedBy={{.ServicesTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
 
-	var restartCond string
-	if appInfo.RestartCond == systemd.RestartNever {
-		restartCond = "no"
-	} else {
-		restartCond = appInfo.RestartCond.String()
-	}
+	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
-		restartCond = systemd.RestartOnFailure.String()
+		restartCond = snap.RestartOnFailure.String()
 	}
 
 	var remain string

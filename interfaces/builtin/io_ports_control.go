@@ -65,8 +65,8 @@ func (iface *ioPortsControlInterface) Name() string {
 	return "io-ports-control"
 }
 
-func (iface *ioPortsControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ioPortsControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ioPortsControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

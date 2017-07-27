@@ -57,8 +57,8 @@ func (iface *lxdInterface) Name() string {
 	return "lxd"
 }
 
-func (iface *lxdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *lxdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              lxdSummary,
 		BaseDeclarationSlots: lxdBaseDeclarationSlots,
 	}
