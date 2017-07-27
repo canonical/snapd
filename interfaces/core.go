@@ -146,12 +146,6 @@ type Interface interface {
 	// Unique and public name of this interface.
 	Name() string
 
-	// SanitizePlug checks if a plug is correct, altering if necessary.
-	SanitizePlug(plug *Plug) error
-
-	// SanitizeSlot checks if a slot is correct, altering if necessary.
-	SanitizeSlot(slot *Slot) error
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
