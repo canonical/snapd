@@ -398,9 +398,11 @@ pkg_dependencies_ubuntu_core(){
 pkg_dependencies_fedora(){
     echo "
         curl
+        dbus-x11
         expect
         git
         golang
+        jq
         mock
         redhat-lsb-core
         rpm-build

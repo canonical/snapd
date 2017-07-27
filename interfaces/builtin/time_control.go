@@ -108,8 +108,8 @@ func (iface *timeControlInterface) Name() string {
 	return "time-control"
 }
 
-func (iface *timeControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *timeControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              timeControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
