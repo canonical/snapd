@@ -38,6 +38,22 @@ func (plug *Plug) Ref() PlugRef {
 	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
+// Sanitize plug with a given snapd interface.
+func (plug *Plug) Sanitize(iface Interface) error {
+	if iface.Name() != plug.Interface {
+		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
+			plug.Ref(), plug.Interface, iface.Name())
+	}
+	type sanitizer interface {
+		SanitizePlug(plug *Plug) error
+	}
+	var err error
+	if iface, ok := iface.(sanitizer); ok {
+		err = iface.SanitizePlug(plug)
+	}
+	return err
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -58,6 +74,22 @@ type Slot struct {
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
 	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+}
+
+// Sanitize slot with a given snapd interface.
+func (slot *Slot) Sanitize(iface Interface) error {
+	if iface.Name() != slot.Interface {
+		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
+			slot.Ref(), slot.Interface, iface.Name())
+	}
+	type sanitizer interface {
+		SanitizeSlot(slot *Slot) error
+	}
+	var err error
+	if iface, ok := iface.(sanitizer); ok {
+		err = iface.SanitizeSlot(slot)
+	}
+	return err
 }
 
 // SlotRef is a reference to a slot.
