@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // Regular expression describing correct identifiers.
@@ -114,6 +115,12 @@ func Validate(info *Info) error {
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
 	}
+
+	for _, layout := range info.Layout {
+		if err := ValidateLayout(layout); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -167,6 +174,76 @@ func ValidateApp(app *AppInfo) error {
 		if err := validateField(name, value, appContentWhitelist); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
+func ValidatePathVariables(path string) error {
+	for path != "" {
+		start := strings.IndexRune(path, '$')
+		if start < 0 {
+			break
+		}
+		path = path[start+1:]
+		end := strings.IndexFunc(path, func(c rune) bool {
+			return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '_'
+		})
+		if end < 0 {
+			end = len(path)
+		}
+		v := path[:end]
+		if v != "SNAP" && v != "SNAP_DATA" && v != "SNAP_COMMON" {
+			return fmt.Errorf("reference to unknown variable %q", "$"+v)
+		}
+		path = path[end:]
+	}
+	return nil
+}
+
+func ValidateLayout(li *Layout) error {
+	// The path is used to identify the layout below so validate it first.
+	if li.Path == "" {
+		return fmt.Errorf("cannot accept layout with empty path")
+	} else {
+		if err := ValidatePathVariables(li.Path); err != nil {
+			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+		}
+	}
+	// Presence of the Bind, Type and Symlink fields implies kind of layout.
+	if li.Bind == "" && li.Type == "" && li.Symlink == "" {
+		return fmt.Errorf("cannot determine layout for %q", li.Path)
+	}
+	if (li.Bind != "" && li.Type != "") ||
+		(li.Bind != "" && li.Symlink != "") ||
+		(li.Type != "" && li.Symlink != "") {
+		return fmt.Errorf("cannot accept conflicting layout for %q", li.Path)
+	}
+	if li.Bind != "" {
+		if err := ValidatePathVariables(li.Bind); err != nil {
+			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+		}
+	}
+	// Only the "tmpfs" filesystem is allowed.
+	if li.Type != "" && li.Type != "tmpfs" {
+		return fmt.Errorf("cannot accept filesystem %q for %q", li.Type, li.Path)
+	}
+	if li.Symlink != "" {
+		if err := ValidatePathVariables(li.Symlink); err != nil {
+			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+		}
+	}
+	// Only certain users and groups are allowed.
+	// TODO: allow declared snap user and group names.
+	if li.User != "" && li.User != "root" && li.User != "nobody" {
+		return fmt.Errorf("cannot accept user %q for %q", li.User, li.Path)
+	}
+	if li.Group != "" && li.Group != "root" && li.Group != "nobody" {
+		return fmt.Errorf("cannot accept group %q for %q", li.Group, li.Path)
+	}
+	// "at most" 0777 permissions are allowed.
+	if li.Mode & ^0777 != 0 {
+		return fmt.Errorf("cannot accept mode %#0o for %q", li.Mode, li.Path)
 	}
 	return nil
 }
