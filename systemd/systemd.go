@@ -322,8 +322,7 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
-const myFmt = "2006-01-02T15:04:05.000000Z07:00"
-
+// Time returns the time the Log was received by the journal.
 func (l Log) Time() (time.Time, error) {
 	sus, ok := l["__REALTIME_TIMESTAMP"]
 	if !ok {
@@ -336,19 +335,6 @@ func (l Log) Time() (time.Time, error) {
 	}
 
 	return time.Unix(us/1000000, 1000*(us%1000000)).UTC(), nil
-}
-
-// Timestamp of the Log, formatted like RFC3339 to µs precision.
-//
-// If no timestamp, the string "-(no timestamp!)-" -- and something is
-// wrong with your system. Some other "impossible" error conditions
-// also result in "-(errror message)-" timestamps.
-func (l Log) Timestamp() string {
-	t, err := l.Time()
-	if err != nil {
-		return fmt.Sprintf("-(%v)-", err)
-	}
-	return t.Format(myFmt)
 }
 
 // Message of the Log, if any; otherwise, "-".
@@ -379,10 +365,6 @@ func (l Log) PID() string {
 	}
 
 	return "-"
-}
-
-func (l Log) String() string {
-	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp(), l.SID(), l.PID(), l.Message())
 }
 
 // useFuse detects if we should be using squashfuse instead
