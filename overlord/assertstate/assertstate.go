@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -129,13 +130,12 @@ func (b *Batch) Commit(st *state.State) error {
 	return f.commit()
 }
 
-// RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
-func RefreshSnapDeclarations(s *state.State, userID int) error {
+func makeSnapDeclarationsFetching(s *state.State) (fetching func(asserts.Fetcher) error) {
 	snapStates, err := snapstate.All(s)
 	if err != nil {
 		return nil
 	}
-	fetching := func(f asserts.Fetcher) error {
+	return func(f asserts.Fetcher) error {
 		for _, snapst := range snapStates {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
@@ -150,6 +150,12 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		}
 		return nil
 	}
+}
+
+// RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
+func RefreshSnapDeclarations(s *state.State, userID int) error {
+	fetching := makeSnapDeclarationsFetching(s)
+
 	return doFetch(s, userID, fetching)
 }
 
@@ -358,5 +364,29 @@ func init() {
 
 // AutoRefreshAssertions tries to refresh all assertions
 func AutoRefreshAssertions(s *state.State, userID int) error {
-	return RefreshSnapDeclarations(s, userID)
+	db := DB(s)
+
+	fetchingSnapDeclarations := makeSnapDeclarationsFetching(s)
+
+	fetching := func(f asserts.Fetcher) error {
+		accountKeys, err := db.FindMany(asserts.AccountKeyType, nil)
+		if err != nil {
+			return err
+		}
+
+		// best effort to refresh all known account-keys
+		// TODO: refresh everything when we have a bulk endpoint
+		for _, acctKey := range accountKeys {
+			err := f.Fetch(acctKey.Ref())
+			if err != nil {
+				logger.Noticef("Cannot fetch account-key: %v", err)
+			}
+		}
+
+		// fetch/refresh all snap declarations
+		return fetchingSnapDeclarations(f)
+	}
+
+	return doFetch(s, userID, fetching)
+
 }
