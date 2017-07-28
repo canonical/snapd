@@ -116,8 +116,8 @@ func (iface *unity8PimCommonInterface) Name() string {
 	return iface.name
 }
 
-func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity8PimCommonInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iface.summary,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}

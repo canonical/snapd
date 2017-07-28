@@ -218,8 +218,8 @@ func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *fwupdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              fwupdSummary,
 		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}

@@ -41,11 +41,11 @@ execute: |
     check_cookie_exists $COOKIE_FILE
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
-    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
+    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-set foo=123
-    $SNAPMOUNTDIR/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
+    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-set foo=123
+    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
 
     echo "Verify configuration value with snap get"
     snap get snapctl-from-snap foo | MATCH 123
