@@ -123,26 +123,7 @@ func (iface *timeControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

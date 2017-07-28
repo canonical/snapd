@@ -160,14 +160,6 @@ func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specificati
 	return nil
 }
 
-func (iface *pulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *pulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

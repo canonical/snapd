@@ -69,26 +69,18 @@ func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "io-ports-control",
 		Interface: "io-ports-control",
-	}})
-	c.Assert(err, ErrorMatches, "io-ports-control slots only allowed on core snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"io-ports-control slots are reserved for the core snap")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *ioPortsControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "io-ports-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "io-ports-control"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
