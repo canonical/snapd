@@ -4847,7 +4847,13 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	assertAdd(st, model)
 
 	for _, suMap := range systemUsers {
-		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
+		headers := make(map[string]interface{})
+		for k, v := range suMap {
+			headers[k] = v
+		}
+		headers["since"] = time.Now().Format(time.RFC3339)
+		headers["until"] = time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339)
+		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, headers, nil, "")
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
@@ -4872,8 +4878,6 @@ var goodUser = map[string]interface{}{
 	"name":         "Boring Guy",
 	"username":     "guy",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var partnerUser = map[string]interface{}{
@@ -4885,8 +4889,6 @@ var partnerUser = map[string]interface{}{
 	"name":         "Partner Guy",
 	"username":     "partnerguy",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var badUser = map[string]interface{}{
@@ -4899,8 +4901,6 @@ var badUser = map[string]interface{}{
 	"name":         "Random Gal",
 	"username":     "gal",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var unknownUser = map[string]interface{}{

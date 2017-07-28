@@ -326,12 +326,14 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
+	since := time.Now()
+	until := since.AddDate(1, 0, 0)
 	headers := map[string]interface{}{
 		"account-id":          "acc-id1",
 		"name":                "default",
 		"public-key-sha3-384": aks.keyID,
-		"since":               aks.since.Format(time.RFC3339),
-		"until":               aks.until.Format(time.RFC3339),
+		"since":               since.Format(time.RFC3339),
+		"until":               until.Format(time.RFC3339),
 	}
 	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), "")
 	c.Assert(err, IsNil)
