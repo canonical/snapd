@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,7 +39,7 @@ const avahiControlBaseDeclarationSlots = `
       on-classic: false
 `
 
-const avahiControlSummary = `allows control over local domains, hostnames and services`
+const avahiControlSummary = `allows control over service discovery on a local network via the mDNS/DNS-SD protocol suite`
 
 const avahiControlConnectedSlotAppArmor = `
 # EntryGroup

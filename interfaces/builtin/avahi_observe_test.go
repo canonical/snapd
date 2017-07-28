@@ -44,7 +44,7 @@ var _ = Suite(&AvahiObserveInterfaceSuite{
 const avahiMockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
- app2:
+ app:
   command: foo
   plugs: [avahi-observe]
 `
@@ -82,13 +82,17 @@ func (s *AvahiObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c 
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	release.OnClassic = false
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	plugSnap := snaptest.MockInfo(c, avahiMockPlugSnapInfoYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["avahi-observe"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.avahi-observe.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.avahi-observe.*"),`)
 }
 
 // The label glob when all apps are bound to the avahi slot
@@ -107,13 +111,17 @@ func (s *AvahiObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	release.OnClassic = false
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	plugSnap := snaptest.MockInfo(c, avahiMockPlugSnapInfoYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["avahi-observe"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.avahi-observe.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.avahi-observe.{app1,app2}"),`)
 }
 
 // The label glob when all apps are bound to the avahi slot
@@ -130,23 +138,28 @@ func (s *AvahiObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c 
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	release.OnClassic = false
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	plugSnap := snaptest.MockInfo(c, avahiMockPlugSnapInfoYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["avahi-observe"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.avahi-observe.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.avahi-observe.app"),`)
 }
 
 func (s *AvahiObserveInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabelOnClassic(c *C) {
 	slot := &interfaces.Slot{}
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "peer=(label=unconfined),")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *AvahiObserveInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
@@ -177,8 +190,8 @@ func (s *AvahiObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "name=org.freedesktop.Avahi")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 }
 
 func (s *AvahiObserveInterfaceSuite) TestInterfaces(c *C) {
