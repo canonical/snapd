@@ -405,8 +405,8 @@ func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,

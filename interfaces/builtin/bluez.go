@@ -208,8 +208,8 @@ func (iface *bluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *bluezInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              bluezSummary,
 		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}

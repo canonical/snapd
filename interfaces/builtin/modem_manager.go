@@ -1186,8 +1186,8 @@ func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              modemManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,

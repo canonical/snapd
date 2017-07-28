@@ -23,6 +23,8 @@ import (
 	"os/user"
 	"time"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
@@ -36,6 +38,8 @@ var (
 	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
+	MaybePrintServices = maybePrintServices
+	MaybePrintCommands = maybePrintCommands
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -118,4 +122,8 @@ func AliasInfoLess(snapName1, alias1, cmd1, snapName2, alias2, cmd2 string) bool
 		},
 	}
 	return x.Less(0, 1)
+}
+
+func AssertTypeNameCompletion(match string) []flags.Completion {
+	return assertTypeName("").Complete(match)
 }

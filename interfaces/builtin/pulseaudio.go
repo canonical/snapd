@@ -141,8 +141,8 @@ func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              pulseaudioSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
