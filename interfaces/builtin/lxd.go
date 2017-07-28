@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -57,8 +55,8 @@ func (iface *lxdInterface) Name() string {
 	return "lxd"
 }
 
-func (iface *lxdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *lxdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              lxdSummary,
 		BaseDeclarationSlots: lxdBaseDeclarationSlots,
 	}
@@ -71,20 +69,6 @@ func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *lxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *lxdInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *lxdInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

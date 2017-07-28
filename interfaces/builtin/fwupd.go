@@ -200,8 +200,8 @@ func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *fwupdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              fwupdSummary,
 		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
@@ -241,16 +241,6 @@ func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, p
 
 func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotSecComp)
-	return nil
-}
-
-// SanitizePlug checks the plug definition is valid
-func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-// SanitizeSlot checks the slot definition is valid
-func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

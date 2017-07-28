@@ -21,16 +21,6 @@ package builtin
 
 const passwordManagerServiceSummary = `allow access to common password manager services`
 
-const passwordManagerServiceDescription = `
-The password-manager-service interface allows connected plugs full access to
-common Desktop Environment password services (eg, currently secret-service and
-kwallet).
-
-The core snap provides the slot that is shared by all snaps on a classic
-system. This interface gives access to sensitive information in the user's
-session.
-`
-
 const passwordManagerBaseDeclarationSlots = `
   password-manager-service:
     allow-installation:
@@ -95,7 +85,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "password-manager-service",
 		summary:               passwordManagerServiceSummary,
-		description:           passwordManagerServiceDescription,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  passwordManagerBaseDeclarationSlots,
 		connectedPlugAppArmor: passwordManagerServiceConnectedPlugAppArmor,

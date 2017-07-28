@@ -158,13 +158,11 @@ func (s *AvahiControlInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

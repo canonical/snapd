@@ -105,33 +105,21 @@ func (s *BoolFileInterfaceSuite) TestName(c *C) {
 
 func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 	// Both LED and GPIO slots are accepted
-	err := s.iface.SanitizeSlot(s.ledSlot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(s.gpioSlot)
-	c.Assert(err, IsNil)
+	c.Assert(s.ledSlot.Sanitize(s.iface), IsNil)
+	c.Assert(s.gpioSlot.Sanitize(s.iface), IsNil)
 	// Slots without the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(s.missingPathSlot.Sanitize(s.iface), ErrorMatches,
 		"bool-file must contain the path attribute")
 	// Slots without the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.parentDirPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(s.parentDirPathSlot.Sanitize(s.iface), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
 	// Slots with incorrect value of the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.badPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(s.badPathSlot.Sanitize(s.iface), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches,
-		`slot is not of interface "bool-file"`)
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.badInterfacePlug) }, PanicMatches,
-		`plug is not of interface "bool-file"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {

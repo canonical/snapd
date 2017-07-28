@@ -196,7 +196,7 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-var fortestingInterfaceList = client.Interfaces{
+var fortestingConnectionList = client.Connections{
 	Slots: []client.Slot{
 		{
 			Snap:      "core",
@@ -284,7 +284,7 @@ func (s *SnapSuite) TestConnectCompletion(c *C) {
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": fortestingInterfaceList,
+				"result": fortestingConnectionList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

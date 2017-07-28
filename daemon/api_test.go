@@ -477,34 +477,35 @@ UnitFileState=potatoes
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
 			"apps": []*client.AppInfo{
-				{Name: "cmd", DesktopFile: df},
-				// no desktop file
-				{Name: "cmd2"},
-				// services
-				{Name: "svc1", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "simple",
-					ServiceFileName: "snap.foo.svc1.service",
-					Enabled:         true,
-					Active:          false,
-				}},
-				{Name: "svc2", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "forking",
-					ServiceFileName: "snap.foo.svc2.service",
-					Enabled:         false,
-					Active:          true,
-				}},
-				{Name: "svc3", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "oneshot",
-					ServiceFileName: "snap.foo.svc3.service",
-					Enabled:         true,
-					Active:          true,
-				}},
-				{Name: "svc4", ServiceInfo: &client.ServiceInfo{
-					Daemon:          "notify",
-					ServiceFileName: "snap.foo.svc4.service",
-					Enabled:         false,
-					Active:          false,
-				}},
+				{
+					Snap: "foo", Name: "cmd",
+					DesktopFile: df,
+				}, {
+					// no desktop file
+					Snap: "foo", Name: "cmd2",
+				}, {
+					// services
+					Snap: "foo", Name: "svc1",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+				}, {
+					Snap: "foo", Name: "svc2",
+					Daemon:  "forking",
+					Enabled: false,
+					Active:  true,
+				}, {
+					Snap: "foo", Name: "svc3",
+					Daemon:  "oneshot",
+					Enabled: true,
+					Active:  true,
+				},
+				{
+					Snap: "foo", Name: "svc4",
+					Daemon:  "notify",
+					Enabled: false,
+					Active:  false,
+				},
 			},
 			"broken":  "",
 			"contact": "",
@@ -3398,6 +3399,125 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	})
 }
 
+/**
+// Tests for GET /v2/interface (note: singular!)
+
+func (s *apiSuite) TestInterfaceIndex(c *check.C) {
+	d := s.daemon(c)
+
+	s.mockIface(c, &ifacetest.TestInterface{
+		InterfaceName: "test",
+		InterfaceStaticInfo: interfaces.StaticInfo{
+			Summary: "summary",
+		},
+	})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/interface", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfaceIndexCmd.GET(interfaceIndexCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	// The body contains large number of interface names, ensure that just the
+	// test one,  added above, exists.
+	c.Check(body["result"], testutil.DeepContains, map[string]interface{}{
+		"name":    "test",
+		"summary": "summary",
+		"used":    true,
+	})
+	c.Check(body["status"], check.Equals, "OK")
+	c.Check(body["status-code"], check.Equals, 200.0)
+	c.Check(body["type"], check.Equals, "sync")
+}
+
+// Tests for GET /v2/interface/test
+
+func (s *apiSuite) TestInterfaceDetail(c *check.C) {
+	_ = s.daemon(c)
+
+	s.mockIface(c, &ifacetest.TestInterface{
+		InterfaceName: "test",
+		InterfaceStaticInfo: interfaces.StaticInfo{
+			Summary: "summary",
+		},
+	})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	// NOTE: this is confusing, we must set s.vars manually,
+	s.vars = map[string]string{"name": "test"}
+	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"name":    "test",
+			"summary": "summary",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":  "consumer",
+					"plug":  "plug",
+					"label": "label",
+					"attrs": map[string]interface{}{"key": "value"},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":  "producer",
+					"slot":  "slot",
+					"label": "label",
+					"attrs": map[string]interface{}{"key": "value"},
+				},
+			},
+			"used": true,
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
+	_ = s.daemon(c)
+
+	// NOTE: this is confusing, we must set s.vars manually,
+	s.vars = map[string]string{"name": "test"}
+	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot find interface named "test"`,
+		},
+		"status":      "Not Found",
+		"status-code": 404.0,
+		"type":        "error",
+	})
+}
+
+**/
+
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
@@ -5615,4 +5735,197 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
+}
+
+type appSuite struct {
+	apiBaseSuite
+	cmd *testutil.MockCmd
+
+	infoA, infoB, infoC, infoD *snap.Info
+}
+
+var _ = check.Suite(&appSuite{})
+
+func (s *appSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+	s.cmd = testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
+	s.daemon(c)
+	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
+	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {svc3: {daemon: simple}, cmd1: {}}")
+	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
+	s.infoD = s.mkInstalledInState(c, s.d, "snap-d", "dev", "v1", snap.R(1), true, "apps: {cmd2: {}, cmd3: {}}")
+	s.d.overlord.Loop()
+}
+
+func (s *appSuite) TearDownTest(c *check.C) {
+	s.d.overlord.Stop()
+	s.cmd.Restore()
+	s.apiBaseSuite.TearDownTest(c)
+}
+
+func (s *appSuite) TestSplitAppName(c *check.C) {
+	type T struct {
+		name string
+		snap string
+		app  string
+	}
+
+	for _, x := range []T{
+		{name: "foo.bar", snap: "foo", app: "bar"},
+		{name: "foo", snap: "foo", app: ""},
+		{name: "foo.bar.baz", snap: "foo", app: "bar.baz"},
+		{name: ".", snap: "", app: ""}, // SISO
+	} {
+		snap, app := splitAppName(x.name)
+		c.Check(x.snap, check.Equals, snap, check.Commentf(x.name))
+		c.Check(x.app, check.Equals, app, check.Commentf(x.name))
+	}
+}
+
+func (s *appSuite) TestGetAppsInfo(c *check.C) {
+	s.sysctlBufs = [][]byte{[]byte(`
+Id=snap.snap-a.svc2.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`[1:])}
+
+	req, err := http.NewRequest("GET", "/v2/apps?names=snap-a.svc2", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, []*client.AppInfo{})
+	svcs := rsp.Result.([]*client.AppInfo)
+	c.Assert(svcs, check.HasLen, 1)
+	c.Check(svcs, testutil.DeepContains, &client.AppInfo{
+		Snap:    "snap-a",
+		Name:    "svc2",
+		Daemon:  "simple",
+		Active:  true,
+		Enabled: true,
+	})
+}
+
+func (s *appSuite) TestAppInfosForOne(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-a.svc1"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 1)
+	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[0].Name, check.Equals, "svc1")
+}
+
+func (s *appSuite) TestAppInfosForAll(c *check.C) {
+	type T struct {
+		opts  appInfoOptions
+		snaps []*snap.Info
+		names []string
+	}
+
+	for _, t := range []T{
+		{
+			opts:  appInfoOptions{service: true},
+			names: []string{"svc1", "svc2", "svc3"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB},
+		},
+		{
+			opts:  appInfoOptions{},
+			names: []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD},
+		},
+	} {
+		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.opts))
+
+		st := s.d.overlord.State()
+		appInfos, rsp := appInfosFor(st, nil, t.opts)
+		c.Assert(rsp, check.IsNil, check.Commentf("%s", t.opts))
+		names := make([]string, len(appInfos))
+		for i, appInfo := range appInfos {
+			names[i] = appInfo.Name
+		}
+		c.Assert(names, check.DeepEquals, t.names, check.Commentf("%s", t.opts))
+
+		for i := range appInfos {
+			c.Check(appInfos[i].Snap, check.DeepEquals, t.snaps[i], check.Commentf("%s: %s", t.opts, t.names[i]))
+		}
+	}
+}
+
+func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 2)
+	sort.Sort(bySnapApp(appInfos))
+
+	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[0].Name, check.Equals, "svc1")
+	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[1].Name, check.Equals, "svc2")
+}
+
+func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 2)
+	sort.Sort(bySnapApp(appInfos))
+
+	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[0].Name, check.Equals, "svc1")
+	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[1].Name, check.Equals, "svc2")
+}
+
+func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{
+		"snap-b.svc3",
+		"snap-a.svc2",
+		"snap-a.svc1",
+		"snap-a.svc2",
+		"snap-b.svc3",
+		"snap-a.svc1",
+		"snap-b",
+		"snap-a",
+	}, appInfoOptions{service: true})
+	c.Assert(rsp, check.IsNil)
+	c.Assert(appInfos, check.HasLen, 3)
+	sort.Sort(bySnapApp(appInfos))
+
+	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[0].Name, check.Equals, "svc1")
+	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
+	c.Check(appInfos[1].Name, check.Equals, "svc2")
+	c.Check(appInfos[2].Snap, check.DeepEquals, s.infoB)
+	c.Check(appInfos[2].Name, check.Equals, "svc3")
+}
+
+func (s *appSuite) TestAppInfosForAppless(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-c"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Assert(appInfos, check.IsNil)
+}
+
+func (s *appSuite) TestAppInfosForMissingApp(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-c.whatever"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Assert(appInfos, check.IsNil)
+}
+
+func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
+	st := s.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, []string{"snap-x"}, appInfoOptions{service: true})
+	c.Assert(rsp, check.FitsTypeOf, &resp{})
+	c.Check(rsp.(*resp).Status, check.Equals, 404)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindSnapNotFound)
+	c.Assert(appInfos, check.IsNil)
 }

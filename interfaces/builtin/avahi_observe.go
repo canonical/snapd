@@ -20,12 +20,12 @@
 package builtin
 
 import (
-    "strings"
+	"strings"
 
-    "github.com/snapcore/snapd/interfaces"
-    "github.com/snapcore/snapd/interfaces/apparmor"
-    "github.com/snapcore/snapd/interfaces/dbus"
-    "github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/release"
 )
 
 const avahiObserveSummary = `allows discovering local domains, hostnames and services`
@@ -406,63 +406,55 @@ dbus (receive)
 type avahiObserveInterface struct{}
 
 func (iface *avahiObserveInterface) Name() string {
-   return "avahi-observe"
+	return "avahi-observe"
 }
 
-func (iface *avahiObserveInterface) MetaData() interfaces.MetaData {
-   return interfaces.MetaData{
-       Summary: avahiObserveSummary,
-       ImplicitOnClassic: true,
-       BaseDeclarationSlots: avahiObserveBaseDeclarationSlots,
-   }
+func (iface *avahiObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              avahiObserveSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: avahiObserveBaseDeclarationSlots,
+	}
 }
 
 func (iface *avahiObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-    old := "###SLOT_SECURITY_TAGS###"
-    var new string
-    if release.OnClassic {
-        // If we're running on classic Avahi will be part
-        // of the OS snap and will run unconfined.
-        new = "unconfined"
-    } else {
-        new = slotAppLabelExpr(slot)
-    }
-    snippet := strings.Replace(avahiObserveConnectedPlugAppArmor, old, new, -1)
-    spec.AddSnippet(snippet)
-    return nil
+	old := "###SLOT_SECURITY_TAGS###"
+	var new string
+	if release.OnClassic {
+		// If we're running on classic Avahi will be part
+		// of the OS snap and will run unconfined.
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
+	snippet := strings.Replace(avahiObserveConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *avahiObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-    spec.AddSnippet(avahiObservePermanentSlotAppArmor)
-    return nil
+	spec.AddSnippet(avahiObservePermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *avahiObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-    old := "###PLUG_SECURITY_TAGS###"
-    new := plugAppLabelExpr(plug)
-    snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
-    spec.AddSnippet(snippet)
-    return nil
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *avahiObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-    spec.AddSnippet(avahiObservePermanentSlotDBus)
-    return nil
-}
-
-func (iface *avahiObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-    return nil
-}
-
-func (iface *avahiObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-    return nil
+	spec.AddSnippet(avahiObservePermanentSlotDBus)
+	return nil
 }
 
 func (iface *avahiObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-    // allow what declarations allowed
-    return true
+	// allow what declarations allowed
+	return true
 }
 
 func init() {
-    registerIface(&avahiObserveInterface{})
+	registerIface(&avahiObserveInterface{})
 }

@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -116,8 +115,8 @@ func (iface *unity8PimCommonInterface) Name() string {
 	return iface.name
 }
 
-func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity8PimCommonInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iface.summary,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}
@@ -162,21 +161,6 @@ func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 
 func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(unity8PimCommonPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *unity8PimCommonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
-	}
-
-	return nil
-}
-
-func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
-	}
 	return nil
 }
 

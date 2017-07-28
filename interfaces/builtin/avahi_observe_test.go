@@ -158,13 +158,18 @@ func (s *AvahiObserveInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *AvahiObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	// avahi-observe slot can now be used on snap other than core.
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "avahi-observe",
+		Interface: "avahi-observe",
+	}}
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *AvahiObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *AvahiObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
