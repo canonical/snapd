@@ -156,12 +156,12 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
-// PlugSanitizer describes an interface that can sanitize plug instances.
+// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
 	SanitizePlug(plug *Plug) error
 }
 
-// SlotSanitizer describes an interface that can sanitize slot instances.
+// SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
 	SanitizeSlot(slot *Slot) error
 }
