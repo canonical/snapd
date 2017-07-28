@@ -44,11 +44,8 @@ func (plug *Plug) Sanitize(iface Interface) error {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
 			plug.Ref(), plug.Interface, iface.Name())
 	}
-	type sanitizer interface {
-		SanitizePlug(plug *Plug) error
-	}
 	var err error
-	if iface, ok := iface.(sanitizer); ok {
+	if iface, ok := iface.(PlugSanitizer); ok {
 		err = iface.SanitizePlug(plug)
 	}
 	return err
@@ -82,11 +79,8 @@ func (slot *Slot) Sanitize(iface Interface) error {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
 			slot.Ref(), slot.Interface, iface.Name())
 	}
-	type sanitizer interface {
-		SanitizeSlot(slot *Slot) error
-	}
 	var err error
-	if iface, ok := iface.(sanitizer); ok {
+	if iface, ok := iface.(SlotSanitizer); ok {
 		err = iface.SanitizeSlot(slot)
 	}
 	return err
@@ -160,6 +154,16 @@ type Interface interface {
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// PlugSanitizer describes an interface that can sanitize plug instances.
+type PlugSanitizer interface {
+	SanitizePlug(plug *Plug) error
+}
+
+// SlotSanitizer describes an interface that can sanitize slot instances.
+type SlotSanitizer interface {
+	SanitizeSlot(slot *Slot) error
 }
 
 // StaticInfo describes various static-info of a given interface.
