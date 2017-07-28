@@ -101,12 +101,6 @@ func (iface *broadcomAsicControlInterface) SanitizeSlot(slot *interfaces.Slot) e
 	return nil
 }
 
-// Checks and possibly modifies a plug
-func (iface *broadcomAsicControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
 func (iface *broadcomAsicControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(broadcomAsicControlConnectedPlugAppArmor)
 	return nil
