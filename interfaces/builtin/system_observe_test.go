@@ -73,7 +73,7 @@ func (s *SystemObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "system-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"system-observe slots are reserved for the operating system snap")
+		"system-observe slots are reserved for the core snap")
 }
 
 func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {

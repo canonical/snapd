@@ -72,7 +72,7 @@ func (s *NetworkBindInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "network-bind",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"network-bind slots are reserved for the operating system snap")
+		"network-bind slots are reserved for the core snap")
 }
 
 func (s *NetworkBindInterfaceSuite) TestSanitizePlug(c *C) {

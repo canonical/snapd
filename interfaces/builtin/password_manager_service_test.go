@@ -71,7 +71,7 @@ func (s *passwordManagerServiceInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "password-manager-service",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"password-manager-service slots are reserved for the operating system snap")
+		"password-manager-service slots are reserved for the core snap")
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestSanitizePlug(c *C) {

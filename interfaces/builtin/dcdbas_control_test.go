@@ -70,7 +70,7 @@ func (s *DcdbasControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "dcdbas-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"dcdbas-control slots are reserved for the operating system snap")
+		"dcdbas-control slots are reserved for the core snap")
 }
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizePlug(c *C) {

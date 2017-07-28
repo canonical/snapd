@@ -73,7 +73,7 @@ func (s *Unity7InterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "unity7",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"unity7 slots are reserved for the operating system snap")
+		"unity7 slots are reserved for the core snap")
 }
 
 func (s *Unity7InterfaceSuite) TestSanitizePlug(c *C) {

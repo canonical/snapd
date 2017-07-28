@@ -69,7 +69,7 @@ func (s *ShutdownInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "shutdown",
 		Interface: "shutdown",
 	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "shutdown slots are reserved for the operating system snap")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "shutdown slots are reserved for the core snap")
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {

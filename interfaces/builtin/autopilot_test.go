@@ -73,7 +73,7 @@ func (s *AutopilotInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "autopilot-introspection",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"autopilot-introspection slots are reserved for the operating system snap")
+		"autopilot-introspection slots are reserved for the core snap")
 }
 
 func (s *AutopilotInterfaceSuite) TestSanitizePlug(c *C) {

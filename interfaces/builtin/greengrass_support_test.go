@@ -73,7 +73,7 @@ func (s *GreengrassSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "greengrass-support",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"greengrass-support slots are reserved for the operating system snap")
+		"greengrass-support slots are reserved for the core snap")
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestSanitizePlug(c *C) {

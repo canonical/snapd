@@ -57,7 +57,7 @@ func (s *LibvirtInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LibvirtInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), ErrorMatches, ".*libvirt slots are reserved for the operating system snap.*")
+	c.Assert(s.slot.Sanitize(s.iface), ErrorMatches, ".*libvirt slots are reserved for the core snap.*")
 }
 
 func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {

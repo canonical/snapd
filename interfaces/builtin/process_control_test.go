@@ -73,7 +73,7 @@ func (s *ProcessControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "process-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"process-control slots are reserved for the operating system snap")
+		"process-control slots are reserved for the core snap")
 }
 
 func (s *ProcessControlInterfaceSuite) TestSanitizePlug(c *C) {

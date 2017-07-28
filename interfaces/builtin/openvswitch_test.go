@@ -71,7 +71,7 @@ func (s *OpenvSwitchInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "openvswitch",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"openvswitch slots are reserved for the operating system snap")
+		"openvswitch slots are reserved for the core snap")
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestSanitizePlug(c *C) {

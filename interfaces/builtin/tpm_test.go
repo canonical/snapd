@@ -71,7 +71,7 @@ func (s *TpmInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "tpm",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"tpm slots are reserved for the operating system snap")
+		"tpm slots are reserved for the core snap")
 }
 
 func (s *TpmInterfaceSuite) TestSanitizePlug(c *C) {

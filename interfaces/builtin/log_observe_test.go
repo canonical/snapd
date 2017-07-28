@@ -71,7 +71,7 @@ func (s *LogObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "log-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"log-observe slots are reserved for the operating system snap")
+		"log-observe slots are reserved for the core snap")
 }
 
 func (s *LogObserveInterfaceSuite) TestSanitizePlug(c *C) {

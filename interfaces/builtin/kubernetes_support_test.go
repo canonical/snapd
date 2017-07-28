@@ -73,7 +73,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "kubernetes-support",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"kubernetes-support slots are reserved for the operating system snap")
+		"kubernetes-support slots are reserved for the core snap")
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestSanitizePlug(c *C) {

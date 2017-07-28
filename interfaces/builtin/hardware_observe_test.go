@@ -73,7 +73,7 @@ func (s *HardwareObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "hardware-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"hardware-observe slots are reserved for the operating system snap")
+		"hardware-observe slots are reserved for the core snap")
 }
 
 func (s *HardwareObserveInterfaceSuite) TestSanitizePlug(c *C) {

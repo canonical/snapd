@@ -72,7 +72,7 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "netlink-audit",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"netlink-audit slots are reserved for the operating system snap")
+		"netlink-audit slots are reserved for the core snap")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizePlug(c *C) {

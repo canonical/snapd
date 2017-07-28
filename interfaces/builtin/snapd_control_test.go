@@ -70,7 +70,7 @@ func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "snapd-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"snapd-control slots are reserved for the operating system snap")
+		"snapd-control slots are reserved for the core snap")
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {

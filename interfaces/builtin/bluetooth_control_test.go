@@ -79,7 +79,7 @@ func (s *BluetoothControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "bluetooth-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"bluetooth-control slots are reserved for the operating system snap")
+		"bluetooth-control slots are reserved for the core snap")
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizePlug(c *C) {

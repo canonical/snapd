@@ -71,7 +71,7 @@ func (s *ScreenInhibitControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "screen-inhibit-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"screen-inhibit-control slots are reserved for the operating system snap")
+		"screen-inhibit-control slots are reserved for the core snap")
 }
 
 func (s *ScreenInhibitControlInterfaceSuite) TestSanitizePlug(c *C) {
