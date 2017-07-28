@@ -83,26 +83,18 @@ func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.coreSlot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "upower-observe",
 		Interface: "upower-observe",
-	}})
-	c.Assert(err, ErrorMatches, "upower-observe slots are reserved for the operating system or application snaps")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"upower-observe slots are reserved for the core and app snaps")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *UPowerObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "upower-observe"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "upower-observe"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 // The label glob when all apps are bound to the ofono slot
