@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -49,6 +50,7 @@ type snapYaml struct {
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
 }
 
 type appYaml struct {
@@ -75,6 +77,15 @@ type appYaml struct {
 
 type hookYaml struct {
 	PlugNames []string `yaml:"plugs,omitempty"`
+}
+
+type layoutYaml struct {
+	Bind    string `yaml:"bind,omitempty"`
+	Type    string `yaml:"type,omitempty"`
+	User    string `yaml:"user,omitempty"`
+	Group   string `yaml:"group,omitempty"`
+	Mode    string `yaml:"mode,omitempty"`
+	Symlink string `yaml:"symlink,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -119,6 +130,34 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 
 	// Bind unbound slots to all apps
 	bindUnboundSlots(globalSlotNames, snap)
+
+	// Collect layout elements.
+	if y.Layout != nil {
+		snap.Layout = make(map[string]*Layout, len(y.Layout))
+		for path, l := range y.Layout {
+			mode := 0755
+			if l.Mode != "" {
+				m, err := strconv.ParseInt(l.Mode, 8, 32)
+				if err != nil {
+					return nil, err
+				}
+				mode = int(m)
+			}
+			user := "root"
+			if l.User != "" {
+				user = l.User
+			}
+			group := "root"
+			if l.Group != "" {
+				group = l.Group
+			}
+			snap.Layout[path] = &Layout{
+				Snap: snap, Path: path,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				User: user, Group: group, Mode: mode,
+			}
+		}
+	}
 
 	// Rename specific plugs on the core snap.
 	snap.renameClashingCorePlugs()
