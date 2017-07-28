@@ -342,6 +342,29 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	c.Assert(err, ErrorMatches, `account-key assertion for "acc-id1" is not signed by a directly trusted authority:.*`)
 }
 
+func (aks *accountKeySuite) TestAccountKeyCheckSinceOutsideOfSigningKeyValidity(c *C) {
+	trustedKey := testPrivKey0
+
+	db := aks.openDB(c)
+	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	since := time.Now().Add(-24 * time.Hour)
+	until := since.AddDate(1, 0, 0)
+	headers := map[string]interface{}{
+		"account-id":          "acc-id1",
+		"name":                "default",
+		"public-key-sha3-384": aks.keyID,
+		"since":               since.Format(time.RFC3339),
+		"until":               until.Format(time.RFC3339),
+	}
+	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(accKey)
+	c.Assert(err, ErrorMatches, `account-key assertion timestamp outside of signing key validity.*`)
+}
+
 func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 	trustedKey := testPrivKey0
 
