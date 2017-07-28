@@ -73,7 +73,7 @@ func (s *KernelModuleControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "kernel-module-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"kernel-module-control slots are reserved for the operating system snap")
+		"kernel-module-control slots are reserved for the core snap")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestSanitizePlug(c *C) {

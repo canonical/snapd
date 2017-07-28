@@ -73,7 +73,7 @@ func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "x11",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"x11 slots are reserved for the operating system snap")
+		"x11 slots are reserved for the core snap")
 }
 
 func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {

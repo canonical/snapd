@@ -71,7 +71,7 @@ func (s *RawUsbSuite) TestSanitizeSlot(c *C) {
 		Interface: "raw-usb",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"raw-usb slots are reserved for the operating system snap")
+		"raw-usb slots are reserved for the core snap")
 }
 
 func (s *RawUsbSuite) TestSanitizePlug(c *C) {

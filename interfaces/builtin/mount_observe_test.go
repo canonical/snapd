@@ -70,7 +70,7 @@ func (s *MountObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "mount-observe",
 		Interface: "mount-observe",
 	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "mount-observe slots are reserved for the operating system snap")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "mount-observe slots are reserved for the core snap")
 }
 
 func (s *MountObserveInterfaceSuite) TestSanitizePlug(c *C) {

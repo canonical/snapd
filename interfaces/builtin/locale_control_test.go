@@ -71,7 +71,7 @@ func (s *LocaleControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "locale-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"locale-control slots are reserved for the operating system snap")
+		"locale-control slots are reserved for the core snap")
 }
 
 func (s *LocaleControlInterfaceSuite) TestSanitizePlug(c *C) {

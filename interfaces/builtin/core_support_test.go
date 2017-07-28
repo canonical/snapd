@@ -71,7 +71,7 @@ func (s *CoreSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "core-support",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"core-support slots are reserved for the operating system snap")
+		"core-support slots are reserved for the core snap")
 }
 
 func (s *CoreSupportInterfaceSuite) TestSanitizePlug(c *C) {

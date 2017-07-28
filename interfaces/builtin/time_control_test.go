@@ -72,7 +72,7 @@ func (s *TimeControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "time-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"time-control slots are reserved for the operating system snap")
+		"time-control slots are reserved for the core snap")
 }
 
 func (s *TimeControlTestInterfaceSuite) TestSanitizePlug(c *C) {

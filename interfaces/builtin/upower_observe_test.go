@@ -90,7 +90,7 @@ func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "upower-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"upower-observe slots are reserved for the operating system and app snaps")
+		"upower-observe slots are reserved for the core and app snaps")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizePlug(c *C) {

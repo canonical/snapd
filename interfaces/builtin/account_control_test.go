@@ -80,7 +80,7 @@ func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
 		Interface: "account-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"account-control slots are reserved for the operating system snap")
+		"account-control slots are reserved for the core snap")
 }
 
 func (s *AccountControlSuite) TestSanitizePlug(c *C) {

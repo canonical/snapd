@@ -73,7 +73,7 @@ func (s *FuseSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "fuse-support",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"fuse-support slots are reserved for the operating system snap")
+		"fuse-support slots are reserved for the core snap")
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizePlug(c *C) {

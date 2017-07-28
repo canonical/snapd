@@ -76,7 +76,7 @@ func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "io-ports-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"io-ports-control slots are reserved for the operating system snap")
+		"io-ports-control slots are reserved for the core snap")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {

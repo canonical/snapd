@@ -74,7 +74,7 @@ func (s *FirewallControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "firewall-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"firewall-control slots are reserved for the operating system snap")
+		"firewall-control slots are reserved for the core snap")
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizePlug(c *C) {

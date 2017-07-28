@@ -70,7 +70,7 @@ func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "removable-media",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"removable-media slots are reserved for the operating system snap")
+		"removable-media slots are reserved for the core snap")
 }
 
 func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {

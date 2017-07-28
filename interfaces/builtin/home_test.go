@@ -71,7 +71,7 @@ func (s *HomeInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "home",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"home slots are reserved for the operating system snap")
+		"home slots are reserved for the core snap")
 }
 
 func (s *HomeInterfaceSuite) TestSanitizePlug(c *C) {

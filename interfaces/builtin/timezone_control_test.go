@@ -71,7 +71,7 @@ func (s *TimezoneControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "timezone-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"timezone-control slots are reserved for the operating system snap")
+		"timezone-control slots are reserved for the core snap")
 }
 
 func (s *TimezoneControlInterfaceSuite) TestSanitizePlug(c *C) {

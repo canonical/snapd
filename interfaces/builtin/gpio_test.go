@@ -117,7 +117,7 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
 func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 	// gpio slot not accepted on app snap
 	c.Assert(s.appGpioSlot.Sanitize(s.iface), ErrorMatches,
-		"gpio slots are reserved for the operating system and gadget snaps")
+		"gpio slots are reserved for the core and gadget snaps")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {

@@ -71,7 +71,7 @@ func (s *AvahiObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "avahi-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"avahi-observe slots are reserved for the operating system snap")
+		"avahi-observe slots are reserved for the core snap")
 }
 
 func (s *AvahiObserveInterfaceSuite) TestSanitizePlug(c *C) {

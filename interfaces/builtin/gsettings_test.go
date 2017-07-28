@@ -73,7 +73,7 @@ func (s *GsettingsInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "gsettings",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"gsettings slots are reserved for the operating system snap")
+		"gsettings slots are reserved for the core snap")
 }
 
 func (s *GsettingsInterfaceSuite) TestSanitizePlug(c *C) {

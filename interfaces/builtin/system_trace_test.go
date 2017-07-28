@@ -70,7 +70,7 @@ func (s *SystemTraceInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "system-trace",
 		Interface: "system-trace",
 	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "system-trace slots are reserved for the operating system snap")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "system-trace slots are reserved for the core snap")
 }
 
 func (s *SystemTraceInterfaceSuite) TestSanitizePlug(c *C) {

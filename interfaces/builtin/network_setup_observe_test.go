@@ -71,7 +71,7 @@ func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "network-setup-observe",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"network-setup-observe slots are reserved for the operating system snap")
+		"network-setup-observe slots are reserved for the core snap")
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestSanitizePlug(c *C) {

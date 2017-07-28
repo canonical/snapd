@@ -74,7 +74,7 @@ func (s *HardwareRandomControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "hardware-random-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"hardware-random-control slots are reserved for the operating system snap")
+		"hardware-random-control slots are reserved for the core snap")
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizePlug(c *C) {
