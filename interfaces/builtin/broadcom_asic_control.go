@@ -87,10 +87,6 @@ func (iface *broadcomAsicControlInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *broadcomAsicControlInterface) String() string {
-	return iface.Name()
-}
-
 // Check validity of the defined slot
 func (iface *broadcomAsicControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return sanitizeSlotReservedForOS(iface, slot)
