@@ -79,8 +79,8 @@ func (iface *broadcomAsicControlInterface) Name() string {
 	return "broadcom-asic-control"
 }
 
-func (iface *broadcomAsicControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *broadcomAsicControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              broadcomAsicControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,

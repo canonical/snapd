@@ -20,14 +20,12 @@
 package builtin
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 )
 
 type evalSymlinksFn func(string) (string, error)
@@ -37,10 +35,9 @@ type evalSymlinksFn func(string) (string, error)
 var evalSymlinks = filepath.EvalSymlinks
 
 type commonInterface struct {
-	name             string
-	summary          string
-	description      string
-	documentationURL string
+	name    string
+	summary string
+	docURL  string
 
 	implicitOnCore    bool
 	implicitOnClassic bool
@@ -64,12 +61,11 @@ func (iface *commonInterface) Name() string {
 	return iface.name
 }
 
-// MetaData returns various meta-data about this interface.
-func (iface *commonInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+// StaticInfo returns various meta-data about this interface.
+func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iface.summary,
-		Description:          iface.description,
-		DocumentationURL:     iface.documentationURL,
+		DocURL:               iface.docURL,
 		ImplicitOnCore:       iface.implicitOnCore,
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
@@ -82,21 +78,9 @@ func (iface *commonInterface) MetaData() interfaces.MetaData {
 // If the reservedForOS flag is set then only slots on core snap
 // are allowed.
 func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
+	if iface.reservedForOS {
+		return sanitizeSlotReservedForOS(iface, slot)
 	}
-	if iface.reservedForOS && slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.name)
-	}
-	return nil
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
 

@@ -69,7 +69,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := Client().Interfaces()
+	ifaces, err := Client().Connections()
 	if err != nil {
 		return err
 	}

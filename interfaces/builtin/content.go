@@ -57,8 +57,8 @@ func (iface *contentInterface) Name() string {
 	return "content"
 }
 
-func (iface *contentInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              contentSummary,
 		BaseDeclarationSlots: contentBaseDeclarationSlots,
 	}
@@ -69,9 +69,6 @@ func cleanSubPath(path string) bool {
 }
 
 func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		// content defaults to "slot" name if unspecified
@@ -98,9 +95,6 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {
