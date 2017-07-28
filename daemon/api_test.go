@@ -5861,7 +5861,7 @@ UnitFileState=enabled
 	for i, app := range apps {
 		appNames[i] = app.Snap + "." + app.Name
 	}
-	sort.StringsAreSorted(appNames)
+	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
 }
 
 func (s *appSuite) TestGetAppsInfoNames(c *check.C) {
@@ -5888,7 +5888,7 @@ func (s *appSuite) TestGetAppsInfoNames(c *check.C) {
 	for i, app := range apps {
 		appNames[i] = app.Snap + "." + app.Name
 	}
-	sort.StringsAreSorted(appNames)
+	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
 }
 
 func (s *appSuite) TestGetAppsInfoServices(c *check.C) {
@@ -5927,7 +5927,7 @@ UnitFileState=enabled
 	for i, svc := range svcs {
 		appNames[i] = svc.Snap + "." + svc.Name
 	}
-	sort.StringsAreSorted(appNames)
+	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
 }
 
 func (s *appSuite) TestGetAppsInfoBadSelect(c *check.C) {

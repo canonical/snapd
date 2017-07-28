@@ -300,7 +300,6 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []*client.AppInfo {
 		if app.IsService() {
 			// TODO: look into making a single call to Status for all services
 			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				println("***", err.Error())
 				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
 			} else if len(sts) != 1 {
 				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))

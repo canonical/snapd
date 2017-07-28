@@ -92,10 +92,9 @@ func testClientLogs(cs *clientSuite, c *check.C) ([]client.Log, error) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logs")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
-	c.Check(query, check.HasLen, 3)
+	c.Check(query, check.HasLen, 2)
 	c.Check(query.Get("names"), check.Equals, "foo,bar")
 	c.Check(query.Get("n"), check.Equals, "-1")
-	c.Check(query.Get("follow"), check.Equals, "false")
 
 	var logs []client.Log
 	if ch != nil {
@@ -153,24 +152,32 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 				c.Check(cs.req.URL.Path, check.Equals, "/v2/logs", iterdesc)
 				c.Check(cs.req.Method, check.Equals, "GET", iterdesc)
 				query := cs.req.URL.Query()
-				c.Check(query, check.HasLen, 3, iterdesc)
+				numQ := 0
 
 				var namesout []string
 				if ns := query.Get("names"); ns != "" {
 					namesout = strings.Split(ns, ",")
 				}
-				nout, nerr := strconv.Atoi(query.Get("n"))
-				fout, ferr := strconv.ParseBool(query.Get("follow"))
-
-				c.Check(nerr, check.IsNil, iterdesc)
-				c.Check(ferr, check.IsNil, iterdesc)
 
 				c.Check(len(namesout), check.Equals, len(names), iterdesc)
 				if len(names) != 0 {
 					c.Check(namesout, check.DeepEquals, names, iterdesc)
+					numQ++
 				}
-				c.Check(nout, check.Equals, n)
-				c.Check(fout, check.Equals, follow)
+
+				nout, nerr := strconv.Atoi(query.Get("n"))
+				c.Check(nerr, check.IsNil, iterdesc)
+				c.Check(nout, check.Equals, n, iterdesc)
+				numQ++
+
+				if follow {
+					fout, ferr := strconv.ParseBool(query.Get("follow"))
+					c.Check(fout, check.Equals, true, iterdesc)
+					c.Check(ferr, check.IsNil, iterdesc)
+					numQ++
+				}
+
+				c.Check(query, check.HasLen, numQ, iterdesc)
 
 				for x := range ch {
 					c.Logf("expecting empty channel, got %v during %s", x, iterdesc)

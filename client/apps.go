@@ -98,9 +98,13 @@ func (l Log) String() string {
 // Logs asks for the logs of a series of services, by name.
 func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) {
 	query := url.Values{}
-	query.Set("names", strings.Join(names, ","))
+	if len(names) > 0 {
+		query.Set("names", strings.Join(names, ","))
+	}
 	query.Set("n", strconv.Itoa(opts.N))
-	query.Set("follow", strconv.FormatBool(opts.Follow))
+	if opts.Follow {
+		query.Set("follow", strconv.FormatBool(opts.Follow))
+	}
 
 	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil)
 	if err != nil {
