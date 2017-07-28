@@ -244,16 +244,6 @@ func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-// SanitizePlug checks the plug definition is valid
-func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-// SanitizeSlot checks the slot definition is valid
-func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

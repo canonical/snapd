@@ -152,43 +152,29 @@ func (s *HidrawInterfaceSuite) TestName(c *C) {
 
 func (s *HidrawInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2} {
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, IsNil)
+		c.Assert(slot.Sanitize(s.iface), IsNil)
 	}
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	// Slots without the "path" attribute are rejected.
-	err := s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches, `hidraw slots must have a path attribute`)
+	c.Assert(s.missingPathSlot.Sanitize(s.iface), ErrorMatches, `hidraw slots must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
 	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3} {
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "hidraw path attribute must be a valid device node")
+		c.Assert(slot.Sanitize(s.iface), ErrorMatches, "hidraw path attribute must be a valid device node")
 	}
-
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "hidraw"`)
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUDev1)
-	c.Assert(err, IsNil)
-
-	err = s.iface.SanitizeSlot(s.testUDev2)
-	c.Assert(err, IsNil)
+	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUDevBadValue1)
-	c.Assert(err, ErrorMatches, "hidraw usb-vendor attribute not valid: -1")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue2)
-	c.Assert(err, ErrorMatches, "hidraw usb-product attribute not valid: 65536")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue3)
-	c.Assert(err, ErrorMatches, "hidraw path attribute specifies invalid symlink location")
+	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "hidraw usb-vendor attribute not valid: -1")
+	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "hidraw usb-product attribute not valid: 65536")
+	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "hidraw path attribute specifies invalid symlink location")
 }
 
 func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {

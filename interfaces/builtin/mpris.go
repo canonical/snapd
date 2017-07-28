@@ -220,15 +220,7 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *mprisInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
 	_, err := iface.getName(slot.Attrs)
 	return err
 }
