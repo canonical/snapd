@@ -81,7 +81,7 @@ func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
 		Interface: "broadcom-asic-control",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"broadcom-asic-control slots only allowed on core snap")
+		"broadcom-asic-control slots are reserved for the core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {

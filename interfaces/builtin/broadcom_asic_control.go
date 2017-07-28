@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -94,11 +93,7 @@ func (iface *broadcomAsicControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *broadcomAsicControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Creation of the slot of this type is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *broadcomAsicControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
