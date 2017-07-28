@@ -116,6 +116,9 @@ package main
 //#define SCMP_ARCH_S390X ARCH_BAD
 //#endif
 //
+//#ifndef SECCOMP_RET_LOG
+//#define SECCOMP_RET_LOG 0x7ffc0000U
+//#endif
 //
 //typedef struct seccomp_data kernel_seccomp_data;
 //
@@ -382,6 +385,7 @@ var seccompResolver = map[string]uint64{
 const (
 	SeccompRetAllow = C.SECCOMP_RET_ALLOW
 	SeccompRetKill  = C.SECCOMP_RET_KILL
+	SeccompRetLog   = C.SECCOMP_RET_LOG
 )
 
 // UbuntuArchToScmpArch takes a dpkg architecture and converts it to
@@ -619,21 +623,39 @@ func compile(content []byte, out string) error {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		// FIXME: right now complain mode is the equivalent to
-		// unrestricted.  We'll want to change this once we
-		// seccomp logging is in order.
-		//
 		// special case: unrestricted means we switch to an allow-all
 		//               filter and are done
-		if line == "@unrestricted" || line == "@complain" {
+		if line == "@unrestricted" {
 			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
 			if err != nil {
-				return fmt.Errorf("cannot create seccomp filter: %s", err)
+				return fmt.Errorf("cannot create unrestricted seccomp filter: %s", err)
 			}
 			if err := addSecondaryArches(secFilter); err != nil {
 				return err
 			}
 			break
+		} else if line == "@complain" {
+			var fallback bool = false
+
+			secFilter, err = seccomp.NewFilter(seccomp.ActLog)
+			if err != nil {
+				// ActLog is only supported in newer versions
+				// of the kernel, libseccomp, and
+				// libseccomp-golang. Attempt to fall back to
+				// ActAllow before erroring out.
+				fallback = true
+				secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+				if err != nil {
+					return fmt.Errorf("cannot create complain seccomp filter: %s", err)
+				}
+			}
+			if err := addSecondaryArches(secFilter); err != nil {
+				return err
+			}
+
+			if fallback {
+				break
+			}
 		}
 
 		// look for regular syscall/arg rule
