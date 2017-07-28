@@ -74,26 +74,18 @@ func (s *BroadcomAsicControlSuite) TestName(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "broadcom-asic-control",
 		Interface: "broadcom-asic-control",
-	}})
-	c.Assert(err, ErrorMatches, "broadcom-asic-control slots only allowed on core snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"broadcom-asic-control slots only allowed on core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *BroadcomAsicControlSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "broadcom-asic-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "broadcom-asic-control"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BroadcomAsicControlSuite) TestUsedSecuritySystems(c *C) {
