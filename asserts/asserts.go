@@ -103,6 +103,18 @@ func Type(name string) *AssertionType {
 	return typeRegistry[name]
 }
 
+// TypeNames returns a sorted list of known assertion type names.
+func TypeNames() []string {
+	names := make([]string, 0, len(typeRegistry))
+	for k := range typeRegistry {
+		names = append(names, k)
+	}
+
+	sort.Strings(names)
+
+	return names
+}
+
 var maxSupportedFormat = map[string]int{}
 
 func init() {

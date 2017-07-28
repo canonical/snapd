@@ -127,6 +127,7 @@ func (s *OpenglInterfaceSuite) TestUsedSecuritySystems(c *C) {
   # https://www.kernel.org/doc/Documentation/devices.txt
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
+
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)

@@ -66,8 +66,8 @@ func (iface *iioInterface) Name() string {
 	return "iio"
 }
 
-func (iface *iioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *iioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              iioSummary,
 		BaseDeclarationSlots: iioBaseDeclarationSlots,
 	}
@@ -155,10 +155,6 @@ func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *iioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-func (iface *iioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

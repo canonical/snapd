@@ -119,3 +119,9 @@ KERNEL=="seq",            NAME="snd/%k", TAG+="snap_other_app"
 func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.Summary, Equals, "allows access to raw ALSA devices")
+	c.Assert(si.DocURL, Equals, "")
+}

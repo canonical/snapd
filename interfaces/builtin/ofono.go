@@ -289,8 +289,8 @@ func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *ofonoInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ofonoSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: ofonoBaseDeclarationSlots,

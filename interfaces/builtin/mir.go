@@ -115,8 +115,8 @@ func (iface *mirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *mirInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mirSummary,
 		BaseDeclarationSlots: mirBaseDeclarationSlots,
 	}

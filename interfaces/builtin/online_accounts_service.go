@@ -104,8 +104,8 @@ func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *onlineAccountsServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              onlineAccountsServiceSummary,
 		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
 	}
