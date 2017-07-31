@@ -1530,9 +1530,9 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	keys := splitQS(r.URL.Query().Get("keys"))
-	//if len(keys) == 0 {
-	//	return BadRequest("cannot obtain configuration: no keys supplied")
-	//}
+	if len(keys) == 0 {
+		return BadRequest("cannot obtain configuration: no keys supplied")
+	}
 
 	s := c.d.overlord.State()
 	s.Lock()
