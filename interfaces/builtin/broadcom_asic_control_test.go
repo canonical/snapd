@@ -42,7 +42,15 @@ var _ = Suite(&BroadcomAsicControlSuite{
 	iface: builtin.MustInterface("broadcom-asic-control"),
 })
 
-const broadcomCtlMockPlugSnapInfo = `name: other
+const app1Yaml = `name: core
+type: os
+version: 1.0
+apps:
+ app1:
+   command: bar
+   slots: [broadcom-asic-control]`
+
+const app2Yaml = `name: other
 version: 1.0
 apps:
  app2:
@@ -51,21 +59,10 @@ apps:
 `
 
 func (s *BroadcomAsicControlSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "broadcom-asic-control",
-			Interface: "broadcom-asic-control",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "core",
-					},
-					Name: "app1"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, app1Yaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["broadcom-asic-control"]}
 
-	plugSnap := snaptest.MockInfo(c, broadcomCtlMockPlugSnapInfo, nil)
+	plugSnap := snaptest.MockInfo(c, app2Yaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["broadcom-asic-control"]}
 }
 
@@ -88,32 +85,38 @@ func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *BroadcomAsicControlSuite) TestUsedSecuritySystems(c *C) {
-	expectedAppArmorLine := "/sys/module/linux_kernel_bde/initstate r,"
+func (s *BroadcomAsicControlSuite) TestAppArmorSecuritySystem(c *C) {
+	expectedAppArmorLine := "/sys/module/linux_kernel_bde/{,**} r,"
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, expectedAppArmorLine)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(spec.SnippetForTag("snap.other.app2"), testutil.Contains, expectedAppArmorLine)
+}
+
+func (s *BroadcomAsicControlSuite) TestUDevSecuritySystem(c *C) {
 	// .. and for udev
 	expectedUDevLine := "KERNEL==\"linux-user-bde\", TAG+=\"snap_other_app2\"\n"
-	udevSpec := &udev.Specification{}
-	err = udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	spec := &udev.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	snippets := udevSpec.Snippets()
+	snippets := spec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
 	c.Assert(snippets[0], testutil.Contains, expectedUDevLine)
+}
+
+func (s *BroadcomAsicControlSuite) TestKModSecuritySystem(c *C) {
 	// .. and for kmod
 	expectedModules := map[string]bool{
 		"linux-user-bde":   true,
 		"linux-kernel-bde": true,
 		"linux-bcm-knet":   true,
 	}
-	kmodSpec := &kmod.Specification{}
-	err = kmodSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	spec := &kmod.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	modules := kmodSpec.Modules()
+	modules := spec.Modules()
 	c.Assert(modules, DeepEquals, expectedModules)
 }
 
