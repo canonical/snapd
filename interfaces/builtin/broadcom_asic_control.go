@@ -112,7 +112,8 @@ func (iface *broadcomAsicControlInterface) KModConnectedPlug(spec *kmod.Specific
 }
 
 func (iface *broadcomAsicControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
+	// Allow what is allowed in the declarations; see https://github.com/snapcore/snapd/blob/master/interfaces/policy/basedeclaration.go
+	// for more details.
 	return true
 }
 
