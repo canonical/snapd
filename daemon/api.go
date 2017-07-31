@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -62,7 +63,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/util"
 )
 
 var api = []*Command{
@@ -1571,7 +1571,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	var patchValues map[string]interface{}
-	if err := util.DecodeJsonWithNumbers(r.Body, &patchValues); err != nil {
+	if err := jsonutil.DecodeJsonWithNumbers(r.Body, &patchValues); err != nil {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
@@ -2361,7 +2361,7 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapctlOptions client.SnapCtlOptions
-	if err := util.DecodeJsonWithNumbers(r.Body, &snapctlOptions); err != nil {
+	if err := jsonutil.DecodeJsonWithNumbers(r.Body, &snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 

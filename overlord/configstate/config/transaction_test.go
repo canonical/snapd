@@ -28,9 +28,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/util"
 )
 
 func TestT(t *testing.T) { TestingT(t) }
@@ -64,10 +64,7 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		dec := json.NewDecoder(strings.NewReader(kv[1]))
-		dec.UseNumber()
-		err := dec.Decode(&v)
-		if err != nil {
+		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(kv[1]), &v); err != nil {
 			v = kv[1]
 		}
 		m[kv[0]] = v
@@ -248,7 +245,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						continue
 					}
 					var cfg interface{}
-					c.Assert(util.DecodeJsonWithNumbers(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*obtained), &cfg), IsNil)
 					c.Assert(cfg, DeepEquals, expected)
 				}
 

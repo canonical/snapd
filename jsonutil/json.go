@@ -17,7 +17,7 @@
  *
  */
 
-package util
+package jsonutil
 
 import (
 	"encoding/json"

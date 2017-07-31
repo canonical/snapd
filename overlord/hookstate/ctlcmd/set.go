@@ -20,14 +20,13 @@
 package ctlcmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/util"
 )
 
 type setCommand struct {
@@ -103,7 +102,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		}
 		key := parts[0]
 		var value interface{}
-		if err := util.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
+		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON-- just save the string as-is.
 			value = parts[1]
 		}
@@ -154,10 +153,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		dec := json.NewDecoder(strings.NewReader(parts[1]))
-		dec.UseNumber()
-		err := dec.Decode(&value)
-		if err != nil {
+		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
