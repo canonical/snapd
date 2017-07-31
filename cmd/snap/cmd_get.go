@@ -22,6 +22,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -122,6 +123,7 @@ func (x *cmdGet) Execute(args []string) error {
 	if !x.Document && len(confKeys) == 1 {
 		var printKeys bool
 		for _, v := range conf {
+			// print keys if any of the conig options is a map
 			if _, ok := v.(map[string]interface{}); ok {
 				printKeys = true
 				break
@@ -130,6 +132,7 @@ func (x *cmdGet) Execute(args []string) error {
 		if printKeys {
 			fmt.Fprintf(Stderr, "Key:\n")
 			paths := getDottedKeys([]string{}, conf)
+			sort.Strings(paths)
 			for _, p := range paths {
 				fmt.Fprintf(Stderr, "%s\n", p)
 			}
