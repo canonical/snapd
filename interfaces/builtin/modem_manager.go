@@ -1175,8 +1175,8 @@ func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              modemManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,
@@ -1224,14 +1224,6 @@ func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 
 func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

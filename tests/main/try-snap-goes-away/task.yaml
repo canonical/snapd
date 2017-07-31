@@ -30,7 +30,7 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     echo And all its binaries
-    N="$(ls $SNAPMOUNTDIR/bin/$SNAP_NAME*|wc -l)"
+    N="$(ls $SNAP_MOUNT_DIR/bin/$SNAP_NAME*|wc -l)"
     if [ "$N" -ne 0 ]; then
        echo "Some binaries are not cleaned"
        exit 1

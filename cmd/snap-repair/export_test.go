@@ -19,8 +19,36 @@
 
 package main
 
+import (
+	"gopkg.in/retry.v1"
+)
+
 var (
 	Parser    = parser
 	ParseArgs = parseArgs
 	Run       = run
 )
+
+func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
+	originalFetchRetryStrategy := fetchRetryStrategy
+	fetchRetryStrategy = strategy
+	return func() {
+		fetchRetryStrategy = originalFetchRetryStrategy
+	}
+}
+
+func MockPeekRetryStrategy(strategy retry.Strategy) (restore func()) {
+	originalPeekRetryStrategy := peekRetryStrategy
+	peekRetryStrategy = strategy
+	return func() {
+		peekRetryStrategy = originalPeekRetryStrategy
+	}
+}
+
+func MockMaxRepairScriptSize(maxSize int) (restore func()) {
+	originalMaxSize := maxRepairScriptSize
+	maxRepairScriptSize = maxSize
+	return func() {
+		maxRepairScriptSize = originalMaxSize
+	}
+}

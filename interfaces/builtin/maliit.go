@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -130,8 +129,8 @@ func (iface *maliitInterface) Name() string {
 	return "maliit"
 }
 
-func (iface *maliitInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              maliitSummary,
 		BaseDeclarationSlots: maliitBaseDeclarationSlots,
 	}
@@ -160,20 +159,6 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(maliitConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *maliitInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	return nil
 }
 

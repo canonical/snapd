@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -104,8 +103,8 @@ func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *onlineAccountsServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              onlineAccountsServiceSummary,
 		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
 	}
@@ -132,20 +131,6 @@ func (iface *onlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmo
 
 func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(onlineAccountsServicePermanentSlotSecComp)
-	return nil
-}
-
-func (iface *onlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *onlineAccountsServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

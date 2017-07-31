@@ -395,8 +395,8 @@ func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
@@ -438,14 +438,6 @@ func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification
 
 func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
