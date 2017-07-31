@@ -40,18 +40,12 @@ const broadcomAsicControlBaseDeclarationSlots = `
 const broadcomAsicControlConnectedPlugAppArmor = `
 # Description: Allow access to broadcom asic kernel module.
 
-/sys/module/linux_kernel_bde/initstate r,
-/sys/module/linux_user_bde/initstate r,
-/sys/module/linux_kernel_bde/holders/ r,
-/sys/module/linux_user_bde/holders/ r,
-/sys/module/linux_user_bde/holders/** r,
-/sys/module/linux_user_bde/refcnt r,
-/sys/module/linux_bcm_knet/initstate r,
-/sys/module/linux_bcm_knet/holders/ r,
-/sys/module/linux_bcm_knet/refcnt r,
+/sys/module/linux_bcm_knet/{,**} r,
+/sys/module/linux_kernel_bde/{,**} r,
+/sys/module/linux_user_bde/{,**} r,
 /dev/linux-user-bde rw,
 /dev/linux-kernel-bde rw,
-/dev/linux-bcm-knet wr,
+/dev/linux-bcm-knet rw,
 `
 
 const broadcomAsicControlConnectedPlugUDev = `
