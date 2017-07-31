@@ -254,8 +254,8 @@ func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              browserSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -263,15 +263,7 @@ func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
@@ -306,14 +298,6 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 
 func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
-}
-
-func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
