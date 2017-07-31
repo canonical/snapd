@@ -27,10 +27,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/util"
 )
 
 // Context represents the context under which the snap is calling back into snapd.
@@ -182,7 +182,7 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	err := util.DecodeJsonWithNumbers(bytes.NewReader(*raw), &value)
+	err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*raw), &value)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}

@@ -17,7 +17,7 @@
  *
  */
 
-package util_test
+package jsonutil_test
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/util"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -38,7 +38,7 @@ var _ = Suite(&utilSuite{})
 func (s *utilSuite) TestDecodeError(c *C) {
 	input := "{]"
 	var output interface{}
-	err := util.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `invalid character ']' looking for beginning of object key string`)
 }
@@ -46,7 +46,7 @@ func (s *utilSuite) TestDecodeError(c *C) {
 func (s *utilSuite) TestDecodeErrorOnExcessData(c *C) {
 	input := "1000000000[1,2]"
 	var output interface{}
-	err := util.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `excess data found, not a valid json`)
 }
@@ -54,7 +54,7 @@ func (s *utilSuite) TestDecodeErrorOnExcessData(c *C) {
 func (s *utilSuite) TestDecodeSuccess(c *C) {
 	input := `{"a":1000000000, "b": 1.2, "c": "foo", "d":null}`
 	var output interface{}
-	err := util.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
 	c.Assert(err, IsNil)
 	c.Assert(output, DeepEquals, map[string]interface{}{
 		"a": json.Number("1000000000"),
