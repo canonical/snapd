@@ -1,0 +1,10 @@
+summary: Install first snap and core in one go
+# This test is disabled on Debian for now because it uncovers a bug.
+# https://forum.snapcraft.io/t/snapd-out-of-the-box-experience-debian-9
+systems: [-debian-*]
+details: |
+    This test installs a simple snap along with the core, in one go.
+    This is how many users will get their first snapd experience.
+execute: |
+    snap install test-snapd-tools
+    snap run test-snapd-tools.success

@@ -1,0 +1,7 @@
+summary: Install just the core snap.
+details: |
+    This test installs the core snap by itself. This triggers many processes,
+    including re-execution and possibly profile migration.
+execute: |
+    snap install core
+    snap version | MATCH -v unknown
