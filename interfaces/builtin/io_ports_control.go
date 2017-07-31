@@ -65,8 +65,8 @@ func (iface *ioPortsControlInterface) Name() string {
 	return "io-ports-control"
 }
 
-func (iface *ioPortsControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ioPortsControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ioPortsControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -80,26 +80,7 @@ func (iface *ioPortsControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *ioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *ioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *ioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
