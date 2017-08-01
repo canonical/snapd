@@ -44,6 +44,17 @@ execute: |
         exit 1
     fi
 
+    echo "Test that keys of json documents can be obtained via snap get"
+    if ! snap set snapctl-hooks command=test-snapctl-set-foo-doc; then
+        echo "snap set unexpectedly failed"
+        exit 1
+    fi
+    output=$(snap get snapctl-hooks foo 2>&1)
+    echo "$output" | MATCH "^Key:$"
+    echo "$output" | MATCH "^foo.a.aa$"
+    echo "$output" | MATCH "^foo.a.ab$"
+    echo "$output" | MATCH "^foo.b$"
+
     echo "Test that config values are not available once snap is removed"
     snap remove snapctl-hooks
     if output=$(snap get snapctl-hooks foo); then
