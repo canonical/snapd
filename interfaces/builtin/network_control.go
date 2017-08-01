@@ -124,6 +124,7 @@ network sna,
 /dev/rfkill rw,
 /sys/class/rfkill/ r,
 /sys/devices/{pci[0-9]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
+/sys/devices/{pci[0-9]*,platform,virtual}/**/rfkill[0-9]*/state w,
 
 # arp
 network netlink dgram,
