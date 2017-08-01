@@ -33,71 +33,68 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type safeLauncherSuite struct {
-	i      int
-	args   [][]string
-	errors []error
-	outs   [][]byte
+	errCnt   int
+	args     [][]string
+	errors   []error
+	outs     [][]byte
+	launcher *dbus.SafeLauncher
 }
 
 var _ = Suite(&safeLauncherSuite{})
 
 func (s *safeLauncherSuite) myXdgOpen(args ...string) (err error) {
 	s.args = append(s.args, args)
-	if s.i < len(s.errors) {
-		err = s.errors[s.i]
+	if s.errCnt < len(s.errors) {
+		err = s.errors[s.errCnt]
 	}
-	s.i++
+	s.errCnt++
 	return err
 }
 
 func (s *safeLauncherSuite) SetUpTest(c *C) {
-	dbus.XdgOpenCommand = s.myXdgOpen
-	s.i = 0
+	dbus.MockXdgOpenCommand(s.myXdgOpen)
+	s.errCnt = 0
 	s.args = nil
 	s.errors = nil
 	s.outs = nil
+	s.launcher = &dbus.SafeLauncher{}
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
-	launcher := &dbus.SafeLauncher{}
-	err := launcher.OpenURL("tel://049112233445566")
+	err := s.launcher.OpenURL("tel://049112233445566")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "Supplied URL scheme \"tel\" is not allowed")
 	c.Assert(s.args, IsNil)
 
-	err = launcher.OpenURL("aabbccdd0011")
+	err = s.launcher.OpenURL("aabbccdd0011")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "Supplied URL scheme \"\" is not allowed")
 	c.Assert(s.args, IsNil)
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTP(c *C) {
-	launcher := &dbus.SafeLauncher{}
-	err := launcher.OpenURL("http://snapcraft.io")
+	err := s.launcher.OpenURL("http://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"http://snapcraft.io"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHTTPS(c *C) {
-	launcher := &dbus.SafeLauncher{}
-	err := launcher.OpenURL("https://snapcraft.io")
+	err := s.launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"https://snapcraft.io"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeMailto(c *C) {
-	launcher := &dbus.SafeLauncher{}
-	err := launcher.OpenURL("mailto:foo@bar.org")
+	err := s.launcher.OpenURL("mailto:foo@bar.org")
 	c.Assert(err, IsNil)
 	c.Assert(s.args, DeepEquals, [][]string{{"mailto:foo@bar.org"}})
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
-	dbus.XdgOpenCommand = func(args ...string) error {
+	dbus.MockXdgOpenCommand(func(args ...string) error {
 		return fmt.Errorf("failed")
-	}
-	launcher := &dbus.SafeLauncher{}
-	err := launcher.OpenURL("https://snapcraft.io")
+	})
+	err := s.launcher.OpenURL("https://snapcraft.io")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "Can not open supplied URL")
 }

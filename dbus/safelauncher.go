@@ -26,6 +26,7 @@ import (
 	"fmt"
 
 	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const safeLauncherIntrospectionXML = `
@@ -39,7 +40,7 @@ var (
 	allowedURLSchemes = []string{"http", "https", "mailto"}
 )
 
-// SafeLauncher implements the 'com.canonical.SafeLauncher' DBus interface
+// SafeLauncher implements the 'io.snapcraft.SafeLauncher' DBus interface
 type SafeLauncher struct{}
 
 // Name returns the name of the interface this object implements
@@ -47,22 +48,19 @@ func (s *SafeLauncher) Name() string {
 	return "io.snapcraft.SafeLauncher"
 }
 
-// IntrospectionData gives the
+// IntrospectionData gives the XML formatted introspection description
+// of the DBus service
 func (s *SafeLauncher) IntrospectionData() string {
 	return safeLauncherIntrospectionXML
 }
 
 func runXdgOpen(args ...string) error {
-	err := exec.Command("xdg-open", args...).Run()
-	if err != nil {
-		return err
-	}
-	return nil
+	return exec.Command("xdg-open", args...).Run()
 }
 
 // XdgOpenCommand is called from within the SafeLauncher. It's exported
 // so it can be overridden by testing.
-var XdgOpenCommand = runXdgOpen
+var xdgOpenCommand = runXdgOpen
 
 // OpenURL implements the 'OpenURL' method of the 'com.canonical.SafeLauncher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
@@ -73,23 +71,14 @@ func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 		return &dbus.ErrMsgInvalidArg
 	}
 
-	validScheme := false
-	for _, s := range allowedURLSchemes {
-		if s == u.Scheme {
-			validScheme = true
-			break
-		}
-	}
-
-	if !validScheme {
+	if !strutil.ListContains(allowedURLSchemes, u.Scheme) {
 		return &dbus.Error{
 			Name: "org.freedesktop.DBus.Error.AccessDenied",
 			Body: []interface{}{fmt.Sprintf("Supplied URL scheme %q is not allowed", u.Scheme)},
 		}
 	}
 
-	err = XdgOpenCommand(addr)
-	if err != nil {
+	if err = xdgOpenCommand(addr); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("Can not open supplied URL"))
 	}
 

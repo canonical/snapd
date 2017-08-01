@@ -40,12 +40,14 @@ import (
 
 const (
 	busName  = "io.snapcraft.SafeLauncher"
-	basePath = "/"
+	basePath = "/io/snapcraft/SafeLauncher"
 )
 
-var connectSessionBus = func() (DBusConnection, error) {
+func connectSessionBusImpl() (DBusConnection, error) {
 	return dbus.SessionBus()
 }
+
+var connectSessionBus = connectSessionBusImpl
 
 type registeredDBusInterface interface {
 	Name() string
