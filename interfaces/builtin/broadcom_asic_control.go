@@ -103,8 +103,7 @@ func (iface *broadcomAsicControlInterface) UDevConnectedPlug(spec *udev.Specific
 
 func (iface *broadcomAsicControlInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	for _, kmod := range broadcomAsicControlConnectedPlugKMod {
-		err := spec.AddModule(kmod)
-		if err != nil {
+		if err := spec.AddModule(kmod); err != nil {
 			return err
 		}
 	}
