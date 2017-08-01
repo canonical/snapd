@@ -49,11 +49,11 @@ execute: |
         echo "snap set unexpectedly failed"
         exit 1
     fi
-    output=$(snap get snapctl-hooks foo 2>&1)
-    echo "$output" | MATCH "^Key:$"
-    echo "$output" | MATCH "^foo.a.aa$"
-    echo "$output" | MATCH "^foo.a.ab$"
-    echo "$output" | MATCH "^foo.b$"
+    snap get snapctl-hooks foo 2>&1 | MATCH -z "^Key:.*foo.a.aa.*foo.a.ab.*foo.b"
+    snap get snapctl-hooks -d foo | MATCH -z "^{.*\"foo\": {.*\"a\": {.*\"aa\": 1,.*\"ab\": 2.*},.*\"b\": 3.*}.*}"
+
+    snap get snapctl-hooks foo.a.aa | MATCH "^1$"
+    snap get snapctl-hooks foo.a.ab | MATCH "^2$"
 
     echo "Test that config values are not available once snap is removed"
     snap remove snapctl-hooks
