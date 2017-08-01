@@ -509,7 +509,7 @@ dbus (receive)
 
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
-# interested in are pressed, and allows us to received those events.
+# interested in are pressed, and allows us to receive those events.
 dbus (receive, send)
   bus=session
   interface=org.gnome.SettingsDaemon.MediaKeys
