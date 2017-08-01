@@ -53,6 +53,10 @@ func (s *typeSuite) TestJsonMarshalTypes(c *C) {
 	out, err = json.Marshal(TypeKernel)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"kernel\"")
+
+	out, err = json.Marshal(TypeBase)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"base\"")
 }
 
 func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
@@ -77,6 +81,10 @@ func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
 	err = json.Unmarshal([]byte("\"kernel\""), &st)
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeKernel)
+
+	err = json.Unmarshal([]byte("\"base\""), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeBase)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidTypes(c *C) {
@@ -104,6 +112,10 @@ func (s *typeSuite) TestYamlMarshalTypes(c *C) {
 	out, err = yaml.Marshal(TypeKernel)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "kernel\n")
+
+	out, err = yaml.Marshal(TypeBase)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "base\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalTypes(c *C) {
@@ -128,6 +140,10 @@ func (s *typeSuite) TestYamlUnmarshalTypes(c *C) {
 	err = yaml.Unmarshal([]byte("kernel"), &st)
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeKernel)
+
+	err = yaml.Unmarshal([]byte("base"), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeBase)
 }
 
 func (s *typeSuite) TestYamlUnmarshalInvalidTypes(c *C) {
