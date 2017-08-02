@@ -110,6 +110,11 @@ func (x *cmdGet) Execute(args []string) error {
 		return err
 	}
 
+	// special case - root document
+	if len(confKeys) == 0 {
+		confKeys = []string{""}
+	}
+
 	var confToPrint interface{} = conf
 	if !x.Document && len(confKeys) == 1 {
 		confToPrint = conf[confKeys[0]]
