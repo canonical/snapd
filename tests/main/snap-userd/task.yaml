@@ -86,7 +86,7 @@ execute: |
     # snap still uses com.canonical.SafeLauncher.
     cat << 'EOF' > /tmp/xdg-open-core
     #!/bin/sh
-    dbus-send --print-reply --session --dest=io.snapcraft.SafeLauncher / io.snapcraft.SafeLauncher.OpenURL string:"$1"
+    dbus-send --print-reply --session --dest=io.snapcraft.SafeLauncher /io/snapcraft/SafeLauncher io.snapcraft.SafeLauncher.OpenURL string:"$1"
     EOF
     chmod +x /tmp/xdg-open-core
     mount --bind /tmp/xdg-open-core /snap/core/current/usr/bin/xdg-open
