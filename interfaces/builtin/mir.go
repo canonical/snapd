@@ -156,14 +156,6 @@ func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *int
 	return nil
 }
 
-func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *mirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

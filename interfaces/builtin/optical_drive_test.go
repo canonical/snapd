@@ -64,30 +64,23 @@ func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "optical-drive",
 		Interface: "optical-drive",
-	}})
-	c.Assert(err, ErrorMatches, "optical-drive slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"optical-drive slots are reserved for the core snap")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *OpticalDriveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "app"}}) },
-		PanicMatches, `slot is not of interface "optical-drive"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "app"}}) },
-		PanicMatches, `plug is not of interface "optical-drive"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
+# Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
 @{PROC}/sys/dev/cdrom/info r,
