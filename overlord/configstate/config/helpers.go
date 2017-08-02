@@ -32,6 +32,9 @@ import (
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 
 func ParseKey(key string) (subkeys []string, err error) {
+	if key == "" {
+		return []string{}, nil
+	}
 	subkeys = strings.Split(key, ".")
 	for _, subkey := range subkeys {
 		if !validKey.MatchString(subkey) {
@@ -88,6 +91,17 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
 func GetFromChange(snapName string, subkeys []string, pos int, config map[string]interface{}, result interface{}) error {
+	// special case - get root document
+	if len(subkeys) == 0 {
+		if config == nil {
+			return &NoOptionError{SnapName: snapName, Key: ""}
+		}
+		raw := jsonRaw(config)
+		if err := json.Unmarshal([]byte(*raw), result); err != nil {
+			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
+		}
+		return nil
+	}
 	value, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}

@@ -1539,9 +1539,6 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	keys := splitQS(r.URL.Query().Get("keys"))
-	if len(keys) == 0 {
-		return BadRequest("cannot obtain configuration: no keys supplied")
-	}
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -1549,8 +1546,17 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
+	// Special case - return root document
 	if len(keys) == 0 {
-		tr.Get(snapName, "", &currentConfValues)
+		var value interface{}
+		if err := tr.Get(snapName, "", &value); err != nil {
+			if config.IsNoOption(err) {
+				return BadRequest("%v", err)
+			} else {
+				return InternalError("%v", err)
+			}
+		}
+		return SyncResponse(value, nil)
 	}
 	for _, key := range keys {
 		var value interface{}

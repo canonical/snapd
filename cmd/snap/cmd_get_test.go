@@ -65,6 +65,9 @@ var getTests = []struct {
 }, {
 	args:   "get -d snapname document",
 	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+}, {
+	args:   "get -d snapname",
+	stdout: "{\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }}
 
 func (s *SnapSuite) TestSnapGetTests(c *C) {
@@ -108,6 +111,8 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
 		case "document":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"document":{"key1":"value1","key2":"value2"}}}`)
+		case "":
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"foo":{"key1":"value1","key2":"value2"}}}`)
 		default:
 			c.Errorf("unexpected keys %q", query.Get("keys"))
 		}

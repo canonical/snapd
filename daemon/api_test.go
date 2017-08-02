@@ -2430,9 +2430,17 @@ func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
 }
 
-func (s *apiSuite) TestGetConfNoKey(c *check.C) {
-	result := s.runGetConf(c, nil, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": "cannot obtain configuration: no keys supplied"})
+func (s *apiSuite) TestGetRootDocument(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.State().Lock()
+	tr := config.NewTransaction(d.overlord.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Commit()
+	d.overlord.State().Unlock()
+
+	result := s.runGetConf(c, nil, 200)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *apiSuite) TestGetConfBadKey(c *check.C) {
