@@ -106,9 +106,9 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    ! $SNAPMOUNTDIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    ! $SNAPMOUNTDIR/core/current/usr/bin/xdg-open aabbcc
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
