@@ -53,8 +53,8 @@ func (iface *kvmInterface) Name() string {
 	return "kvm"
 }
 
-func (iface *kvmInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *kvmInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              kvmSummary,
 		ImplicitOnClassic:    true,
 		ImplicitOnCore:       true,
