@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -28,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
@@ -264,21 +262,8 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
 func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeApp && slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system or application snaps", iface.Name())
-	}
-	return nil
+	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 
 func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

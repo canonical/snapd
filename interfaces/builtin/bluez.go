@@ -254,14 +254,6 @@ func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *bluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

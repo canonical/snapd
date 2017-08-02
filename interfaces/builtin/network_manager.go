@@ -124,6 +124,24 @@ deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 # DBus accesses
 #include <abstractions/dbus-strict>
 
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 dbus (send)
    bus=system
    path=/org/freedesktop/DBus
@@ -456,14 +474,6 @@ func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(networkManagerPermanentSlotUdev, tag))
 	}
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
