@@ -1,0 +1,32 @@
+From 0c1d6a8fa9f50f09c33abe45ba0b579c08ebcd0d Mon Sep 17 00:00:00 2001
+From: Zygmunt Krynicki <me@zygoon.pl>
+Date: Wed, 2 Aug 2017 17:40:40 +0200
+Subject: [PATCH] cmd: fix tests that assume /snap mount
+
+This patch fixes tests on Arch where snaps are mounted on
+/var/lib/snapd/snap and tests are not mocking that aspect. The fix is
+universal and just switches to the variable directly.
+
+Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+---
+ cmd/cmd_test.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cmd/cmd_test.go b/cmd/cmd_test.go
+index e95969eba..d6768bbf8 100644
+--- a/cmd/cmd_test.go
++++ b/cmd/cmd_test.go
+@@ -57,8 +57,8 @@ func (s *cmdSuite) SetUpTest(c *C) {
+ 	s.lastExecEnvv = nil
+ 	s.fakeroot = c.MkDir()
+ 	dirs.SetRootDir(s.fakeroot)
+-	s.newCore = filepath.Join(s.fakeroot, "/snap/core/42")
+-	s.oldCore = filepath.Join(s.fakeroot, "/snap/ubuntu-core/21")
++	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
++	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
+ 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
+ }
+ 
+-- 
+2.13.3
+

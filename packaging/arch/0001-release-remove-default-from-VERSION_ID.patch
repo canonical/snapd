@@ -1,0 +1,43 @@
+From 81bd7656d3c2fbdc082931511f0b202e426dbe27 Mon Sep 17 00:00:00 2001
+From: Zygmunt Krynicki <me@zygoon.pl>
+Date: Wed, 2 Aug 2017 20:30:27 +0200
+Subject: [PATCH] release: remove default from VERSION_ID
+
+According to os-release(5) there is no default value for this field so
+we should not provide one. This also removes the unexpected "unknown"
+element from "snap version" on rolling releases, such as Arch.
+
+Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+---
+ release/release.go      | 1 -
+ release/release_test.go | 2 +-
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/release/release.go b/release/release.go
+index d72953a0b..a9172469c 100644
+--- a/release/release.go
++++ b/release/release.go
+@@ -76,7 +76,6 @@ var (
+ func readOSRelease() OS {
+ 	// TODO: separate this out into its own thing maybe (if made more general)
+ 	osRelease := OS{
+-		VersionID: "unknown",
+ 		// from os-release(5): If not set, defaults to "ID=linux".
+ 		ID: "linux",
+ 	}
+diff --git a/release/release_test.go b/release/release_test.go
+index d1ed64af7..701272410 100644
+--- a/release/release_test.go
++++ b/release/release_test.go
+@@ -98,7 +98,7 @@ func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
+ 	defer reset()
+ 
+ 	os := release.ReadOSRelease()
+-	c.Assert(os, DeepEquals, release.OS{ID: "linux", VersionID: "unknown"})
++	c.Assert(os, DeepEquals, release.OS{ID: "linux"})
+ }
+ 
+ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
+-- 
+2.13.3
+

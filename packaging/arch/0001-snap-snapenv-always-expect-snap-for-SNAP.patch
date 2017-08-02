@@ -1,0 +1,36 @@
+From 60d61a74c58d3ae4b67eae5089771ab1fbe7e6fb Mon Sep 17 00:00:00 2001
+From: Zygmunt Krynicki <me@zygoon.pl>
+Date: Wed, 2 Aug 2017 19:43:06 +0200
+Subject: [PATCH] snap/snapenv: always expect /snap for $SNAP
+
+On the "inside" of the snap execution environment we can always(1) rely on
+the /snap directory to be present. On distributions where the /snap
+directory on the host is redirected to /var/lib/snapd/snap this fact
+should not leak into the runtime environment.
+
+This was already done correctly but one of the tests was stale.
+
+(1): Snaps with classic confinement don't work there anyway so that's a
+non-issue.
+
+Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+---
+ snap/snapenv/snapenv_test.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/snap/snapenv/snapenv_test.go b/snap/snapenv/snapenv_test.go
+index 5b1053c43..fb594897a 100644
+--- a/snap/snapenv/snapenv_test.go
++++ b/snap/snapenv/snapenv_test.go
+@@ -121,7 +121,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
+ 		env := snapEnv(info)
+ 		c.Check(env, DeepEquals, map[string]string{
+ 			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+-			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.SnapMountDir),
++			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+ 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
+ 			"SNAP_COMMON":       "/var/snap/snapname/common",
+ 			"SNAP_DATA":         "/var/snap/snapname/42",
+-- 
+2.13.3
+
