@@ -66,7 +66,7 @@ func distroSupportsReExec() bool {
 		return false
 	}
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky":
+	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch":
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
