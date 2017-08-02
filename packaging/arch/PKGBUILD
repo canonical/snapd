@@ -4,7 +4,7 @@
 
 pkgbase=snapd
 pkgname=snapd
-pkgver=2.26.14.r1437.ge03706018
+pkgver=2.26.14.r1445.g3df03f98b
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -16,18 +16,10 @@ options=('!strip' 'emptydirs')
 install=snapd.install
 source=("git+https://github.com/snapcore/$pkgname.git"
         'snapd.sh'
-        '0001-cmd-fix-tests-that-assume-snap-mount.patch'
-        '0001-cmd-mark-arch-as-non-reexecing-distro.patch'
-        '0001-snap-snapenv-always-expect-snap-for-SNAP.patch'
-        '0001-gitignore-ignore-more-build-artefacts.patch'
         '0001-release-remove-default-from-VERSION_ID.patch'
         '0001-cmd-snap-confine-don-t-share-etc-nsswitch-from-host.patch')
 md5sums=('SKIP'
          '8e9b8108165d5b2ae911de9caefb37ce'
-         'fec9f57a050fb7ee754e60257488a8b2'
-         'd0122bf079582448f0bd68ecdc8538d0'
-         'f3b2be89c9c98beda8a537714f67a2c1'
-         '3f38a715e938ba0b6fc2f410d5785b11'
          'c9f90d92d1fb39266725072e4ace5600'
          '3db70cb1ff7223d44f89edc26ea2192f')
 
@@ -53,10 +45,6 @@ prepare() {
   # Patch snap-seccomp build flags not to link libseccomp statically.
   sed -i -e 's/-Wl,-Bstatic -lseccomp -Wl,-Bdynamic/-lseccomp/' "$srcdir/$pkgname/cmd/snap-seccomp/main.go"
   # Apply some upstream fixes not present in the release.
-  patch -p1 < "$srcdir/0001-cmd-fix-tests-that-assume-snap-mount.patch"
-  patch -p1 < "$srcdir/0001-cmd-mark-arch-as-non-reexecing-distro.patch"
-  patch -p1 < "$srcdir/0001-snap-snapenv-always-expect-snap-for-SNAP.patch"
-  patch -p1 < "$srcdir/0001-gitignore-ignore-more-build-artefacts.patch"
   patch -p1 < "$srcdir/0001-release-remove-default-from-VERSION_ID.patch"
   patch -p1 < "$srcdir/0001-cmd-snap-confine-don-t-share-etc-nsswitch-from-host.patch"
 }
