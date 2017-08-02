@@ -57,8 +57,8 @@ func (s *cmdSuite) SetUpTest(c *C) {
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
-	s.newCore = filepath.Join(s.fakeroot, "/snap/core/42")
-	s.oldCore = filepath.Join(s.fakeroot, "/snap/ubuntu-core/21")
+	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
+	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
