@@ -38,6 +38,7 @@ environment:
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
+    PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
 
 backends:
     linode:
