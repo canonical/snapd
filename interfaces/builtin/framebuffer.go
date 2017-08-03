@@ -65,7 +65,7 @@ func (iface *framebufferInterface) String() string {
 }
 
 // Check validity of the defined slot
-func (iface *framebufferInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *framebufferInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

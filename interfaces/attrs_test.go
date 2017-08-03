@@ -56,11 +56,10 @@ slots:
 }
 
 func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
-	attrData, err := newSlotData(s.slot, nil)
-	c.Assert(err, IsNil)
+	attrData := newSlotData(s.slot, nil)
 	c.Assert(attrData, NotNil)
 
-	_, err = attrData.StaticAttr("unknown")
+	_, err := attrData.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
@@ -71,11 +70,10 @@ func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
 }
 
 func (s *AttrsSuite) TestStaticPlugAttrs(c *C) {
-	attrData, err := newPlugData(s.plug, nil)
-	c.Assert(err, IsNil)
+	attrData := newPlugData(s.plug, nil)
 	c.Assert(attrData, NotNil)
 
-	_, err = attrData.StaticAttr("unknown")
+	_, err := attrData.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
@@ -89,8 +87,7 @@ func (s *AttrsSuite) TestDynamicSlotAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData, err := newSlotData(s.slot, attrs)
-	c.Assert(err, IsNil)
+	attrData := newSlotData(s.slot, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -116,8 +113,7 @@ func (s *AttrsSuite) TestDynamicPlugAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData, err := newPlugData(s.plug, attrs)
-	c.Assert(err, IsNil)
+	attrData := newPlugData(s.plug, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -140,11 +136,10 @@ func (s *AttrsSuite) TestDynamicPlugAttrs(c *C) {
 }
 
 func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
-	attrData, err := newSlotData(s.slot, nil)
-	c.Assert(err, IsNil)
+	attrData := newSlotData(s.slot, nil)
 	c.Assert(attrData, NotNil)
 
-	_, err = attrData.Attr("foo")
+	_, err := attrData.Attr("foo")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
 
@@ -154,8 +149,7 @@ func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 }
 
 func (s *AttrsSuite) TestSetStaticSlotAttr(c *C) {
-	attrData, err := newSlotData(s.slot, nil)
-	c.Assert(err, IsNil)
+	attrData := newSlotData(s.slot, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")
@@ -168,8 +162,7 @@ func (s *AttrsSuite) TestSetStaticSlotAttr(c *C) {
 }
 
 func (s *AttrsSuite) TestSetStaticPlugAttr(c *C) {
-	attrData, err := newPlugData(s.plug, nil)
-	c.Assert(err, IsNil)
+	attrData := newPlugData(s.plug, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")

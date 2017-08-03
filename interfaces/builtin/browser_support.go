@@ -263,11 +263,11 @@ func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *browserSupportInterface) BeforePreparePlug(plug *interfaces.PlugData) error {
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
-	if v, ok := plug.Attrs["allow-sandbox"]; ok {
-		if _, ok = v.(bool); !ok {
+	if v, err := plug.StaticAttr("allow-sandbox"); err == nil {
+		if _, ok := v.(bool); !ok {
 			return fmt.Errorf("browser-support plug requires bool with 'allow-sandbox'")
 		}
 	}

@@ -220,8 +220,8 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	_, err := iface.getName(slot.Attrs)
+func (iface *mprisInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
+	_, err := iface.getName(slot.StaticAttrs())
 	return err
 }
 

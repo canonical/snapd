@@ -61,15 +61,15 @@ func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-// SanitizeSlot checks the slot definition is valid
-func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+// BeforePrepareSlot checks the slot definition is valid
+func (iface *gpioInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
 	// Must have a GPIO number
-	number, ok := slot.Attrs["number"]
-	if !ok {
+	number, err := slot.Attr("number")
+	if err != nil {
 		return fmt.Errorf("gpio slot must have a number attribute")
 	}
 

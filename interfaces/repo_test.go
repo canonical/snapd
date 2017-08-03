@@ -254,7 +254,7 @@ func (s *RepositorySuite) TestAddPlugFailsWithUnknownInterface(c *C) {
 func (s *RepositorySuite) TestAddPlugFailsWithUnsanitizedPlug(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		SanitizePlugCallback: func(plug *Plug) error {
+		BeforePreparePlugCallback: func(plug *PlugData) error {
 			return fmt.Errorf("plug is dirty")
 		},
 	}
@@ -529,7 +529,7 @@ func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		SanitizeSlotCallback: func(slot *Slot) error {
+		BeforePrepareSlotCallback: func(slot *SlotData) error {
 			return fmt.Errorf("slot is dirty")
 		},
 	}
@@ -1575,24 +1575,24 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"})
 	c.Assert(err, IsNil)
 	err = s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+		InterfaceName:             "invalid",
+		BeforePreparePlugCallback: func(plug *PlugData) error { return fmt.Errorf("plug is invalid") },
+		BeforePrepareSlotCallback: func(slot *SlotData) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
 }
 
 func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
 	err := s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid-plug-iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+		InterfaceName:             "invalid-plug-iface",
+		BeforePreparePlugCallback: func(plug *PlugData) error { return fmt.Errorf("plug is invalid") },
+		BeforePrepareSlotCallback: func(slot *SlotData) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
 	err = s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid-slot-iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+		InterfaceName:             "invalid-slot-iface",
+		BeforePreparePlugCallback: func(plug *PlugData) error { return fmt.Errorf("plug is invalid") },
+		BeforePrepareSlotCallback: func(slot *SlotData) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
 	snapInfo := snaptest.MockInfo(c, `

@@ -122,7 +122,7 @@ func (iface *timeControlInterface) String() string {
 }
 
 // Check validity of the defined slot
-func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *timeControlInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

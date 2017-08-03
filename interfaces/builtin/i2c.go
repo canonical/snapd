@@ -66,20 +66,23 @@ func (iface *i2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *i2cInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
+	var pathstr string
 	// Validate the path
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, _ = path.(string)
+	}
+	if pathstr == "" {
 		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
 	}
 
-	path = filepath.Clean(path)
+	pathstr = filepath.Clean(pathstr)
 
-	if !i2cControlDeviceNodePattern.MatchString(path) {
+	if !i2cControlDeviceNodePattern.MatchString(pathstr) {
 		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
 	}
 

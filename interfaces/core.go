@@ -46,7 +46,7 @@ func (plug *Plug) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plug)
+		err = iface.BeforePreparePlug(newPlugData(plug, nil))
 	}
 	return err
 }
@@ -81,7 +81,7 @@ func (slot *Slot) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.SanitizeSlot(slot)
+		err = iface.BeforePrepareSlot(newSlotData(slot, nil))
 	}
 	return err
 }
@@ -158,12 +158,12 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *Plug) error
+	BeforePreparePlug(plug *PlugData) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
-	SanitizeSlot(slot *Slot) error
+	BeforePrepareSlot(slot *SlotData) error
 }
 
 // StaticInfo describes various static-info of a given interface.

@@ -152,17 +152,13 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	if opts != nil && opts.Connected {
 		connected = make(map[string]bool)
 		for _, plugMap := range r.slotPlugs {
-			for plug, ok := range plugMap {
-				if ok {
-					connected[plug.Interface] = true
-				}
+			for plug, _ := range plugMap {
+				connected[plug.Interface] = true
 			}
 		}
 		for _, slotMap := range r.plugSlots {
-			for slot, ok := range slotMap {
-				if ok {
-					connected[slot.Interface] = true
-				}
+			for slot, _ := range slotMap {
+				connected[slot.Interface] = true
 			}
 		}
 	}
@@ -268,6 +264,11 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if i == nil {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
+
+	if i.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", i.Name()))
+	}
+
 	// Reject plug that don't pass interface-specific sanitization
 	if err := plug.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
@@ -649,27 +650,21 @@ func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *Conn
 	if iface == nil {
 		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
 	}
-	type validatePlug interface {
-		ValidatePlug(plug *PlugData) error
+	type afterPreparePlug interface {
+		AfterPreparePlug(plug *PlugData) error
 	}
-	type validateSlot interface {
-		ValidateSlot(slot *SlotData) error
+	type afterPrepareSlot interface {
+		AfterPrepareSlot(slot *SlotData) error
 	}
-	if validate, ok := iface.(validatePlug); ok {
-		attrData, err := newPlugData(plug, attributes.PlugAttrs)
-		if err != nil {
-			return err
-		}
-		if err := validate.ValidatePlug(attrData); err != nil {
+	if validate, ok := iface.(afterPreparePlug); ok {
+		attrData := newPlugData(plug, attributes.PlugAttrs)
+		if err := validate.AfterPreparePlug(attrData); err != nil {
 			return err
 		}
 	}
-	if validate, ok := iface.(validateSlot); ok {
-		attrData, err := newSlotData(slot, attributes.SlotAttrs)
-		if err != nil {
-			return err
-		}
-		if err := validate.ValidateSlot(attrData); err != nil {
+	if validate, ok := iface.(afterPrepareSlot); ok {
+		attrData := newSlotData(slot, attributes.SlotAttrs)
+		if err := validate.AfterPrepareSlot(attrData); err != nil {
 			return err
 		}
 	}

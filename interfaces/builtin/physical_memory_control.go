@@ -71,7 +71,7 @@ func (iface *physicalMemoryControlInterface) String() string {
 }
 
 // Check validity of the defined slot
-func (iface *physicalMemoryControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *physicalMemoryControlInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

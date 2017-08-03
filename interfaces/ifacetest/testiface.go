@@ -38,13 +38,13 @@ type TestInterface struct {
 	InterfaceStaticInfo interfaces.StaticInfo
 	// AutoConnectCallback is the callback invoked inside AutoConnect
 	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
-	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
-	SanitizePlugCallback func(plug *interfaces.Plug) error
-	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
-	SanitizeSlotCallback func(slot *interfaces.Slot) error
+	// BeforePreparePlugCallback is the callback invoked inside BeforePreparePlug()
+	BeforePreparePlugCallback func(plug *interfaces.PlugData) error
+	// BeforePrepareSlotCallback is the callback invoked inside SanitizeSlot()
+	BeforePrepareSlotCallback func(slot *interfaces.SlotData) error
 
-	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
-	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
+	AfterPreparePlugCallback func(plug *interfaces.PlugData) error
+	AfterPrepareSlotCallback func(slot *interfaces.SlotData) error
 
 	// Support for interacting with the test backend.
 
@@ -117,32 +117,32 @@ func (t *TestInterface) StaticInfo() interfaces.StaticInfo {
 	return t.InterfaceStaticInfo
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if t.SanitizePlugCallback != nil {
-		return t.SanitizePlugCallback(plug)
+// BeforePreparePlug checks and possibly modifies a plug.
+func (t *TestInterface) BeforePreparePlug(plug *interfaces.PlugData) error {
+	if t.BeforePreparePlugCallback != nil {
+		return t.BeforePreparePlugCallback(plug)
 	}
 	return nil
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
-func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if t.SanitizeSlotCallback != nil {
-		return t.SanitizeSlotCallback(slot)
+// BeforePrepareSlot checks and possibly modifies a slot.
+func (t *TestInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
+	if t.BeforePrepareSlotCallback != nil {
+		return t.BeforePrepareSlotCallback(slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	if t.ValidatePlugCallback != nil {
-		return t.ValidatePlugCallback(plug, attrs)
+func (t *TestInterface) AfterPreparePlug(plug *interfaces.PlugData) error {
+	if t.AfterPreparePlugCallback != nil {
+		return t.AfterPreparePlugCallback(plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	if t.ValidateSlotCallback != nil {
-		return t.ValidateSlotCallback(slot, attrs)
+func (t *TestInterface) AfterPrepareSlot(slot *interfaces.SlotData) error {
+	if t.AfterPrepareSlotCallback != nil {
+		return t.AfterPrepareSlotCallback(slot)
 	}
 	return nil
 }

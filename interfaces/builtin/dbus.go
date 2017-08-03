@@ -403,13 +403,13 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	_, _, err := iface.getAttribs(plug.Attrs)
+func (iface *dbusInterface) BeforePreparePlug(plug *interfaces.PlugData) error {
+	_, _, err := iface.getAttribs(plug.StaticAttrs())
 	return err
 }
 
-func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	_, _, err := iface.getAttribs(slot.Attrs)
+func (iface *dbusInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
+	_, _, err := iface.getAttribs(slot.StaticAttrs())
 	return err
 }
 

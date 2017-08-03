@@ -552,8 +552,11 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var privileged bool
+	if prv, err := plug.Attr("privileged-containers"); err == nil {
+		privileged, _ = prv.(bool)
+	}
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
@@ -561,8 +564,11 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var privileged bool
+	if prv, err := plug.Attr("privileged-containers"); err == nil {
+		privileged, _ = prv.(bool)
+	}
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
 		snippet += dockerSupportPrivilegedSecComp
@@ -571,9 +577,9 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if v, ok := plug.Attrs["privileged-containers"]; ok {
-		if _, ok = v.(bool); !ok {
+func (iface *dockerSupportInterface) BeforePreparePlug(plug *interfaces.PlugData) error {
+	if prv, err := plug.Attr("privileged-containers"); err == nil {
+		if _, ok := prv.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
 		}
 	}

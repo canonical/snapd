@@ -67,7 +67,7 @@ func (iface *physicalMemoryObserveInterface) StaticInfo() interfaces.StaticInfo 
 }
 
 // Check validity of the defined slot
-func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *physicalMemoryObserveInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

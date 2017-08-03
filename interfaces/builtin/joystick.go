@@ -65,8 +65,8 @@ func (iface *joystickInterface) String() string {
 	return iface.Name()
 }
 
-// SanitizeSlot checks the validity of the defined slot.
-func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
+// BeforePrepareSlot checks the validity of the defined slot.
+func (iface *joystickInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

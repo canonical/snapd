@@ -69,29 +69,36 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 // are also specified
 var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
-// SanitizeSlot checks validity of the defined slot
-func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
+// BeforePrepareSlot checks validity of the defined slot
+func (iface *hidrawInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
 	// Check slot has a path attribute identify hidraw device
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	var pathstr string
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, _ = path.(string)
+	}
+	if pathstr == "" {
 		return fmt.Errorf("hidraw slots must have a path attribute")
 	}
 
 	// Clean the path before further checks
-	path = filepath.Clean(path)
+	pathstr = filepath.Clean(pathstr)
 
 	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
-		if !hidrawUDevSymlinkPattern.MatchString(path) {
+		if !hidrawUDevSymlinkPattern.MatchString(pathstr) {
 			return fmt.Errorf("hidraw path attribute specifies invalid symlink location")
 		}
 
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+		var usbVendor int64
+		var vOk bool
+		if val, err := slot.Attr("usb-vendor"); err == nil {
+			usbVendor, vOk = val.(int64)
+		}
 		if !vOk {
 			return fmt.Errorf("hidraw slot failed to find usb-vendor attribute")
 		}
@@ -99,7 +106,11 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("hidraw usb-vendor attribute not valid: %d", usbVendor)
 		}
 
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+		var usbProduct int64
+		var pOk bool
+		if val, err := slot.Attr("usb-product"); err == nil {
+			usbProduct, pOk = val.(int64)
+		}
 		if !pOk {
 			return fmt.Errorf("hidraw slot failed to find usb-product attribute")
 		}
@@ -109,7 +120,7 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	} else {
 		// Just a path attribute - must be a valid usb device node
 		// Check the path attribute is in the allowable pattern
-		if !hidrawDeviceNodePattern.MatchString(path) {
+		if !hidrawDeviceNodePattern.MatchString(pathstr) {
 			return fmt.Errorf("hidraw path attribute must be a valid device node")
 		}
 	}
@@ -133,7 +144,7 @@ func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	return nil
 }
 
-func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
@@ -141,12 +152,16 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		return nil
 	}
 
+	var pathstr string
+	var ok bool
 	// Path to fixed device node (no udev tagging)
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, ok = path.(string)
+	}
+	if !ok {
 		return nil
 	}
-	cleanedPath := filepath.Clean(path)
+	cleanedPath := filepath.Clean(pathstr)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
 	return nil
 
@@ -173,11 +188,11 @@ func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return true
 }
 
-func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
-	if _, ok := slot.Attrs["usb-vendor"]; ok {
+func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.SlotData) bool {
+	if _, err := slot.Attr("usb-vendor"); err == nil {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-product"]; ok {
+	if _, err := slot.Attr("usb-product"); err == nil {
 		return true
 	}
 	return false

@@ -21,6 +21,8 @@ package interfaces
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 type PlugData struct {
@@ -33,18 +35,34 @@ type SlotData struct {
 	dynamicAttrs map[string]interface{}
 }
 
-func newSlotData(slot *Slot, dynamicAttrs map[string]interface{}) (*SlotData, error) {
+func newSlotData(slot *Slot, dynamicAttrs map[string]interface{}) *SlotData {
 	return &SlotData{
 		slot:         slot,
 		dynamicAttrs: dynamicAttrs,
-	}, nil
+	}
 }
 
-func newPlugData(plug *Plug, dynamicAttrs map[string]interface{}) (*PlugData, error) {
+func newPlugData(plug *Plug, dynamicAttrs map[string]interface{}) *PlugData {
 	return &PlugData{
 		plug:         plug,
 		dynamicAttrs: dynamicAttrs,
-	}, nil
+	}
+}
+
+func (attrs *PlugData) Interface() string {
+	return attrs.plug.Interface
+}
+
+func (attrs *PlugData) Name() string {
+	return attrs.plug.Name
+}
+
+func (attrs *PlugData) Snap() *snap.Info {
+	return attrs.plug.Snap
+}
+
+func (attrs *PlugData) Apps() map[string]*snap.AppInfo {
+	return attrs.plug.Apps
 }
 
 func (attrs *PlugData) StaticAttr(key string) (interface{}, error) {
@@ -84,6 +102,18 @@ func (attrs *PlugData) SetAttr(key string, value interface{}) error {
 	}
 	attrs.dynamicAttrs[key] = value
 	return nil
+}
+
+func (attrs *SlotData) Interface() string {
+	return attrs.slot.Interface
+}
+
+func (attrs *SlotData) Name() string {
+	return attrs.slot.Name
+}
+
+func (attrs *SlotData) Snap() *snap.Info {
+	return attrs.slot.Snap
 }
 
 func (attrs *SlotData) StaticAttr(key string) (interface{}, error) {

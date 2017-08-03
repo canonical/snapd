@@ -66,7 +66,7 @@ func (iface *hardwareRandomObserveInterface) StaticInfo() interfaces.StaticInfo 
 }
 
 // Check validity of the defined slot
-func (iface *hardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hardwareRandomObserveInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

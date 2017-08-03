@@ -79,7 +79,7 @@ func (iface *ioPortsControlInterface) String() string {
 }
 
 // Check validity of the defined slot
-func (iface *ioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *ioPortsControlInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
