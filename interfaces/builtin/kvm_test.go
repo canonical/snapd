@@ -42,25 +42,22 @@ var _ = Suite(&kvmInterfaceSuite{
 })
 
 func (s *kvmInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+	info := snaptest.MockInfo(c, `
+name: core
 type: os
 slots:
-  test-kvm:
+  kvm:
     interface: kvm
 `, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-kvm"]}
+	s.slot = &interfaces.Slot{SlotInfo: info.Slots["kvm"]}
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
+	info = snaptest.MockInfo(c, `
+name: consumer
 apps:
-  app-accessing-kvm:
-    command: foo
+  app:
     plugs: [kvm]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["kvm"]}
+	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["kvm"]}
 }
 
 func (s *kvmInterfaceSuite) TestName(c *C) {
@@ -75,34 +72,25 @@ func (s *kvmInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "kvm",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"kvm slots only allowed on core snap")
+		"kvm slots are reserved for the core snap")
 }
 
 func (s *kvmInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *kvmInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
-# Description: Allow write access to kvm.
-# See 'man kvm' for details.
+func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="kvm", TAG+="snap_consumer_app"`)
+}
 
-/dev/kvm rw,
-`
-	expectedSnippet3 := `KERNEL=="kvm", TAG+="snap_client-snap_app-accessing-kvm"`
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-kvm"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-kvm")
-	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
-
-	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet3)
+func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/kvm rw,")
 }
 
 func (s *kvmInterfaceSuite) TestInterfaces(c *C) {
