@@ -128,10 +128,10 @@
 			"revisionTime": "2016-08-29T01:00:30Z"
 		},
 		{
-			"checksumSHA1": "TXfll3dCoaPKSntwHO0yR8eZ4JY=",
+			"checksumSHA1": "fALlQNY1fM99NesfLJ50KguWsio=",
 			"path": "gopkg.in/yaml.v2",
-			"revision": "49c95bdc21843256fb6c4e0d370a05f24a0bf213",
-			"revisionTime": "2015-02-24T22:57:58Z"
+			"revision": "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b",
+			"revisionTime": "2017-04-07T17:21:22Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"
