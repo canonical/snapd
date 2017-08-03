@@ -6072,7 +6072,11 @@ func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
 
 func (s *appSuite) TestLogs(c *check.C) {
 	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
-{"MESSAGE": "hello", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
+{"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
+{"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
+{"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
+{"MESSAGE": "hello4", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "48"}
+{"MESSAGE": "hello5", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "50"}
 	`))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
@@ -6087,8 +6091,13 @@ func (s *appSuite) TestLogs(c *check.C) {
 
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
-	c.Check(rec.Body.String(), check.Equals, "\x1e{\"timestamp\":\"1970-01-01T00:00:00.000042Z\",\"message\":\"hello\",\"sid\":\"xyzzy\",\"pid\":\"42\"}\n")
-
+	c.Check(rec.Body.String(), check.Equals, `
+{"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000046Z","message":"hello3","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000048Z","message":"hello4","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.00005Z","message":"hello5","sid":"xyzzy","pid":"42"}
+`[1:])
 }
 
 func (s *appSuite) TestLogsN(c *check.C) {

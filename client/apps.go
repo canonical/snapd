@@ -113,6 +113,9 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 
 	ch := make(chan Log, 20)
 	go func() {
+		// logs come in application/json-seq, described in RFC7464: it's
+		// a series of <RS><arbitrary, valid JSON><LF>. Decoders are
+		// expected to skip invalid or truncated or empty records.
 		scanner := bufio.NewScanner(rsp.Body)
 		for scanner.Scan() {
 			buf := scanner.Bytes() // the scanner prunes the ending LF

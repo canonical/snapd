@@ -45,7 +45,7 @@ type svcLogs struct {
 
 var (
 	shortServicesHelp = i18n.G("Query the status of services")
-	shortLogsHelp     = i18n.G("Query the logs of a service")
+	shortLogsHelp     = i18n.G("Retrieve logs of services")
 )
 
 func init() {

@@ -207,10 +207,6 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
-type nopFlusher struct{}
-
-func (nopFlusher) Flush() {}
-
 // A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to
 // be, each one on its own, a JSON dump of a systemd.Log, as output by
 // journalctl -o json) from an io.ReadCloser, loads that into a client.Log, and
@@ -229,12 +225,7 @@ type journalLineReaderSeqResponse struct {
 func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json-seq")
 
-	var flusher http.Flusher
-	if f, ok := w.(http.Flusher); ok {
-		flusher = f
-	} else {
-		flusher = nopFlusher{}
-	}
+	flusher, hasFlusher := w.(http.Flusher)
 
 	var err error
 	dec := json.NewDecoder(rr)
@@ -263,7 +254,9 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 			if e := writer.Flush(); e != nil {
 				break
 			}
-			flusher.Flush()
+			if hasFlusher {
+				flusher.Flush()
+			}
 		}
 	}
 	if err != nil && err != io.EOF {
