@@ -1321,14 +1321,15 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
-	}
-	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
-		if err == nil {
-			return nil
+
+		if len(downloadInfo.Deltas) == 1 {
+			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+			if err == nil {
+				return nil
+			}
+			// We revert to normal downloads if there is any error.
+			logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 		}
-		// We revert to normal downloads if there is any error.
-		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
 	partialPath := targetPath + ".partial"
