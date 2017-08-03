@@ -1,4 +1,6 @@
-summary: Check install snaps
+summary: Check install popular snaps
+
+manual: true
 
 environment:
     # High Profile
