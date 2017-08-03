@@ -21,6 +21,13 @@ package builtin
 
 const openglSummary = `allows access to OpenGL stack`
 
+const openglBaseDeclarationSlots = `
+  opengl:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
 
@@ -41,6 +48,8 @@ const openglConnectedPlugAppArmor = `
   # eglfs
   /dev/vchiq rw,
   /sys/devices/pci[0-9]*/**/config r,
+  /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
+  /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
@@ -62,6 +71,7 @@ func init() {
 		summary:               openglSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

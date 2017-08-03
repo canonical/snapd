@@ -71,8 +71,7 @@ func (s *UDisks2InterfaceSuite) TestName(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 // The label glob when all apps are bound to the udisks2 slot

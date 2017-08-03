@@ -32,3 +32,7 @@ var _ = Suite(&NamingSuite{})
 func (s *NamingSuite) TestSecurityTagGlob(c *C) {
 	c.Check(SecurityTagGlob("http"), Equals, "snap.http.*")
 }
+
+func (s *NamingSuite) TestInterfaceServiceName(c *C) {
+	c.Check(InterfaceServiceName("http", "helper"), Equals, "snap.http.interface.helper.service")
+}

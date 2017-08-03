@@ -30,6 +30,15 @@ import (
 
 const fwupdSummary = `allows operating as the fwupd service`
 
+const fwupdBaseDeclarationSlots = `
+  fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
@@ -100,6 +109,24 @@ const fwupdConnectedPlugAppArmor = `
 
   # DBus accesses
   #include <abstractions/dbus-strict>
+
+  # systemd-resolved (not yet included in nameservice abstraction)
+  #
+  # Allow access to the safe members of the systemd-resolved D-Bus API:
+  #
+  #   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+  #
+  # This API may be used directly over the D-Bus system bus or it may be used
+  # indirectly via the nss-resolve plugin:
+  #
+  #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+  #
+  dbus send
+       bus=system
+       path="/org/freedesktop/resolve1"
+       interface="org.freedesktop.resolve1.Manager"
+       member="Resolve{Address,Hostname,Record,Service}"
+       peer=(name="org.freedesktop.resolve1"),
 
   # Allow access to fwupd service
   dbus (receive, send)
@@ -191,9 +218,10 @@ func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *fwupdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: fwupdSummary,
+func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              fwupdSummary,
+		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
 }
 
@@ -231,16 +259,6 @@ func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, p
 
 func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotSecComp)
-	return nil
-}
-
-// SanitizePlug checks the plug definition is valid
-func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-// SanitizeSlot checks the slot definition is valid
-func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

@@ -31,6 +31,15 @@ import (
 
 const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
 
+const udisks2BaseDeclarationSlots = `
+  udisks2:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. This gives privileged access to
 # the system.
@@ -349,9 +358,10 @@ func (iface *udisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *udisks2Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: udisks2Summary,
+func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              udisks2Summary,
+		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
 }
 
@@ -393,14 +403,6 @@ func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 
 func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

@@ -30,6 +30,15 @@ import (
 
 const bluezSummary = `allows operating as the bluez service`
 
+const bluezBaseDeclarationSlots = `
+  bluez:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const bluezPermanentSlotAppArmor = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
@@ -189,9 +198,10 @@ func (iface *bluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *bluezInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: bluezSummary,
+func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              bluezSummary,
+		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
 }
 
@@ -223,14 +233,6 @@ func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

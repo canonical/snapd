@@ -29,6 +29,14 @@ import (
 
 const timeControlSummary = `allows setting system date and time`
 
+const timeControlBaseDeclarationSlots = `
+  time-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
@@ -100,11 +108,12 @@ func (iface *timeControlInterface) Name() string {
 	return "time-control"
 }
 
-func (iface *timeControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:           timeControlSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+func (iface *timeControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              timeControlSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: timeControlBaseDeclarationSlots,
 	}
 }
 
@@ -114,26 +123,7 @@ func (iface *timeControlInterface) String() string {
 
 // Check validity of the defined slot
 func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -29,6 +28,15 @@ import (
 )
 
 const maliitSummary = `allows operating as the Maliit service`
+
+const maliitBaseDeclarationSlots = `
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
 
 const maliitPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
@@ -121,9 +129,10 @@ func (iface *maliitInterface) Name() string {
 	return "maliit"
 }
 
-func (iface *maliitInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: maliitSummary,
+func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              maliitSummary,
+		BaseDeclarationSlots: maliitBaseDeclarationSlots,
 	}
 }
 
@@ -150,20 +159,6 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(maliitConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *maliitInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	return nil
 }
 

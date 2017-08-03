@@ -20,7 +20,9 @@
 package systemd_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,7 +30,6 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -55,10 +56,12 @@ type SystemdTestSuite struct {
 	errors []error
 	outs   [][]byte
 
-	j     int
-	jsvcs [][]string
-	jouts [][]byte
-	jerrs []error
+	j        int
+	jns      []string
+	jsvcs    [][]string
+	jouts    [][]byte
+	jerrs    []error
+	jfollows []bool
 
 	rep *testreporter
 }
@@ -81,9 +84,11 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 
 	JournalctlCmd = s.myJctl
 	s.j = 0
+	s.jns = nil
 	s.jsvcs = nil
 	s.jouts = nil
 	s.jerrs = nil
+	s.jfollows = nil
 
 	s.rep = new(testreporter)
 }
@@ -105,8 +110,13 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+	var err error
+	var out []byte
+
+	s.jns = append(s.jns, n)
 	s.jsvcs = append(s.jsvcs, svcs)
+	s.jfollows = append(s.jfollows, follow)
 
 	if s.j < len(s.jouts) {
 		out = s.jouts[s.j]
@@ -116,7 +126,11 @@ func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
 	}
 	s.j++
 
-	return out, err
+	if out == nil {
+		return nil, err
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(out)), err
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -152,28 +166,144 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=bar.service
+ActiveState=reloading
+UnitFileState=static
+
+Type=potato
+Id=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo")
+	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service")
 	c.Assert(err, IsNil)
-	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
+	c.Check(out, DeepEquals, []*ServiceStatus{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "simple",
+			ServiceFileName: "bar.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "potato",
+			ServiceFileName: "baz.service",
+			Active:          false,
+			Enabled:         false,
+		},
+	})
+	c.Check(s.rep.msgs, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
 }
 
-func (s *SystemdTestSuite) TestStatusObj(c *C) {
+func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).ServiceStatus("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, &ServiceStatus{
-		ServiceFileName: "foo",
-		LoadState:       "LoadState",
-		ActiveState:     "ActiveState",
-		SubState:        "SubState",
-		UnitFileState:   "UnitFileState",
-	})
+	out, err := New("", s.rep).Status("foo.service")
+	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes=false
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
+	c.Check(out, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
@@ -227,53 +357,68 @@ func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{&Timeout{}}
 
-	logs, err := New("", s.rep).Logs([]string{"foo"})
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
 	c.Check(err, NotNil)
-	c.Check(logs, IsNil)
+	c.Check(reader, IsNil)
+	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
-	c.Check(s.j, Equals, 1)
-}
-
-func (s *SystemdTestSuite) TestLogErrJSON(c *C) {
-	s.jouts = [][]byte{[]byte("this is not valid json.")}
-
-	logs, err := New("", s.rep).Logs([]string{"foo"})
-	c.Check(err, NotNil)
-	c.Check(logs, IsNil)
-	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
 func (s *SystemdTestSuite) TestLogs(c *C) {
-	s.jouts = [][]byte{[]byte(`{"a": 1}
+	expected := `{"a": 1}
 {"a": 2}
-`)}
+`
+	s.jouts = [][]byte{[]byte(expected)}
 
-	logs, err := New("", s.rep).Logs([]string{"foo"})
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
 	c.Check(err, IsNil)
-	c.Check(logs, DeepEquals, []Log{{"a": 1.}, {"a": 2.}})
+	logs, err := ioutil.ReadAll(reader)
+	c.Assert(err, IsNil)
+	c.Check(string(logs), Equals, expected)
+	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
+func (s *SystemdTestSuite) TestLogPID(c *C) {
+	c.Check(Log{}.PID(), Equals, "-")
+	c.Check(Log{"_PID": "99"}.PID(), Equals, "99")
+	c.Check(Log{"SYSLOG_PID": "99"}.PID(), Equals, "99")
+	// things starting with underscore are "trusted", so we trust
+	// them more than the user-settable ones:
+	c.Check(Log{"_PID": "42", "SYSLOG_PID": "99"}.PID(), Equals, "42")
+}
+
+func (s *SystemdTestSuite) TestTimestamp(c *C) {
+	c.Check(Log{}.Timestamp(), Equals, "-(no timestamp!)-")
+	c.Check(Log{"__REALTIME_TIMESTAMP": "what"}.Timestamp(), Equals, `-(timestamp not a decimal number: "what")-`)
+	c.Check(Log{"__REALTIME_TIMESTAMP": "0"}.Timestamp(), Equals, "1970-01-01T00:00:00.000000Z")
+	c.Check(Log{"__REALTIME_TIMESTAMP": "42"}.Timestamp(), Equals, "1970-01-01T00:00:00.000042Z")
+}
+
 func (s *SystemdTestSuite) TestLogString(c *C) {
-	c.Check(Log{}.String(), Equals, "-(no timestamp!)- - -")
+	c.Check(Log{}.String(), Equals, "-(no timestamp!)- -[-]: -")
 	c.Check(Log{
-		"__REALTIME_TIMESTAMP": 42,
-	}.String(), Equals, "-(timestamp not a string: 42)- - -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "what",
-	}.String(), Equals, "-(timestamp not a decimal number: \"what\")- - -")
+		"__REALTIME_TIMESTAMP": "0",
+	}.String(), Equals, "1970-01-01T00:00:00.000000Z -[-]: -")
 	c.Check(Log{
 		"__REALTIME_TIMESTAMP": "0",
 		"MESSAGE":              "hi",
-	}.String(), Equals, "1970-01-01T00:00:00.000000Z - hi")
+	}.String(), Equals, "1970-01-01T00:00:00.000000Z -[-]: hi")
 	c.Check(Log{
 		"__REALTIME_TIMESTAMP": "42",
 		"MESSAGE":              "hi",
 		"SYSLOG_IDENTIFIER":    "me",
-	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
-
+	}.String(), Equals, "1970-01-01T00:00:00.000042Z me[-]: hi")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "42",
+		"MESSAGE":              "hi",
+		"SYSLOG_IDENTIFIER":    "me",
+		"_PID":                 "99",
+	}.String(), Equals, "1970-01-01T00:00:00.000042Z me[99]: hi")
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
@@ -328,22 +473,6 @@ Options=nodev,ro,bind
 [Install]
 WantedBy=multi-user.target
 `, snapDir))
-}
-
-func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range RestartMap {
-		bs := []byte(cond)
-		var rc RestartCondition
-
-		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, RestartMap[cond], Commentf(cond))
-	}
-}
-
-func (s *SystemdTestSuite) TestRestartCondString(c *C) {
-	for name, cond := range RestartMap {
-		c.Check(cond.String(), Equals, name, Commentf(name))
-	}
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -424,4 +553,21 @@ Options=nodev,ro
 [Install]
 WantedBy=multi-user.target
 `, mockSnapPath))
+}
+
+func (s *SystemdTestSuite) TestJctl(c *C) {
+	var args []string
+	var err error
+	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
+		c.Check(cap(myargs) <= len(myargs)+1, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		args = myargs
+		return nil, nil
+	})
+
+	_, err = Jctl([]string{"foo", "bar"}, "10", false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "10", "--no-pager", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar", "baz"}, "99", true)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "99", "--no-pager", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
 }

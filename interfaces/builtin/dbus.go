@@ -33,6 +33,17 @@ import (
 
 const dbusSummary = `allows owning a specifc name on DBus`
 
+const dbusBaseDeclarationSlots = `
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const dbusPermanentSlotAppArmor = `
 # Description: Allow owning a name on DBus public bus
 
@@ -193,9 +204,10 @@ func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
 
-func (iface *dbusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: dbusSummary,
+func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              dbusSummary,
+		BaseDeclarationSlots: dbusBaseDeclarationSlots,
 	}
 }
 
@@ -392,19 +404,11 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-
 	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }
 
 func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
 }
@@ -412,14 +416,6 @@ func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *dbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *dbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

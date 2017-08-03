@@ -32,6 +32,17 @@ import (
 
 const ofonoSummary = `allows operating as the ofono service`
 
+const ofonoBaseDeclarationSlots = `
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const ofonoPermanentSlotAppArmor = `
 # Description: Allow operating as the ofono service. This gives privileged
 # access to the system.
@@ -80,6 +91,24 @@ include <abstractions/nameservice>
 
 # DBus accesses
 include <abstractions/dbus-strict>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
     bus=system
@@ -265,10 +294,11 @@ func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *ofonoInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:           ofonoSummary,
-		ImplicitOnClassic: true,
+func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              ofonoSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
 	}
 }
 
@@ -308,14 +338,6 @@ func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 
 func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

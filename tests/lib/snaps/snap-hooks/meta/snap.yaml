@@ -1,0 +1,8 @@
+name: snap-hooks
+version: 1.0
+hooks:
+  remove:
+    plugs: [home]
+apps:
+    app:
+        command: true

@@ -31,6 +31,17 @@ import (
 
 const mprisSummary = `allows operating as an MPRIS player`
 
+const mprisBaseDeclarationSlots = `
+  mpris:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
 const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
 
@@ -146,9 +157,10 @@ func (iface *mprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *mprisInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: mprisSummary,
+func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              mprisSummary,
+		BaseDeclarationSlots: mprisBaseDeclarationSlots,
 	}
 }
 
@@ -208,15 +220,7 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *mprisInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
 func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
 	_, err := iface.getName(slot.Attrs)
 	return err
 }
@@ -224,14 +228,6 @@ func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *mprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *mprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
