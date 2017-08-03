@@ -1361,7 +1361,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	} else if downloadInfo.Sha3_384 != "" {
+	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
 		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
