@@ -12,7 +12,7 @@ debian_name_package() {
             echo "man-db"
             ;;
         *)
-            echo $1
+            echo "$1"
             ;;
     esac
 }
@@ -31,7 +31,7 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     case "$1" in
         xdelta3|jq|curl|python3-yaml)
-            echo $1
+            echo "$1"
             ;;
         openvswitch-switch)
             echo "openvswitch"
@@ -40,7 +40,7 @@ fedora_name_package() {
             echo "cups-pdf"
             ;;
         *)
-            echo $1
+            echo "$1"
             ;;
     esac
 }
@@ -57,7 +57,7 @@ opensuse_name_package() {
             echo "cups-pdf"
             ;;
         *)
-            echo $1
+            echo "$1"
             ;;
     esac
 }
@@ -144,6 +144,16 @@ distro_install_package() {
         esac
     done
 
+    # ensure systemd is up-to-date, if there is a mismatch libudev-dev
+    # will fail to install because the poor apt resolver does not get it
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+        if [[ "$@" =~ "libudev-dev" ]]; then
+            apt-get install -y --only-upgrade systemd
+        fi
+        ;;
+    esac
+
     for pkg in "$@" ; do
         package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
@@ -157,10 +167,10 @@ distro_install_package() {
                 quiet apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install $DNF_FLAGS $package_name
+                dnf -q -y install $DNF_FLAGS "$package_name"
                 ;;
             opensuse-*)
-                zypper -q install -y $ZYPPER_FLAGS $package_name
+                zypper -q install -y $ZYPPER_FLAGS "$package_name"
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -184,10 +194,10 @@ distro_purge_package() {
                 quiet apt-get remove -y --purge -y "$package_name"
                 ;;
             fedora-*)
-                dnf -y -q remove $package_name
+                dnf -y -q remove "$package_name"
                 ;;
             opensuse-*)
-                zypper -q remove -y $package_name
+                zypper -q remove -y "$package_name"
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -203,10 +213,10 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -y -q upgrade
+            dnf -q makecache
             ;;
         opensuse-*)
-            zypper -q update -y
+            zypper -q refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -279,13 +289,13 @@ distro_install_build_snapd(){
         packages=
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                packages="${GOHOME}/snapd_*.deb"
+                packages="${GOHOME}"/snapd_*.deb
                 ;;
             fedora-*)
-                packages="${GOHOME}/snap-confine*.rpm ${GOPATH}/snapd*.rpm"
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
             opensuse-*)
-                packages="${GOHOME}/snapd*.rpm"
+                packages="${GOHOME}"/snapd*.rpm
                 ;;
             *)
                 exit 1
@@ -305,19 +315,136 @@ distro_install_build_snapd(){
     fi
 }
 
-# Specify necessary packages which need to be installed on a
-# system to provide a basic build environment for snapd.
-export DISTRO_BUILD_DEPS=()
-case "$SPREAD_SYSTEM" in
-    debian-*|ubuntu-*)
-        DISTRO_BUILD_DEPS=(build-essential curl devscripts expect gdebi-core jq rng-tools git netcat-openbsd)
-        ;;
-    fedora-*)
-        DISTRO_BUILD_DEPS=(mock git expect curl golang rpm-build redhat-lsb-core)
-        ;;
-    opensuse-*)
-        DISTRO_BUILD_DEPS=(osc git expect curl golang-packaging lsb-release netcat-openbsd jq rng-tools)
-        ;;
-    *)
-        ;;
-esac
+
+pkg_dependencies_ubuntu_generic(){
+    echo "
+        autoconf
+        automake
+        autotools-dev
+        build-essential
+        curl
+        devscripts
+        expect
+        gdebi-core
+        git
+        indent
+        jq
+        libapparmor-dev
+        libglib2.0-dev
+        libseccomp-dev
+        libudev-dev
+        netcat-openbsd
+        pkg-config
+        python3-docutils
+        rng-tools
+        udev
+        "
+}
+
+pkg_dependencies_ubuntu_classic(){
+    echo "
+        cups
+        dbus-x11
+        jq
+        man
+        printer-driver-cups-pdf
+        python3-yaml
+        upower
+        "
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
+            ;;
+        ubuntu-16.04-32)
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
+            ;;
+        ubuntu-16.04-64)
+            echo "
+                gccgo-6
+                kpartx
+                libvirt-bin
+                linux-image-extra-$(uname -r)
+                pollinate
+                qemu
+                x11-utils
+                xvfb
+                "
+            ;;
+        ubuntu-*)
+            echo "
+                linux-image-extra-$(uname -r)
+                pollinate
+                "
+            ;;
+        debian-*)
+            ;;
+    esac
+}
+
+pkg_dependencies_ubuntu_core(){
+    echo "
+        linux-image-extra-$(uname -r)
+        pollinate
+        "
+}
+
+pkg_dependencies_fedora(){
+    echo "
+        curl
+        dbus-x11
+        expect
+        git
+        golang
+        jq
+        mock
+        redhat-lsb-core
+        rpm-build
+        "
+}
+
+pkg_dependencies_opensuse(){
+    echo "
+        curl
+        expect
+        git
+        golang-packaging
+        jq
+        lsb-release
+        netcat-openbsd
+        osc
+        rng-tools
+        "
+}
+
+pkg_dependencies(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            pkg_dependencies_ubuntu_generic
+            pkg_dependencies_ubuntu_core
+            ;;
+        ubuntu-*|debian-*)
+            pkg_dependencies_ubuntu_generic
+            pkg_dependencies_ubuntu_classic
+            ;;
+        fedora-*)
+            pkg_dependencies_fedora
+            ;;
+        opensuse-*)
+            pkg_dependencies_opensuse
+            ;;
+        *)
+            ;;
+    esac  
+}
+
+install_pkg_dependencies(){
+    pkgs=$(pkg_dependencies)
+    distro_install_package $pkgs
+}

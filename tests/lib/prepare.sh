@@ -32,7 +32,7 @@ update_core_snap_for_classic_reexec() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f "$SNAPMOUNTDIR/core/current" || readlink -f "$SNAPMOUNTDIR/ubuntu-core/current")"
+    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
@@ -62,7 +62,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    $LIBEXECDIR/snapd/snap-discard-ns core
+    "$LIBEXECDIR/snapd/snap-discard-ns" core
     mount "$snap" "$core"
 
     check_file() {
@@ -107,7 +107,7 @@ prepare_classic() {
     fi
     if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        $LIBEXECDIR/snapd/snap-confine --version
+        "$LIBEXECDIR/snapd/snap-confine" --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
@@ -178,7 +178,7 @@ EOF
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
         output=$($GRUB_EDITENV list)
-        if echo $output | MATCH snap_ ; then
+        if echo "$output" | MATCH snap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
             exit 1
@@ -186,22 +186,21 @@ EOF
 
         systemctl stop snapd.{service,socket}
         systemctl daemon-reload
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
-        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
-        for unit in $services $mounts; do
+        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
+        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
+        for unit in $units; do
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
+        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
             umount "$core" || true
         fi
-        for unit in $mounts $services; do
+        for unit in $units; do
             systemctl start "$unit"
         done
         systemctl start snapd.socket
@@ -209,24 +208,26 @@ EOF
 
     if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            quiet apt install -y -q pollinate
             pollinate
         fi
 
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
-        apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 
-        mkdir -p /etc/systemd/system/rng-tools.service.d/
-        cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
+        if systemctl list-units | MATCH "rng-tools.service"; then
+            mkdir -p /etc/systemd/system/rng-tools.service.d/
+            cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
 [Service]
 Restart=always
 RestartSec=2
 RemainAfterExit=no
+PIDFile=/var/run/rngd.pid
 EOF
         systemctl daemon-reload
+        systemctl restart rng-tools.service
+        fi
     fi
 
     disable_kernel_rate_limiting
@@ -459,7 +460,7 @@ prepare_all_snap() {
         fi
 
         systemctl stop snapd.service snapd.socket
-        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT
+        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
         systemctl start snapd.socket
     fi
 

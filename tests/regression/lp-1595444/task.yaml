@@ -9,7 +9,7 @@ systems:
     - -debian-*
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     echo "Hanving created a directory not present in the core snap"
     mkdir -p "/foo"

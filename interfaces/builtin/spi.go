@@ -41,85 +41,59 @@ const spiBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-// The type for spi interface
 type spiInterface struct{}
 
-// Getter for the name of the spi interface
 func (iface *spiInterface) Name() string {
 	return "spi"
 }
 
-func (iface *spiInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              spiSummary,
 		BaseDeclarationSlots: spiBaseDeclarationSlots,
 	}
 }
 
-// Pattern to match allowed spi device nodes. It is gonna be used to check the
-// validity of the path attributes in case the udev is not used for
-// identification
-var spiControlDeviceNodePattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
+var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-// Check validity of the defined slot
-func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
-	}
-
-	// Validate the path
+func (iface *spiInterface) path(slot *interfaces.Slot) (string, error) {
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
+		return "", fmt.Errorf("slot %q must have a path attribute", slot.Ref())
 	}
-
 	path = filepath.Clean(path)
-
-	if !spiControlDeviceNodePattern.MatchString(path) {
-		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
+	if !spiDevPattern.MatchString(path) {
+		return "", fmt.Errorf("%q is not a valid SPI device", path)
 	}
-
-	return nil
+	return path, nil
 }
 
-// Checks and possibly modifies a plug
-func (iface *spiInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
-	// Currently nothing is checked on the plug side
-	return nil
+	_, err := iface.path(slot)
+	return err
 }
 
 func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
-		return nil
+	path, err := iface.path(slot)
+	if err != nil {
+		panic("slot is not sanitized")
 	}
-
-	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
 	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/soc/**.spi/spi_master/spi0/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
 func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
-		return nil
+	path, err := iface.path(slot)
+	if err != nil {
+		panic("slot is not sanitized")
 	}
-	const pathPrefix = "/dev/"
-	const udevRule string = `KERNEL=="%s", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+		spec.AddSnippet(fmt.Sprintf(`KERNEL=="%s", TAG+="%s"`, strings.TrimPrefix(path, "/dev/"), tag))
 	}
 	return nil
 }

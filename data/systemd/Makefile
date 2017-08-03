@@ -34,6 +34,7 @@ all: ${SYSTEMD_UNITS}
 
 install: $(SYSTEMD_UNITS)
 	install -D -m 0644 -t ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR} $^
+	install -D -m 0755 -t ${DESTDIR}/${LIBEXECDIR}/snapd snapd.core-fixup.sh
 
 clean:
 	rm -f ${SYSTEMD_UNITS_GENERATED}
