@@ -19,14 +19,15 @@ prepare: |
     snap install --dangerous not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -rf not-test-snapd-tools_1.0_all.snap \
-          $SNAP_INSTALL_DIR /tmp/foo *stat.error
+    rm -rf not-test-snapd-tools_1.0_all.snap "$SNAP_INSTALL_DIR" /tmp/foo *stat.error
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "When a temporary file is created by one snap"
     expect -d -f tmp-create.exp
 
-    if [ -e /usr/lib/snapd/snap-discard-ns ]; then
+    if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
         if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
             echo "Expected the file to be present"

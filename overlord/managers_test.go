@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -71,6 +72,7 @@ type mgrsSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
+	restore        func()
 
 	devAcct *asserts.Account
 
@@ -106,6 +108,16 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(ms.tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+
+	ms.restore = func() {
+		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SetupInstallHook = oldSetupInstallHook
+	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	snapstate.CanAutoRefresh = nil
@@ -153,6 +165,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	ms.restoreTrusted()
+	ms.restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()

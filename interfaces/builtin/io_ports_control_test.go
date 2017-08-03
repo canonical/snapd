@@ -32,17 +32,17 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type IioPortsControlInterfaceSuite struct {
+type ioPortsControlInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&IioPortsControlInterfaceSuite{
+var _ = Suite(&ioPortsControlInterfaceSuite{
 	iface: builtin.MustInterface("io-ports-control"),
 })
 
-func (s *IioPortsControlInterfaceSuite) SetUpTest(c *C) {
+func (s *ioPortsControlInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
@@ -64,34 +64,26 @@ apps:
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["io-ports-control"]}
 }
 
-func (s *IioPortsControlInterfaceSuite) TestName(c *C) {
+func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "io-ports-control")
 }
 
-func (s *IioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "io-ports-control",
 		Interface: "io-ports-control",
-	}})
-	c.Assert(err, ErrorMatches, "io-ports-control slots only allowed on core snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"io-ports-control slots are reserved for the core snap")
 }
 
-func (s *IioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *IioPortsControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "io-ports-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "io-ports-control"`)
-}
-
-func (s *IioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *ioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
@@ -116,7 +108,7 @@ capability sys_rawio, # required by iopl
 	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
-func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
+func (s *ioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 	expectedSnippet2 := `
 # Description: Allow changes to the I/O port permissions and
 # privilege level of the calling process.  In addition to granting
@@ -134,6 +126,6 @@ iopl
 	c.Check(seccompSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports"), Equals, expectedSnippet2)
 }
 
-func (s *IioPortsControlInterfaceSuite) TestInterfaces(c *C) {
+func (s *ioPortsControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

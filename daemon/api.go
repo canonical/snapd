@@ -86,6 +86,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	appsCmd,
 	debugCmd,
 }
 
@@ -139,6 +140,12 @@ var (
 		POST:   postSnap,
 	}
 
+	appsCmd = &Command{
+		Path:   "/v2/apps",
+		UserOK: true,
+		GET:    getAppsInfo,
+	}
+
 	snapConfCmd = &Command{
 		Path: "/v2/snaps/{name}/conf",
 		GET:  getSnapConf,
@@ -148,14 +155,16 @@ var (
 	interfacesCmd = &Command{
 		Path:   "/v2/interfaces",
 		UserOK: true,
-		GET:    getInterfaces,
+		GET:    interfacesConnectionsMultiplexer,
 		POST:   changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/v2/assertions",
-		POST: doAssert,
+		Path:   "/v2/assertions",
+		UserOK: true,
+		GET:    getAssertTypeNames,
+		POST:   doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
@@ -266,6 +275,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			Last:     formatRefreshTime(lastRefresh),
 			Next:     formatRefreshTime(nextRefresh),
 		},
+	}
+	// NOTE: Right now we don't have a good way to differentiate if we
+	// only have partial confinement (ala AppArmor disabled and Seccomp
+	// enabled) or no confinement at all. Once we have a better system
+	// in place how we can dynamically retrieve these information from
+	// snapd we will use this here.
+	if release.ReleaseInfo.ForceDevMode() {
+		m["confinement"] = "partial"
+	} else {
+		m["confinement"] = "strict"
 	}
 
 	return SyncResponse(m, nil)
@@ -1579,8 +1598,41 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-// getInterfaces returns all plugs and slots.
+// interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
+func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		return getLegacyConnections(c, r, user)
+	} else {
+		return getInterfaces(c, r, user)
+	}
+}
+
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	q := r.URL.Query()
+	pselect := q.Get("select")
+	if pselect != "all" && pselect != "connected" {
+		return BadRequest("unsupported select qualifier")
+	}
+	var names []string
+	namesStr := q.Get("names")
+	if namesStr != "" {
+		names = strings.Split(namesStr, ",")
+	}
+
+	opts := &interfaces.InfoOptions{
+		Names:     names,
+		Doc:       q.Get("doc") == "true",
+		Plugs:     q.Get("plugs") == "true",
+		Slots:     q.Get("slots") == "true",
+		Connected: pselect == "connected",
+	}
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Info(opts), nil)
+}
+
+func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
 }
@@ -1703,6 +1755,12 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
+	return SyncResponse(map[string][]string{
+		"types": asserts.TypeNames(),
+	}, nil)
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2045,23 +2103,16 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 	su := a.(*asserts.SystemUser)
 
 	// cross check that the assertion is valid for the given series/model
-	contains := func(needle string, haystack []string) bool {
-		for _, s := range haystack {
-			if needle == s {
-				return true
-			}
-		}
-		return false
-	}
+
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
-	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
 	}
-	if len(su.Series()) > 0 && !contains(series, su.Series()) {
+	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
-	if len(su.Models()) > 0 && !contains(model, su.Models()) {
+	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
 	if !su.ValidAt(time.Now()) {
@@ -2509,4 +2560,25 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+
+	opts := appInfoOptions{}
+	switch sel := query.Get("select"); sel {
+	case "":
+		// nothing to do
+	case "service":
+		opts.service = true
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
 }

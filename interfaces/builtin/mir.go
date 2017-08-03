@@ -85,6 +85,10 @@ const mirConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 type mirInterface struct{}
@@ -93,8 +97,8 @@ func (iface *mirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *mirInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mirSummary,
 		BaseDeclarationSlots: mirBaseDeclarationSlots,
 	}
@@ -123,14 +127,6 @@ func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, s
 
 func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

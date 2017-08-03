@@ -57,8 +57,8 @@ func (iface *physicalMemoryObserveInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *physicalMemoryObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              physicalMemoryObserveSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -68,26 +68,7 @@ func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
 
 // Check validity of the defined slot
 func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *physicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *physicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
