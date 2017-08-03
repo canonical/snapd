@@ -7,7 +7,7 @@ details: |
 systems: [-ubuntu-core-16-*]
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
     install_local_devmode test-snapd-tools
     echo "Having prepared a canary file in /usr/src/.canary"

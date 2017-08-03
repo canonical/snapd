@@ -82,13 +82,11 @@ func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *DockerInterfaceSuite) TestInterfaces(c *C) {

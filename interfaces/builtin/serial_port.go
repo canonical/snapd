@@ -32,6 +32,15 @@ import (
 
 const serialPortSummary = `allows accessing a specific serial port`
 
+const serialPortBaseDeclarationSlots = `
+  serial-port:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // serialPortInterface is the type for serial port interfaces.
 type serialPortInterface struct{}
 
@@ -40,9 +49,10 @@ func (iface *serialPortInterface) Name() string {
 	return "serial-port"
 }
 
-func (iface *serialPortInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: serialPortSummary,
+func (iface *serialPortInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              serialPortSummary,
+		BaseDeclarationSlots: serialPortBaseDeclarationSlots,
 	}
 }
 
@@ -67,14 +77,8 @@ var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$"
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Check slot is of right type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("serial-port slots only allowed on gadget or core snaps")
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Check slot has a path attribute identify serial device
@@ -115,15 +119,6 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("serial-port path attribute must be a valid device node")
 		}
 	}
-	return nil
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *serialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
 
@@ -192,10 +187,6 @@ func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 		return true
 	}
 	return false
-}
-
-func (iface *serialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

@@ -32,6 +32,15 @@ import (
 
 const iioSummary = `allows access to a specific IIO device`
 
+const iioBaseDeclarationSlots = `
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 const iioConnectedPlugAppArmor = `
 # Description: Give access to a specific IIO device on the system.
 
@@ -48,9 +57,10 @@ func (iface *iioInterface) Name() string {
 	return "iio"
 }
 
-func (iface *iioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: iioSummary,
+func (iface *iioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              iioSummary,
+		BaseDeclarationSlots: iioBaseDeclarationSlots,
 	}
 }
 
@@ -65,15 +75,8 @@ var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Validate the path
@@ -88,15 +91,6 @@ func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
 	}
 
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *iioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
 	return nil
 }
 
@@ -137,10 +131,6 @@ func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *iioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-func (iface *iioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

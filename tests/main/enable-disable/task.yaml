@@ -10,7 +10,7 @@ execute: |
     snap disable test-snapd-tools|MATCH disabled
 
     echo "Ensure the test-snapd-tools command is no longer there"
-    if ls $SNAPMOUNTDIR/bin/test-snapd-tools*; then
+    if ls $SNAP_MOUNT_DIR/bin/test-snapd-tools*; then
         echo "test-snapd-tools binaries are not disabled"
         exit 1
     fi

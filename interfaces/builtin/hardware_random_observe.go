@@ -25,10 +25,17 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
 )
 
 const hardwareRandomObserveSummary = `allows reading from hardware random number generator`
+
+const hardwareRandomObserveBaseDeclarationSlots = `
+  hardware-random-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const hardwareRandomObserveConnectedPlugAppArmor = `
 # Description: allow direct read-only access to the hardware random number
@@ -49,32 +56,18 @@ func (iface *hardwareRandomObserveInterface) Name() string {
 	return "hardware-random-observe"
 }
 
-func (iface *hardwareRandomObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:           hardwareRandomObserveSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+func (iface *hardwareRandomObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              hardwareRandomObserveSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: hardwareRandomObserveBaseDeclarationSlots,
 	}
 }
 
 // Check validity of the defined slot
 func (iface *hardwareRandomObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *hardwareRandomObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *hardwareRandomObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {

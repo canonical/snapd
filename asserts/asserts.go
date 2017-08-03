@@ -103,6 +103,18 @@ func Type(name string) *AssertionType {
 	return typeRegistry[name]
 }
 
+// TypeNames returns a sorted list of known assertion type names.
+func TypeNames() []string {
+	names := make([]string, 0, len(typeRegistry))
+	for k := range typeRegistry {
+		names = append(names, k)
+	}
+
+	sort.Strings(names)
+
+	return names
+}
+
 var maxSupportedFormat = map[string]int{}
 
 func init() {
@@ -429,8 +441,10 @@ type Decoder struct {
 	b              *bufio.Reader
 	err            error
 	maxHeadersSize int
-	maxBodySize    int
 	maxSigSize     int
+
+	defaultMaxBodySize int
+	typeMaxBodySize    map[*AssertionType]int
 }
 
 // initBuffer finishes a Decoder initialization by setting up the bufio.Reader,
@@ -440,16 +454,28 @@ func (d *Decoder) initBuffer() *Decoder {
 	return d
 }
 
-const defaultDecoderButSize = 4096
+const defaultDecoderBufSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
 	return (&Decoder{
-		rd:             r,
-		initialBufSize: defaultDecoderButSize,
-		maxHeadersSize: MaxHeadersSize,
-		maxBodySize:    MaxBodySize,
-		maxSigSize:     MaxSignatureSize,
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+	}).initBuffer()
+}
+
+// NewDecoderWithTypeMaxBodySize returns a Decoder to parse the stream of assertions from the reader enforcing optional per type max body sizes or the default one as fallback.
+func NewDecoderWithTypeMaxBodySize(r io.Reader, typeMaxBodySize map[*AssertionType]int) *Decoder {
+	return (&Decoder{
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+		typeMaxBodySize:    typeMaxBodySize,
 	}).initBuffer()
 }
 
@@ -528,11 +554,16 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
+	typeStr, _ := headers["type"].(string)
+	typ := Type(typeStr)
+
 	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
-	if length > d.maxBodySize {
+	if typMaxBodySize := d.typeMaxBodySize[typ]; typMaxBodySize != 0 && length > typMaxBodySize {
+		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size %d for %q assertions", length, typMaxBodySize, typ.Name)
+	} else if length > d.defaultMaxBodySize {
 		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
 	}
 

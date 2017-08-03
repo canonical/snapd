@@ -27,7 +27,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -37,11 +36,13 @@ type snapYaml struct {
 	Type             Type                   `yaml:"type"`
 	Architectures    []string               `yaml:"architectures,omitempty"`
 	Assumes          []string               `yaml:"assumes"`
+	Title            string                 `yaml:"title"`
 	Description      string                 `yaml:"description"`
 	Summary          string                 `yaml:"summary"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
+	Base             string                 `yaml:"base,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
@@ -63,9 +64,9 @@ type appYaml struct {
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 
-	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string                 `yaml:"slots,omitempty"`
-	PlugNames   []string                 `yaml:"plugs,omitempty"`
+	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
+	SlotNames   []string         `yaml:"slots,omitempty"`
+	PlugNames   []string         `yaml:"plugs,omitempty"`
 
 	BusName string `yaml:"bus-name,omitempty"`
 
@@ -154,12 +155,14 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Type:                typ,
 		Architectures:       architectures,
 		Assumes:             y.Assumes,
+		OriginalTitle:       y.Title,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
 		Epoch:               epoch,
 		Confinement:         confinement,
+		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),
 		LegacyAliases:       make(map[string]*AppInfo),
 		Hooks:               make(map[string]*HookInfo),

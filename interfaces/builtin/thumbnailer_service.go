@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -28,6 +27,15 @@ import (
 )
 
 const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
+
+const thumbnailerServiceBaseDeclarationSlots = `
+  thumbnailer-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
 
 const thumbnailerServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_query_label API. This
@@ -94,9 +102,10 @@ func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: thumbnailerServiceSummary,
+func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              thumbnailerServiceSummary,
+		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
 	}
 }
 
@@ -124,20 +133,6 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 	new = plugAppLabelExpr(plug)
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

@@ -21,6 +21,20 @@ package builtin
 
 const greengrassSupportSummary = `allows operating as the Greengrass service`
 
+const greengrassSupportBaseDeclarationPlugs = `
+  greengrass-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const greengrassSupportBaseDeclarationSlots = `
+  greengrass-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const greengrassSupportConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # interface is restricted because it gives wide ranging access to the host and
@@ -44,7 +58,7 @@ owner /sys/fs/cgroup/*/{,system.slice/} rw,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus rw,
 owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems rw,
 owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/{,**} rw,
-# for running under snap run --shell
+# for running just after a reboot
 owner /sys/fs/cgroup/*/user.slice/ rw,
 owner /sys/fs/cgroup/cpuset/user.slice/cpuset.cpus rw,
 owner /sys/fs/cgroup/cpuset/user.slice/cpuset.mems rw,
@@ -72,7 +86,7 @@ capability dac_read_search,
 capability sys_admin,
 capability dac_override,  # for various overlayfs accesses
 
-owner @{PROC}/[0-9]*/mountinfo r,
+@{PROC}/[0-9]*/mountinfo r,
 @{PROC}/filesystems r,
 
 # setup the overlay so we may pivot_root into it
@@ -114,11 +128,12 @@ mount options=(rw, bind) /dev/null -> /proc/sched_debug,
 mount options=(rw, bind) /dev/null -> /proc/timer_stats,
 
 # perform the pivot_root into the overlay
-pivot_root oldroot=/var/snap/greengrass/x1/rootfs/.pivot_root*/ /var/snap/greengrass/*/rootfs/,
+pivot_root oldroot=/var/snap/greengrass/@{SNAP_REVISION}/rootfs/.pivot_root*/ /var/snap/greengrass/*/rootfs/,
 mount options=(rw, rprivate) -> /.pivot_root*/,
 umount /.pivot_root*/,
 owner /.pivot_root*/ w,
 mount options=(rw, rprivate) -> /,
+mount options=(ro, remount, rbind) -> /,
 
 # allow tearing down the overlay
 umount /var/snap/@{SNAP_NAME}/**,
@@ -177,6 +192,8 @@ func init() {
 		summary:               greengrassSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  greengrassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:  greengrassSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:         true,

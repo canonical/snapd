@@ -34,6 +34,22 @@ import (
 
 const contentSummary = `allows sharing code and data with other snaps`
 
+const contentBaseDeclarationSlots = `
+  content:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
+`
+
 // contentInterface allows sharing content between snaps
 type contentInterface struct{}
 
@@ -41,9 +57,10 @@ func (iface *contentInterface) Name() string {
 	return "content"
 }
 
-func (iface *contentInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: contentSummary,
+func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              contentSummary,
+		BaseDeclarationSlots: contentBaseDeclarationSlots,
 	}
 }
 
@@ -52,9 +69,6 @@ func cleanSubPath(path string) bool {
 }
 
 func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		// content defaults to "slot" name if unspecified
@@ -81,9 +95,6 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {
@@ -212,14 +223,6 @@ func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plu
 			return err
 		}
 	}
-	return nil
-}
-
-func (iface *contentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *contentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

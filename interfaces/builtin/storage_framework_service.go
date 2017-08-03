@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -29,6 +28,15 @@ import (
 )
 
 const storageFrameworkServiceSummary = `allows operating as or interacting with the Storage Framework`
+
+const storageFrameworkServiceBaseDeclarationSlots = `
+  storage-framework-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
 
 const storageFrameworkServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_is_enabled()
@@ -109,9 +117,10 @@ func (iface *storageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
 }
 
-func (iface *storageFrameworkServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: storageFrameworkServiceSummary,
+func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              storageFrameworkServiceSummary,
+		BaseDeclarationSlots: storageFrameworkServiceBaseDeclarationSlots,
 	}
 }
 
@@ -140,20 +149,6 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *appar
 
 func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotSecComp)
-	return nil
-}
-
-func (iface *storageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *storageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

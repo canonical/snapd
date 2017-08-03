@@ -29,6 +29,16 @@ import (
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
 
+const browserSupportBaseDeclarationSlots = `
+  browser-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-connection:
+      plug-attributes:
+        allow-sandbox: true
+`
+
 const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
@@ -244,23 +254,16 @@ func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:           browserSupportSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              browserSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: browserSupportBaseDeclarationSlots,
 	}
-}
-
-func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
 }
 
 func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
@@ -295,14 +298,6 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 
 func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
-}
-
-func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

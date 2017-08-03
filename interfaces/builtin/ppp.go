@@ -27,6 +27,14 @@ import (
 
 const pppSummary = `allows operating as the ppp service`
 
+const pppBaseDeclarationSlots = `
+  ppp:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const pppConnectedPlugAppArmor = `
 # Description: Allow operating ppp daemon. This gives privileged access to the
 # ppp daemon.
@@ -57,11 +65,12 @@ func (iface *pppInterface) Name() string {
 	return "ppp"
 }
 
-func (iface *pppInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:           pppSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+func (iface *pppInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              pppSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: pppBaseDeclarationSlots,
 	}
 }
 
@@ -72,14 +81,6 @@ func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	return spec.AddModule(pppConnectedPlugKmod)
-}
-
-func (iface *pppInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pppInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
 }
 
 func (iface *pppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

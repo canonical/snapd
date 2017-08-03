@@ -30,6 +30,15 @@ import (
 
 const boolFileSummary = `allows access to specific file with bool semantics`
 
+const boolFileBaseDeclarationSlots = `
+  bool-file:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
 // boolFileInterface is the type of all the bool-file interfaces.
 type boolFileInterface struct{}
 
@@ -43,9 +52,10 @@ func (iface *boolFileInterface) Name() string {
 	return "bool-file"
 }
 
-func (iface *boolFileInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: boolFileSummary,
+func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              boolFileSummary,
+		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
 	}
 }
 
@@ -61,9 +71,6 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 // SanitizeSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
 func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
@@ -75,15 +82,6 @@ func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 	}
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// NOTE: currently we don't check anything on the plug side.
-	return nil
 }
 
 func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
@@ -139,14 +137,6 @@ func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 // By default we allow what declarations allowed.
 func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
-}
-
-func (iface *boolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *boolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {
