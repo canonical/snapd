@@ -74,16 +74,16 @@
 			"tree": true
 		},
 		{
-			"checksumSHA1": "9jjO5GjLa0XF/nfWihF02RoH4qc=",
+			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
 			"path": "golang.org/x/net/context",
-			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
-			"revisionTime": "2016-08-24T22:20:41Z"
+			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
+			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
 			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
 			"path": "golang.org/x/net/context/ctxhttp",
-			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
-			"revisionTime": "2016-08-24T22:20:41Z"
+			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
+			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
 			"checksumSHA1": "XeOje6FklwIZfFMTgE583al/ZDo=",
