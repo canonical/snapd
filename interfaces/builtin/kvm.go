@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
 )
 
 const kvmSummary = `allows access to the kvm device`
@@ -48,7 +47,6 @@ const kvmConnectedPlugAppArmor = `
 // The type for kvm interface
 type kvmInterface struct{}
 
-// Getter for the name of the kvm interface
 func (iface *kvmInterface) Name() string {
 	return "kvm"
 }
@@ -62,32 +60,8 @@ func (iface *kvmInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *kvmInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
 func (iface *kvmInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *kvmInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *kvmInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
