@@ -1,57 +1,65 @@
-summary: Check install snaps
+summary: Check install popular snaps
+
+manual: true
 
 environment:
-    # Non Canonical snaps
-    SNAP/atomify: atomify
-    FLAGS/atomify:
-    SNAP/geocoder: geocoder
-    FLAGS/geocoder: --edge
-    SNAP/gimp: gimp
-    FLAGS/gimp: --beta
-    SNAP/heroku: heroku
-    FLAGS/heroku: --classic
-    SNAP/huggle: huggle
-    FLAGS/huggle:
-    SNAP/hugo: hugo
-    FLAGS/hugo:
-    SNAP/ia: ia
-    FLAGS/ia: --edge
-    SNAP/kurly: kurly
-    FLAGS/kurly:
-    SNAP/micro: micro
-    FLAGS/micro: --beta
-    SNAP/nikola: nikola
-    FLAGS/nikola:
-    SNAP/parity: parity
-    FLAGS/parity: --edge
-    SNAP/paritybitcoin: parity-bitcoin
-    FLAGS/paritybitcoin: --edge
-    SNAP/zeronetjs: zeronet-js
-    FLAGS/zeronetjs: --beta
-    # Canonical snaps
-    SNAP/bare: bare
-    FLAGS/bare: --edge
-    SNAP/bluez: bluez
-    FLAGS/bluez:
-    SNAP/gedit: gedit
-    FLAGS/gedit:
-    SNAP/go: go
-    FLAGS/go: --classic
-    SNAP/juju: juju
-    FLAGS/juju: --classic
-    SNAP/lxd: lxd
-    FLAGS/lxd:
-    SNAP/neutron: neutron
-    FLAGS/neutron: --edge
-    SNAP/nova: nova
-    FLAGS/nova: --edge
-    SNAP/snapcraft: snapcraft
-    FLAGS/snapcraft: --beta --classic
-    SNAP/solc: solc
-    FLAGS/solc:
-    SNAP/vault: vault
-    FLAGS/vault:
+    # High Profile
+    INSTALL/azurecli: azure-cli --classic
+    INSTALL/awscli: aws-cli --classic
+    INSTALL/heroku: heroku --classic
+    INSTALL/hiri: hiri  
+    INSTALL/kubectl: kubectl --classic
+    INSTALL/rocketchatserver: rocketchat-server
+    # Selected from recent insights posts
+    INSTALL/corebird: corebird
+    INSTALL/gitterdesktop: gitter-desktop
+    INSTALL/helm: helm
+    INSTALL/mattermostdesktop: mattermost-desktop
+    INSTALL/mentaplexmediaserver: menta-plexmediaserver
+    INSTALL/openspades: openspades
+    INSTALL/pintown: pin-town
+    INSTALL/postgresql10: postgresql10
+    INSTALL/storjshare: storjshare
+    INSTALL/slackterm: slack-term
+    INSTALL/vectr: vectr
+    INSTALL/wekan: wekan
+    INSTALL/wormhole: wormhole
+    # Featured snaps in Ubuntu Software
+    INSTALL/anboxinstaller: anbox-installer --classic
+    INSTALL/lxd: lxd    
+    # Top non canonical snaps
+    INSTALL/atom: atom --classic
+    INSTALL/conjureup: conjure-up --classic
+    INSTALL/discord: discord
+    INSTALL/docker: docker
+    INSTALL/etcd: etcd
+    INSTALL/geocoder: geocoder --edge
+    INSTALL/gimp: gimp --beta    
+    INSTALL/huggle: huggle
+    INSTALL/hugo: hugo
+    INSTALL/ia: ia --edge
+    INSTALL/kurly: kurly
+    INSTALL/micro: micro --beta
+    INSTALL/nikola: nikola
+    INSTALL/parity: parity --edge
+    INSTALL/paritybitcoin: parity-bitcoin --edge
+    INSTALL/remmina: remmina
+    INSTALL/telegramsergiusens: telegram-sergiusens
+    INSTALL/zeronet: zeronet
+    INSTALL/zeronetjs: zeronet-js --beta    
+    # Top canonical snaps
+    INSTALL/bare: bare --edge
+    INSTALL/bluez: bluez
+    INSTALL/gedit: gedit
+    INSTALL/go: go --classic
+    INSTALL/juju: juju --classic
+    INSTALL/neutron: neutron --edge
+    INSTALL/nova: nova --edge
+    INSTALL/snapcraft: snapcraft --beta --classic
+    INSTALL/solc: solc
+    INSTALL/vault: vault
 
 execute: |
-    snap install $FLAGS $SNAP
-    snap list | MATCH $SNAP
+    SNAPNAME="$(echo $INSTALL | sed 's/ .*//')"
+    snap install $INSTALL
+    snap list | MATCH $SNAPNAME
