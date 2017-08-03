@@ -1360,7 +1360,22 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	} else {
+		// we're done! check the hash though
+		h := crypto.SHA3_384.New()
+		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+			return err
+		}
+		if _, err := io.Copy(h, w); err != nil {
+			return err
+		}
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if downloadInfo.Sha3_384 != actualSha3 {
+			err = HashError{name, actualSha3, downloadInfo.Sha3_384}
+		}
+	}
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
