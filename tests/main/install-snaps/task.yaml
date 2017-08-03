@@ -1,0 +1,57 @@
+summary: Check install snaps
+
+environment:
+    # Non Canonical snaps
+    SNAP/atomify: atomify
+    FLAGS/atomify:
+    SNAP/geocoder: geocoder
+    FLAGS/geocoder: --edge
+    SNAP/gimp: gimp
+    FLAGS/gimp: --beta
+    SNAP/heroku: heroku
+    FLAGS/heroku: --classic
+    SNAP/huggle: huggle
+    FLAGS/huggle:
+    SNAP/hugo: hugo
+    FLAGS/hugo:
+    SNAP/ia: ia
+    FLAGS/ia: --edge
+    SNAP/kurly: kurly
+    FLAGS/kurly:
+    SNAP/micro: micro
+    FLAGS/micro: --beta
+    SNAP/nikola: nikola
+    FLAGS/nikola:
+    SNAP/parity: parity
+    FLAGS/parity: --edge
+    SNAP/paritybitcoin: parity-bitcoin
+    FLAGS/paritybitcoin: --edge
+    SNAP/zeronetjs: zeronet-js
+    FLAGS/zeronetjs: --beta
+    # Canonical snaps
+    SNAP/bare: bare
+    FLAGS/bare: --edge
+    SNAP/bluez: bluez
+    FLAGS/bluez:
+    SNAP/gedit: gedit
+    FLAGS/gedit:
+    SNAP/go: go
+    FLAGS/go: --classic
+    SNAP/juju: juju
+    FLAGS/juju: --classic
+    SNAP/lxd: lxd
+    FLAGS/lxd:
+    SNAP/neutron: neutron
+    FLAGS/neutron: --edge
+    SNAP/nova: nova
+    FLAGS/nova: --edge
+    SNAP/snapcraft: snapcraft
+    FLAGS/snapcraft: --beta --classic
+    SNAP/solc: solc
+    FLAGS/solc:
+    SNAP/vault: vault
+    FLAGS/vault:
+
+execute: |
+    snap install $FLAGS $SNAP
+    snap list | MATCH $SNAP
