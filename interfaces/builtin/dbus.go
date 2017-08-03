@@ -204,8 +204,8 @@ func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
 
-func (iface *dbusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              dbusSummary,
 		BaseDeclarationSlots: dbusBaseDeclarationSlots,
 	}
@@ -404,19 +404,11 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-
 	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }
 
 func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
 }
