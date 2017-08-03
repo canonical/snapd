@@ -79,17 +79,17 @@ func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, err := iface.path(slot)
 	if err != nil {
-		panic("slot is not sanitized")
+		return nil
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/soc/**.spi/spi_master/spi0/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**/**.spi/**/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
 func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, err := iface.path(slot)
 	if err != nil {
-		panic("slot is not sanitized")
+		return nil
 	}
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
