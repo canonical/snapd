@@ -2693,18 +2693,25 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown action %q", inst.Action)
 	}
 
+	snapNames := make(map[string]bool, len(appInfos))
 	names := make([]string, len(appInfos))
 	for i, svc := range appInfos {
 		argv = append(argv, svc.ServiceName())
-		names[i] = svc.Snap.Name() + "." + svc.Name
+		snapName := svc.Snap.Name()
+		names[i] = snapName + "." + svc.Name
+		snapNames[snapName] = true
 	}
 
 	desc := fmt.Sprintf("%s of %v", inst.Action, names)
 
 	st.Lock()
 	defer st.Unlock()
+	if err := snapstate.CheckChangeConflictMulti(st, snapNames, nil); err != nil {
+		return Conflict(err.Error())
+	}
+
 	ts := cmdstate.Exec(st, desc, argv)
-	chg := st.NewChange("exec", desc)
+	chg := st.NewChange("service-control", desc)
 	chg.AddAll(ts)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
