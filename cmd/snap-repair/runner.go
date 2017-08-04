@@ -328,11 +328,7 @@ func (run *Runner) fetch(brandID string, seq int) (r []asserts.Assertion, err er
 	if !run.Applicable(headers) {
 		return nil, errNotToRun
 	}
-	a, err := run.Fetch(brandID, repairID)
-	if err != nil {
-		return nil, err
-	}
-	return a, err
+	return run.Fetch(brandID, repairID)
 }
 
 var errReuse = errors.New("reuse repair on disk")
@@ -352,11 +348,7 @@ func (run *Runner) refetch(brandID string, seq, revision int) (r []asserts.Asser
 	if refetchRevision == strconv.Itoa(revision) {
 		return nil, errReuse
 	}
-	a, err := run.Fetch(brandID, repairID)
-	if err != nil {
-		return nil, err
-	}
-	return a, err
+	return run.Fetch(brandID, repairID)
 }
 
 func (run *Runner) saveStream(brandID string, seq int, r []asserts.Assertion) error {
