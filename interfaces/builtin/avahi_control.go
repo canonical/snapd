@@ -124,7 +124,9 @@ func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	} else {
 		new = slotAppLabelExpr(slot)
 	}
-	snippet := strings.Replace(avahiControlConnectedPlugAppArmor+avahiControlConnectedPlugAppArmor, old, new, -1)
+	snippet := strings.Replace(avahiObserveConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	snippet = strings.Replace(avahiControlConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
@@ -142,7 +144,9 @@ func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
-		snippet := strings.Replace(avahiControlConnectedSlotAppArmor+avahiControlConnectedSlotAppArmor, old, new, -1)
+		snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+		snippet = strings.Replace(avahiControlConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
