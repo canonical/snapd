@@ -124,12 +124,14 @@ func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	} else {
 		new = slotAppLabelExpr(slot)
 	}
-	snippet := strings.Replace(avahiObserveConnectedPlugAppArmor+avahiControlConnectedPlugAppArmor, old, new, -1)
+	snippet := strings.Replace(avahiControlConnectedPlugAppArmor+avahiControlConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
 func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	// NOTE: this is using avahi-observe permanent slot as it contains
+	// base declarations for running as the avahi service.
 	spec.AddSnippet(avahiObservePermanentSlotAppArmor)
 	return nil
 }
@@ -137,12 +139,14 @@ func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specifi
 func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(avahiObserveConnectedSlotAppArmor+avahiControlConnectedSlotAppArmor, old, new, -1)
+	snippet := strings.Replace(avahiControlConnectedSlotAppArmor+avahiControlConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
 func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	// NOTE: this is using avahi-observe permanent slot as it contains
+	// base declarations for running as the avahi service.
 	spec.AddSnippet(avahiObservePermanentSlotDBus)
 	return nil
 }
