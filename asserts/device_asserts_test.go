@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 type modelSuite struct {
@@ -347,9 +348,9 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand: "random" != "brand-id1"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"model: baz-3000\n", "model: _what\n", `"model" header contains invalid characters: "_what"`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"serial: 2700\n", "serial: \n", `"serial" header should not be empty`},
 		{ss.tsLine, "", `"timestamp" header is mandatory`},
@@ -377,6 +378,42 @@ func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, serialErrPrefix+"device key does not match provided key id")
+}
+
+func (ss *serialSuite) TestSerialCheck(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
+	encoded = strings.Replace(encoded, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
+	ex, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	storeDB, db := makeStoreAndCheckDB(c)
+	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+
+	tests := []struct {
+		signDB      *assertstest.SigningDB
+		brandID     string
+		expectedErr string // "" means no error
+	}{
+		{brandDB, brandDB.AuthorityID, ""},
+		{storeDB, brandDB.AuthorityID, ""},
+		{brandDB, "brand2", `serial must be signed by the brand or a trusted authority but got authority "brand1" and brand "brand2"`},
+	}
+
+	for _, test := range tests {
+		headers := ex.Headers()
+		headers["brand-id"] = test.brandID
+		headers["timestamp"] = time.Now().Format(time.RFC3339)
+		serial, err := test.signDB.Sign(asserts.SerialType, headers, nil, "")
+		c.Assert(err, IsNil)
+
+		err = db.Check(serial)
+		if test.expectedErr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, test.expectedErr)
+		}
+	}
 }
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {

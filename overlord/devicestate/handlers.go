@@ -289,6 +289,13 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		return nil, err
 	}
 
+	if serial.AuthorityID() != serial.BrandID() {
+		db := assertstate.DB(t.State())
+		if !db.IsTrustedAccount(serial.AuthorityID()) {
+			return nil, fmt.Errorf("obtained serial assertion is not signed by the brand or a trusted authoritym but has authority %q and brand %q", serial.AuthorityID(), serial.BrandID())
+		}
+	}
+
 	keyID := privKey.PublicKey().ID()
 	if serial.BrandID() != device.Brand || serial.Model() != device.Model || serial.DeviceKey().ID() != keyID {
 		return nil, fmt.Errorf("obtained serial assertion does not match provided device identity information (brand, model, key id): %s / %s / %s != %s / %s / %s", serial.BrandID(), serial.Model(), serial.DeviceKey().ID(), device.Brand, device.Model, keyID)
