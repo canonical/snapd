@@ -20,8 +20,14 @@
 package client
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // AppInfo describes a single snap application.
@@ -69,4 +75,70 @@ func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) 
 	_, err := client.doSync("GET", "/v2/apps", q, nil, nil, &appInfos)
 
 	return appInfos, err
+}
+
+// LogOptions represent the options of the Logs call.
+type LogOptions struct {
+	N      int  // The maximum number of log lines to retrieve initially. If <0, no limit.
+	Follow bool // Whether to continue returning new lines as they appear
+}
+
+// A Log holds the information of a single syslog entry
+type Log struct {
+	Timestamp time.Time `json:"timestamp"` // Timestamp of the event, in RFC3339 format to µs precision.
+	Message   string    `json:"message"`   // The log message itself
+	SID       string    `json:"sid"`       // The syslog identifier
+	PID       string    `json:"pid"`       // The process identifier
+}
+
+func (l Log) String() string {
+	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp.Format(time.RFC3339), l.SID, l.PID, l.Message)
+}
+
+// Logs asks for the logs of a series of services, by name.
+func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) {
+	query := url.Values{}
+	if len(names) > 0 {
+		query.Set("names", strings.Join(names, ","))
+	}
+	query.Set("n", strconv.Itoa(opts.N))
+	if opts.Follow {
+		query.Set("follow", strconv.FormatBool(opts.Follow))
+	}
+
+	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan Log, 20)
+	go func() {
+		// logs come in application/json-seq, described in RFC7464: it's
+		// a series of <RS><arbitrary, valid JSON><LF>. Decoders are
+		// expected to skip invalid or truncated or empty records.
+		scanner := bufio.NewScanner(rsp.Body)
+		for scanner.Scan() {
+			buf := scanner.Bytes() // the scanner prunes the ending LF
+			if len(buf) < 1 {
+				// truncated record? skip
+				continue
+			}
+			idx := bytes.IndexByte(buf, 0x1E) // find the initial RS
+			if idx < 0 {
+				// no RS? skip
+				continue
+			}
+			buf = buf[idx+1:] // drop the initial RS
+			var log Log
+			if err := json.Unmarshal(buf, &log); err != nil {
+				// truncated/corrupted/binary record? skip
+				continue
+			}
+			ch <- log
+		}
+		close(ch)
+		rsp.Body.Close()
+	}()
+
+	return ch, nil
 }

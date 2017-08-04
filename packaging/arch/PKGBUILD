@@ -1,0 +1,109 @@
+# $Id$
+# Maintainer: Timothy Redaelli <timothy.redaelli@gmail.com>
+# Contributor: Zygmunt Krynicki <me at zygoon dot pl>
+
+pkgbase=snapd
+pkgname=(snapd snap-confine)
+pkgver=2.26.1
+pkgrel=1
+arch=('i686' 'x86_64')
+url="https://github.com/snapcore/snapd"
+license=('GPL3')
+makedepends=('git' 'go' 'go-tools' 'bzr')
+checkdepends=('python' 'squashfs-tools')
+
+# snap-confine
+makedepends+=('libcap' 'python-docutils' 'systemd' 'xfsprogs')
+checkdepends+=('indent' 'shellcheck')
+
+options=('!strip' 'emptydirs')
+install=snapd.install
+source=("git+https://github.com/snapcore/$pkgname.git#tag=$pkgver"
+        'snapd.sh')
+md5sums=('SKIP'
+         '8e9b8108165d5b2ae911de9caefb37ce')
+
+_gourl=github.com/snapcore/snapd
+
+prepare() {
+  cd "$pkgname"
+
+  # Use $srcdir/go as our GOPATH
+  export GOPATH="$srcdir/go"
+  mkdir -p "$GOPATH"
+  # Have snapd checkout appear in a place suitable for subsequent GOPATH This
+  # way we don't have to go get it again and it is exactly what the tag/hash
+  # above describes.
+  mkdir -p "$(dirname "$GOPATH/src/${_gourl}")"
+  ln --no-target-directory -fs "$srcdir/$pkgname" "$GOPATH/src/${_gourl}"
+}
+
+build() {
+  export GOPATH="$srcdir/go"
+  # Use get-deps.sh provided by upstream to fetch go dependencies using the
+  # godeps tool and dependencies.tsv (maintained upstream).
+  cd "$GOPATH/src/${_gourl}"
+  XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
+  # Build/install snap and snapd
+  go install "${_gourl}/cmd/snap"
+  go install "${_gourl}/cmd/snapd"
+
+  # Generate the real systemd units out of the available templates
+  make -C data/systemd all
+
+  # Build snap-confine
+  ./mkversion.sh
+  cd cmd
+  autoreconf -i -f
+  ./configure \
+    --prefix=/usr \
+    --libexecdir=/usr/lib/snapd \
+    --with-snap-mount-dir=/var/lib/snapd/snap \
+    --disable-apparmor \
+    --enable-nvidia-arch \
+    --enable-merged-usr
+  make
+}
+
+# FIXME
+check() {
+  return
+  export GOPATH="$srcdir/go"
+  cd "$GOPATH/src/${_gourl}"
+
+  ./run-checks --unit
+  ./run-checks --static
+
+   cd cmd
+   make -k check
+}
+
+package_snapd() {
+  pkgdesc="Service and tools for management of snap packages."
+  depends=('snap-confine' 'squashfs-tools')
+
+  export GOPATH="$srcdir/go"
+  # Ensure that we have /var/lib/snapd/{hostfs,lib/gl}/ as they are required by snap-confine
+  # for constructing some bind mounts around.
+  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs/" "$pkgdir/var/lib/snapd/lib/gl/"
+  # Install the refresh timer and service for updating snaps
+  install -d -m 755 "$pkgdir/usr/lib/systemd/system/"
+  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.refresh.service" "$pkgdir/usr/lib/systemd/system"
+  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.refresh.timer" "$pkgdir/usr/lib/systemd/system"
+  # Install the snapd socket and service for the main daemon
+  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.service" "$pkgdir/usr/lib/systemd/system"
+  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.socket" "$pkgdir/usr/lib/systemd/system"
+  # Install snap and snapd executables
+  install -d -m 755 "$pkgdir/usr/bin/"
+  install -m 755 "$GOPATH/bin/snap" "$pkgdir/usr/bin/"
+  install -d -m 755 "$pkgdir/usr/lib/snapd"
+  install -m 755 "$GOPATH/bin/snapd" "$pkgdir/usr/lib/snapd/"
+  # Install script to export binaries paths of snaps
+  install -Dm 755 "$srcdir/snapd.sh" "$pkgdir/etc/profile.d/apps-bin-path.sh"
+}
+
+package_snap-confine() {
+  pkgdesc="Confinement system for snap applications"
+  depends=('libseccomp' 'libsystemd')
+  make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir/"
+}
