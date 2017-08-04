@@ -269,7 +269,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	for k := range requested {
 		if !found[k] {
 			if snapNames[k] {
-				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
 			} else {
 				snap, app := splitAppName(k)
 				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
