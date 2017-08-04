@@ -370,7 +370,7 @@ suites:
                     distro_purge_package snap-confine
                 fi
             fi
-            sleep 1800
+            sleep 1200
 
     tests/completion/:
         summary: completion tests
