@@ -166,7 +166,7 @@ EOF
                 # There is a bug in snapd where partial file must be a proper
                 # prefix of the full file or we make a wrong request to the
                 # store.
-                truncate --size=$(expr $(stat $snap_file.partial -c %s) - 1) $snap_file.partial
+                truncate --size=-1 $snap_file.partial
                 mv $snap_file.partial /var/lib/snapd/snaps/
             done
             set +x
