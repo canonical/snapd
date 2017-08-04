@@ -47,24 +47,24 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 0
             - ubuntu-16.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 0
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 4
+                workers: 0
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-                workers: 4
+                workers: 20
             - debian-unstable-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 0
             - fedora-25-64:
-                workers: 1
+                workers: 0
             - opensuse-42.2-64:
-                workers: 1
+                workers: 0
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -280,7 +280,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 40m
 
 prepare: |
     # check if running inside a container, the testsuite will not
@@ -371,6 +371,7 @@ suites:
                     distro_purge_package snap-confine
                 fi
             fi
+            sleep 1200
 
     tests/completion/:
         summary: completion tests
