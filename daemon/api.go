@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var api = []*Command{
@@ -87,6 +88,7 @@ var api = []*Command{
 	sectionsCmd,
 	aliasesCmd,
 	appsCmd,
+	logsCmd,
 	debugCmd,
 }
 
@@ -144,6 +146,12 @@ var (
 		Path:   "/v2/apps",
 		UserOK: true,
 		GET:    getAppsInfo,
+	}
+
+	logsCmd = &Command{
+		Path:   "/v2/logs",
+		UserOK: true,
+		GET:    getLogs,
 	}
 
 	snapConfCmd = &Command{
@@ -2581,4 +2589,51 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+}
+
+func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	n := "10"
+	if s := query.Get("n"); s != "" {
+		m, err := strconv.ParseInt(s, 0, 32)
+		if err != nil {
+			return BadRequest(`invalid value for n: %q: %v`, s, err)
+		}
+		if m < 0 {
+			n = "all"
+		} else {
+			n = s
+		}
+	}
+	follow := false
+	if s := query.Get("follow"); s != "" {
+		f, err := strconv.ParseBool(s)
+		if err != nil {
+			return BadRequest(`invalid value for follow: %q: %v`, s, err)
+		}
+		follow = f
+	}
+
+	// only services have logs for now
+	opts := appInfoOptions{service: true}
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	serviceNames := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		serviceNames[i] = appInfo.ServiceName()
+	}
+
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	reader, err := sysd.LogReader(serviceNames, n, follow)
+	if err != nil {
+		return InternalError("cannot get logs: %v", err)
+	}
+
+	return &journalLineReaderSeqResponse{
+		ReadCloser: reader,
+		follow:     follow,
+	}
 }
