@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -117,6 +118,25 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
+	// on a core system with avahi slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
+
+	// on a classic system with avahi slot coming from the core snap.
+	restore = release.MockOnClassic(true)
+	defer restore()
+
+	spec = &dbus.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
