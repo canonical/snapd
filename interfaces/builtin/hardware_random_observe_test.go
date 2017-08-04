@@ -67,26 +67,18 @@ func (s *HardwareRandomObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "hardware-random-observe",
 		Interface: "hardware-random-observe",
-	}})
-	c.Assert(err, ErrorMatches, "hardware-random-observe slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"hardware-random-observe slots are reserved for the core snap")
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *HardwareRandomObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "hardware-random-observe"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "hardware-random-observe"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestAppArmorSpec(c *C) {

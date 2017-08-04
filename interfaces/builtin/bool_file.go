@@ -71,9 +71,6 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 // SanitizeSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
 func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
@@ -85,15 +82,6 @@ func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 	}
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// NOTE: currently we don't check anything on the plug side.
-	return nil
 }
 
 func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {

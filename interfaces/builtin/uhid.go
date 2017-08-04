@@ -64,25 +64,6 @@ func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
-// Check the validity of the slot
-func (iface *uhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// First check the type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	return nil
-}
-
-// Check and possibly modify a plug
-func (iface *uhidInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
 func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil

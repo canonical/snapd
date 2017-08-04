@@ -193,14 +193,6 @@ func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification
 	return nil
 }
 
-func (iface *mediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *mediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

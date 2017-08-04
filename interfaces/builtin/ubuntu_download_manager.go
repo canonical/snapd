@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -233,20 +232,6 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	new = plug.Snap.Name()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *ubuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *ubuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	return nil
 }
 
