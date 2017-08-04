@@ -214,6 +214,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	assertstateAutoRefreshAssertions = nil
 	assertstateRefreshSnapDeclarations = nil
 	snapstateCoreInfo = nil
 	snapstateInstall = nil
@@ -236,6 +237,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 
+	assertstateAutoRefreshAssertions = assertstate.AutoRefreshAssertions
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstall = snapstate.Install
@@ -615,6 +617,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateRevert",
 		"snapstateRevertToRevision",
 		"assertstateRefreshSnapDeclarations",
+		"assertstateAutoRefreshAssertions",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
 		"setupLocalUser",
@@ -2846,7 +2849,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
-	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
+	assertstateAutoRefreshAssertions = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -2877,10 +2880,10 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 }
 
 func (s *apiSuite) TestRefreshAll(c *check.C) {
-	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID)
+	autoRefreshAssertions := false
+	assertstateAutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertions = true
+		return assertstate.AutoRefreshAssertions(st, userID)
 	}
 	d := s.daemon(c)
 
@@ -2892,7 +2895,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		{[]string{"fake"}, `Refresh snap "fake"`},
 		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
 	} {
-		refreshSnapDecls = false
+		autoRefreshAssertions = false
 
 		snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
@@ -2907,15 +2910,15 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		c.Check(summary, check.Equals, tst.msg)
-		c.Check(refreshSnapDecls, check.Equals, true)
+		c.Check(autoRefreshAssertions, check.Equals, true)
 	}
 }
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
-	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID)
+	autoRefreshAssertions := false
+	assertstateAutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertions = true
+		return assertstate.AutoRefreshAssertions(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
@@ -2931,14 +2934,14 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh all snaps: no updates`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+	c.Check(autoRefreshAssertions, check.Equals, true)
 }
 
 func (s *apiSuite) TestRefreshMany(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+	assertstateRefreshSnapDeclarations = func(st *state.State, userID int) error {
 		refreshSnapDecls = true
-		return nil
+		return assertstate.RefreshSnapDeclarations(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
@@ -2961,9 +2964,9 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 
 func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+	assertstateRefreshSnapDeclarations = func(st *state.State, userID int) error {
 		refreshSnapDecls = true
-		return nil
+		return assertstate.RefreshSnapDeclarations(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
