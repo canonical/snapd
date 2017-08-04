@@ -1,5 +1,11 @@
 summary: Check install and remove hooks.
 
+environment:
+    REMOVE_HOOK_FILE: "$HOME/remove-hook-executed"
+
+restore:
+    rm -f $REMOVE_HOOK_FILE
+
 execute: |
     . $TESTSLIB/snaps.sh
     install_local snap-hooks
@@ -13,7 +19,6 @@ execute: |
     install_local snap-hooks
     snap get snap-hooks installed | MATCH 2
 
-    REMOVE_HOOK_FILE=$HOME/remove-hook-executed
     snap connect snap-hooks:home
 
     echo "Verify that remove hook is not executed when removing single revision"
@@ -33,7 +38,7 @@ execute: |
     fi
 
     echo "Installing a snap with hooks again"
-    rm -rf "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
+    rm -f "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
     install_local snap-hooks
     snap connect snap-hooks:home
 
