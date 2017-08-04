@@ -167,6 +167,7 @@ func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, nil, s.slotGadget1, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, "/dev/spidev0.0 rw\n,/sys/devices/platform/**/**.spi/**/spidev0.0/** rw,")
+
 }
 
 func (s *spiInterfaceSuite) TestStaticInfo(c *C) {
