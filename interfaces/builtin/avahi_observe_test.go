@@ -120,6 +120,19 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
+func (s *AvahiObserveInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows discovering local domains, hostnames and services`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "avahi-observe")
+}
+
+func (s *AvahiObserveInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.coreSlot), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plug, s.appSlot), Equals, true)
+}
+
 func (s *AvahiObserveInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

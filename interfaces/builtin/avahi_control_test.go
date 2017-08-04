@@ -120,6 +120,19 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
+func (s *AvahiControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows control over service discovery on a local network via the mDNS/DNS-SD protocol suite`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "avahi-control")
+}
+
+func (s *AvahiControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.coreSlot), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plug, s.appSlot), Equals, true)
+}
+
 func (s *AvahiControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
