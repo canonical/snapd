@@ -3,7 +3,7 @@ summary: Check install and remove hooks.
 environment:
     REMOVE_HOOK_FILE: "$HOME/remove-hook-executed"
 
-restore:
+restore: |
     rm -f $REMOVE_HOOK_FILE
 
 execute: |
