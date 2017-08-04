@@ -104,6 +104,14 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
+	// permanent app slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
+    bus=system
+    name="org.freedesktop.Avahi",`)
+
 	// on a classic system with avahi slot coming from the core snap.
 	restore = release.MockOnClassic(true)
 	defer restore()
@@ -118,6 +126,11 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// permanent core slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 

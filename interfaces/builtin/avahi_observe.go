@@ -433,20 +433,26 @@ func (iface *avahiObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 }
 
 func (iface *avahiObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(avahiObservePermanentSlotAppArmor)
+	if !release.OnClassic {
+		spec.AddSnippet(avahiObservePermanentSlotAppArmor)
+	}
 	return nil
 }
 
 func (iface *avahiObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+	if !release.OnClassic {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
 func (iface *avahiObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(avahiObservePermanentSlotDBus)
+	if !release.OnClassic {
+		spec.AddSnippet(avahiObservePermanentSlotDBus)
+	}
 	return nil
 }
 
