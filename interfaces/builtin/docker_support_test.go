@@ -135,13 +135,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
-
-	udevSpec := &udev.Specification{}
-	err = udevSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	snippet := udevSpec.Snippets()[0]
-	c.Check(snippet, testutil.Contains, `KERNEL=="device-mapper", SYMLINK+="mapper/control", TAG+="snap_docker_app"`)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
