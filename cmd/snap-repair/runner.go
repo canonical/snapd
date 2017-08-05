@@ -246,6 +246,7 @@ func (run *Runner) readState() error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 	dec := json.NewDecoder(r)
 	return dec.Decode(&run.state)
 }
@@ -377,6 +378,7 @@ func (run *Runner) readSavedStream(brandID string, seq, revision int) (r []asser
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	dec := asserts.NewDecoder(f)
 	for {
 		a, err := dec.Decode()
