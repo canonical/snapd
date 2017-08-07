@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -136,6 +137,7 @@ func InternalToolPath(tool string) string {
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
