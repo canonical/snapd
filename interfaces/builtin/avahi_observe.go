@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-const avahiObserveSummary = `allows discovering local domains, hostnames and services`
+const avahiObserveSummary = `allows discovery on a local network via the mDNS/DNS-SD protocol suite`
 
 const avahiObserveBaseDeclarationSlots = `
   avahi-observe:
@@ -90,6 +90,7 @@ dbus (receive, send)
    peer=(label=unconfined),
 `
 
+// Note: avahiObserveConnectedSlotAppArmor is also used by avahi-control in AppArmorConnectedSlot
 const avahiObserveConnectedSlotAppArmor = `
 # Description: Allow operating as the avahi service. This gives
 # privileged access to the system.
@@ -201,6 +202,7 @@ dbus (send)
     peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
 `
 
+// Note: avahiObservePermanentSlotDBus is used by avahi-control in DBusPermanentSlot
 const avahiObservePermanentSlotDBus = `
 <!-- Only root can own the Avahi service -->
 <policy user="root">
@@ -216,19 +218,18 @@ const avahiObservePermanentSlotDBus = `
         send_interface="org.freedesktop.Avahi.Server" send_member="SetHostName"/>
 </policy>
 
-<!-- Allow everything, including access to SetHostName to users of the group "netdev" -->
-<policy group="netdev">
-  <allow send_destination="org.freedesktop.Avahi"/>
-  <allow receive_sender="org.freedesktop.Avahi"/>
-</policy>
+<!-- bus policy for "netdev" group is removed as it does not apply to Ubuntu core -->
+<!-- Allow root to set  SetHostName -->
 <policy user="root">
   <allow send_destination="org.freedesktop.Avahi"/>
   <allow receive_sender="org.freedesktop.Avahi"/>
 </policy>
 `
 
+// Note: avahiObserveConnectedPlugAppArmor is also used by avahi-control in AppArmorConnectedPlug
 const avahiObserveConnectedPlugAppArmor = `
-# Description: allows domain browsing, service browsing and service resolving
+# Description: allows domain, record, service, and service type browsing
+# as well as address, host and service resolving
 
 #include <abstractions/dbus-strict>
 dbus (send)
@@ -245,6 +246,7 @@ dbus (send)
     member={Get*,Resolve*,IsNSSSupportAvailable}
     peer=(name=org.freedesktop.Avahi,label=###SLOT_SECURITY_TAGS###),
 
+# Allow receiving anything from the slot server
 dbus (receive)
     bus=system
     interface=org.freedesktop.Avahi.Server

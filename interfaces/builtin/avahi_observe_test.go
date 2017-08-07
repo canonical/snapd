@@ -96,6 +96,15 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
+	// make sure observe does have observe but not control capabilities
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.AddressResolver`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.HostNameResolver`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.ServiceResolver`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.RecordBrowser`)
+	// control capabilities
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `member=Set*`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `member=EntryGroupNew`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `interface=org.freedesktop.Avahi.EntryGroup`)
 
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
@@ -103,6 +112,13 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
+	// make sure observe does have observe but not control capabilities
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.AddressResolver`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.HostNameResolver`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.ServiceResolver`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.RecordBrowser`)
+	// control capabilities
+	c.Assert(spec.SnippetForTag("snap.producer.app"), Not(testutil.Contains), `interface=org.freedesktop.Avahi.EntryGroup`)
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
@@ -122,8 +138,16 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")
+	// make sure observe does have observe but not control capabilities
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.AddressResolver`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.HostNameResolver`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.ServiceResolver`)
+	// control capabilities
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `member=Set*`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `member=EntryGroupNew`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `interface=org.freedesktop.Avahi.EntryGroup`)
 
-	// connected app slot to plug
+	// connected core slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
@@ -157,7 +181,7 @@ func (s *AvahiObserveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows discovering local domains, hostnames and services`)
+	c.Assert(si.Summary, Equals, `allows discovery on a local network via the mDNS/DNS-SD protocol suite`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "avahi-observe")
 }
 
