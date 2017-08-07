@@ -197,7 +197,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
 }
 
-func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUdev(c *C) {
+func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUDev(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
