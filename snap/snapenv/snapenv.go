@@ -78,7 +78,7 @@ func snapEnv(info *snap.Info) map[string]string {
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
 	return map[string]string{
-		// NOTE: This uses CoreSnapMountDir because the computed environment
+		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
 		// always mounted on /snap OR it is a classically confined snap where
