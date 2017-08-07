@@ -1,4 +1,4 @@
-snapd (2.27~rc4) xenial; urgency=medium
+snapd (2.27~rc7) xenial; urgency=medium
 
   * New upstream release, LP: #1703798
     - store: talk to api.snapcraft.io for purchases
