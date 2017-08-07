@@ -95,7 +95,7 @@ func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
 }
 
 // Implement further consistency checks.
-func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (ak *AccountKey) checkConsistency(db RODatabase, signingKey *AccountKey) error {
 	if !db.IsTrustedAccount(ak.AuthorityID()) {
 		return fmt.Errorf("account-key assertion for %q is not signed by a directly trusted authority: %s", ak.AccountID(), ak.AuthorityID())
 	}
@@ -108,6 +108,18 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if err != nil {
 		return err
 	}
+
+	// key validity should be within signing key validity
+	if ak.Until().IsZero() {
+		if !signingKey.Until().IsZero() {
+			return fmt.Errorf("account-key assertion for %q has open-ended validity but its signing key %q does not", ak.AccountID(), signingKey.PublicKeyID())
+		}
+	} else {
+		if !signingKey.isKeyValidAt(ak.Until()) {
+			return fmt.Errorf("account-key assertion for %q validity is not within its signing key %q validity", ak.AccountID(), signingKey.PublicKeyID())
+		}
+	}
+
 	// XXX: Make this unconditional once account-key assertions are required to have a name.
 	if ak.Name() != "" {
 		// Check that we don't end up with multiple keys with

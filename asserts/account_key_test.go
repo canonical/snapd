@@ -513,6 +513,47 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`account-key assertion for "acc-id1" with ID %q has the same name "default" as existing ID %q`, newPubKey.ID(), aks.keyID))
 }
 
+func (aks *accountKeySuite) TestAccountKeyCheckOpenEndedMismatchWithSigningKey(c *C) {
+	trustedKey := testPrivKey0
+
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"name":                "default",
+		"public-key-sha3-384": aks.keyID,
+		"since":               aks.since.Format(time.RFC3339),
+	}
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
+
+	err = db.Add(accKey)
+	c.Assert(err, ErrorMatches, `account-key assertion for "acc-id1" has open-ended validity but its signing key ".*" does not`)
+}
+
+func (aks *accountKeySuite) TestAccountKeyCheckUntilOutOfSigningKeyValidaty(c *C) {
+	trustedKey := testPrivKey0
+
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"name":                "default",
+		"public-key-sha3-384": aks.keyID,
+		"since":               time.Now().UTC().Format(time.RFC3339),
+		"until":               time.Now().AddDate(4000, 0, 0).UTC().Format(time.RFC3339),
+	}
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
+
+	err = db.Add(accKey)
+	c.Assert(err, ErrorMatches, `account-key assertion for "acc-id1" validity is not within its signing key ".*" validity`)
+}
+
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
