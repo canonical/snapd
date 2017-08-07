@@ -538,6 +538,9 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 		// (e.g. account-key-request)
 		return nil
 	}
+	// TODO: when to stop accepting/using keys that are expired since long?
+	// should there be a point at which obsolete === revoked?
+
 	var timestamp time.Time
 	check := false
 	if tstamped, ok := assert.(timestamped); ok {
@@ -580,7 +583,6 @@ func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB ROData
 // checkers used by Database if none are specified in the
 // DatabaseConfig.Checkers.
 var DefaultCheckers = []Checker{
-	CheckSigningKeyIsNotExpired,
 	CheckSignature,
 	CheckTimestampVsSigningKeyValidity,
 	CheckCrossConsistency,
