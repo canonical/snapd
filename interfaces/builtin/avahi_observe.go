@@ -239,6 +239,7 @@ dbus (send)
     member=Ping
     peer=(name=org.freedesktop.Avahi,label=###SLOT_SECURITY_TAGS###),
 
+# Allow accessing DBus properties and resolving
 dbus (send)
     bus=system
     path=/
