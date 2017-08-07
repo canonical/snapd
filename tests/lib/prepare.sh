@@ -152,6 +152,26 @@ EOF
 
     # Snapshot the state including core.
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
+        # Pre-cache a few heavy snaps so that they can be installed by tests
+        # quickly. This relies on a behavior of snapd where .partial files are
+        # used for resuming downloads.
+        (
+            set -x
+            cd /tmp
+            for snap_name in ${PRE_CACHE_SNAPS:-}; do
+                snap download $snap_name
+            done
+            for snap_file in *.snap; do
+                mv $snap_file $snap_file.partial
+                # There is a bug in snapd where partial file must be a proper
+                # prefix of the full file or we make a wrong request to the
+                # store.
+                truncate --size=-1 $snap_file.partial
+                mv $snap_file.partial /var/lib/snapd/snaps/
+            done
+            set +x
+        )
+
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects

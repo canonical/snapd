@@ -20,8 +20,8 @@
 package builtin
 
 import (
-	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -49,7 +49,7 @@ type commonInterface struct {
 
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
-	connectedPlugUdev      string
+	connectedPlugUDev      string
 	reservedForOS          bool
 	rejectAutoConnectPairs bool
 
@@ -147,10 +147,12 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if iface.connectedPlugUdev != "" {
+	old := "###SLOT_SECURITY_TAGS###"
+	if iface.connectedPlugUDev != "" {
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			spec.AddSnippet(fmt.Sprintf(iface.connectedPlugUdev, tag))
+			snippet := strings.Replace(iface.connectedPlugUDev, old, tag, -1)
+			spec.AddSnippet(snippet)
 		}
 	}
 	return nil

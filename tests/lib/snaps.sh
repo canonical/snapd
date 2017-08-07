@@ -43,3 +43,23 @@ install_generic_consumer() {
     snap install --dangerous generic-consumer/*.snap
     rm -rf generic-consumer
 }
+
+is_classic_confinement_supported() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            return 1
+            ;;
+        ubuntu-*|debian-*)
+            return 0
+            ;;
+        fedora-*)
+            return 1
+            ;;
+        opensuse-*)
+            return 0
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}

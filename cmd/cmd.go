@@ -140,7 +140,8 @@ func InternalToolPath(tool string) string {
 	return filepath.Join(filepath.Dir(exe), tool)
 }
 
-// mustUnsetenv will os.Unsetenv the for or panic if it cannot do that
+// mustUnsetenv will unset the given environment key or panic if it
+// cannot do that
 func mustUnsetenv(key string) {
 	if err := os.Unsetenv(key); err != nil {
 		log.Panicf("cannot unset %s: %s", key, err)
