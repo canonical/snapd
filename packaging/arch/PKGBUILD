@@ -15,13 +15,9 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 options=('!strip' 'emptydirs')
 install=snapd.install
 source=("git+https://github.com/snapcore/$pkgname.git"
-        'snapd.sh'
-        '0001-release-remove-default-from-VERSION_ID.patch'
-        '0001-cmd-snap-confine-don-t-share-etc-nsswitch-from-host.patch')
+        'snapd.sh')
 md5sums=('SKIP'
-         '8e9b8108165d5b2ae911de9caefb37ce'
-         'c9f90d92d1fb39266725072e4ace5600'
-         '3db70cb1ff7223d44f89edc26ea2192f')
+         '8e9b8108165d5b2ae911de9caefb37ce')
 
 _gourl=github.com/snapcore/snapd
 
@@ -44,9 +40,6 @@ prepare() {
   ln --no-target-directory -fs "$srcdir/$pkgname" "$GOPATH/src/${_gourl}"
   # Patch snap-seccomp build flags not to link libseccomp statically.
   sed -i -e 's/-Wl,-Bstatic -lseccomp -Wl,-Bdynamic/-lseccomp/' "$srcdir/$pkgname/cmd/snap-seccomp/main.go"
-  # Apply some upstream fixes not present in the release.
-  patch -p1 < "$srcdir/0001-release-remove-default-from-VERSION_ID.patch"
-  patch -p1 < "$srcdir/0001-cmd-snap-confine-don-t-share-etc-nsswitch-from-host.patch"
 }
 
 build() {
