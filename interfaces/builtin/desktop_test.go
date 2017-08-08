@@ -26,38 +26,34 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type DesktopInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	coreSlot *interfaces.Slot
+	plug     *interfaces.Plug
 }
-
-const desktopMockPlugSnapInfoYaml = `name: other
-version: 1.0
-apps:
- app2:
-  command: foo
-  plugs: [desktop]
-`
 
 var _ = Suite(&DesktopInterfaceSuite{
 	iface: builtin.MustInterface("desktop"),
 })
 
+const desktopConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [desktop]
+`
+
+const desktopCoreYaml = `name: core
+type: os
+slots:
+  desktop:
+`
+
 func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "desktop",
-			Interface: "desktop",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, desktopMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["desktop"]}
+	s.plug = MockPlug(c, desktopConsumerYaml, nil, "desktop")
+	s.coreSlot = MockSlot(c, desktopCoreYaml, nil, "desktop")
 }
 
 func (s *DesktopInterfaceSuite) TestName(c *C) {
@@ -65,7 +61,8 @@ func (s *DesktopInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DesktopInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	// desktop slot currently only used with core
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "desktop",
@@ -79,15 +76,27 @@ func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *DesktopInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `# Description: Can access modern Desktop Environments`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `#include <abstractions/fonts>`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `/etc/gtk-3.0/settings.ini r,`)
+func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
+	// connected plug to core slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access modern Desktop Environments")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
+
+	// connected plug to core slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows running in modern Desktop Environments`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop")
 }
 
 func (s *DesktopInterfaceSuite) TestInterfaces(c *C) {
