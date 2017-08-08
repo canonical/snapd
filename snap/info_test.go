@@ -595,6 +595,7 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.HomeDirBase("/home/bob"), Equals, "/home/bob/snap/name")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
+	c.Check(info.UserXdgRuntimeDirGlobal(12345), Equals, "/run/user/12345")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.DataHomeDir(), Equals, "/home/*/snap/name/1")

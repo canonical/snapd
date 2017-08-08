@@ -34,7 +34,7 @@ execute: |
     test $(wc -l < snap-vars.txt) -eq 12
 
     echo "Enure that XDG environment variables are what we expect"
-    MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt
+    MATCH '^XDG_RUNTIME_DIR=/run/user/0'  < xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -ge 1
 
     echo "Enure that EXTRA environment variables are what we expect"
