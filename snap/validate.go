@@ -202,6 +202,7 @@ func ValidatePathVariables(path string) error {
 	return nil
 }
 
+// ValidateLayout ensures that the given layout contains only valid subset of constructs.
 func ValidateLayout(li *Layout) error {
 	// The path is used to identify the layout below so validate it first.
 	if li.Path == "" {
