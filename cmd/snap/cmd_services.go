@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/jessevdk/go-flags"
 
@@ -28,18 +29,28 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type svcServices struct {
+type svcStatus struct {
 	Positional struct {
 		ServiceNames []serviceName `positional-arg-name:"<service>"`
 	} `positional-args:"yes"`
 }
 
+type svcLogs struct {
+	N          string `short:"n" default:"10"`
+	Follow     bool   `short:"f"`
+	Positional struct {
+		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+}
+
 var (
 	shortServicesHelp = i18n.G("Query the status of services")
+	shortLogsHelp     = i18n.G("Retrieve logs of services")
 )
 
 func init() {
-	addCommand("services", shortServicesHelp, "", func() flags.Commander { return &svcServices{} }, nil, nil)
+	addCommand("services", shortServicesHelp, "", func() flags.Commander { return &svcStatus{} }, nil, nil)
+	addCommand("logs", shortLogsHelp, "", func() flags.Commander { return &svcLogs{} }, nil, nil)
 }
 
 func svcNames(s []serviceName) []string {
@@ -50,7 +61,7 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
-func (s *svcServices) Execute(args []string) error {
+func (s *svcStatus) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
@@ -75,6 +86,32 @@ func (s *svcServices) Execute(args []string) error {
 			current = i18n.G("active")
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
+	}
+
+	return nil
+}
+
+func (s *svcLogs) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	sN := -1
+	if s.N != "all" {
+		n, err := strconv.ParseInt(s.N, 0, 32)
+		if n < 0 || err != nil {
+			return fmt.Errorf(i18n.G("invalid argument for flag ‘-n’: expected a non-negative integer argument, or “all”."))
+		}
+		sN = int(n)
+	}
+
+	logs, err := Client().Logs(svcNames(s.Positional.ServiceNames), client.LogOptions{N: sN, Follow: s.Follow})
+	if err != nil {
+		return err
+	}
+
+	for log := range logs {
+		fmt.Fprintln(Stdout, log)
 	}
 
 	return nil

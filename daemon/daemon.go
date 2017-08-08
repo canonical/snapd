@@ -168,6 +168,12 @@ func (w *wrappedWriter) WriteHeader(s int) {
 	w.s = s
 }
 
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func logit(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := &wrappedWriter{w: w}
