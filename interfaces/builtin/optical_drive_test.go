@@ -76,19 +76,15 @@ func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
-	expectedSnippet := `
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
 @{PROC}/sys/dev/cdrom/info r,
-`
-
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expectedSnippet)
+`)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
