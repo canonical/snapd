@@ -516,7 +516,7 @@ suites:
         prepare: |
             . $TESTSLIB/pkgdb.sh
             distro_update_package_db
-            distro_install_package qemu genisoimage sshpass
+            distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
             . $TESTSLIB/pkgdb.sh
