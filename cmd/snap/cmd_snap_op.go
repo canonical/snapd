@@ -958,15 +958,21 @@ type cmdSwitch struct {
 	channelMixin
 
 	Positional struct {
-		Snap    installedSnapName `positional-arg-name:"<snap>" required:"1"`
-		Channel string            `positional-arg-name:"<channel>" required:"1"`
+		Snap installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x cmdSwitch) Execute(args []string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if x.Channel == "" {
+		return fmt.Errorf("please use --channel=<channel-name>")
+	}
+
 	cli := Client()
 	name := string(x.Positional.Snap)
-	channel := string(x.Positional.Channel)
+	channel := string(x.Channel)
 	opts := &client.SnapOptions{
 		Channel: channel,
 	}
@@ -975,12 +981,11 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, changeID)
-	if err != nil {
+	if _, err = wait(cli, changeID); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("%s switched to %s\n"), name, channel)
+	fmt.Fprintf(Stdout, i18n.G("%q switched to the %q channel\n"), name, channel)
 	return nil
 }
 
