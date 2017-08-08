@@ -1,0 +1,15 @@
+## arg 1:  the new package version
+post_install() {
+  echo
+  echo 'To use snapd start/enable the snapd.socket'
+  echo
+  echo 'If you want your apps to be automatically updated'
+  echo 'from the store start/enable the snapd.refresh.timer'
+  echo
+  echo 'NOTE: Desktop entries show up after logging in again'
+  echo ' or rebooting after snapd installation'
+  echo
+  echo 'For more informations, see https://wiki.archlinux.org/index.php/Snapd'
+}
+
+# vim:set ts=2 sw=2 et:

@@ -68,13 +68,11 @@ func (s *LxdInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {

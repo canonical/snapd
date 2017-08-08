@@ -456,6 +456,8 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"autopilot-introspection": {"core"},
+		"avahi-control":           {"app", "core"},
+		"avahi-observe":           {"app", "core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -539,7 +541,8 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				sanitizeErr := iface.SanitizeSlot(&interfaces.Slot{SlotInfo: slotInfo})
+				slot := &interfaces.Slot{SlotInfo: slotInfo}
+				sanitizeErr := slot.Sanitize(iface)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
