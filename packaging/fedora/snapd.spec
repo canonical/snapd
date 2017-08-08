@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27~rc4
+Version:        2.27~rc8
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -637,7 +637,18 @@ fi
 
 %changelog
 * Thu Jul 13 2017 Michael Vogt <mvo@ubuntu.com>
-- New upstream release 2.27~rc4:
+- New upstream release 2.27~rc8:
+ - interfaces: add password-manager-service implicit classic interface
+ - interfaces/greengrass-support: adjust accesses now that have working
+   snap
+ - interfaces/many, cmd/snap-confine: miscellaneous policy updates
+ - interfaces/unity7: allow receiving media key events in (at least)
+   gnome-shell
+ - cmd: fix re-exec bug when starting from snapd 2.21
+ - tests: restore interfaces-account-control properly
+ - cmd: fix tests that assume /snap mount
+ - cmd: mark arch as non-reexecing distro
+ - snap-confine: don't share /etc/nsswitch from host
  - store: talk to api.snapcraft.io for purchases
  - hooks: support for install and remove hooks
  - packaging: fix Fedora support

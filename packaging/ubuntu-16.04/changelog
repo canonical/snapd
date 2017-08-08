@@ -1,6 +1,17 @@
-snapd (2.27~rc7) xenial; urgency=medium
+snapd (2.27~rc8) xenial; urgency=medium
 
   * New upstream release, LP: #1703798
+    - interfaces: add password-manager-service implicit classic interface
+    - interfaces/greengrass-support: adjust accesses now that have working
+      snap
+    - interfaces/many, cmd/snap-confine: miscellaneous policy updates
+    - interfaces/unity7: allow receiving media key events in (at least)
+      gnome-shell
+    - cmd: fix re-exec bug when starting from snapd 2.21
+    - tests: restore interfaces-account-control properly
+    - cmd: fix tests that assume /snap mount
+    - cmd: mark arch as non-reexecing distro
+    - snap-confine: don't share /etc/nsswitch from host
     - store: talk to api.snapcraft.io for purchases
     - hooks: support for install and remove hooks
     - packaging: fix Fedora support
