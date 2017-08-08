@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,22 +39,21 @@ var _ = Suite(&OpticalDriveInterfaceSuite{
 	iface: builtin.MustInterface("optical-drive"),
 })
 
-func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: other
+const opticalDriveConsumerYaml = `name: consumer
 apps:
-  app:
-    command: foo
-    plugs: [optical-drive]
-`, nil)
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "optical-drive",
-			Interface: "optical-drive",
-		},
-	}
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["optical-drive"]}
+ app:
+  plugs: [optical-drive]
+`
+
+const opticalDriveCoreYaml = `name: core
+type: os
+slots:
+  optical-drive:
+`
+
+func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
+	s.slot = MockSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
@@ -77,8 +75,8 @@ func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *OpticalDriveInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
+func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
+	expectedSnippet := `
 # Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
@@ -89,8 +87,20 @@ func (s *OpticalDriveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, expectedSnippet1)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expectedSnippet)
+}
+
+func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows read access to optical drives`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
+}
+
+func (s *OpticalDriveInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestInterfaces(c *C) {
