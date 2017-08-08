@@ -782,6 +782,33 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Switch(s.state, "some-snap", "some-channel")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
+}
+
+func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Switch(s.state, "non-existing-snap", "some-channel")
+	c.Assert(err, ErrorMatches, `cannot find snap "non-existing-snap"`)
+}
+
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4393,6 +4420,48 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 
 	c.Assert(snapst.Active, Equals, false)
 	c.Assert(snapst.AliasesPending, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "edge",
+	})
+
+	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
+	ts, err := snapstate.Switch(s.state, "some-snap", "some-channel")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// switch is not really really doing anything backend related
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+
+	// ensure the desired channel has changed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Channel, Equals, "some-channel")
+
+	// ensure the current info has not changed
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
 }
 
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
