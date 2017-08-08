@@ -76,7 +76,10 @@ func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
-	expectedSnippet := `
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Can access opengl.
 
   # specific gl libs
@@ -109,14 +112,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
   # For now, allow 'c'haracter devices and 'b'lock devices based on
   # https://www.kernel.org/doc/Documentation/devices.txt
   /run/udev/data/c226:[0-9]* r,  # 226 drm
-`
-
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expectedSnippet)
+`)
 }
 
 func (s *OpenglInterfaceSuite) TestStaticInfo(c *C) {
