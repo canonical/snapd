@@ -20,7 +20,6 @@
 package corecfg
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -60,7 +59,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 func handleProxyConfiguration() error {
 	config := map[string]string{}
 	for _, key := range []string{"http", "https", "ftp"} {
-		output, err := snapctlGet(fmt.Sprintf("proxy.%s", key))
+		output, err := snapctlGet("proxy." + key)
 		if err != nil {
 			return err
 		}

@@ -32,7 +32,7 @@ func powerBtnCfg() string {
 	return filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 }
 
-// switchHandlePowerKey change the behavor when the power key is pressed
+// switchHandlePowerKey changes the behavior when the power key is pressed
 func switchHandlePowerKey(action string) error {
 	validActions := map[string]bool{
 		"ignore":       true,

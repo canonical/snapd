@@ -59,7 +59,7 @@ func (s *servicesSuite) TearDownTest(c *C) {
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
 	err := corecfg.SwitchDisableService("ssh", "xxx")
-	c.Check(err, ErrorMatches, `Invalid value "xxx" provided for option "ssh.service"`)
+	c.Check(err, ErrorMatches, `option "ssh.service" has invalid value "xxx"`)
 }
 
 func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
