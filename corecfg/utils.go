@@ -26,6 +26,9 @@ import (
 	"regexp"
 )
 
+// first match is if it is comment, second is key, third value
+var rx = regexp.MustCompile(`^[ \t]*(#?)[ \t#]*([a-z_]+)=(.*)$`)
+
 // updateKeyValueStream updates simple key=value files with comments.
 // Example for such formats are: /etc/environment or /boot/uboot/config.txt
 //
@@ -41,8 +44,6 @@ func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[
 		cfgKeys[i] = k
 		i++
 	}
-	reStr := `^[ \t]*?(?P<is_comment>#?)[ \t#]*?(?P<key>[a-z_]+)=(?P<old_value>.*)$`
-	rx := regexp.MustCompile(reStr)
 
 	// now go over the content
 	found := map[string]bool{}
