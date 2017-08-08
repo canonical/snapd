@@ -78,14 +78,19 @@ func init() {
 		})
 }
 
-func getDottedKeys(path []string, input map[string]interface{}) []string {
+func getDottedKeys(path string, input map[string]interface{}) []string {
 	var paths []string
 	for k, v := range input {
-		p := append(path, k)
+		var p string
+		if path == "" {
+			p = k
+		} else {
+			p = path + "." + k
+		}
 		if vv, ok := v.(map[string]interface{}); ok {
 			paths = append(paths, getDottedKeys(p, vv)...)
 		} else {
-			paths = append(paths, strings.Join(p, "."))
+			paths = append(paths, p)
 		}
 	}
 	return paths
@@ -136,7 +141,7 @@ func (x *cmdGet) Execute(args []string) error {
 		}
 		if printKeys {
 			fmt.Fprintf(Stderr, "Key:\n")
-			paths := getDottedKeys([]string{}, conf)
+			paths := getDottedKeys("", conf)
 			sort.Strings(paths)
 			for _, p := range paths {
 				fmt.Fprintf(Stderr, "%s\n", p)

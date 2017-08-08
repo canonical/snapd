@@ -121,7 +121,7 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 
 func (s *SnapSuite) TestGetDottedKeys(c *C) {
 	data := map[string]interface{}{}
-	paths := snapset.GetDottedKeys([]string{}, data)
+	paths := snapset.GetDottedKeys("", data)
 	c.Assert(paths, HasLen, 0)
 
 	data = map[string]interface{}{
@@ -133,7 +133,7 @@ func (s *SnapSuite) TestGetDottedKeys(c *C) {
 		"e": []string{"x", "y"},
 		"f": nil,
 	}
-	paths = snapset.GetDottedKeys([]string{}, data)
+	paths = snapset.GetDottedKeys("", data)
 	sort.Strings(paths)
 	c.Assert(paths, DeepEquals, []string{"a", "b.c", "b.d", "e", "f"})
 
