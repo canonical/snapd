@@ -315,6 +315,16 @@ distro_install_build_snapd(){
     fi
 }
 
+distro_get_package_extension() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            echo "deb"
+            ;;
+        fedora-*|opensuse-*)
+            echo "rpm"
+            ;;
+    esac
+}
 
 pkg_dependencies_ubuntu_generic(){
     echo "
@@ -398,9 +408,11 @@ pkg_dependencies_ubuntu_core(){
 pkg_dependencies_fedora(){
     echo "
         curl
+        dbus-x11
         expect
         git
         golang
+        jq
         mock
         redhat-lsb-core
         rpm-build

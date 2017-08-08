@@ -73,6 +73,24 @@ include <abstractions/nameservice>
 # DBus accesses
 include <abstractions/dbus-strict>
 
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 dbus (send)
    bus=system
    path=/org/freedesktop/DBus
@@ -1175,8 +1193,8 @@ func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              modemManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,
@@ -1224,14 +1242,6 @@ func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 
 func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
