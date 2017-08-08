@@ -21,6 +21,7 @@ package snap
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,13 +136,13 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if y.Layout != nil {
 		snap.Layout = make(map[string]*Layout, len(y.Layout))
 		for path, l := range y.Layout {
-			mode := 0755
+			var mode os.FileMode = 0755
 			if l.Mode != "" {
 				m, err := strconv.ParseInt(l.Mode, 8, 32)
 				if err != nil {
 					return nil, err
 				}
-				mode = int(m)
+				mode = os.FileMode(m)
 			}
 			user := "root"
 			if l.User != "" {
