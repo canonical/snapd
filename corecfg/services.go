@@ -51,7 +51,7 @@ func switchDisableService(service, value string) error {
 		}
 		return sysd.Start(serviceName)
 	default:
-		return fmt.Errorf("Invalid value %q provided for option %q", value, serviceName)
+		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
 	}
 }
 

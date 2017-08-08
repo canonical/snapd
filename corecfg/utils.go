@@ -63,8 +63,8 @@ func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[
 					needsWrite = true
 				}
 			} else {
-				line = fmt.Sprintf("#%s=%s", key, oldValue)
 				if !wasComment {
+					line = fmt.Sprintf("#%s=%s", key, oldValue)
 					needsWrite = true
 				}
 			}
