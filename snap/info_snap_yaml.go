@@ -138,7 +138,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		for path, l := range y.Layout {
 			var mode os.FileMode = 0755
 			if l.Mode != "" {
-				m, err := strconv.ParseInt(l.Mode, 8, 32)
+				m, err := strconv.ParseUint(l.Mode, 8, 32)
 				if err != nil {
 					return nil, err
 				}
