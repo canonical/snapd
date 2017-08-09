@@ -53,7 +53,6 @@ BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
-BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
 BuildRequires:  pkg-config
@@ -122,7 +121,7 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --disable-seccomp --libexecdir=/usr/lib/snapd
+%configure --disable-apparmor --libexecdir=/usr/lib/snapd
 
 %build
 # Build golang executables
@@ -149,6 +148,11 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
 
+# This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
+sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
+# build snap-seccomp
+%gobuild cmd/snap-seccomp
+
 # Build C executables
 make %{?_smp_mflags} -C cmd
 
@@ -163,11 +167,12 @@ make %{?_smp_mflags} -C cmd check
 rm -rf %{buildroot}/usr/lib64/go
 rm -rf %{buildroot}/usr/lib/go
 find %{buildroot}
-# Move snapd, snap-exec and snap-update-ns into /usr/lib/snapd
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into /usr/lib/snapd
 install -m 755 -d %{buildroot}/usr/lib/snapd
 mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
+mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}/usr/lib/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -202,9 +207,12 @@ install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
 make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service; do
-    rm %buildroot/%{_unitdir}/$s
+for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
+    rm -f %buildroot/%{_unitdir}/$s
 done
+# Remove snappy core specific scripts
+rm -f %buildroot/usr/lib/snapd/snapd.core-fixup.sh
+
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}/usr/sbin
 ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd
