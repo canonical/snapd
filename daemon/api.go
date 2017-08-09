@@ -2670,6 +2670,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
+	// the argv to call systemctl will need at most one entry per appInfo,
+	// plus one for "systemctl", one for the action, and sometimes one for
+	// an option. That's a maximum of 3+len(appInfos).
 	argv := make([]string, 2, 3+len(appInfos))
 	argv[0] = "systemctl"
 	argv[1] = inst.Action
@@ -2687,7 +2690,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	case "restart":
 		if inst.Reload {
-			argv[1] = "try-reload-or-restart"
+			argv[1] = "reload-or-restart"
 		}
 	default:
 		return BadRequest("unknown action %q", inst.Action)
@@ -2706,8 +2709,8 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	st.Lock()
 	defer st.Unlock()
-	if err := snapstate.CheckChangeConflictMulti(st, snapNames, nil); err != nil {
-		return Conflict(err.Error())
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
+		return InternalError(err.Error())
 	}
 
 	ts := cmdstate.Exec(st, desc, argv)

@@ -191,13 +191,13 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
-	type tT struct {
+	type scenario struct {
 		names   []string
 		opts    client.StartOptions
 		comment check.CommentInterface
 	}
 
-	var scs []tT
+	var scenarios []scenario
 
 	for _, names := range [][]string{
 		nil, {},
@@ -208,7 +208,7 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 			{true},
 			{false},
 		} {
-			scs = append(scs, tT{
+			scenarios = append(scenarios, scenario{
 				names:   names,
 				opts:    opts,
 				comment: check.Commentf("{%q; %#v}", names, opts),
@@ -216,7 +216,7 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 		}
 	}
 
-	for _, sc := range scs {
+	for _, sc := range scenarios {
 		id, err := cs.cli.Start(sc.names, sc.opts)
 		if len(sc.names) == 0 {
 			c.Check(id, check.Equals, "", sc.comment)

@@ -299,13 +299,13 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
-// CheckChangeConflictMulti ensures that for the given snapNames no other
+// CheckChangeConflictMany ensures that for the given snapNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
 //
 // It's like CheckChangeConflict, but for multiple snaps, and does not
 // check snapst.
-func CheckChangeConflictMulti(st *state.State, snapNames map[string]bool, checkConflictPredicate func(taskKind string) bool) error {
+func CheckChangeConflictMany(st *state.State, snapNames map[string]bool, checkConflictPredicate func(taskKind string) bool) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -354,7 +354,7 @@ func CheckChangeConflictMulti(st *state.State, snapNames map[string]bool, checkC
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
 func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(taskKind string) bool, snapst *SnapState) error {
-	if err := CheckChangeConflictMulti(st, map[string]bool{snapName: true}, checkConflictPredicate); err != nil {
+	if err := CheckChangeConflictMany(st, map[string]bool{snapName: true}, checkConflictPredicate); err != nil {
 		return err
 	}
 

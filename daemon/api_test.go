@@ -6249,7 +6249,7 @@ func (s *appSuite) TestPosetAppsRestart(c *check.C) {
 func (s *appSuite) TestPosetAppsReload(c *check.C) {
 	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
-	args := []string{"systemctl", "try-reload-or-restart", "snap.snap-a.svc2.service"}
+	args := []string{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, args)
 }
 
@@ -6332,7 +6332,7 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
 	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 409)
+	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
 }

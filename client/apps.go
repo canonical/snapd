@@ -166,7 +166,7 @@ type StartOptions struct {
 // Start services.
 //
 // It takes a list of names that can be snaps, of which all their
-// services are startped, or snap.service which are individual
+// services are started, or snap.service which are individual
 // services to start; it shouldn't be empty.
 func (client *Client) Start(names []string, opts StartOptions) (changeID string, err error) {
 	if len(names) == 0 {
@@ -214,7 +214,8 @@ func (client *Client) Stop(names []string, opts StopOptions) (changeID string, e
 
 // RestartOptions represent the different options of the Restart call.
 type RestartOptions struct {
-	// Reload the services, if possible, instead of restarting.
+	// Reload the services, if possible (i.e. if the App has a
+	// ReloadCommand, invoque it), instead of restarting.
 	Reload bool `json:"reload,omitempty"`
 }
 
@@ -222,7 +223,8 @@ type RestartOptions struct {
 //
 // It takes a list of names that can be snaps, of which all their
 // services are restarted, or snap.service which are individual
-// services to restart; it shouldn't be empty.
+// services to restart; it shouldn't be empty. If the service is not
+// running, starts it.
 func (client *Client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
