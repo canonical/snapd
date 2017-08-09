@@ -222,10 +222,16 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
-// testLinkCleanupDirOnFail is dual-purpose: it's the setup for all
-// TestLinkCleanupOnXFail tests below, and the actual test when dir is
-// non-empty.
-func (s *linkSuite) testLinkCleanupDirOnFail(c *C, dir string) *snap.Info {
+type linkCleanupSuite struct {
+	linkSuite
+	info *snap.Info
+}
+
+var _ = Suite(&linkCleanupSuite{})
+
+func (s *linkCleanupSuite) SetUpTest(c *C) {
+	s.linkSuite.SetUpTest(c)
+
 	const yaml = `name: hello
 version: 1.0
 environment:
@@ -240,9 +246,9 @@ apps:
    command: svc
    daemon: simple
 `
-	info := snaptest.MockSnap(c, yaml, "", &snap.SideInfo{Revision: snap.R(11)})
+	s.info = snaptest.MockSnap(c, yaml, "", &snap.SideInfo{Revision: snap.R(11)})
 
-	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
 [Desktop Entry]
@@ -262,15 +268,13 @@ Exec=bin
 		c.Assert(err, IsNil, Commentf(d))
 		c.Assert(l, HasLen, 0, Commentf(d))
 	}
+}
 
-	if dir == "" {
-		return info
-	}
-
+func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(s.info)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &os.PathError{})
 
@@ -279,31 +283,27 @@ Exec=bin
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
-
-	return nil
 }
 
-func (s *linkSuite) TestLinkCleanupOnDesktopFail(c *C) {
+func (s *linkCleanupSuite) TestLinkCleanupOnDesktopFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDesktopFilesDir)
 }
 
-func (s *linkSuite) TestLinkCleanupOnBinariesFail(c *C) {
+func (s *linkCleanupSuite) TestLinkCleanupOnBinariesFail(c *C) {
 	// this one is the trivial case _as the code stands today_,
 	// but nothing guarantees that ordering.
 	s.testLinkCleanupDirOnFail(c, dirs.SnapBinariesDir)
 }
 
-func (s *linkSuite) TestLinkCleanupOnServicesFail(c *C) {
+func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
-func (s *linkSuite) TestLinkCleanupOnSystemctlFail(c *C) {
-	info := s.testLinkCleanupDirOnFail(c, "")
-
+func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	systemd.SystemctlCmd = func(...string) ([]byte, error) {
 		return nil, errors.New("ouchie")
 	}
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(s.info)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
