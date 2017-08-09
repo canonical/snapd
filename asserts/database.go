@@ -72,8 +72,11 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// trusted set of assertions (account and account-key supported)
+	// trusted set of assertions (account and account-key supported),
+	// used to establish root keys and trusted authorities
 	Trusted []Assertion
+	// predefined assertions but that do not establish foundational trust
+	OtherPredefined []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
 	// manager/backstore for keypairs, defaults to in-memory implementation
@@ -143,17 +146,24 @@ type RODatabase interface {
 	// Provided headers must contain the primary key for the assertion type.
 	// It returns ErrNotFound if the assertion cannot be found.
 	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
-	// FindTrusted finds an assertion in the trusted set based on arbitrary headers.
-	// Provided headers must contain the primary key for the assertion type.
-	// It returns ErrNotFound if the assertion cannot be found.
+	// FindPredefined finds an assertion in the predefined sets
+	// (trusted or not) based on arbitrary headers.  Provided
+	// headers must contain the primary key for the assertion
+	// type.  It returns ErrNotFound if the assertion cannot be
+	// found.
+	FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error)
+	// FindTrusted finds an assertion in the trusted set based on
+	// arbitrary headers.  Provided headers must contain the
+	// primary key for the assertion type.  It returns ErrNotFound
+	// if the assertion cannot be found.
 	FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns ErrNotFound if no assertion can be found.
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
-	// FindManyTrusted finds assertions in the trusted set based
-	// on arbitrary headers.  It returns ErrNotFound if no
-	// assertion can be found.
-	FindManyTrusted(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+	// FindManyPredefined finds assertions in the predefined sets
+	// (trusted or not) based on arbitrary headers.  It returns
+	// ErrNotFound if no assertion can be found.
+	FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
 }
@@ -169,6 +179,7 @@ type Database struct {
 	bs         Backstore
 	keypairMgr KeypairManager
 	trusted    Backstore
+	predefined Backstore
 	backstores []Backstore
 	checkers   []Checker
 }
@@ -207,6 +218,15 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		}
 	}
 
+	otherPredefinedBackstore := NewMemoryBackstore()
+
+	for _, a := range cfg.OtherPredefined {
+		err := otherPredefinedBackstore.Put(a.Type(), a)
+		if err != nil {
+			return nil, fmt.Errorf("error loading for use predefined assertion %v", a.Ref())
+		}
+	}
+
 	checkers := cfg.Checkers
 	if len(checkers) == 0 {
 		checkers = DefaultCheckers
@@ -218,10 +238,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs:         bs,
 		keypairMgr: keypairMgr,
 		trusted:    trustedBackstore,
+		predefined: otherPredefinedBackstore,
 		// order here is relevant, Find* precedence and
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
-		backstores: []Backstore{trustedBackstore, bs},
+		backstores: []Backstore{trustedBackstore, otherPredefinedBackstore, bs},
 		checkers:   dbCheckers,
 	}, nil
 }
@@ -365,6 +386,11 @@ func (db *Database) Add(assert Assertion) error {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
+	_, err = db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+	if err != ErrNotFound {
+		return fmt.Errorf("cannot add %q assertion with primary key clashing with a predefined assertion: %v", ref.Type.Name, ref.PrimaryKey)
+	}
+
 	return db.bs.Put(ref.Type, assert)
 }
 
@@ -433,6 +459,14 @@ func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[stri
 	return find(db.backstores, assertionType, headers, maxFormat)
 }
 
+// FindPredefined finds an assertion in the predefined sets (trusted
+// or not) based on arbitrary headers.  Provided headers must contain
+// the primary key for the assertion type.  It returns ErrNotFound if
+// the assertion cannot be found.
+func (db *Database) FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	return find([]Backstore{db.trusted, db.predefined}, assertionType, headers, -1)
+}
+
 // FindTrusted finds an assertion in the trusted set based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
@@ -472,11 +506,11 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 	return db.findMany(db.backstores, assertionType, headers)
 }
 
-// FindManyTrusted finds assertions in the trusted set based on
-// arbitrary headers.  It returns ErrNotFound if no assertion can be
-// found.
-func (db *Database) FindManyTrusted(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return db.findMany([]Backstore{db.trusted}, assertionType, headers)
+// FindManyPrefined finds assertions in the predefined sets (trusted
+// or not) based on arbitrary headers.  It returns ErrNotFound if no
+// assertion can be found.
+func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
 }
 
 // assertion checkers
