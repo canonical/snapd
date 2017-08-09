@@ -54,9 +54,9 @@ func (s *DirsTestSuite) TestClassicConfinementSupport(c *C) {
 	reset := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer reset()
 	dirs.SetRootDir("/")
-	c.Assert(dirs.SupportsClassicConfinement(), Equals, true)
+	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
 	dirs.SetRootDir("/alt")
-	c.Assert(dirs.SupportsClassicConfinement(), Equals, false)
+	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
 }
 
 func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {
