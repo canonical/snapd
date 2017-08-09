@@ -64,7 +64,7 @@ backends:
             - fedora-25-64:
                 workers: 2
             - opensuse-42.2-64:
-                workers: 1
+                workers: 2
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -347,7 +347,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
