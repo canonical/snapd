@@ -2675,8 +2675,8 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	// an option. That's a maximum of 3+len(appInfos).
 	argv := make([]string, 2, 3+len(appInfos))
 	argv[0] = "systemctl"
-	argv[1] = inst.Action
 
+	argv[1] = inst.Action
 	switch inst.Action {
 	case "start":
 		if inst.Enable {
