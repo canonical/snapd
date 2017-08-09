@@ -2696,13 +2696,17 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown action %q", inst.Action)
 	}
 
-	snapNames := make(map[string]bool, len(appInfos))
+	snapNames := make([]string, 0, len(appInfos))
+	lastName := ""
 	names := make([]string, len(appInfos))
 	for i, svc := range appInfos {
 		argv = append(argv, svc.ServiceName())
 		snapName := svc.Snap.Name()
 		names[i] = snapName + "." + svc.Name
-		snapNames[snapName] = true
+		if snapName != lastName {
+			snapNames = append(snapNames, snapName)
+			lastName = snapName
+		}
 	}
 
 	desc := fmt.Sprintf("%s of %v", inst.Action, names)

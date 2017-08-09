@@ -6808,20 +6808,20 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 
 	// things that should be ok:
-	for _, m := range []map[string]bool{
+	for _, m := range [][]string{
 		{}, //nothing
-		{"c-snap": true},
-		{"c-snap": true, "d-snap": true, "e-snap": true, "f-snap": true},
+		{"c-snap"},
+		{"c-snap", "d-snap", "e-snap", "f-snap"},
 	} {
 		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), IsNil)
 	}
 
 	// things that should not be ok:
-	for _, m := range []map[string]bool{
-		{"a-snap": true},
-		{"a-snap": true, "b-snap": true},
-		{"a-snap": true, "c-snap": true},
-		{"b-snap": true, "c-snap": true},
+	for _, m := range [][]string{
+		{"a-snap"},
+		{"a-snap", "b-snap"},
+		{"a-snap", "c-snap"},
+		{"b-snap", "c-snap"},
 	} {
 		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has changes in progress`)
 	}

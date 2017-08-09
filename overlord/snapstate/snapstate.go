@@ -305,7 +305,12 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 //
 // It's like CheckChangeConflict, but for multiple snaps, and does not
 // check snapst.
-func CheckChangeConflictMany(st *state.State, snapNames map[string]bool, checkConflictPredicate func(taskKind string) bool) error {
+func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictPredicate func(taskKind string) bool) error {
+	snapMap := make(map[string]bool, len(snapNames))
+	for _, k := range snapNames {
+		snapMap[k] = true
+	}
+
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -324,9 +329,9 @@ func CheckChangeConflictMany(st *state.State, snapNames map[string]bool, checkCo
 				if err != nil {
 					return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
 				}
-				if (snapNames[plugRef.Snap] || snapNames[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
 					var snapName string
-					if snapNames[plugRef.Snap] {
+					if snapMap[plugRef.Snap] {
 						snapName = plugRef.Snap
 					} else {
 						snapName = slotRef.Snap
@@ -339,7 +344,7 @@ func CheckChangeConflictMany(st *state.State, snapNames map[string]bool, checkCo
 					return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 				}
 				snapName := snapsup.Name()
-				if (snapNames[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
 					return fmt.Errorf("snap %q has changes in progress", snapName)
 				}
 			}
@@ -354,7 +359,7 @@ func CheckChangeConflictMany(st *state.State, snapNames map[string]bool, checkCo
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
 func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(taskKind string) bool, snapst *SnapState) error {
-	if err := CheckChangeConflictMany(st, map[string]bool{snapName: true}, checkConflictPredicate); err != nil {
+	if err := CheckChangeConflictMany(st, []string{snapName}, checkConflictPredicate); err != nil {
 		return err
 	}
 
