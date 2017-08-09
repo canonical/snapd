@@ -65,26 +65,18 @@ func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
 }
 
 func (s *TimeControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "time-control",
 		Interface: "time-control",
-	}})
-	c.Assert(err, ErrorMatches, "time-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"time-control slots are reserved for the core snap")
 }
 
 func (s *TimeControlTestInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "time-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "time-control"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -296,3 +296,24 @@ func (s *getAttrSuite) TestPlugOrSlotEmpty(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *setSuite) TestNull(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
+	c.Check(err, IsNil)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
+	c.Check(err, IsNil)
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify config value
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Assert(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Assert(value, IsNil)
+	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Assert(value, DeepEquals, []interface{}{nil})
+}

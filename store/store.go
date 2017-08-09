@@ -87,6 +87,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
+	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.PublisherID = d.DeveloperID
@@ -168,6 +169,7 @@ type Config struct {
 	BulkURI        *url.URL
 	AssertionsURI  *url.URL
 	OrdersURI      *url.URL
+	BuyURI         *url.URL
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
 
@@ -181,6 +183,36 @@ type Config struct {
 	DeltaFormat  string
 }
 
+// SetAPI updates API URLs in the Config. Must not be used to change active config.
+func (cfg *Config) SetAPI(api *url.URL) error {
+	storeBaseURI, err := storeURL(api)
+	if err != nil {
+		return err
+	}
+	assertsBaseURI, err := assertsURL(storeBaseURI)
+	if err != nil {
+		return err
+	}
+
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
+	cfg.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
+	// slash at the end because snap name is appended to this with .Parse(snapName)
+	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
+	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
+	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
+	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
+	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
+
+	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+
+	return nil
+}
+
 // Store represents the ubuntu snap store
 type Store struct {
 	searchURI      *url.URL
@@ -188,6 +220,7 @@ type Store struct {
 	bulkURI        *url.URL
 	assertionsURI  *url.URL
 	ordersURI      *url.URL
+	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
 
@@ -253,22 +286,53 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func apiURL() string {
-	// FIXME: this will become a store-url assertion
+// Extend a base URL with additional unescaped paths.  (url.Parse handles
+// resolving relative links, which isn't quite what we want: that goes wrong if
+// the base URL doesn't end with a slash.)
+func urlJoin(base *url.URL, paths ...string) *url.URL {
+	if len(paths) == 0 {
+		return base
+	}
+	url := *base
+	url.RawQuery = ""
+	paths = append([]string{strings.TrimSuffix(url.Path, "/")}, paths...)
+	url.Path = strings.Join(paths, "/")
+	return &url
+}
+
+// apiURL returns the system default base API URL.
+func apiURL() *url.URL {
+	s := "https://api.snapcraft.io/"
+	if useStaging() {
+		s = "https://api.staging.snapcraft.io/"
+	}
+	u, _ := url.Parse(s)
+	return u
+}
+
+// storeURL returns the base store URL, derived from either the given API URL
+// or an env var override.
+func storeURL(api *url.URL) (*url.URL, error) {
+	var override string
+	var overrideName string
 	// XXX: Deprecated but present for backward-compatibility: this used
 	// to be "Click Package Index".  Remove this once people have got
 	// used to SNAPPY_FORCE_API_URL instead.
-	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" && strings.HasSuffix(u, "api/v1/") {
-		return strings.TrimSuffix(u, "api/v1/")
+	if s := os.Getenv("SNAPPY_FORCE_CPI_URL"); s != "" && strings.HasSuffix(s, "api/v1/") {
+		overrideName = "SNAPPY_FORCE_CPI_URL"
+		override = strings.TrimSuffix(s, "api/v1/")
+	} else if s := os.Getenv("SNAPPY_FORCE_API_URL"); s != "" {
+		overrideName = "SNAPPY_FORCE_API_URL"
+		override = s
 	}
-	if u := os.Getenv("SNAPPY_FORCE_API_URL"); u != "" {
-		return u
+	if override != "" {
+		u, err := url.Parse(override)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %s", overrideName, err)
+		}
+		return u, nil
 	}
-	if useStaging() {
-		return "https://api.staging.snapcraft.io/"
-	}
-
-	return "https://api.snapcraft.io/"
+	return api, nil
 }
 
 func authLocation() string {
@@ -285,15 +349,17 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func assertsURL() string {
-	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
-		return u
+func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
+	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
+		}
+		return u, nil
 	}
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
-	return "https://assertions.ubuntu.com/v1/"
+	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
+	// once new bulk-friendly APIs are designed and implemented.
+	return urlJoin(storeBaseURI, "api/v1/snaps/"), nil
 }
 
 func myappsURL() string {
@@ -312,48 +378,14 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	storeBaseURI, err := url.Parse(apiURL())
+	storeBaseURI, err := storeURL(apiURL())
 	if err != nil {
 		panic(err)
 	}
-
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("api/v1/snaps/search")
-	if err != nil {
-		panic(err)
+	if storeBaseURI.RawQuery != "" {
+		panic("store API URL may not contain query string")
 	}
-
-	// slash at the end because snap name is appended to this with .Parse(snapName)
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("api/v1/snaps/details/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("api/v1/snaps/metadata")
-	if err != nil {
-		panic(err)
-	}
-
-	assertsBaseURI, err := url.Parse(assertsURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.AssertionsURI, err = assertsBaseURI.Parse("assertions/")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.SectionsURI, err = storeBaseURI.Parse("api/v1/snaps/sections")
+	err = defaultConfig.SetAPI(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
@@ -439,6 +471,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:         cfg.BulkURI,
 		assertionsURI:   cfg.AssertionsURI,
 		ordersURI:       cfg.OrdersURI,
+		buyURI:          cfg.BuyURI,
 		customersMeURI:  cfg.CustomersMeURI,
 		sectionsURI:     sectionsURI,
 		series:          series,
@@ -1152,6 +1185,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 
 // query the store for the information about currently offered revisions of snaps
 func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+	if len(currentSnaps) == 0 {
+		// nothing to do
+		return nil, nil
+	}
+
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
@@ -1283,14 +1321,15 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
-	}
-	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
-		if err == nil {
-			return nil
+
+		if len(downloadInfo.Deltas) == 1 {
+			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+			if err == nil {
+				return nil
+			}
+			// We revert to normal downloads if there is any error.
+			logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 		}
-		// We revert to normal downloads if there is any error.
-		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
 	partialPath := targetPath + ".partial"
@@ -1321,7 +1360,22 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	} else {
+		// we're done! check the hash though
+		h := crypto.SHA3_384.New()
+		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+			return err
+		}
+		if _, err := io.Copy(h, w); err != nil {
+			return err
+		}
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if downloadInfo.Sha3_384 != actualSha3 {
+			err = HashError{name, actualSha3, downloadInfo.Sha3_384}
+		}
+	}
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
@@ -1666,11 +1720,18 @@ type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
 }
 
+func (s *storeErrors) Code() string {
+	if len(s.Errors) == 0 {
+		return ""
+	}
+	return s.Errors[0].Code
+}
+
 func (s *storeErrors) Error() string {
 	if len(s.Errors) == 0 {
 		return "internal error: empty store error used as an actual error"
 	}
-	return "store reported an error: " + s.Errors[0].Error()
+	return s.Errors[0].Error()
 }
 
 func buyOptionError(message string) (*BuyResult, error) {
@@ -1693,12 +1754,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, ErrUnauthenticated
 	}
 
-	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
-	err := s.ReadyToBuy(user)
-	if err != nil {
-		return nil, err
-	}
-
 	instruction := orderInstruction{
 		SnapID:   options.SnapID,
 		Amount:   fmt.Sprintf("%.2f", options.Price),
@@ -1712,7 +1767,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.ordersURI,
+		URL:         s.buyURI,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -1738,9 +1793,18 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case 400:
 		// Invalid price was specified, etc.
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+	case 403:
+		// Customer account not set up for purchases.
+		switch errorInfo.Code() {
+		case "no-payment-methods":
+			return nil, ErrNoPaymentMethods
+		case "tos-not-accepted":
+			return nil, ErrTOSNotAccepted
+		}
+		return buyOptionError(fmt.Sprintf("permission denied: %v", errorInfo.Error()))
 	case 404:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
+		// Likely because customer account or snap ID doesn't exist.
+		return buyOptionError(fmt.Sprintf("server says not found: %v", errorInfo.Error()))
 	case 402: // Payment Required
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined

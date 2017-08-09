@@ -2,17 +2,11 @@ summary: Check that the docker snap works
 systems: [ubuntu-16.04-*, ubuntu-core-16-*, ubuntu-14.04-64]
 
 prepare: |
-    if apt show linux-image-extra-$(uname -r); then
-        apt install -y linux-image-extra-$(uname -r)
-    fi
     modprobe aufs
     # we don't distort the download statistics, we run with SNAPPY_TESTING=1
     # which will add "testing" to the user-agent header and the store does
     # not count this.
     snap install docker
-
-restore: |
-    apt remove -y linux-image-extra-$(uname -r)-generic || true
 
 debug: |
     cat /var/log/syslog

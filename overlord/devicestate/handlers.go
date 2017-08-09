@@ -54,9 +54,9 @@ func useStaging() bool {
 
 func deviceAPIBaseURL() string {
 	if useStaging() {
-		return "https://myapps.developer.staging.ubuntu.com/identity/api/v1/"
+		return "https://api.staging.snapcraft.io/api/v1/snaps/auth/"
 	}
-	return "https://myapps.developer.ubuntu.com/identity/api/v1/"
+	return "https://api.snapcraft.io/api/v1/snaps/auth/"
 }
 
 var (
@@ -227,6 +227,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	default:
 		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
 	}
+
+	// TODO: support a stream of assertions instead of just the serial
 
 	// decode body with serial assertion
 	dec := asserts.NewDecoder(resp.Body)
@@ -440,18 +442,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	sto := snapstate.Store(st)
-	// try to fetch the signing key of the serial
-	st.Unlock()
-	a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{serial.SignKeyID()}, nil)
-	st.Lock()
-	if errAcctKey == nil {
-		err := assertstate.Add(st, a)
-		if err != nil {
-			if !asserts.IsUnaccceptedUpdate(err) {
-				return err
-			}
-		}
+	// try to fetch the signing key chain of the serial
+	errAcctKey, err := fetchKeys(st, serial.SignKeyID())
+	if err != nil {
+		return err
 	}
 
 	// add the serial assertion to the system assertion db
@@ -480,3 +474,32 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 }
 
 var repeatRequestSerial string // for tests
+
+func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
+	sto := snapstate.Store(st)
+	db := assertstate.DB(st)
+	for {
+		_, err := db.FindTrusted(asserts.AccountKeyType, map[string]string{
+			"public-key-sha3-384": keyID,
+		})
+		if err == nil {
+			return nil, nil
+		}
+		if err != asserts.ErrNotFound {
+			return nil, err
+		}
+		st.Unlock()
+		a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{keyID}, nil)
+		st.Lock()
+		if errAcctKey != nil {
+			return errAcctKey, nil
+		}
+		err = assertstate.Add(st, a)
+		if err != nil {
+			if !asserts.IsUnaccceptedUpdate(err) {
+				return nil, err
+			}
+		}
+		keyID = a.SignKeyID()
+	}
+}

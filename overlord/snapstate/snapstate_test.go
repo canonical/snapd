@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -190,9 +191,6 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		"setup-aliases",
 		"run-hook",
 		"start-snap-services")
-
-	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run install hook of .*`)
-
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -241,7 +239,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"start-snap-services")
 
 	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run refresh hook of .*`)
-
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -271,6 +268,33 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 		"discard-conns",
 	})
+}
+
+func (s *snapmgrTestSuite) TestGenerateCookies(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// verify that GenerateCookies creates a cookie for a snap that's missing it.
+	s.state.Set("snaps", map[string]*json.RawMessage{
+		"some-snap":  nil,
+		"other-snap": nil})
+
+	// some-snap doesn't have cookie
+	contexts := map[string]string{"other-snap": "123456"}
+	s.state.Set("snap-cookies", contexts)
+
+	s.snapmgr.GenerateCookies(s.state)
+
+	err := s.state.Get("snap-cookies", &contexts)
+	c.Assert(err, IsNil)
+	c.Assert(contexts, HasLen, 2)
+
+	cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
+	c.Assert(osutil.FileExists(cookieFile), Equals, true)
+	data, err := ioutil.ReadFile(cookieFile)
+	c.Assert(err, IsNil)
+	c.Assert(contexts[string(data)], NotNil)
+	c.Assert(contexts[string(data)], Equals, "some-snap")
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -372,7 +396,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// hook tasks for refresh and for configure hook
+	// hook tasks for refresh and for configure hook only; no install hook
 	c.Assert(runHooks, HasLen, 2)
 	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
@@ -994,7 +1018,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// hook tasks for refresh and configure
+	// hook tasks for refresh and configure, no install hook
 	c.Assert(runHooks, HasLen, 2)
 	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
