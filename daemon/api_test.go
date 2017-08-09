@@ -6214,57 +6214,57 @@ func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall [
 
 func (s *appSuite) TestPostAppsStartOne(c *check.C) {
 	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
-	args := []string{"systemctl", "start", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "start", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := appInstruction{Action: "start", Names: []string{"snap-a"}}
-	args := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
-	chg := s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
+	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	inst := appInstruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
-	args := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
-	chg := s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
+	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
 }
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {
 	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
-	args := []string{"systemctl", "stop", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "stop", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsRestart(c *check.C) {
 	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
-	args := []string{"systemctl", "restart", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "restart", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsReload(c *check.C) {
 	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
-	args := []string{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsEnableNow(c *check.C) {
 	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
-	args := []string{"systemctl", "enable", "--now", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "enable", "--now", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsDisableNow(c *check.C) {
 	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
-	args := []string{"systemctl", "disable", "--now", "snap.snap-a.svc2.service"}
-	s.testPostApps(c, inst, args)
+	expected := []string{"systemctl", "disable", "--now", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPostAppsBadJSON(c *check.C) {
