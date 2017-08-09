@@ -4,62 +4,79 @@ manual: true
 
 environment:
     # High Profile
-    INSTALL/azurecli: azure-cli --classic
-    INSTALL/awscli: aws-cli --classic
-    INSTALL/heroku: heroku --classic
-    INSTALL/hiri: hiri  
-    INSTALL/kubectl: kubectl --classic
-    INSTALL/rocketchatserver: rocketchat-server
+    SNAP/azurecli: azure-cli
+    SNAP/awscli: aws-cli
+    SNAP/heroku: heroku
+    SNAP/hiri: hiri
+    SNAP/kubectl: kubectl
+    SNAP/rocketchatserver: rocketchat-server
     # Selected from recent insights posts
-    INSTALL/corebird: corebird
-    INSTALL/gitterdesktop: gitter-desktop
-    INSTALL/helm: helm
-    INSTALL/mattermostdesktop: mattermost-desktop
-    INSTALL/mentaplexmediaserver: menta-plexmediaserver
-    INSTALL/openspades: openspades
-    INSTALL/pintown: pin-town
-    INSTALL/postgresql10: postgresql10
-    INSTALL/storjshare: storjshare
-    INSTALL/slackterm: slack-term
-    INSTALL/vectr: vectr
-    INSTALL/wekan: wekan
-    INSTALL/wormhole: wormhole
+    SNAP/corebird: corebird
+    SNAP/gitterdesktop: gitter-desktop
+    SNAP/helm: helm
+    SNAP/mattermostdesktop: mattermost-desktop
+    SNAP/mentaplexmediaserver: menta-plexmediaserver
+    SNAP/openspades: openspades
+    SNAP/pintown: pin-town
+    SNAP/postgresql10: postgresql10
+    SNAP/storjshare: storjshare
+    SNAP/slackterm: slack-term
+    SNAP/vectr: vectr
+    SNAP/wekan: wekan
+    SNAP/wormhole: wormhole
     # Featured snaps in Ubuntu Software
-    INSTALL/anboxinstaller: anbox-installer --classic
-    INSTALL/lxd: lxd    
+    SNAP/anboxinstaller: anbox-installer
+    SNAP/lxd: lxd
     # Top non canonical snaps
-    INSTALL/atom: atom --classic
-    INSTALL/conjureup: conjure-up --classic
-    INSTALL/discord: discord
-    INSTALL/docker: docker
-    INSTALL/etcd: etcd
-    INSTALL/geocoder: geocoder --edge
-    INSTALL/gimp: gimp --beta    
-    INSTALL/huggle: huggle
-    INSTALL/hugo: hugo
-    INSTALL/ia: ia --edge
-    INSTALL/kurly: kurly
-    INSTALL/micro: micro --beta
-    INSTALL/nikola: nikola
-    INSTALL/parity: parity --edge
-    INSTALL/paritybitcoin: parity-bitcoin --edge
-    INSTALL/remmina: remmina
-    INSTALL/telegramsergiusens: telegram-sergiusens
-    INSTALL/zeronet: zeronet
-    INSTALL/zeronetjs: zeronet-js --beta    
+    SNAP/atom: atom
+    SNAP/discord: discord
+    SNAP/docker: docker
+    SNAP/etcd: etcd
+    SNAP/geocoder: geocoder
+    SNAP/gimp: gimp
+    SNAP/huggle: huggle
+    SNAP/hugo: hugo
+    SNAP/ia: ia
+    SNAP/kurly: kurly
+    SNAP/micro: micro
+    SNAP/nikola: nikola
+    SNAP/parity: parity
+    SNAP/paritybitcoin: parity-bitcoin
+    SNAP/remmina: remmina
+    SNAP/telegramsergiusens: telegram-sergiusens
+    SNAP/zeronet: zeronet
+    SNAP/zeronetjs: zeronet-js
     # Top canonical snaps
-    INSTALL/bare: bare --edge
-    INSTALL/bluez: bluez
-    INSTALL/gedit: gedit
-    INSTALL/go: go --classic
-    INSTALL/juju: juju --classic
-    INSTALL/neutron: neutron --edge
-    INSTALL/nova: nova --edge
-    INSTALL/snapcraft: snapcraft --beta --classic
-    INSTALL/solc: solc
-    INSTALL/vault: vault
+    SNAP/bare: bare
+    SNAP/bluez: bluez
+    SNAP/conjureup: conjure-up
+    SNAP/gedit: gedit
+    SNAP/go: go
+    SNAP/juju: juju
+    SNAP/neutron: neutron
+    SNAP/nova: nova
+    SNAP/snapcraft: snapcraft
+    SNAP/solc: solc
+    SNAP/vault: vault
 
 execute: |
-    SNAPNAME="$(echo $INSTALL | sed 's/ .*//')"
-    snap install $INSTALL
-    snap list | MATCH $SNAPNAME
+    CHANNELS=(stable candidate beta edge)
+    for CHANNEL in "${CHANNELS[@]}"; do
+        CHANNEL_INFO="$(snap info $SNAP | grep " $CHANNEL: ")" || exit
+        if echo $CHANNEL_INFO | grep -q -E "$CHANNEL:.*–"; then
+            continue
+        fi
+
+        if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*classic"; then
+            snap install $SNAP --$CHANNEL --classic
+        elif echo $CHANNEL_INFO | MATCH"$CHANNEL:.*jailmode"; then
+            snap install $SNAP --$CHANNEL --jailmode
+        elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*devmode"; then
+            snap install $SNAP --$CHANNEL --devmode
+        else
+            snap install $SNAP --$CHANNEL
+        fi
+        break
+    done
+
+    snap list | grep -q -E $SNAP
