@@ -69,7 +69,7 @@ execute: |
 
         if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*classic"; then
             snap install $SNAP --$CHANNEL --classic
-        elif echo $CHANNEL_INFO | MATCH"$CHANNEL:.*jailmode"; then
+        elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*jailmode"; then
             snap install $SNAP --$CHANNEL --jailmode
         elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*devmode"; then
             snap install $SNAP --$CHANNEL --devmode
