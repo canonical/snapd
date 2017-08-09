@@ -121,7 +121,22 @@ func StripRootDir(dir string) string {
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
-	return SnapMountDir == defaultSnapMountDir
+	if SnapMountDir == defaultSnapMountDir {
+		return true
+	}
+
+	// distros with a non-default /snap location may still be good if
+	// there is a symlink in place
+	fi, err := os.Lstat(defaultSnapMountDir)
+	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if target, err := filepath.EvalSymlinks(defaultSnapMountDir); err == nil {
+			if target == defaultSnapMountDir {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // SetRootDir allows settings a new global root directory, this is useful

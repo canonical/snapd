@@ -64,7 +64,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 		} else if !dirs.SupportsClassicConfinement() {
-			return nil, fmt.Errorf("classic confinement is not yet supported on your distribution")
+			return nil, fmt.Errorf("Your distribution choose a directory layout incompatible with classic confinement. You can fix this yourself by setting a symlink from %s to /snap", dirs.SnapMountDir)
 		}
 	}
 	if !snapst.HasCurrent() { // install?
