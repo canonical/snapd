@@ -19,11 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-)
-
 const joystickSummary = `allows access to joystick devices`
 
 const joystickBaseDeclarationSlots = `
@@ -43,55 +38,16 @@ const joystickConnectedPlugAppArmor = `
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
-// joystickInterface is the type for joystick interface
-type joystickInterface struct{}
-
-// Name returns the name of the joystick interface.
-func (iface *joystickInterface) Name() string {
-	return "joystick"
-}
-
-func (iface *joystickInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              joystickSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: joystickBaseDeclarationSlots,
-	}
-}
-
-// String returns the name of the joystick interface.
-func (iface *joystickInterface) String() string {
-	return iface.Name()
-}
-
-// SanitizeSlot checks the validity of the defined slot.
-func (iface *joystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
-// AppArmorConnectedPlug adds the necessary appamor snippet to the spec that
-// allows access to joystick devices.
-func (iface *joystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(joystickConnectedPlugAppArmor)
-	return nil
-}
-
-// TODO: This interface needs to use udev tagging, see LP: #1675738.
-// func (iface *joystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-// 	const udevRule = `KERNEL=="js[0-9]*", TAG+="%s"`
-// 	for appName := range plug.Apps {
-// 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-// 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-// 	}
-// 	return nil
-// }
-
-// AutoConnect returns true in order to allow what's in the declarations.
-func (iface *joystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	return true
-}
+//const joystickConnectedPlugUDev = `KERNEL=="js[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
 
 func init() {
-	registerIface(&joystickInterface{})
+	registerIface(&commonInterface{
+		name:                  "joystick",
+		summary:               joystickSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  joystickBaseDeclarationSlots,
+		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
+		reservedForOS:         true,
+	})
 }
