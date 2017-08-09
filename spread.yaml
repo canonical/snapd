@@ -38,6 +38,7 @@ environment:
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
+    PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
 
 backends:
     linode:
@@ -61,12 +62,10 @@ backends:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
-                workers: 1
+                workers: 2
             - opensuse-42.2-64:
                 workers: 1
     qemu:
-        environment:
-            APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
             - ubuntu-14.04-32:
                 username: ubuntu
@@ -348,10 +347,7 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -383,7 +379,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -opensuse-*]
 
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -394,7 +390,8 @@ suites:
             prepare_each_classic
         restore: |
             $TESTSLIB/reset.sh --store
-            apt-get purge -y snapd
+            . $TESTSLIB/pkgdb.sh
+            distro_purge_package snapd
 
         environment:
           _/plain: _
@@ -416,7 +413,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -429,7 +426,8 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
             fi
 
     tests/upgrade/:
@@ -437,7 +435,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-16-*, -opensuse-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -448,8 +446,8 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            $TESTSLIB/reset.sh
-            apt-get purge -y snapd
+            . $TESTSLIB/pkgdb.sh
+            distro_purge_package snapd
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
@@ -477,7 +475,8 @@ suites:
             prepare_each_classic
         restore: |
             $TESTSLIB/reset.sh --store
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            . $TESTSLIB/pkgdb.sh
+            distro_purge_package snapd snap-confine ubuntu-core-launcher
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -498,7 +497,8 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
             fi
 
     tests/nested/:
@@ -514,11 +514,13 @@ suites:
         kill-timeout: 2h
         manual: true
         prepare: |
-            apt update && apt install -y snapd qemu genisoimage sshpass
-
+            . $TESTSLIB/pkgdb.sh
+            distro_update_package_db
+            distro_install_package qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
-            apt remove -y qemu genisoimage sshpass
+            . $TESTSLIB/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 
 # vim:ts=4:sw=4:et

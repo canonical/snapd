@@ -207,15 +207,15 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/api/v1/request-id":
+		case "/api/v1/snaps/auth/request-id":
 			w.WriteHeader(200)
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, s.reqID))
 
-		case "/identity/api/v1/serial":
+		case "/api/v1/snaps/auth/serial":
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
-		case "/identity/api/v1/devices":
+		case "/api/v1/snaps/auth/devices":
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 
 			mu.Lock()
@@ -303,11 +303,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -374,11 +374,11 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer restore()
 
-	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
 	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
@@ -443,11 +443,11 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer restore()
 
-	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
 	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
@@ -513,11 +513,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -593,7 +593,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/identity/api/v1/")})
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/api/v1/snaps/auth/")})
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
@@ -691,11 +691,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 

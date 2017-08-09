@@ -58,15 +58,15 @@ iopl
 `
 
 // The type for io-ports-control interface
-type iioPortsControlInterface struct{}
+type ioPortsControlInterface struct{}
 
 // Getter for the name of the io-ports-control interface
-func (iface *iioPortsControlInterface) Name() string {
+func (iface *ioPortsControlInterface) Name() string {
 	return "io-ports-control"
 }
 
-func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ioPortsControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ioPortsControlSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -74,40 +74,21 @@ func (iface *iioPortsControlInterface) MetaData() interfaces.MetaData {
 	}
 }
 
-func (iface *iioPortsControlInterface) String() string {
+func (iface *ioPortsControlInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *iioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
+func (iface *ioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-// Checks and possibly modifies a plug
-func (iface *iioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *iioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *iioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ioPortsControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="port", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
@@ -116,16 +97,16 @@ func (iface *iioPortsControlInterface) UDevConnectedPlug(spec *udev.Specificatio
 	return nil
 }
 
-func (iface *iioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *iioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
 
 func init() {
-	registerIface(&iioPortsControlInterface{})
+	registerIface(&ioPortsControlInterface{})
 }

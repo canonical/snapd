@@ -12,7 +12,7 @@ details: |
     snap-specific namespace, has a predictable PID and is long lived.
 prepare: |
     echo "Having installed the test snap in devmode"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
 execute: |
     # This test is meaningful only on Ubuntu for now as this is where we have
@@ -35,14 +35,14 @@ execute: |
         echo "This test is not supported on kernels older than 4.4.0-67"
         exit 0
     fi
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
     echo "We can now run a snap command from the namespace of a snap command and see it work"
     test-snapd-tools.cmd /bin/true
-    test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes $SNAPMOUNTDIR/bin/test-snapd-tools.cmd /bin/true"
+    test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes $SNAP_MOUNT_DIR/bin/test-snapd-tools.cmd /bin/true"
     echo "We can now discard the namespace and repeat the test as a non-root user"
     /usr/lib/snapd/snap-discard-ns test-snapd-tools
     su -l -c 'test-snapd-tools.cmd /bin/true' test
-    su -l -c 'test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes $SNAPMOUNTDIR/bin/test-snapd-tools.cmd /bin/true"' test
+    su -l -c "test-snapd-tools.cmd /bin/sh -c \"SNAP_CONFINE_DEBUG=yes $SNAP_MOUNT_DIR/bin/test-snapd-tools.cmd /bin/true\"" test
 debug: |
     # Kernel version is an important input in understing failures of this test
     uname -a

@@ -1,5 +1,7 @@
 summary: Ensure that snap-repair is available
 
+systems: [-fedora-*, -opensuse-*]
+
 execute: |
     . $TESTSLIB/dirs.sh
 

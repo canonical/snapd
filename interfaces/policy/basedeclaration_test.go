@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -455,6 +456,8 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"autopilot-introspection": {"core"},
+		"avahi-control":           {"app", "core"},
+		"avahi-observe":           {"app", "core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -511,15 +514,6 @@ var (
 	}
 )
 
-func contains(l []string, s string) bool {
-	for _, s1 := range l {
-		if s == s1 {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	all := builtin.Interfaces()
 
@@ -536,7 +530,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			continue
 		}
 		for name, snapType := range snapTypeMap {
-			ok := contains(types, name)
+			ok := strutil.ListContains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
 			slotInfo := ic.Snap.Slots[iface.Name()]
 			err := ic.Check()
@@ -547,7 +541,8 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				sanitizeErr := iface.SanitizeSlot(&interfaces.Slot{SlotInfo: slotInfo})
+				slot := &interfaces.Slot{SlotInfo: slotInfo}
+				sanitizeErr := slot.Sanitize(iface)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
@@ -591,7 +586,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		// the case we continue as normal.
 		if ok {
 			for name, snapType := range snapTypeMap {
-				ok := contains(types, name)
+				ok := strutil.ListContains(types, name)
 				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
 				err := ic.Check()
 				comm := Commentf("%s by %s snap", iface.Name(), name)
