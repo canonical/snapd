@@ -1794,11 +1794,13 @@ func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
 	defer st.Unlock()
 
 	st.Unlock()
-	_, _, err := s.ac.DeviceSessionRequest("NONCE")
+	_, _, _, err := s.ac.DeviceSessionRequest("NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
-	// setup serial and key in system state
+	// setup model, serial and key in system state
+	err = assertstate.Add(st, s.model)
+	c.Assert(err, IsNil)
 	err = assertstate.Add(st, s.serial)
 	c.Assert(err, IsNil)
 	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -1813,9 +1815,10 @@ func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
 	})
 
 	st.Unlock()
-	req, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
+	req, encModel, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
+	c.Check(encModel, DeepEquals, asserts.Encode(s.model))
 	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
 }

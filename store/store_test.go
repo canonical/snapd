@@ -148,6 +148,20 @@ type remoteRepoTestSuite struct {
 var _ = Suite(&remoteRepoTestSuite{})
 
 const (
+	exModel = `type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: baz-3000
+architecture: armhf
+gadget: gadget
+kernel: kernel
+store: my-brand-store-id
+timestamp: 2016-08-20T13:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
+
 	exSerial = `type: serial
 authority-id: my-brand
 brand-id: my-brand
@@ -219,18 +233,23 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
+func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, []byte, error) {
+	model, err := asserts.Decode([]byte(exModel))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), nil
+	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(model.(*asserts.Model)), asserts.Encode(serial.(*asserts.Serial)), nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
