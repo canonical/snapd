@@ -17,6 +17,8 @@
  *
  */
 
+// +build ignore
+
 package main_test
 
 import (
