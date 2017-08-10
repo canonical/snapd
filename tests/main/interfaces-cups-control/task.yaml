@@ -30,8 +30,12 @@ prepare: |
         if ! systemctl is-enabled cups ; then
             # We can't use --now as this isn't supported by all distributions
             systemctl enable cups
-            systemctl start cups
         fi
+    fi
+
+    echo "Starting cups service in case it is not active"
+    if ! systemctl is-active cups; then
+        systemctl start cups
     fi
 
 restore: |
