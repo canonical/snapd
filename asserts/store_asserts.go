@@ -9,7 +9,7 @@ import (
 // a device to the store.
 type Store struct {
 	assertionBase
-	address *url.URL
+	url *url.URL
 }
 
 // Store returns the identifying name of the operator's store.
@@ -22,9 +22,9 @@ func (store *Store) OperatorID() string {
 	return store.HeaderString("operator-id")
 }
 
-// Address returns the URL of the store's API.
-func (store *Store) Address() *url.URL {
-	return store.address
+// URL returns the URL of the store's API.
+func (store *Store) URL() *url.URL {
+	return store.url
 }
 
 // Location returns a summary of the store's location/purpose.
@@ -59,34 +59,34 @@ func (store *Store) Prerequisites() []*Ref {
 	}
 }
 
-// checkAddressURL validates the input URL address and returns a full URL.
-func checkAddressURL(headers map[string]interface{}) (*url.URL, error) {
-	address, err := checkOptionalString(headers, "address")
+// checkStoreURL validates the "url" header and returns a full URL or nil.
+func checkStoreURL(headers map[string]interface{}) (*url.URL, error) {
+	s, err := checkOptionalString(headers, "url")
 	if err != nil {
 		return nil, err
 	}
 
-	if address == "" {
+	if s == "" {
 		return nil, nil
 	}
 
-	errWhat := `"address" header`
+	errWhat := `"url" header`
 
-	u, err := url.Parse(address)
+	u, err := url.Parse(s)
 	if err != nil {
-		return nil, fmt.Errorf("%s must be a valid URL: %s", errWhat, address)
+		return nil, fmt.Errorf("%s must be a valid URL: %s", errWhat, s)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf(`%s scheme must be "https" or "http": %s`, errWhat, address)
+		return nil, fmt.Errorf(`%s scheme must be "https" or "http": %s`, errWhat, s)
 	}
 	if u.Host == "" {
-		return nil, fmt.Errorf(`%s must have a host: %s`, errWhat, address)
+		return nil, fmt.Errorf(`%s must have a host: %s`, errWhat, s)
 	}
 	if u.RawQuery != "" {
-		return nil, fmt.Errorf(`%s must not have a query: %s`, errWhat, address)
+		return nil, fmt.Errorf(`%s must not have a query: %s`, errWhat, s)
 	}
 	if u.Fragment != "" {
-		return nil, fmt.Errorf(`%s must not have a fragment: %s`, errWhat, address)
+		return nil, fmt.Errorf(`%s must not have a fragment: %s`, errWhat, s)
 	}
 
 	return u, nil
@@ -98,7 +98,7 @@ func assembleStore(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	address, err := checkAddressURL(assert.headers)
+	url, err := checkStoreURL(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -108,5 +108,5 @@ func assembleStore(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &Store{assertionBase: assert, address: address}, nil
+	return &Store{assertionBase: assert, url: url}, nil
 }
