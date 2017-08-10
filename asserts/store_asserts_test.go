@@ -21,6 +21,7 @@ func (s *storeSuite) SetUpSuite(c *C) {
 		"store: store1\n" +
 		"operator-id: op-id1\n" +
 		"address: https://store.example.com\n" +
+		"location: upstairs\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
 		"AXNpZw=="
@@ -35,6 +36,7 @@ func (s *storeSuite) TestDecodeOK(c *C) {
 	c.Check(store.OperatorID(), Equals, "op-id1")
 	c.Check(store.Store(), Equals, "store1")
 	c.Check(store.Address().String(), Equals, "https://store.example.com")
+	c.Check(store.Location(), Equals, "upstairs")
 }
 
 var storeErrPrefix = "assertion store: "
@@ -47,6 +49,7 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"address: https://store.example.com\n", "", `"address" header is mandatory`},
 		{"address: https://store.example.com\n", "address: \n", `"address" header should not be empty`},
+		{"location: upstairs\n", "location:\n  - foo\n", `"location" header must be a string`},
 	}
 
 	for _, test := range tests {
@@ -95,6 +98,24 @@ func (s *storeSuite) TestAddress(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(assert.(*asserts.Store).Address().String(), Equals, test.address)
 		}
+	}
+}
+
+func (s *storeSuite) TestLocationOptional(c *C) {
+	encoded := strings.Replace(s.validExample, "location: upstairs\n", "", 1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+}
+
+func (s *storeSuite) TestLocation(c *C) {
+	for _, test := range []string{"foo", "bar", ""} {
+		encoded := strings.Replace(
+			s.validExample, "location: upstairs\n",
+			fmt.Sprintf("location: %s\n", test), 1)
+		assert, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		store := assert.(*asserts.Store)
+		c.Check(store.Location(), Equals, test)
 	}
 }
 
