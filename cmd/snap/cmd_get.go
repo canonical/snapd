@@ -101,23 +101,28 @@ func (s ByConfigPath) Less(i, j int) bool {
 	return s[i].path < s[j].path
 }
 
-func flattenConfig(path string, in interface{}, root bool, paths *[]configValue) {
-	if input, ok := in.(map[string]interface{}); ok {
-		if root {
-			*paths = append(*paths, configValue{path, "{...}"})
-			return
-		}
-		for k, v := range input {
-			p := path + "." + k
-			if _, ok := v.(map[string]interface{}); ok {
-				*paths = append(*paths, configValue{p, "{...}"})
+func flattenConfig(cfg map[string]interface{}, root bool) (values []configValue) {
+	const docstr = "{...}"
+	for k, v := range cfg {
+		if input, ok := v.(map[string]interface{}); ok {
+			if root {
+				values = append(values, configValue{k, docstr})
 			} else {
-				*paths = append(*paths, configValue{p, v})
+				for kk, vv := range input {
+					p := k + "." + kk
+					if _, ok := vv.(map[string]interface{}); ok {
+						values = append(values, configValue{p, docstr})
+					} else {
+						values = append(values, configValue{p, vv})
+					}
+				}
 			}
+		} else {
+			values = append(values, configValue{k, v})
 		}
-		return
 	}
-	*paths = append(*paths, configValue{path, in})
+	sort.Sort(ByConfigPath(values))
+	return values
 }
 
 func (x *cmdGet) Execute(args []string) error {
@@ -155,17 +160,14 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 
 	if cfg, ok := confToPrint.(map[string]interface{}); ok && !x.Document {
+		// TODO: remove this conditional and the warning below after a transition period.
 		if isTerminal || x.List {
 			w := tabWriter()
 			defer w.Flush()
 
 			rootRequested := len(confKeys) == 0
 			fmt.Fprintf(w, "Key\tValue\n")
-			var values []configValue
-			for k, v := range cfg {
-				flattenConfig(k, v, rootRequested, &values)
-			}
-			sort.Sort(ByConfigPath(values))
+			values := flattenConfig(cfg, rootRequested)
 			for _, v := range values {
 				fmt.Fprintf(w, "%s\t%v\n", v.path, v.value)
 			}

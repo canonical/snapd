@@ -56,6 +56,9 @@ var getTests = []struct {
 	args:   "get -d snapname test-key1",
 	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
 }, {
+	args:   "get -l snapname test-key1",
+	stdout: "Key        Value\ntest-key1  test-value1\n",
+}, {
 	args:   "get snapname -l test-key1 test-key2",
 	stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
 }, {
