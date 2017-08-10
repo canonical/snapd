@@ -158,7 +158,15 @@ const (
 func taskKinds(tasks []*state.Task) []string {
 	kinds := make([]string, len(tasks))
 	for i, task := range tasks {
-		kinds[i] = task.Kind()
+		k := task.Kind()
+		if k == "run-hook" {
+			var hooksup hookstate.HookSetup
+			if err := task.Get("hook-setup", &hooksup); err != nil {
+				panic(err)
+			}
+			k = fmt.Sprintf("%s[%s]", k, hooksup.Hook)
+		}
+		kinds[i] = k
 	}
 	return kinds
 }
@@ -189,7 +197,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook",
+		"run-hook[install]",
 		"start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
@@ -203,7 +211,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
-		"run-hook",
+		"run-hook[configure]",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -235,7 +243,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook",
+		"run-hook[refresh]",
 		"start-snap-services")
 
 	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run refresh hook of .*`)
@@ -251,7 +259,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		)
 	}
 	expected = append(expected,
-		"run-hook",
+		"run-hook[configure]",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -260,7 +268,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
-		"run-hook",
+		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
@@ -369,12 +377,6 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// one hook task for install, one for configure hook
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run install hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
@@ -452,7 +454,7 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 
 	chg := s.state.NewChange("revert", "revert snap")
@@ -761,7 +763,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 }
 
@@ -1016,12 +1018,6 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// hook tasks for refresh and configure, no install hook
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 
 	c.Check(validateCalled, Equals, true)
 
@@ -1321,11 +1317,6 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// hook task for 'remove'
-	c.Assert(runHooks, HasLen, 1)
-	c.Assert(runHooks[0].Summary(), Equals, `Run remove hook of "foo" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
@@ -5232,9 +5223,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook",
+		"run-hook[install]",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 
 }
@@ -5918,7 +5909,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
-			"run-hook",
+			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
