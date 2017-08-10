@@ -20,7 +20,7 @@ func (s *storeSuite) SetUpSuite(c *C) {
 		"authority-id: canonical\n" +
 		"store: store1\n" +
 		"operator-id: op-id1\n" +
-		"address: https://store.example.com\n" +
+		"url: https://store.example.com\n" +
 		"location: upstairs\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
@@ -35,7 +35,7 @@ func (s *storeSuite) TestDecodeOK(c *C) {
 
 	c.Check(store.OperatorID(), Equals, "op-id1")
 	c.Check(store.Store(), Equals, "store1")
-	c.Check(store.Address().String(), Equals, "https://store.example.com")
+	c.Check(store.URL().String(), Equals, "https://store.example.com")
 	c.Check(store.Location(), Equals, "upstairs")
 }
 
@@ -47,7 +47,7 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		{"store: store1\n", "store: \n", `"store" header should not be empty`},
 		{"operator-id: op-id1\n", "", `"operator-id" header is mandatory`},
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
-		{"address: https://store.example.com\n", "address:\n  - foo\n", `"address" header must be a string`},
+		{"url: https://store.example.com\n", "url:\n  - foo\n", `"url" header must be a string`},
 		{"location: upstairs\n", "location:\n  - foo\n", `"location" header must be a string`},
 	}
 
@@ -58,23 +58,23 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 	}
 }
 
-func (s *storeSuite) TestAddressOptional(c *C) {
-	tests := []string{"", "address: \n"}
+func (s *storeSuite) TestURLOptional(c *C) {
+	tests := []string{"", "url: \n"}
 	for _, test := range tests {
-		encoded := strings.Replace(s.validExample, "address: https://store.example.com\n", test, 1)
+		encoded := strings.Replace(s.validExample, "url: https://store.example.com\n", test, 1)
 		assert, err := asserts.Decode([]byte(encoded))
 		c.Assert(err, IsNil)
 		store := assert.(*asserts.Store)
-		c.Check(store.Address(), IsNil)
+		c.Check(store.URL(), IsNil)
 	}
 }
 
-func (s *storeSuite) TestAddress(c *C) {
+func (s *storeSuite) TestURL(c *C) {
 	tests := []struct {
-		address string
-		err     string
+		url string
+		err string
 	}{
-		// Valid addresses.
+		// Valid URLs.
 		{"http://example.com/", ""},
 		{"https://example.com/", ""},
 		{"https://example.com/some/path/", ""},
@@ -83,30 +83,30 @@ func (s *storeSuite) TestAddress(c *C) {
 		{"https://user:pass@example.com/", ""},
 		{"https://token@example.com/", ""},
 
-		// Invalid addresses.
-		{"://example.com", `"address" header must be a valid URL`},
-		{"example.com", `"address" header scheme must be "https" or "http"`},
-		{"//example.com", `"address" header scheme must be "https" or "http"`},
-		{"ftp://example.com", `"address" header scheme must be "https" or "http"`},
-		{"mailto:someone@example.com", `"address" header scheme must be "https" or "http"`},
-		{"https://", `"address" header must have a host`},
-		{"https:///", `"address" header must have a host`},
-		{"https:///some/path", `"address" header must have a host`},
-		{"https://example.com/?foo=bar", `"address" header must not have a query`},
-		{"https://example.com/#fragment", `"address" header must not have a fragment`},
+		// Invalid URLs.
+		{"://example.com", `"url" header must be a valid URL`},
+		{"example.com", `"url" header scheme must be "https" or "http"`},
+		{"//example.com", `"url" header scheme must be "https" or "http"`},
+		{"ftp://example.com", `"url" header scheme must be "https" or "http"`},
+		{"mailto:someone@example.com", `"url" header scheme must be "https" or "http"`},
+		{"https://", `"url" header must have a host`},
+		{"https:///", `"url" header must have a host`},
+		{"https:///some/path", `"url" header must have a host`},
+		{"https://example.com/?foo=bar", `"url" header must not have a query`},
+		{"https://example.com/#fragment", `"url" header must not have a fragment`},
 	}
 
 	for _, test := range tests {
 		encoded := strings.Replace(
-			s.validExample, "address: https://store.example.com\n",
-			fmt.Sprintf("address: %s\n", test.address), 1)
+			s.validExample, "url: https://store.example.com\n",
+			fmt.Sprintf("url: %s\n", test.url), 1)
 		assert, err := asserts.Decode([]byte(encoded))
 		if test.err != "" {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, storeErrPrefix+test.err+": "+test.address)
+			c.Check(err.Error(), Equals, storeErrPrefix+test.err+": "+test.url)
 		} else {
 			c.Assert(err, IsNil)
-			c.Check(assert.(*asserts.Store).Address().String(), Equals, test.address)
+			c.Check(assert.(*asserts.Store).URL().String(), Equals, test.url)
 		}
 	}
 }
