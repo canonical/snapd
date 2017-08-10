@@ -6,7 +6,4 @@ Depends: @builddeps@,
          git,
          golang-golang-x-net-dev,
          openssh-server,
-         snapd,
-         unity,
-         x11-utils,
-         xvfb
+         snapd
