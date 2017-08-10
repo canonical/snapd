@@ -195,6 +195,7 @@ distro_purge_package() {
                 ;;
             fedora-*)
                 dnf -y -q remove "$package_name"
+                dnf -q clean all
                 ;;
             opensuse-*)
                 zypper -q remove -y "$package_name"
