@@ -4096,7 +4096,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "3")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "4")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -4108,12 +4108,15 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	a3, err := dec.Decode()
 	c.Assert(err, check.IsNil)
 
+	a4, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
 	_, err = dec.Decode()
 	c.Assert(err, check.Equals, io.EOF)
 
-	ids := []string{a1.(*asserts.Account).AccountID(), a2.(*asserts.Account).AccountID(), a3.(*asserts.Account).AccountID()}
+	ids := []string{a1.(*asserts.Account).AccountID(), a2.(*asserts.Account).AccountID(), a3.(*asserts.Account).AccountID(), a4.(*asserts.Account).AccountID()}
 	sort.Strings(ids)
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1-id"})
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1-id", "generic"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
