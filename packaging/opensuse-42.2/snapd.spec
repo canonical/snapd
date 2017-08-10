@@ -32,8 +32,8 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.25
-Release:        2
+Version:        2.27
+Release:        1
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
 Group:          System/Packages
