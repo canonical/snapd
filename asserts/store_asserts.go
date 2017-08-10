@@ -61,9 +61,13 @@ func (store *Store) Prerequisites() []*Ref {
 
 // checkAddressURL validates the input URL address and returns a full URL.
 func checkAddressURL(headers map[string]interface{}) (*url.URL, error) {
-	address, err := checkNotEmptyString(headers, "address")
+	address, err := checkOptionalString(headers, "address")
 	if err != nil {
 		return nil, err
+	}
+
+	if address == "" {
+		return nil, nil
 	}
 
 	errWhat := `"address" header`

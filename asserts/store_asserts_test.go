@@ -47,8 +47,7 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		{"store: store1\n", "store: \n", `"store" header should not be empty`},
 		{"operator-id: op-id1\n", "", `"operator-id" header is mandatory`},
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
-		{"address: https://store.example.com\n", "", `"address" header is mandatory`},
-		{"address: https://store.example.com\n", "address: \n", `"address" header should not be empty`},
+		{"address: https://store.example.com\n", "address:\n  - foo\n", `"address" header must be a string`},
 		{"location: upstairs\n", "location:\n  - foo\n", `"location" header must be a string`},
 	}
 
@@ -56,6 +55,17 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		invalid := strings.Replace(s.validExample, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, storeErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *storeSuite) TestAddressOptional(c *C) {
+	tests := []string{"", "address: \n"}
+	for _, test := range tests {
+		encoded := strings.Replace(s.validExample, "address: https://store.example.com\n", test, 1)
+		assert, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		store := assert.(*asserts.Store)
+		c.Check(store.Address(), IsNil)
 	}
 }
 
@@ -136,7 +146,6 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	storeHeaders := map[string]interface{}{
 		"store":       "store1",
 		"operator-id": operator.HeaderString("account-id"),
-		"address":     "https://store.example.com",
 	}
 
 	// store signed by some other account fails.
@@ -159,7 +168,6 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	assert, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "store1",
 		"operator-id": "op-id1",
-		"address":     "https://store.example.com",
 	}, nil, "")
 	c.Assert(err, IsNil)
 
