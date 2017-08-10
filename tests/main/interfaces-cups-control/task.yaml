@@ -41,6 +41,9 @@ prepare: |
 restore: |
     rm -rf $HOME/PDF $TEST_FILE print.error
 
+debug: |
+    systemctl status cups || true
+
 execute: |
     CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
