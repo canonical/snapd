@@ -1,5 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+// +build ignore
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -16,8 +18,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-// +build ignore
 
 package main
 
