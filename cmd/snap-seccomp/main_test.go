@@ -33,7 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/mvo5/libseccomp-golang"
+	"github.com/seccomp/libseccomp-golang"
 
 	// forked from "golang.org/x/net/bpf"
 	// until https://github.com/golang/go/issues/20556
