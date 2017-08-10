@@ -11,5 +11,6 @@ bool is_running_on_classic_distribution()
 	    || access("/var/lib/pacman", F_OK) == 0
 	    || access("/var/lib/portage", F_OK) == 0
 	    || access("/var/lib/rpm", F_OK) == 0
+	    || access("/var/lib/eopkg", F_OK) == 0
 	    || access("/sbin/procd", F_OK) == 0;
 }

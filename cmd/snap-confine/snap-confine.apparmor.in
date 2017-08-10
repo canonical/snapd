@@ -11,6 +11,12 @@
     /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/libgcc_s.so* mr,
+    # biarch + usr-merged
+    /lib64/ld-*.so mr,
+    /usr/lib64/libc{,-[0-9]*}.so* mr,
+    /usr/lib64/libpthread{,-[0-9]*}.so* mr,
+    /usr/lib64/librt{,-[0-9]*}.so* mr,
+    /usr/lib64/libgcc_s.so* mr,
     # normal libs in order
     /lib/@{multiarch}/libapparmor.so* mr,
     /lib/@{multiarch}/libcgmanager.so* mr,
@@ -21,6 +27,14 @@
     /lib/@{multiarch}/libudev.so* mr,
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
+
+    # normal libs in order biarch + usr-merged
+    /usr/lib64/libapparmor.so* mr,
+    /usr/lib64/libcap.so* mr,
+    /usr/lib64/libdl-[0-9]*.so* mr,
+    /usr/lib64/libdbus-1.so* mr,
+    /usr/lib64/libudev.so* mr,
+    /usr/lib64/libseccomp.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -154,6 +168,7 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
     mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
+    mount options=(rw rbind) {/usr,}/lib64/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/lib/modules/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
@@ -161,6 +176,7 @@
 
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
@@ -235,6 +251,9 @@
     /sys/module/nvidia/version r,
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
+    mount fstype=tmpfs none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
+    mount options=(remount,ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
@@ -346,6 +365,21 @@
         /lib/@{multiarch}/libudev.so* mr,
         /usr/lib/@{multiarch}/libseccomp.so* mr,
         /lib/@{multiarch}/libseccomp.so* mr,
+
+        # biarch + usr-merged
+        /lib64/ld-*.so mr,
+        /usr/lib64/libc{,-[0-9]*}.so* mr,
+        /usr/lib64/libpthread{,-[0-9]*}.so* mr,
+        /usr/lib64/librt{,-[0-9]*}.so* mr,
+        /usr/lib64/libgcc_s.so* mr,
+
+        # normal libs in order biarch + usr-merged
+        /usr/lib64/libapparmor.so* mr,
+        /usr/lib64/libcap* mr,
+        /usr/lib64/libdl-[0-9]*.so* mr,
+        /usr/lib64/libdbus-1.so* mr,
+        /usr/lib64/libudev.so* mr,
+        /usr/lib64/libseccomp.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 

@@ -35,6 +35,12 @@ const openglConnectedPlugAppArmor = `
   /var/lib/snapd/lib/gl/ r,
   /var/lib/snapd/lib/gl/** rm,
 
+  # Solus LDM locations
+  /var/lib/snapd/hostfs/usr/lib*/glx-provider/** rm,
+  /var/lib/snapd/hostfs/usr/lib*/libcuda* rm,
+  /var/lib/snapd/hostfs/usr/lib*/libn* rm,
+  /var/lib/snapd/hostfs/usr/lib*/lib{GL,EGL}* rm,
+
   /dev/dri/ r,
   /dev/dri/card0 rw,
   # nvidia
