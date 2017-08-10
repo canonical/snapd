@@ -17,11 +17,11 @@ test_snapctl_set_foo() {
 }
 
 test_snapctl_set_bar_doc() {
-    echo "Setting bar document"
-    if ! snapctl set bar="{\"a\":{\"aa\":1,\"ab\":2},\"b\":3}"; then
-		    echo "snapctl set unexpectedly failed"
-		    exit 1
-    fi
+  echo "Setting bar document"
+  if ! snapctl set bar="{\"a\":{\"aa\":1,\"ab\":2},\"b\":3}"; then
+    echo "snapctl set unexpectedly failed"
+    exit 1
+  fi
 }
 
 test_snapctl_get_foo() {
@@ -74,8 +74,8 @@ case $command in
 		test_snapctl_get_foo
 		;;
 	"test-snapctl-get-foo-null")
-		  test_snapctl_get_foo_null
-	 ;;
+    test_snapctl_get_foo_null
+    ;;
 	"test-exit-one")
 		test_exit_one
 		;;
