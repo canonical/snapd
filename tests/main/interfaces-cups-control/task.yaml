@@ -38,7 +38,6 @@ prepare: |
         fi
     fi
 
-
 restore: |
     rm -rf $HOME/PDF $TEST_FILE print.error
 
