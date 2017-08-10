@@ -30,7 +30,6 @@ import (
 )
 
 var RunMain = run
-var GetDottedKeys = getDottedKeys
 
 var (
 	CreateUserDataDirs = createUserDataDirs
