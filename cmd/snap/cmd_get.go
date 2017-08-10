@@ -22,12 +22,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var shortGetHelp = i18n.G("Prints configuration options")
@@ -59,12 +61,14 @@ type cmdGet struct {
 
 	Typed    bool `short:"t"`
 	Document bool `short:"d"`
+	List     bool `short:"l"`
 }
 
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
 			"d": i18n.G("Always return document, even with single key"),
+			"l": i18n.G("Always return list, even with single key"),
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
 		}, []argDesc{
 			{
@@ -78,22 +82,42 @@ func init() {
 		})
 }
 
-func getDottedKeys(path string, input map[string]interface{}) []string {
-	var paths []string
-	for k, v := range input {
-		var p string
-		if path == "" {
-			p = k
-		} else {
-			p = path + "." + k
+type configValue struct {
+	path  string
+	value interface{}
+}
+
+type ByConfigPath []configValue
+
+func (s ByConfigPath) Len() int {
+	return len(s)
+}
+
+func (s ByConfigPath) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s ByConfigPath) Less(i, j int) bool {
+	return s[i].path < s[j].path
+}
+
+func flattenConfig(path string, in interface{}, root bool, paths *[]configValue) {
+	if input, ok := in.(map[string]interface{}); ok {
+		if root {
+			*paths = append(*paths, configValue{path, "{...}"})
+			return
 		}
-		if vv, ok := v.(map[string]interface{}); ok {
-			paths = append(paths, getDottedKeys(p, vv)...)
-		} else {
-			paths = append(paths, p)
+		for k, v := range input {
+			p := path + "." + k
+			if _, ok := v.(map[string]interface{}); ok {
+				*paths = append(*paths, configValue{p, "{...}"})
+			} else {
+				*paths = append(*paths, configValue{p, v})
+			}
 		}
+		return
 	}
-	return paths
+	*paths = append(*paths, configValue{path, in})
 }
 
 func (x *cmdGet) Execute(args []string) error {
@@ -106,6 +130,10 @@ func (x *cmdGet) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
+	if x.Document && x.List {
+		return fmt.Errorf("cannot use -d and -l together")
+	}
+
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
@@ -115,39 +143,41 @@ func (x *cmdGet) Execute(args []string) error {
 		return err
 	}
 
-	// special case - root document
-	if len(confKeys) == 0 {
-		confKeys = []string{""}
-	}
+	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
 
 	var confToPrint interface{} = conf
-	if !x.Document && len(confKeys) == 1 {
-		confToPrint = conf[confKeys[0]]
+	if !x.Document && !x.List && len(confKeys) == 1 {
+		// if single key was requested, then just output the value unless it's a map,
+		// in which case it will be printed as a list below.
+		if _, ok := conf[confKeys[0]].(map[string]interface{}); !ok {
+			confToPrint = conf[confKeys[0]]
+		}
+	}
+
+	if cfg, ok := confToPrint.(map[string]interface{}); ok && !x.Document {
+		if isTerminal || x.List {
+			w := tabWriter()
+			defer w.Flush()
+
+			rootRequested := len(confKeys) == 0
+			fmt.Fprintf(w, "Key\tValue\n")
+			var values []configValue
+			for k, v := range cfg {
+				flattenConfig(k, v, rootRequested, &values)
+			}
+			sort.Sort(ByConfigPath(values))
+			for _, v := range values {
+				fmt.Fprintf(w, "%s\t%v\n", v.path, v.value)
+			}
+			return nil
+		} else {
+			fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d to force JSON output.\n`))
+		}
 	}
 
 	if x.Typed && confToPrint == nil {
 		fmt.Fprintln(Stdout, "null")
 		return nil
-	}
-
-	if !x.Document && len(confKeys) == 1 {
-		var printKeys bool
-		for _, v := range conf {
-			// print keys if any of the conig options is a map
-			if _, ok := v.(map[string]interface{}); ok {
-				printKeys = true
-				break
-			}
-		}
-		if printKeys {
-			fmt.Fprintf(Stderr, "Key:\n")
-			paths := getDottedKeys("", conf)
-			sort.Strings(paths)
-			for _, p := range paths {
-				fmt.Fprintf(Stderr, "%s\n", p)
-			}
-			return nil
-		}
 	}
 
 	if s, ok := confToPrint.(string); ok && !x.Typed {

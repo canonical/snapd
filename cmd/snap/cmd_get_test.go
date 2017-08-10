@@ -22,7 +22,6 @@ package main_test
 import (
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -57,17 +56,23 @@ var getTests = []struct {
 	args:   "get -d snapname test-key1",
 	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
 }, {
-	args:   "get snapname test-key1 test-key2",
+	args:   "get snapname -l test-key1 test-key2",
+	stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
+}, {
+	args:   "get snapname -d test-key1 test-key2",
 	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
 }, {
-	args:   "get snapname document",
-	stderr: "Key:\ndocument.key1\ndocument.key2\n",
+	args:   "get snapname -l document",
+	stdout: "Key            Value\ndocument.key1  value1\ndocument.key2  value2\n",
 }, {
 	args:   "get -d snapname document",
 	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }, {
+	args:   "get -l snapname",
+	stdout: "Key  Value\nbar  100\nfoo  {...}\n",
+}, {
 	args:   "get -d snapname",
-	stdout: "{\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+	stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }}
 
 func (s *SnapSuite) TestSnapGetTests(c *C) {
@@ -112,29 +117,9 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 		case "document":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"document":{"key1":"value1","key2":"value2"}}}`)
 		case "":
-			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"foo":{"key1":"value1","key2":"value2"}}}`)
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"foo":{"key1":"value1","key2":"value2"},"bar":100}}`)
 		default:
 			c.Errorf("unexpected keys %q", query.Get("keys"))
 		}
 	})
-}
-
-func (s *SnapSuite) TestGetDottedKeys(c *C) {
-	data := map[string]interface{}{}
-	paths := snapset.GetDottedKeys("", data)
-	c.Assert(paths, HasLen, 0)
-
-	data = map[string]interface{}{
-		"a": 1,
-		"b": map[string]interface{}{
-			"c": "x",
-			"d": 2,
-		},
-		"e": []string{"x", "y"},
-		"f": nil,
-	}
-	paths = snapset.GetDottedKeys("", data)
-	sort.Strings(paths)
-	c.Assert(paths, DeepEquals, []string{"a", "b.c", "b.d", "e", "f"})
-
 }
