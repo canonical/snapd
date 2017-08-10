@@ -18,8 +18,8 @@ type storeSuite struct {
 func (s *storeSuite) SetUpSuite(c *C) {
 	s.validExample = "type: store\n" +
 		"authority-id: canonical\n" +
-		"operator-id: op-id1\n" +
 		"store: store1\n" +
+		"operator-id: op-id1\n" +
 		"address: https://store.example.com\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
@@ -41,10 +41,10 @@ var storeErrPrefix = "assertion store: "
 
 func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 	tests := []struct{ original, invalid, expectedErr string }{
-		{"operator-id: op-id1\n", "", `"operator-id" header is mandatory`},
-		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"store: store1\n", "", `"store" header is mandatory`},
 		{"store: store1\n", "store: \n", `"store" header should not be empty`},
+		{"operator-id: op-id1\n", "", `"operator-id" header is mandatory`},
+		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"address: https://store.example.com\n", "", `"address" header is mandatory`},
 		{"address: https://store.example.com\n", "address: \n", `"address" header should not be empty`},
 	}
@@ -113,8 +113,8 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	c.Assert(err, IsNil)
 
 	storeHeaders := map[string]interface{}{
-		"operator-id": operator.HeaderString("account-id"),
 		"store":       "store1",
+		"operator-id": operator.HeaderString("account-id"),
 		"address":     "https://store.example.com",
 	}
 
@@ -123,7 +123,7 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	store, err := otherDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
 	err = db.Check(store)
-	c.Assert(err, ErrorMatches, `store assertion for operator-id "op-id1" and store "store1" is not signed by a directly trusted authority: other`)
+	c.Assert(err, ErrorMatches, `store assertion "store1" is not signed by a directly trusted authority: other`)
 
 	// but succeeds when signed by a trusted authority.
 	store, err = storeDB.Sign(asserts.StoreType, storeHeaders, nil, "")
@@ -136,15 +136,15 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	assert, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
-		"operator-id": "op-id1",
 		"store":       "store1",
+		"operator-id": "op-id1",
 		"address":     "https://store.example.com",
 	}, nil, "")
 	c.Assert(err, IsNil)
 
 	// No account for operator op-id1 yet, so Check fails.
 	err = db.Check(assert)
-	c.Assert(err, ErrorMatches, `store assertion for operator-id "op-id1" and store "store1" does not have a matching account assertion for the operator "op-id1"`)
+	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
 	assert, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
