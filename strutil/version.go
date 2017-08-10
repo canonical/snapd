@@ -60,8 +60,13 @@ func cmpInt(intA, intB int) int {
 }
 
 func chOrder(ch uint8) int {
+	// "~" is lower than everything else
 	if ch == '~' {
-		return -1
+		return -10
+	}
+	// empty is higher than "~" but lower than everything else
+	if ch == 0 {
+		return -5
 	}
 	if matchAlpha([]byte{ch}) {
 		return int(ch)
@@ -77,8 +82,8 @@ func chOrder(ch uint8) int {
 
 func cmpString(as, bs string) int {
 	for i := 0; i < max(len(as), len(bs)); i++ {
-		a := uint8('0')
-		b := uint8('0')
+		var a uint8
+		var b uint8
 		if i < len(as) {
 			a = as[i]
 		}
@@ -119,9 +124,6 @@ func VersionIsValid(a string) bool {
 	if strings.Count(a, "-") > 1 {
 		return false
 	}
-	if strings.TrimSpace(a) == "" {
-		return false
-	}
 	return true
 }
 
@@ -130,8 +132,8 @@ func compareSubversion(va, vb string) int {
 	fragsB := getFragments(vb)
 
 	for i := 0; i < max(len(fragsA), len(fragsB)); i++ {
-		a := "0"
-		b := "0"
+		a := ""
+		b := ""
 		if i < len(fragsA) {
 			a = fragsA[i]
 		}

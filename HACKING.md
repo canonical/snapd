@@ -33,6 +33,10 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
     PATH="$PATH:$GOPATH/bin"
 
+(note `$GOPATH` can actually point to multiple locations, like `$PATH`, so if
+your `$GOPATH` is more complex than a single entry you'll need to adjust the
+above).
+
 ### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to use the `go get` command.
@@ -83,6 +87,10 @@ working directory). Alternatively:
     go install github.com/snapcore/snapd/...
 
 to have it available in `$GOPATH/bin`
+
+Similarly, to build the `snapd` REST API daemon, you can run
+
+    go build -o /tmp/snapd github.com/snapcore/snapd/cmd/snapd
 
 ### Contributing
 
@@ -158,21 +166,7 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
-
-or with systemd version >= 230
-
-    sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
-
-This will stop the installed snapd and activate the new one. Once it's
-printed out something like `Listening on /run/snapd.socket as 3.` you
-should then
-
-    sudo chmod 0666 /run/snapd*.socket
-
-so the socket has the right permissions (otherwise you need `sudo` to
-connect).
+    sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./snapd
 
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.

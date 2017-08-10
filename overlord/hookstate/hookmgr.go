@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,22 @@
  *
  */
 
-// Package hookstate implements the manager and state aspects responsible for
-// the running of hooks.
 package hookstate
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/errtracker"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -70,11 +72,40 @@ type HookSetup struct {
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
+
+	Timeout     time.Duration `json:"timeout,omitempty"`
+	IgnoreError bool          `json:"ignore-error,omitempty"`
+	TrackError  bool          `json:"track-error,omitempty"`
 }
 
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
+
+	// Make sure we only run 1 hook task for given snap at a time
+	runner.SetBlocked(func(thisTask *state.Task, running []*state.Task) bool {
+		// check if we're a hook task, probably not needed but let's take extra care
+		if thisTask.Kind() != "run-hook" {
+			return false
+		}
+		var hooksup HookSetup
+		if thisTask.Get("hook-setup", &hooksup) != nil {
+			return false
+		}
+		thisSnapName := hooksup.Snap
+		// examine all hook tasks, block thisTask if we find any other hook task affecting same snap
+		for _, t := range running {
+			if t.Kind() != "run-hook" || t.Get("hook-setup", &hooksup) != nil {
+				continue // ignore errors and continue checking remaining tasks
+			}
+			if hooksup.Snap == thisSnapName {
+				// found hook task affecting same snap, block thisTask.
+				return true
+			}
+		}
+		return false
+	})
+
 	manager := &HookManager{
 		state:      s,
 		runner:     runner,
@@ -84,20 +115,9 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
+	setupHooks(manager)
+
 	return manager, nil
-}
-
-// HookTask returns a task that will run the specified hook. Note that the
-// initial context must properly marshal and unmarshal with encoding/json.
-func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
-	task := st.NewTask("run-hook", summary)
-	task.Set("hook-setup", setup)
-
-	// Initial data for Context.Get/Set.
-	if len(contextData) > 0 {
-		task.Set("hook-context", contextData)
-	}
-	return task
 }
 
 // Register registers a function to create Handler values whenever hooks
@@ -122,14 +142,34 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-// Context obtains the context for the given context ID.
-func (m *HookManager) Context(contextID string) (*Context, error) {
+func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
+	var contexts map[string]string
+	m.state.Lock()
+	defer m.state.Unlock()
+	err = m.state.Get("snap-cookies", &contexts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
+	}
+	if snapName, ok := contexts[cookieID]; ok {
+		// create new ephemeral cookie
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
+		return context, err
+	}
+	return nil, fmt.Errorf("invalid snap cookie requested")
+}
+
+// Context obtains the context for the given cookie ID.
+func (m *HookManager) Context(cookieID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
-	context, ok := m.contexts[contextID]
+	var err error
+	context, ok := m.contexts[cookieID]
 	if !ok {
-		return nil, fmt.Errorf("no context for ID: %q", contextID)
+		context, err = m.ephemeralContext(cookieID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return context, nil
@@ -176,7 +216,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
-	context, err := NewContext(task, hooksup, nil)
+	context, err := NewContext(task, task.State(), hooksup, nil, "")
 	if err != nil {
 		return err
 	}
@@ -213,12 +253,21 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	if hookExists {
 		output, err := runHook(context, tomb)
 		if err != nil {
-			err = osutil.OutputErr(output, err)
-			if handlerErr := context.Handler().Error(err); handlerErr != nil {
-				return handlerErr
+			if hooksup.TrackError {
+				trackHookError(context, output, err)
 			}
+			err = osutil.OutputErr(output, err)
+			if hooksup.IgnoreError {
+				task.State().Lock()
+				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+				task.State().Unlock()
+			} else {
+				if handlerErr := context.Handler().Error(err); handlerErr != nil {
+					return handlerErr
+				}
 
-			return err
+				return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+			}
 		}
 	}
 
@@ -236,7 +285,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), tomb)
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
 }
 
 var runHook = runHookImpl
@@ -250,42 +299,65 @@ func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (
 	}
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
+var osReadlink = os.Readlink
 
-	// Make sure the hook has its context defined so it can communicate via the
-	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
+// snapCmd returns the "snap" command to run. If snapd is re-execed
+// it will be the snap command from the core snap, otherwise it will
+// be the system "snap" command (c.f. LP: #1668738).
+func snapCmd() string {
+	// sensible default, assume PATH is correct
+	snapCmd := "snap"
 
-	// Make sure we can obtain stdout and stderror. Same buffer so they're
-	// combined.
-	buffer := bytes.NewBuffer(nil)
-	command.Stdout = buffer
-	command.Stderr = buffer
-
-	// Actually run the hook.
-	if err := command.Start(); err != nil {
-		return nil, err
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap command", err)
+		return snapCmd
+	}
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return snapCmd
 	}
 
-	hookCompleted := make(chan struct{})
-	var hookError error
-	go func() {
-		// Wait for hook to complete
-		hookError = command.Wait()
-		close(hookCompleted)
-	}()
+	// snap is running from the core snap, we know the relative
+	// location of "snap" from "snapd"
+	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
+}
 
-	select {
-	// Hook completed; it may or may not have been successful.
-	case <-hookCompleted:
-		return buffer.Bytes(), hookError
+var defaultHookTimeout = 10 * time.Minute
 
-	// Hook was aborted.
-	case <-tomb.Dying():
-		if err := command.Process.Kill(); err != nil {
-			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
-		}
-		return nil, fmt.Errorf("hook %q aborted", hookName)
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
+	argv := []string{snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName}
+	if timeout == 0 {
+		timeout = defaultHookTimeout
+	}
+
+	env := []string{
+		// Make sure the hook has its context defined so it can
+		// communicate via the REST API.
+		fmt.Sprintf("SNAP_COOKIE=%s", hookContext),
+		// Set SNAP_CONTEXT too for compatibility with old snapctl
+		// binary when transitioning to a new core - otherwise configure
+		// hook would fail during transition.
+		fmt.Sprintf("SNAP_CONTEXT=%s", hookContext),
+	}
+
+	return osutil.RunAndWait(argv, env, timeout, tomb)
+}
+
+var errtrackerReport = errtracker.Report
+
+func trackHookError(context *Context, output []byte, err error) {
+	errmsg := fmt.Sprintf("hook %s in snap %q failed: %v", context.HookName(), context.SnapName(), osutil.OutputErr(output, err))
+	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.SnapName(), context.HookName(), err, output)
+	extra := map[string]string{
+		"HookName": context.HookName(),
+	}
+	if context.setup.IgnoreError {
+		extra["IgnoreError"] = "1"
+	}
+	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
+	if err == nil {
+		logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.SnapName(), oopsid)
+	} else {
+		logger.Debugf("Cannot report hook failure: %s", err)
 	}
 }

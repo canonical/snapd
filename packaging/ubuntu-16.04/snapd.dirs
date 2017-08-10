@@ -1,0 +1,10 @@
+snap
+usr/lib/snapd
+var/lib/snapd/auto-import
+var/lib/snapd/desktop
+var/lib/snapd/environment
+var/lib/snapd/firstboot
+var/lib/snapd/lib/gl
+var/lib/snapd/snaps/partial
+var/lib/snapd/void
+var/snap

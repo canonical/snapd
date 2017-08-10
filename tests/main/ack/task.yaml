@@ -1,12 +1,12 @@
 summary: Check snap ack
-systems: [-ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-arm-*]
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     echo "Ack the test store key in case"
-    snap ack $TESTSLIB/assertions/testrootorg-store.account-key
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     ALICE_ID=BGLTY1rcRKQQMbt9B407lDH38lbCW3wg
 
@@ -18,8 +18,8 @@ execute: |
     snap ack alice.account-key
 
     echo "We got alice account and account-key in the system db"
-    snap known account username=alice | grep "account-id: ${ALICE_ID}"
-    snap known account-key public-key-sha3-384=s2I2irs5PDzHx8n_-lEjkVUn81dvKujEmUiS0c3vwPbwojxDT_QUZ6ejDavhj_yU | grep "account-id: ${ALICE_ID}"
+    snap known account username=alice | MATCH "account-id: ${ALICE_ID}"
+    snap known account-key public-key-sha3-384=s2I2irs5PDzHx8n_-lEjkVUn81dvKujEmUiS0c3vwPbwojxDT_QUZ6ejDavhj_yU | MATCH "account-id: ${ALICE_ID}"
 
     BOB_ID=ct1P6H12NnpJ1nj2jxNX94lHp6sHClxT
 
@@ -27,5 +27,5 @@ execute: |
     snap ack bob.assertions
 
     echo "We got bob account and account-key in the system db"
-    snap known account username=bob | grep "account-id: ${BOB_ID}"
-    snap known account-key public-key-sha3-384=kW5sfrKZI2rIAT70JkttRq2VlNa9t8EHOoWrL2ZBAa7tLWZMy2KBweZEh3_MLcZh | grep "account-id: ${BOB_ID}"
+    snap known account username=bob | MATCH "account-id: ${BOB_ID}"
+    snap known account-key public-key-sha3-384=kW5sfrKZI2rIAT70JkttRq2VlNa9t8EHOoWrL2ZBAa7tLWZMy2KBweZEh3_MLcZh | MATCH "account-id: ${BOB_ID}"

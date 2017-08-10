@@ -1,14 +1,14 @@
 summary: Check snap known
 execute: |
     echo "Listing all account assertions"
-    snap known account|grep "^type: account$"
-    snap known account|grep -c "^account-id: canonical$"
+    snap known account|MATCH "^type: account$"
+    snap known account|MATCH "^account-id: canonical$"
 
     echo "Finding one account assertion with filters"
     cnt=$(snap known account account-id=canonical|grep -c "^type: account$")
     [ "$cnt" -eq 1 ]
-    snap known account|grep -c "^account-id: canonical$"
-    snap known account|grep -c "^username: canonical$"
+    snap known account|MATCH "^account-id: canonical$"
+    snap known account|MATCH "^username: canonical$"
 
     echo "Searching non existing assertion"
     cnt=$(snap known account account-id=non-existing|grep -c "^type: account$" || true)

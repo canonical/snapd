@@ -1,0 +1,7 @@
+# -*- sh -*-
+
+_complete() {
+    COMPREPLY=($( compgen -W "won too tree" "${COMP_WORDS[$COMP_CWORD]}" ))
+}
+
+complete -F _complete complexion

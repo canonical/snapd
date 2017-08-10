@@ -23,15 +23,18 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
 )
 
 // templateVariables returns text defining apparmor variables that can be used in the
 // apparmor template and by apparmor snippets.
-func templateVariables(info *snap.Info) []byte {
+func templateVariables(info *snap.Info, securityTag string) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
+	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
+		dbus.SafePath(securityTag))
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
-	return buf.Bytes()
+	return buf.String()
 }

@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"os"
+	"os/exec"
 )
 
 // FileExists return true if given path can be stat()ed by us. Note that
@@ -54,4 +55,24 @@ func IsSymlink(path string) bool {
 	}
 
 	return (fileInfo.Mode() & os.ModeSymlink) != 0
+}
+
+// ExecutableExists returns whether there an exists an executable with the given name somewhere on $PATH.
+func ExecutableExists(name string) bool {
+	_, err := exec.LookPath(name)
+
+	return err == nil
+}
+
+var lookPath func(name string) (string, error) = exec.LookPath
+
+// LookPathDefault searches for a given command name in all directories
+// listed in the environment variable PATH and returns the found path or the
+// provided default path.
+func LookPathDefault(name string, defaultPath string) string {
+	p, err := lookPath(name)
+	if err != nil {
+		return defaultPath
+	}
+	return p
 }

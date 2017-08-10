@@ -23,8 +23,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,22 +37,27 @@ type RawUsbSuite struct {
 }
 
 var _ = Suite(&RawUsbSuite{
-	iface: builtin.NewRawUsbInterface(),
-	slot: &interfaces.Slot{
+	iface: builtin.MustInterface("raw-usb"),
+})
+
+func (s *RawUsbSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [raw-usb]
+`
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "raw-usb",
 			Interface: "raw-usb",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "raw-usb",
-			Interface: "raw-usb",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["raw-usb"]}
+}
 
 func (s *RawUsbSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "raw-usb")
@@ -81,8 +88,13 @@ func (s *RawUsbSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *RawUsbSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Assert(string(snippet), testutil.Contains, `/sys/bus/usb/devices/`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/sys/bus/usb/devices/`)
+}
+
+func (s *RawUsbSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

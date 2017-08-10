@@ -147,7 +147,7 @@ func (s *accountSuite) TestCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(account)
-	c.Assert(err, ErrorMatches, "account assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `account assertion timestamp outside of signing key validity \(key valid since.*\)`)
 }
 
 func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {

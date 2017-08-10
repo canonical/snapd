@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,20 +19,29 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const opticalDriveSummary = `allows read access to optical drives`
 
-const opticalDriveConnectedPlugAppArmor = `
-/dev/sr[0-9]* r,
-/dev/scd[0-9]* r,
+const opticalDriveBaseDeclarationSlots = `
+  optical-drive:
+    allow-installation:
+      slot-snap-type:
+        - core
 `
 
-// NewOpticalDriveInterface returns a new "optical-drive" interface.
-func NewOpticalDriveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "optical-drive",
+const opticalDriveConnectedPlugAppArmor = `
+# Allow read access to optical drives
+/dev/sr[0-9]* r,
+/dev/scd[0-9]* r,
+@{PROC}/sys/dev/cdrom/info r,
+`
+
+func init() {
+	registerIface(&commonInterface{
+		name:                  "optical-drive",
+		summary:               opticalDriveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

@@ -19,17 +19,23 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const processControlSummary = `allows controlling other processes`
+
+const processControlBaseDeclarationSlots = `
+  process-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
 # all processes under root or processes running under the same UID otherwise.
-# Usage: reserved
 
-/{,usr/}bin/nice ixr,
+# /{,usr/}bin/nice is already in default policy, so just allow renice here
+/{,usr/}bin/renice ixr,
 
 capability sys_resource,
 capability sys_nice,
@@ -41,18 +47,24 @@ const processControlConnectedPlugSecComp = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
 # all processes under root or processes running under the same UID otherwise.
-# Usage: reserved
 
+# Allow setting the nice value/priority for any process
+nice
 setpriority
 sched_setaffinity
+sched_setparam
+sched_setscheduler
 `
 
-// NewProcessControlInterface returns a new "process-control" interface.
-func NewProcessControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "process-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "process-control",
+		summary:               processControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  processControlBaseDeclarationSlots,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

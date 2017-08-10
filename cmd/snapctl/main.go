@@ -24,9 +24,18 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
-var clientConfig client.Config
+var clientConfig = client.Config{
+	// snapctl should not try to read $HOME/.snap/auth.json, this will
+	// result in apparmor denials and configure task failures
+	// (LP: #1660941)
+	DisableAuth: true,
+
+	// we need the less privileged snap socket in snapctl
+	Socket: dirs.SnapSocket,
+}
 
 func main() {
 	stdout, stderr, err := run()
@@ -47,8 +56,13 @@ func main() {
 func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
+	cookie := os.Getenv("SNAP_COOKIE")
+	// for compatibility, if re-exec is not enabled and facing older snapd.
+	if cookie == "" {
+		cookie = os.Getenv("SNAP_CONTEXT")
+	}
 	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: os.Getenv("SNAP_CONTEXT"),
+		ContextID: cookie,
 		Args:      os.Args[1:],
 	})
 }

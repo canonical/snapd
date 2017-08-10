@@ -20,13 +20,28 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+const upowerObserveSummary = `allows operating as or reading from the UPower service`
+
+const upowerObserveBaseDeclarationSlots = `
+  upower-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - app
+    deny-connection:
+      on-classic: false
+`
 
 const upowerObservePermanentSlotAppArmor = `
 # Description: Allow operating as the UPower service.
@@ -103,11 +118,9 @@ dbus (receive, send)
 `
 
 const upowerObservePermanentSlotSeccomp = `
+# libudev
 bind
-recvmsg
-sendmsg
-sendto
-recvfrom
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -192,80 +205,73 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/UPower
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const upowerObserveConnectedPlugSecComp = `
-# Description: Can query UPower for power devices, history and statistics.
+type upowerObserveInterface struct{}
 
-# dbus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
-type UpowerObserveInterface struct{}
-
-func (iface *UpowerObserveInterface) Name() string {
+func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *UpowerObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		if release.OnClassic {
-			// Let confined apps access unconfined upower on classic
-			new = []byte("unconfined")
-		}
-		snippet := bytes.Replace([]byte(upowerObserveConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObserveConnectedPlugSecComp), nil
+func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              upowerObserveSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
 	}
-	return nil, nil
 }
 
-func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(upowerObservePermanentSlotDBus), nil
-	case interfaces.SecurityAppArmor:
-		return []byte(upowerObservePermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObservePermanentSlotSeccomp), nil
+func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	if release.OnClassic {
+		// Let confined apps access unconfined upower on classic
+		new = "unconfined"
 	}
-	return nil, nil
+	snippet := strings.Replace(upowerObserveConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *UpowerObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(upowerObserveConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *UpowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	return nil
+}
+
+func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(upowerObservePermanentSlotDBus)
+	return nil
+}
+
+func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *upowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *UpowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
@@ -275,7 +281,11 @@ func (iface *UpowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *UpowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&upowerObserveInterface{})
 }

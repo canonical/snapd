@@ -67,17 +67,23 @@ func (x *cmdList) Execute(args []string) error {
 	return listSnaps(names, x.All)
 }
 
+var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
+
 func listSnaps(names []string, all bool) error {
 	cli := Client()
 	snaps, err := cli.List(names, &client.ListOptions{All: all})
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
-			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
-			return nil
+			if len(names) == 0 {
+				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
+				return nil
+			} else {
+				return ErrNoMatchingSnaps
+			}
 		}
 		return err
 	} else if len(snaps) == 0 {
-		return errors.New(i18n.G("no matching snaps installed"))
+		return ErrNoMatchingSnaps
 	}
 	sort.Sort(snapsByName(snaps))
 

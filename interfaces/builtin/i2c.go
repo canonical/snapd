@@ -20,23 +20,43 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
-	"github.com/snapcore/snapd/interfaces"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const i2cSummary = `allows access to specific I2C controller`
+
+const i2cBaseDeclarationSlots = `
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+`
+
 // The type for i2c interface
-type I2cInterface struct{}
+type i2cInterface struct{}
 
 // Getter for the name of the i2c interface
-func (iface *I2cInterface) Name() string {
+func (iface *i2cInterface) Name() string {
 	return "i2c"
 }
 
-func (iface *I2cInterface) String() string {
+func (iface *i2cInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              i2cSummary,
+		BaseDeclarationSlots: i2cBaseDeclarationSlots,
+	}
+}
+
+func (iface *i2cInterface) String() string {
 	return iface.Name()
 }
 
@@ -46,7 +66,7 @@ func (iface *I2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *I2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -74,7 +94,7 @@ func (iface *I2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *I2cInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *i2cInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -82,51 +102,41 @@ func (iface *I2cInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *I2cInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// Getter for the security snippet specific to the plug
-func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
-		return nil, nil
+		return nil
 	}
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-		const pathPrefix = "/dev/"
-		const udevRule string = `KERNEL=="%s", TAG+="%s"`
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
-			tagSnippet.WriteString("\n")
-		}
-		return tagSnippet.Bytes(), nil
+	cleanedPath := filepath.Clean(path)
+	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	return nil
+}
+
+func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
 	}
-	return nil, nil
+	const pathPrefix = "/dev/"
+	const udevRule string = `KERNEL=="%s", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+	}
+	return nil
 }
 
-// No extra permissions granted on connection
-func (iface *I2cInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *I2cInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *I2cInterface) LegacyAutoConnect() bool {
-	return false
-}
-
-func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *i2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func (iface *i2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&i2cInterface{})
 }

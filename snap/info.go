@@ -24,9 +24,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -48,16 +50,28 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
+	// HomeDirBase returns the user-specific home directory base of the snap.
+	HomeDirBase(home string) string
+
+	// UserDataDir returns the per user data directory of the snap.
+	UserDataDir(home string) string
+
 	// CommonDataDir returns the data directory common across revisions of the snap.
 	CommonDataDir() string
 
-	// DataHomeDir returns the per user data directory of the snap.
+	// UserCommonDataDir returns the per user data directory common across revisions of the snap.
+	UserCommonDataDir(home string) string
+
+	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
+	UserXdgRuntimeDir(userID int) string
+
+	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
 
-	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+	// CommonDataHomeDir returns a glob that matches all per user data directories common across revisions of the snap.
 	CommonDataHomeDir() string
 
-	// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR directories for all users of the snap.
 	XdgRuntimeDirs() string
 }
 
@@ -119,6 +133,8 @@ type SideInfo struct {
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Contact           string   `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -132,17 +148,18 @@ type Info struct {
 	Architectures []string
 	Assumes       []string
 
+	OriginalTitle       string
 	OriginalSummary     string
 	OriginalDescription string
 
-	Environment map[string]string
+	Environment strutil.OrderedMap
 
 	LicenseAgreement string
 	LicenseVersion   string
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
-	Aliases          map[string]*AppInfo
+	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
@@ -164,7 +181,12 @@ type Info struct {
 	Publisher   string
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*ChannelSnapInfo
+
+	// The flattended channel map with $track/$risk
+	Channels map[string]*ChannelSnapInfo
+
+	// The ordered list of tracks that contain channels
+	Tracks []string
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -184,6 +206,14 @@ func (s *Info) Name() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// Title returns the blessed title for the snap.
+func (s *Info) Title() string {
+	if s.EditedTitle != "" {
+		return s.EditedTitle
+	}
+	return s.OriginalTitle
 }
 
 // Summary returns the blessed summary for the snap.
@@ -227,6 +257,11 @@ func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
 }
 
+// HomeDirBase returns the user-specific home directory base of the snap.
+func (s *Info) HomeDirBase(home string) string {
+	return filepath.Join(home, "snap", s.Name())
+}
+
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), "common")
@@ -265,6 +300,19 @@ func (s *Info) NeedsDevMode() bool {
 // NeedsClassic  returns whether the snap needs classic confinement consent.
 func (s *Info) NeedsClassic() bool {
 	return s.Confinement == ClassicConfinement
+}
+
+// Services returns a list of the apps that have "daemon" set.
+func (s *Info) Services() []*AppInfo {
+	svcs := make([]*AppInfo, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		if !app.IsService() {
+			continue
+		}
+		svcs = append(svcs, app)
+	}
+
+	return svcs
 }
 
 // DownloadInfo contains the information to download a snap.
@@ -310,6 +358,30 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
+// SecurityTags returns security tags associated with a given plug.
+func (plug *PlugInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
+	for _, app := range plug.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range plug.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// SecurityTags returns security tags associated with a given slot.
+func (slot *SlotInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	// NOTE: hooks cannot have slots
+	sort.Strings(tags)
+	return tags
+}
+
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
@@ -325,15 +397,17 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name    string
-	Aliases []string
-	Command string
+	Name          string
+	LegacyAliases []string // FIXME: eventually drop this
+	Command       string
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
 	StopCommand     string
+	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
+	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -343,7 +417,7 @@ type AppInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment map[string]string
+	Environment strutil.OrderedMap
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -367,6 +441,10 @@ type HookInfo struct {
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
+}
+
+func (app *AppInfo) DesktopFile() string {
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
@@ -401,14 +479,24 @@ func (app *AppInfo) LauncherStopCommand() string {
 	return app.launcherCommand("--command=stop")
 }
 
+// LauncherReloadCommand returns the launcher command line to use when invoking the app stop command binary.
+func (app *AppInfo) LauncherReloadCommand() string {
+	return app.launcherCommand("--command=reload")
+}
+
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
 }
 
+// ServiceName returns the systemd service name for the daemon app.
+func (app *AppInfo) ServiceName() string {
+	return app.SecurityTag() + ".service"
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
+	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
 // ServiceSocketFile returns the systemd socket file path for the daemon app.
@@ -416,26 +504,22 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
-func copyEnv(in map[string]string) map[string]string {
-	out := make(map[string]string)
-	for k, v := range in {
-		out[k] = v
-	}
-
-	return out
-}
-
 // Env returns the app specific environment overrides
 func (app *AppInfo) Env() []string {
 	env := []string{}
-	appEnv := copyEnv(app.Snap.Environment)
-	for k, v := range app.Environment {
-		appEnv[k] = v
+	appEnv := app.Snap.Environment.Copy()
+	for _, k := range app.Environment.Keys() {
+		appEnv.Set(k, app.Environment.Get(k))
 	}
-	for k, v := range appEnv {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	for _, k := range appEnv.Keys() {
+		env = append(env, fmt.Sprintf("%s=%s", k, appEnv.Get(k)))
 	}
 	return env
+}
+
+// IsService returns whether app represents a daemon/service.
+func (app *AppInfo) IsService() bool {
+	return app.Daemon != ""
 }
 
 // SecurityTag returns the hook-specific security tag.
@@ -449,9 +533,9 @@ func (hook *HookInfo) SecurityTag() string {
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
 	env := []string{}
-	hookEnv := copyEnv(hook.Snap.Environment)
-	for k, v := range hookEnv {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hookEnv.Keys() {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, hookEnv.Get(k)))
 	}
 	return env
 }
@@ -548,4 +632,14 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 		return l[0], l[0]
 	}
 	return l[0], l[1]
+}
+
+// JoinSnapApp produces a full application wrapper name from the
+// `snap` and the `app` part. It also deals with the special
+// case of snapName == appName.
+func JoinSnapApp(snap, app string) string {
+	if snap == app {
+		return app
+	}
+	return fmt.Sprintf("%s.%s", snap, app)
 }

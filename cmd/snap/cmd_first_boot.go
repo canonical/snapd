@@ -44,6 +44,6 @@ func (x *cmdInternalFirstBoot) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	fmt.Fprintf(Stderr, "firstboot command is deprecated")
+	fmt.Fprintf(Stderr, "firstboot command is deprecated\n")
 	return nil
 }

@@ -19,44 +19,48 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const x11Summary = `allows interacting with the X11 server`
+
+const x11BaseDeclarationSlots = `
+  x11:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
 #include <abstractions/X>
 #include <abstractions/fonts>
 
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+
+# Allow access to the user specific copy of the xauth file specified
+# in the XAUTHORITY environment variable, that "snap run" creates on
+# startup.
+owner /run/user/[0-9]*/.Xauthority r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
-getpeername
-getsockname
-getsockopt
-recvfrom
-recvmsg
-sendmsg
 shutdown
 `
 
-// NewX11Interface returns a new "x11" interface.
-func NewX11Interface() interfaces.Interface {
-	return &commonInterface{
-		name: "x11",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "x11",
+		summary:               x11Summary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

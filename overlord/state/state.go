@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,10 @@ func (data customData) get(key string, value interface{}) error {
 }
 
 func (data customData) set(key string, value interface{}) {
+	if value == nil {
+		delete(data, key)
+		return
+	}
 	serialized, err := json.Marshal(value)
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
@@ -97,6 +102,9 @@ type State struct {
 	modified bool
 
 	cache map[interface{}]interface{}
+
+	restarting bool
+	restartLck sync.Mutex
 }
 
 // New returns a new empty state.
@@ -238,7 +246,25 @@ func (s *State) EnsureBefore(d time.Duration) {
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
 		s.backend.RequestRestart(t)
+		s.restartLck.Lock()
+		s.restarting = true
+		s.restartLck.Unlock()
 	}
+}
+
+// Restarting returns whether a restart was requested with RequestRestart
+func (s *State) Restarting() bool {
+	s.restartLck.Lock()
+	defer s.restartLck.Unlock()
+	return s.restarting
+}
+
+func MockRestarting(s *State, restarting bool) bool {
+	s.restartLck.Lock()
+	defer s.restartLck.Unlock()
+	old := s.restarting
+	s.restarting = restarting
+	return old
 }
 
 // ErrNoState represents the case of no state entry for a given key.
@@ -362,12 +388,32 @@ func (s *State) tasksIn(tids []string) []*Task {
 
 // Prune removes changes that became ready for more than pruneWait
 // and aborts tasks spawned for more than abortWait.
-// It also removes tasks unlinked to changes after pruneWait.
-func (s *State) Prune(pruneWait, abortWait time.Duration) {
+// It also removes tasks unlinked to changes after pruneWait. When
+// there are more changes than the limit set via "maxReadyChanges"
+// those changes in ready state will also removed even if they are below
+// the pruneWait duration.
+func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
-	for _, chg := range s.Changes() {
+
+	// sort from oldest to newest
+	changes := s.Changes()
+	sort.Sort(byReadyTime(changes))
+
+	readyChangesCount := 0
+	for i := range changes {
+		// changes are sorted (not-ready sorts first)
+		// so we know we can iterate in reverse and break once we
+		// find a ready time of "zero"
+		chg := changes[len(changes)-i-1]
+		if chg.ReadyTime().IsZero() {
+			break
+		}
+		readyChangesCount++
+	}
+
+	for _, chg := range changes {
 		spawnTime := chg.SpawnTime()
 		readyTime := chg.ReadyTime()
 		if readyTime.IsZero() {
@@ -379,14 +425,17 @@ func (s *State) Prune(pruneWait, abortWait time.Duration) {
 			}
 			continue
 		}
-		if readyTime.Before(pruneLimit) {
+		// change old or we have too many changes
+		if readyTime.Before(pruneLimit) || readyChangesCount > maxReadyChanges {
 			s.writing()
 			for _, t := range chg.Tasks() {
 				delete(s.tasks, t.ID())
 			}
 			delete(s.changes, chg.ID())
+			readyChangesCount--
 		}
 	}
+
 	for tid, t := range s.tasks {
 		// TODO: this could be done more aggressively
 		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {

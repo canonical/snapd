@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,27 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
-var locationControlPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const locationControlSummary = `allows operating as the location service`
+
+const locationControlBaseDeclarationSlots = `
+  location-control:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
+const locationControlPermanentSlotAppArmor = `
+# Description: Allow operating as the location service. This gives privileged
+# access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -56,9 +68,9 @@ dbus (receive, send)
     path=/com/ubuntu/location/Service{,/**}
     interface=org.freedesktop.DBus**
     peer=(label=unconfined),
-`)
+`
 
-var locationControlConnectedSlotAppArmor = []byte(`
+const locationControlConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service
 
 # Allow clients to register providers
@@ -67,6 +79,27 @@ dbus (receive)
     path=/com/ubuntu/location/Service
     interface=com.ubuntu.location.Service
     member="AddProvider"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/providers/{,**}
+    interface=com.ubuntu.location.Service.Provider
+    member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/providers/{,**}
+    interface=org.freedesktop.DBus.Properties
+    member="{Get,Set}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to query/modify service properties
@@ -83,12 +116,11 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var locationControlConnectedPlugAppArmor = []byte(`
-# Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+const locationControlConnectedPlugAppArmor = `
+# Description: Allow using location service. This gives privileged access to
+# the service.
 
 #include <abstractions/dbus-strict>
 
@@ -98,6 +130,27 @@ dbus (send)
     path=/com/ubuntu/location/Service
     interface=com.ubuntu.location.Service
     member="AddProvider"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,**}
+    interface=com.ubuntu.location.Service.Provider
+    member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/providers/{,**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to query service properties
@@ -120,95 +173,91 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
-`)
 
-var locationControlPermanentSlotSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
 
-var locationControlConnectedPlugSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationControlPermanentSlotDBus = []byte(`
+const locationControlPermanentSlotDBus = `
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
+    <allow send_interface="com.ubuntu.location.Service.Provider"/>
 </policy>
-`)
+`
 
-var locationControlConnectedPlugDBus = []byte(`
+const locationControlConnectedPlugDBus = `
 <policy context="default">
     <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
+    <allow receive_interface="com.ubuntu.location.Service.Provider"/>
 </policy>
-`)
+`
 
-type LocationControlInterface struct{}
+type locationControlInterface struct{}
 
-func (iface *LocationControlInterface) Name() string {
+func (iface *locationControlInterface) Name() string {
 	return "location-control"
 }
 
-func (iface *LocationControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecurityDBus:
-		return locationControlConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlConnectedPlugSecComp, nil
+func (iface *locationControlInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              locationControlSummary,
+		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
 	}
-	return nil, nil
 }
 
-func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return locationControlPermanentSlotAppArmor, nil
-	case interfaces.SecurityDBus:
-		return locationControlPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlPermanentSlotSecComp, nil
-	}
-	return nil, nil
-}
-
-func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
-}
-
-func (iface *LocationControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *LocationControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *locationControlInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(locationControlConnectedPlugDBus)
 	return nil
 }
 
-func (iface *LocationControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *locationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationControlPermanentSlotDBus)
+	return nil
+}
+
+func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationControlPermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *locationControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *locationControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *locationControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&locationControlInterface{})
 }

@@ -51,6 +51,7 @@ func (s *desktopSuite) SetUpTest(c *C) {
 }
 
 func (s *desktopSuite) TearDownTest(c *C) {
+	s.mockUpdateDesktopDatabase.Restore()
 	dirs.SetRootDir("")
 }
 
@@ -126,7 +127,8 @@ Icon=${SNAP}/meep
 Name=foo
 Icon=%s/foo/12/meep
 
-# the empty line above is fine`, dirs.SnapMountDir))
+# the empty line above is fine
+`, dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExec(c *C) {
@@ -145,7 +147,8 @@ Exec=baz
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-Name=foo`)
+Name=foo
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecPrefix(c *C) {
@@ -164,7 +167,8 @@ Exec=snap.app.evil.evil
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-Name=foo`)
+Name=foo
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
@@ -184,7 +188,8 @@ Exec=snap.app %U
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U`, dirs.SnapMountDir))
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
+`, dirs.SnapMountDir))
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -205,7 +210,8 @@ TryExec=snap.app %U
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-Name=foo`)
+Name=foo
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeWorthWithI18n(c *C) {
@@ -226,15 +232,37 @@ Name=foo
 GenericName=bar
 GenericName[de]=einsehrlangeszusammengesetzteswort
 GenericName[tlh_TLH]=Qapla'
-GenericName[ca@valencia]=Hola!`)
+GenericName[ca@valencia]=Hola!
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	snap := &snap.Info{}
-	desktopContent := []byte(`[Desktop Action is-ok]`)
+	desktopContent := []byte("[Desktop Action is-ok]\n")
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
+	c.Assert(string(e), Equals, string(desktopContent))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {
+	snap := &snap.Info{}
+
+	desktopContent := []byte(`[Desktop Entry]
+Version=1.0
+Name=Firefox Web Browser
+X-Ayatana-Desktop-Shortcuts=NewWindow;Private
+
+[NewWindow Shortcut Group]
+Name=Open a New Window
+TargetEnvironment=Unity
+
+[Private Shortcut Group]
+Name=Private Mode
+TargetEnvironment=Unity
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, string(desktopContent))
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
@@ -258,23 +286,30 @@ apps:
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
-func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
+func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	langs := []struct {
-		in  string
-		out string
+		line    string
+		isValid bool
 	}{
 		// langCodes
-		{"[lang_COUNTRY@MODIFIER]=foo", "=foo"},
-		{"[lang_COUNTRY]=bar", "=bar"},
-		{"[lang_COUNTRY]=baz", "=baz"},
-		{"[lang]=foobar", "=foobar"},
-		// non-langCodes, should be ignored
-		{"", ""},
-		{"Name=foobar", "Name=foobar"},
-		// corner case
-		{"[foo=bar", "[foo=bar"},
+		{"Name[lang]=lang-alone", true},
+		{"Name[_COUNTRY]=country-alone", false},
+		{"Name[.ENC-0DING]=encoding-alone", false},
+		{"Name[@modifier]=modifier-alone", false},
+		{"Name[lang_COUNTRY]=lang+country", true},
+		{"Name[lang.ENC-0DING]=lang+encoding", true},
+		{"Name[lang@modifier]=lang+modifier", true},
+		// could also test all bad combos of 2, and all combos of 3...
+		{"Name[lang_COUNTRY.ENC-0DING@modifier]=all", true},
+		// other localised entries
+		{"GenericName[xx]=a", true},
+		{"Comment[xx]=b", true},
+		{"Keywords[xx]=b", true},
+		// bad ones
+		{"Name[foo=bar", false},
+		{"Icon[xx]=bar", false},
 	}
 	for _, t := range langs {
-		c.Assert(wrappers.TrimLang(t.in), Equals, t.out)
+		c.Assert(wrappers.IsValidDesktopFileLine([]byte(t.line)), Equals, t.isValid)
 	}
 }

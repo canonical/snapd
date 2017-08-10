@@ -48,23 +48,42 @@ const (
 	sysUserAuths = "system-user-authority: *\n"
 )
 
-const modelExample = "type: model\n" +
-	"authority-id: brand-id1\n" +
-	"series: 16\n" +
-	"brand-id: brand-id1\n" +
-	"model: baz-3000\n" +
-	"display-name: Baz 3000\n" +
-	"architecture: amd64\n" +
-	"gadget: brand-gadget\n" +
-	"kernel: baz-linux\n" +
-	"store: brand-store\n" +
-	sysUserAuths +
-	reqSnaps +
-	"TSLINE" +
-	"body-length: 0\n" +
-	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
-	"\n\n" +
-	"AXNpZw=="
+const (
+	modelExample = "type: model\n" +
+		"authority-id: brand-id1\n" +
+		"series: 16\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"display-name: Baz 3000\n" +
+		"architecture: amd64\n" +
+		"gadget: brand-gadget\n" +
+		"kernel: baz-linux\n" +
+		"store: brand-store\n" +
+		sysUserAuths +
+		reqSnaps +
+		"TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	classicModelExample = "type: model\n" +
+		"authority-id: brand-id1\n" +
+		"series: 16\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"display-name: Baz 3000\n" +
+		"classic: true\n" +
+		"architecture: amd64\n" +
+		"gadget: brand-gadget\n" +
+		"store: brand-store\n" +
+		reqSnaps +
+		"TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+)
 
 func (mods *modelSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
@@ -216,7 +235,57 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)
-	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `model assertion timestamp outside of signing key validity \(key valid since.*\)`)
+}
+
+func (mods *modelSuite) TestClassicDecodeOK(c *C) {
+	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.AuthorityID(), Equals, "brand-id1")
+	c.Check(model.Timestamp(), Equals, mods.ts)
+	c.Check(model.Series(), Equals, "16")
+	c.Check(model.BrandID(), Equals, "brand-id1")
+	c.Check(model.Model(), Equals, "baz-3000")
+	c.Check(model.DisplayName(), Equals, "Baz 3000")
+	c.Check(model.Classic(), Equals, true)
+	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.Kernel(), Equals, "")
+	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+}
+
+func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
+	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"classic: true\n", "classic: foo\n", `"classic" header must be 'true' or 'false'`},
+		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
+		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
+		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
+	}
+}
+
+func (mods *modelSuite) TestClassicDecodeGadgetAndArchOptional(c *C) {
+	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "gadget: brand-gadget\n", "", 1)
+	encoded = strings.Replace(encoded, "architecture: amd64\n", "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.Classic(), Equals, true)
+	c.Check(model.Architecture(), Equals, "")
+	c.Check(model.Gadget(), Equals, "")
 }
 
 type serialSuite struct {
@@ -269,7 +338,6 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 const (
 	deviceSessReqErrPrefix = "assertion device-session-request: "
 	serialErrPrefix        = "assertion serial: "
-	serialProofErrPrefix   = "assertion serial-proof: "
 	serialReqErrPrefix     = "assertion serial-request: "
 )
 

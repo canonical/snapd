@@ -1,5 +1,5 @@
 summary: Test ubuntu-fan
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-*]
 prepare: |
     IP=$(ifconfig  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | cut -d' ' -f1|head -1)
     fanctl up 241.0.0.0/8 $IP/16
@@ -7,10 +7,10 @@ restore: |
     fanctl down -e
 execute: |
     echo "Test that fanctl exists"
-    fanctl |grep "Usage: /usr/sbin/fanctl <cmd>.*" || true
+    command -v fanctl
 
     echo "Test fanctl created fan bridge"
-    ifconfig |grep ^fan-241
+    ifconfig |MATCH ^fan-241
 
     # FIXME: port the docker tests once we have docker again
     # https://github.com/snapcore/snapd/blob/2.13/integration-tests/tests/ubuntufan_test.go#L88

@@ -23,8 +23,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,22 +37,27 @@ type AvahiObserveInterfaceSuite struct {
 }
 
 var _ = Suite(&AvahiObserveInterfaceSuite{
-	iface: builtin.NewAvahiObserveInterface(),
-	slot: &interfaces.Slot{
+	iface: builtin.MustInterface("avahi-observe"),
+})
+
+func (s *AvahiObserveInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [avahi-observe]
+`
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "avahi-observe",
 			Interface: "avahi-observe",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "avahi-observe",
-			Interface: "avahi-observe",
-		},
-	},
-})
+	}
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["avahi-observe"]}
+}
 
 func (s *AvahiObserveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "avahi-observe")
@@ -81,13 +88,13 @@ func (s *AvahiObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *AvahiObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "name=org.freedesktop.Avahi")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "name=org.freedesktop.Avahi")
+}
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "sendto")
+func (s *AvahiObserveInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

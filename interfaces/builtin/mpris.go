@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,17 +20,30 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
 )
 
-var mprisPermanentSlotAppArmor = []byte(`
+const mprisSummary = `allows operating as an MPRIS player`
+
+const mprisBaseDeclarationSlots = `
+  mpris:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
+`
+
+const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
-# Usage: common
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -74,9 +87,9 @@ dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=@{profile_name}),
-`)
+`
 
-var mprisConnectedSlotAppArmor = []byte(`
+const mprisConnectedSlotAppArmor = `
 # Allow connected clients to interact with the player
 dbus (receive)
     bus=session
@@ -93,9 +106,9 @@ dbus (receive)
     interface="org.mpris.MediaPlayer2{,.*}"
     path=/org/mpris/MediaPlayer2
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var mprisConnectedSlotAppArmorClassic = []byte(`
+const mprisConnectedSlotAppArmorClassic = `
 # Allow unconfined clients to interact with the player on classic
 dbus (receive)
     bus=session
@@ -105,11 +118,10 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
-`)
+`
 
-var mprisConnectedPlugAppArmor = []byte(`
+const mprisConnectedPlugAppArmor = `
 # Description: Allow connecting to an MPRIS player.
-# Usage: common
 
 #include <abstractions/dbus-session-strict>
 
@@ -137,80 +149,53 @@ dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var mprisPermanentSlotSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
+type mprisInterface struct{}
 
-var mprisConnectedPlugSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-type MprisInterface struct{}
-
-func (iface *MprisInterface) Name() string {
+func (iface *mprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *MprisInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(mprisConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisConnectedPlugSecComp, nil
+func (iface *mprisInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              mprisSummary,
+		BaseDeclarationSlots: mprisBaseDeclarationSlots,
 	}
-	return nil, nil
 }
 
-func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		name, err := iface.getName(slot.Attrs)
-		if err != nil {
-			return nil, err
-		}
+func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
+	return nil
+}
 
-		old := []byte("###MPRIS_NAME###")
-		new := []byte(name)
-		snippet := bytes.Replace(mprisPermanentSlotAppArmor, old, new, -1)
-		// on classic, allow unconfined remotes to control the player
-		// (eg, indicator-sound)
-		if release.OnClassic {
-			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
-		}
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisPermanentSlotSecComp, nil
+func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	name, err := iface.getName(slot.Attrs)
+	if err != nil {
+		return err
 	}
-	return nil, nil
-}
 
-func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(mprisConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
+	old := "###MPRIS_NAME###"
+	new := name
+	spec.AddSnippet(strings.Replace(mprisPermanentSlotAppArmor, old, new, -1))
+	// on classic, allow unconfined remotes to control the player
+	// (eg, indicator-sound)
+	if release.OnClassic {
+		spec.AddSnippet(mprisConnectedSlotAppArmorClassic)
 	}
-	return nil, nil
+	return nil
 }
 
-func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, error) {
+func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
+func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, error) {
 	// default to snap name if 'name' attribute not set
 	mprisName := "@{SNAP_NAME}"
 	for attr := range attribs {
@@ -235,11 +220,11 @@ func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *MprisInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *mprisInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -248,7 +233,19 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *MprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *mprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *mprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&mprisInterface{})
 }

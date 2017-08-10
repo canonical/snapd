@@ -85,7 +85,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	l, err := logger.NewConsoleLog(s.stderr, 0)
+	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 
@@ -154,7 +154,7 @@ too short
 
 	l, err := snap.AutoImportCandidates()
 	c.Check(err, IsNil)
-	c.Check(l, DeepEquals, files[1:len(files)])
+	c.Check(l, DeepEquals, files[1:])
 }
 
 func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
@@ -190,7 +190,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
-	l, err := logger.NewConsoleLog(s.stderr, 0)
+	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 
@@ -266,7 +266,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
-	l, err := logger.NewConsoleLog(s.stderr, 0)
+	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 
@@ -290,7 +290,7 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
-	l, err := logger.NewConsoleLog(s.stderr, 0)
+	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
 

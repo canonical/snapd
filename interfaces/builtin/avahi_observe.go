@@ -19,7 +19,15 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+const avahiObserveSummary = `allows discovering local domains, hostnames and services`
+
+const avahiObserveBaseDeclarationSlots = `
+  avahi-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain browsing, service browsing and service resolving
@@ -39,6 +47,14 @@ dbus (send)
     member=Get*
     peer=(name=org.freedesktop.Avahi,label=unconfined),
 
+# Don't allow introspection since it reveals too much (path is not service
+# specific for unconfined)
+#dbus (send)
+#    bus=system
+#    path=/
+#    interface=org.freedesktop.DBus.Introspectable
+#    member=Introspect
+#    peer=(label=unconfined),
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.
@@ -105,25 +121,13 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const avahiObserveConnectedPlugSecComp = `
-# Description: allows domain browsing, service browsing and service resolving
-
-# dbus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
-func NewAvahiObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "avahi-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "avahi-observe",
+		summary:               avahiObserveSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  avahiObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  avahiObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

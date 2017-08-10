@@ -1,12 +1,17 @@
 [![Build Status][travis-image]][travis-url]
 [![Go Report Card][goreportcard-image]][goreportcard-url]
+[![codecov][codecov-image]][codecov-url]
+ 
+## Snaps
 
-# snapd
+Package any app for every Linux desktop, server, cloud or device.
 
-The snapd and snap tools enable systems to work with .snap files. See
-[snapcraft.io](http://snapcraft.io) for a high level overview about
-snap files and the snapd application.
-  
+Snaps are faster to install, easier to create, safer to run, and they update
+automatically and transactionally so your app is always fresh and never
+broken. You can bring your own build infrastructure or use ours.
+
+Head over to [snapcraft.io](https://snapcraft.io) to get started.
+
 ## Development
 
 To get started with development off the snapd code itself, please check
@@ -36,3 +41,6 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 
 [coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
 [coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
+
+[codecov-url]: https://codecov.io/gh/snapcore/snapd
+[codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg

@@ -33,12 +33,14 @@ execute: |
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
+    . $TESTSLIB/dirs.sh
+
     echo "Sideload desktop snap"
     snap install --dangerous ./basic-desktop_1.0_all.snap
     expected="\[Desktop Entry\]\n\
     Name=Echo\n\
     Comment=It echos stuff\n\
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop /snap/bin/basic-desktop.echo\n"
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAPMOUNTDIR/bin/basic-desktop.echo\n"
     cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
 
     echo "Sideload devmode snap fails without flags"
@@ -51,11 +53,13 @@ execute: |
     expected="^test-snapd-devmode +.* +devmode"
     snap list | grep -Pq  "$expected"
 
-    echo "Sideload devmode snap succeeds with --jailmode"
-    expected="test-snapd-devmode 1.0 installed"
-    snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
-    expected="^test-snapd-devmode +.* +jailmode"
-    snap list | grep -Pq  "$expected"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Sideload devmode snap succeeds with --jailmode"
+        expected="test-snapd-devmode 1.0 installed"
+        snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+        expected="^test-snapd-devmode +.* +jailmode"
+        snap list | grep -Pq  "$expected"
+    fi
 
     echo "Sideload devmode snap fails with both --devmode and --jailmode"
     expected="cannot use devmode and jailmode flags together"
@@ -70,4 +74,4 @@ execute: |
     echo "Remove --revision works"
     snap remove --revision x1 test-snapd-tools
     test-snapd-tools.success
-    test ! -d /snap/test-snapd-tools/x1
+    test ! -d $SNAPMOUNTDIR/test-snapd-tools/x1

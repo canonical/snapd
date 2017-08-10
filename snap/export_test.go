@@ -20,13 +20,15 @@
 package snap
 
 var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
+	NewHookType = newHookType
 )
 
 func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
 	old := supportedHooks
 	supportedHooks = hookTypes
 	return func() { supportedHooks = old }
+}
+
+func (info *Info) RenamePlug(oldName, newName string) {
+	info.renamePlug(oldName, newName)
 }

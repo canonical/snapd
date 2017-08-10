@@ -25,19 +25,38 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-// BoolFileInterface is the type of all the bool-file interfaces.
-type BoolFileInterface struct{}
+const boolFileSummary = `allows access to specific file with bool semantics`
+
+const boolFileBaseDeclarationSlots = `
+  bool-file:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
+
+// boolFileInterface is the type of all the bool-file interfaces.
+type boolFileInterface struct{}
 
 // String returns the same value as Name().
-func (iface *BoolFileInterface) String() string {
+func (iface *boolFileInterface) String() string {
 	return iface.Name()
 }
 
 // Name returns the name of the bool-file interface.
-func (iface *BoolFileInterface) Name() string {
+func (iface *boolFileInterface) Name() string {
 	return "bool-file"
+}
+
+func (iface *boolFileInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              boolFileSummary,
+		BaseDeclarationSlots: boolFileBaseDeclarationSlots,
+	}
 }
 
 var boolFileGPIOValuePattern = regexp.MustCompile(
@@ -51,7 +70,7 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 
 // SanitizeSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
-func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -69,7 +88,7 @@ func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *boolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -77,57 +96,33 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
-// Applications associated with the slot don't gain any extra permissions.
-func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentSlotSnippet returns security snippet permanently granted to bool-file slots.
-// Applications associated with the slot, if the slot is a GPIO, gain permission to export, unexport and set direction of any GPIO pin.
-func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	gpioSnippet := []byte(`
+func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
-`)
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// To provide GPIOs we need extra permissions to export/unexport and to
-		// set the direction of each pin.
-		if iface.isGPIO(slot) {
-			return gpioSnippet, nil
-		}
-		return nil, nil
+`
+
+	if iface.isGPIO(slot) {
+		spec.AddSnippet(gpioSnippet)
 	}
-	return nil, nil
+	return nil
 }
 
-// ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
-// Applications associated with the plug gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// Allow write and lock on the file designated by the path.
-		// Dereference symbolic links to file path handed out to apparmor since
-		// sysfs is full of symlinks and apparmor requires uses real path for
-		// filtering.
-		path, err := iface.dereferencedPath(slot)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
-		}
-		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
+func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	// Allow write and lock on the file designated by the path.
+	// Dereference symbolic links to file path handed out to apparmor since
+	// sysfs is full of symlinks and apparmor requires uses real path for
+	// filtering.
+	path, err := iface.dereferencedPath(slot)
+	if err != nil {
+		return fmt.Errorf("cannot compute plug security snippet: %v", err)
 	}
-	return nil, nil
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
+	return nil
 }
 
-// PermanentPlugSnippet returns the configuration snippet required to use a bool-file interface.
-// Applications associated with the plug don't gain any extra permissions.
-func (iface *BoolFileInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
+func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		path, err := evalSymlinks(path)
 		if err != nil {
@@ -139,7 +134,7 @@ func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string,
 }
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
-func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
+func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
@@ -152,6 +147,18 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
-func (iface *BoolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
+}
+
+func (iface *boolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *boolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func init() {
+	registerIface(&boolFileInterface{})
 }
