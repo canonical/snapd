@@ -20,6 +20,17 @@ execute: |
         exit 1
     fi
 
+    echo "Test that getting root document without any configuration produces an error"
+    if output=$(snap get snapctl-hooks 2>&1); then
+        echo "snap get didn't fail as expected"
+        exit 1
+    fi
+    expected="error: snap \"snapctl-hooks\" has no configuration"
+    if [ "$output" != "$expected" ]; then
+        echo "Expected '$expected' error, but it was '$output'"
+        exit 1
+    fi
+
     echo "Test that values set via snapctl can be obtained via snap get"
     if ! snap set snapctl-hooks command=test-snapctl-set-foo; then
         echo "snap set unexpectedly failed"
