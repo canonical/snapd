@@ -335,11 +335,11 @@ NextUser:
 type DeviceAssertions interface {
 	// Model returns the device model assertion.
 	Model() (*asserts.Model, error)
-	// Serial returns the device model assertion.
+	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
-	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
-	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
+	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device model and serial assertions.
+	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Model, *asserts.Serial, error)
 }
 
 var (
@@ -357,7 +357,7 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
+	DeviceSessionRequest(nonce string) (devSessionRequest []byte, model []byte, serial []byte, err error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -448,17 +448,17 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, err error) {
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device model and serial assertions. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, model []byte, serial []byte, err error) {
 	if ac.deviceAsserts == nil {
-		return nil, nil, ErrNoSerial
+		return nil, nil, nil, ErrNoSerial
 	}
-	req, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	req, mod, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
 	if err == state.ErrNoState {
-		return nil, nil, ErrNoSerial
+		return nil, nil, nil, ErrNoSerial
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return asserts.Encode(req), asserts.Encode(ser), nil
+	return asserts.Encode(req), asserts.Encode(mod), asserts.Encode(ser), nil
 }
