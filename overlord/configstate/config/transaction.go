@@ -142,6 +142,9 @@ func (t *Transaction) GetMaybe(snapName, key string, result interface{}) error {
 func getFromPristine(snapName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
 	// special case - get root document
 	if len(subkeys) == 0 {
+		if len(config) == 0 {
+			return fmt.Errorf("snap %q has no configuration", snapName)
+		}
 		raw := jsonRaw(config)
 		if err := json.Unmarshal([]byte(*raw), result); err != nil {
 			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
