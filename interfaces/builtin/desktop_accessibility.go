@@ -86,10 +86,22 @@ dbus (send)
     peer=(name=org.freedesktop.DBus, label=unconfined),
 dbus (send)
     bus=accessibility
+    path="/org/a11y/atspi/accessible/root"
+    interface="org.a11y.atspi.Accessible"
+    member="Get*"
+    peer=(label=unconfined),
+dbus (send)
+    bus=accessibility
     path="/org/a11y/atspi/accessible/[0-9]*"
     interface="org.a11y.atspi.Event.Object"
     member="{ChildrenChanged,PropertyChange,StateChanged,TextCaretMoved}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/[0-9]*"
+    interface="org.freedesktop.DBus.Properties"
+    member="Get{,All}"
+    peer=(label=unconfined),
 
 # TODO: what does this do?
 dbus (send)
