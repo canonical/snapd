@@ -1556,15 +1556,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	currentConfValues := make(map[string]interface{})
 	// Special case - return root document
 	if len(keys) == 0 {
-		var value interface{}
-		if err := tr.Get(snapName, "", &value); err != nil {
-			if config.IsNoOption(err) {
-				return BadRequest("%v", err)
-			} else {
-				return InternalError("%v", err)
-			}
-		}
-		return SyncResponse(value, nil)
+		keys = []string{""}
 	}
 	for _, key := range keys {
 		var value interface{}
@@ -1574,6 +1566,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			} else {
 				return InternalError("%v", err)
 			}
+		}
+		if key == "" {
+			if len(keys) > 1 {
+				return BadRequest("keys contains zero-length string")
+			}
+			return SyncResponse(value, nil)
 		}
 
 		currentConfValues[key] = value
