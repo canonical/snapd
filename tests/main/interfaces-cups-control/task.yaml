@@ -27,16 +27,17 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         # Not all distributions are starting the cups service directly after
         # the package was installed.
+        echo "Enabling cups service in case it is not enabled"
         if ! systemctl is-enabled cups ; then
             # We can't use --now as this isn't supported by all distributions
             systemctl enable cups
         fi
+        echo "Starting cups service in case it is not active"
+        if ! systemctl is-active cups; then
+            systemctl start cups
+        fi
     fi
 
-    echo "Starting cups service in case it is not active"
-    if ! systemctl is-active cups; then
-        systemctl start cups
-    fi
 
 restore: |
     rm -rf $HOME/PDF $TEST_FILE print.error
