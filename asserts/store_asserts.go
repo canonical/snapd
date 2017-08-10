@@ -27,6 +27,11 @@ func (store *Store) Address() *url.URL {
 	return store.address
 }
 
+// Location returns a summary of the store's location/purpose.
+func (store *Store) Location() string {
+	return store.HeaderString("location")
+}
+
 func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// Will be applied to a system's snapd so must be signed by a trusted authority.
 	if !db.IsTrustedAccount(store.AuthorityID()) {
@@ -90,6 +95,11 @@ func assembleStore(assert assertionBase) (Assertion, error) {
 	}
 
 	address, err := checkAddressURL(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkOptionalString(assert.headers, "location")
 	if err != nil {
 		return nil, err
 	}
