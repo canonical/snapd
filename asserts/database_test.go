@@ -101,7 +101,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
 	}
 
 	_, err = asserts.OpenDatabase(cfg)
-	c.Assert(err, ErrorMatches, "cannot load trusted assertions that are not account-key or account: test-only")
+	c.Assert(err, ErrorMatches, "cannot predefine trusted assertions that are not account-key or account: test-only")
 }
 
 type databaseSuite struct {
