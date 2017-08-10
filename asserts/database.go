@@ -204,17 +204,17 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 			accKey := accepted
 			err := trustedBackstore.Put(AccountKeyType, accKey)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
+				return nil, fmt.Errorf("cannot predefine trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
 			}
 
 		case *Account:
 			acct := accepted
 			err := trustedBackstore.Put(AccountType, acct)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account %q: %v", acct.DisplayName(), err)
+				return nil, fmt.Errorf("cannot predefine trusted account %q: %v", acct.DisplayName(), err)
 			}
 		default:
-			return nil, fmt.Errorf("cannot load trusted assertions that are not account-key or account: %s", a.Type().Name)
+			return nil, fmt.Errorf("cannot predefine trusted assertions that are not account-key or account: %s", a.Type().Name)
 		}
 	}
 
@@ -223,7 +223,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	for _, a := range cfg.OtherPredefined {
 		err := otherPredefinedBackstore.Put(a.Type(), a)
 		if err != nil {
-			return nil, fmt.Errorf("error loading for use predefined assertion %v", a.Ref())
+			return nil, fmt.Errorf("cannot predefine assertion %v: %v", a.Ref(), err)
 		}
 	}
 
