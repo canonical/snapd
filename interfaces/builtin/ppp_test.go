@@ -81,24 +81,7 @@ func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Description: Allow operating ppp daemon. This gives privileged access to the
-# ppp daemon.
-
-# Needed for modem connections using PPP
-/usr/sbin/pppd ix,
-/etc/ppp/** rwix,
-/dev/ppp rw,
-/dev/tty[^0-9]* rw,
-/run/lock/*tty[^0-9]* rw,
-/run/ppp* rw,
-/var/run/ppp* rw,
-/var/log/ppp* rw,
-/bin/run-parts ix,
-@{PROC}/@{pid}/loginuid r,
-capability setgid,
-capability setuid,
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/ppp rw,`)
 }
 
 func (s *PppInterfaceSuite) TestKModSpec(c *C) {
