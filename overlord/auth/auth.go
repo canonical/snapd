@@ -357,7 +357,7 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	DeviceSessionRequest(nonce string) (devSessionRequest []byte, model []byte, serial []byte, err error)
+	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, model []byte, err error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -448,17 +448,17 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device model and serial assertions. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, model []byte, serial []byte, err error) {
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, model []byte, err error) {
 	if ac.deviceAsserts == nil {
 		return nil, nil, nil, ErrNoSerial
 	}
-	req, mod, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	req, ser, mod, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
 	if err == state.ErrNoState {
 		return nil, nil, nil, ErrNoSerial
 	}
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return asserts.Encode(req), asserts.Encode(mod), asserts.Encode(ser), nil
+	return asserts.Encode(req), asserts.Encode(ser), asserts.Encode(mod), nil
 }
