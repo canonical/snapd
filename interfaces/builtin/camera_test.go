@@ -63,7 +63,7 @@ func (s *CameraInterfaceSuite) TestName(c *C) {
 func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core"},
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "camera",
 		Interface: "camera",
 	}}
