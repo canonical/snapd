@@ -3,9 +3,9 @@ package asserts_test
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	. "gopkg.in/check.v1"
 )
 
@@ -133,14 +133,8 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	// Add account for operator.
-	operator, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
-		"account-id":   "op-id1",
-		"display-name": "op-id1",
-		"validation":   "unknown",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(operator)
+	operator := assertstest.NewAccount(storeDB, "op-id1", nil, "")
+	err := db.Add(operator)
 	c.Assert(err, IsNil)
 
 	storeHeaders := map[string]interface{}{
@@ -176,14 +170,8 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
-	assert, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
-		"account-id":   "op-id1",
-		"display-name": "op-id1",
-		"validation":   "unknown",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(assert)
+	operator := assertstest.NewAccount(storeDB, "op-id1", map[string]interface{}{"account-id": "op-id1"}, "")
+	err = db.Add(operator)
 	c.Assert(err, IsNil)
 
 	// Now the operator exists so Check succeeds.
