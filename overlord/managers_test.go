@@ -144,14 +144,6 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err = ms.storeSigning.Add(ms.devAcct)
 	c.Assert(err, IsNil)
 
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-	ms.o = o
-	st := ms.o.State()
-	st.Lock()
-	st.Set("seeded", true)
-	st.Unlock()
-
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
@@ -160,6 +152,41 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
 	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+	ms.o = o
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+	st.Set("seeded", true)
+
+	// add "core" snap declaration
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a, err := ms.storeSigning.RootSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, a)
+	c.Assert(err, IsNil)
+	ms.serveRevision["core"] = "1"
+	ms.serveIDtoName[fakeSnapID("core")] = "core"
+	err = ms.storeSigning.Add(a)
+	c.Assert(err, IsNil)
+
+	// add core itself
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {

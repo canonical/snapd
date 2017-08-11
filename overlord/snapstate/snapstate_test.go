@@ -117,6 +117,15 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -902,6 +911,7 @@ func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
 		Aliases: map[string]*snapstate.AliasTarget{
 			"foo.bar": {Manual: "bar"},
 		},
+		SnapType: "app",
 	})
 
 	_, err := snapstate.Install(s.state, "foo", "some-channel", snap.R(0), 0, snapstate.Flags{})
@@ -921,13 +931,13 @@ func (s sneakyStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
+		SnapType: "app",
 	})
 	s.state.Unlock()
 	return s.fakeStore.SnapInfo(spec, user)
 }
 
 func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2200,6 +2210,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si7, &si11},
 		Current:  si7.Revision,
+		SnapType: "app",
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -2239,6 +2250,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si7, &si11},
 		Current:  si7.Revision,
+		SnapType: "app",
 	})
 
 	updates, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
@@ -2753,7 +2765,8 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "mock", Revision: snap.R(-2)},
 		},
-		Current: snap.R(-2),
+		Current:  snap.R(-2),
+		SnapType: "app",
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -2845,7 +2858,8 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "mock", Revision: snap.R(100001)},
 		},
-		Current: snap.R(100001),
+		Current:  snap.R(100001),
+		SnapType: "app",
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -6037,11 +6051,24 @@ volumes:
 	c.Assert(hookstate.HookTask(s.state, "", hooksup, contextData), NotNil)
 }
 
+func makeInstalledMockCoreSnap(c *C) {
+	coreSnapYaml := `name: core
+version: 1.0
+type: os
+`
+	snaptest.MockSnap(c, coreSnapYaml, "", &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+}
+
 func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockReadInfo(snap.ReadInfo)
@@ -6073,6 +6100,8 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
+	makeInstalledMockCoreSnap(c)
+
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockReadInfo(snap.ReadInfo)
 
@@ -6096,6 +6125,8 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockReadInfo(snap.ReadInfo)
@@ -6160,6 +6191,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
@@ -6210,6 +6242,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
@@ -6650,6 +6683,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 		return nil, nil
 	}
 
+	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
@@ -6717,6 +6751,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 		return nil, nil
 	}
 
+	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
