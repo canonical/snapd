@@ -3,27 +3,29 @@
 # Contributor: Zygmunt Krynicki <me at zygoon dot pl>
 
 pkgbase=snapd
-pkgname=(snapd snap-confine)
-pkgver=2.26.1
+pkgname=snapd
+pkgver=2.26.14.r1445.g3df03f98b
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
 license=('GPL3')
-makedepends=('git' 'go' 'go-tools' 'bzr')
-checkdepends=('python' 'squashfs-tools')
-
-# snap-confine
-makedepends+=('libcap' 'python-docutils' 'systemd' 'xfsprogs')
-checkdepends+=('indent' 'shellcheck')
+makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'python-docutils' 'systemd' 'xfsprogs' 'libseccomp')
+checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgname.git#tag=$pkgver"
+source=("git+https://github.com/snapcore/$pkgname.git"
         'snapd.sh')
 md5sums=('SKIP'
          '8e9b8108165d5b2ae911de9caefb37ce')
 
 _gourl=github.com/snapcore/snapd
+
+
+pkgver() {
+    cd "$srcdir/snapd"
+    git describe --tag | sed -r 's/([^-]*-g)/r\1/; s/-/./g'
+}
 
 prepare() {
   cd "$pkgname"
@@ -36,6 +38,8 @@ prepare() {
   # above describes.
   mkdir -p "$(dirname "$GOPATH/src/${_gourl}")"
   ln --no-target-directory -fs "$srcdir/$pkgname" "$GOPATH/src/${_gourl}"
+  # Patch snap-seccomp build flags not to link libseccomp statically.
+  sed -i -e 's/-Wl,-Bstatic -lseccomp -Wl,-Bdynamic/-lseccomp/' "$srcdir/$pkgname/cmd/snap-seccomp/main.go"
 }
 
 build() {
@@ -43,16 +47,23 @@ build() {
   # Use get-deps.sh provided by upstream to fetch go dependencies using the
   # godeps tool and dependencies.tsv (maintained upstream).
   cd "$GOPATH/src/${_gourl}"
+  # Generate version
+  ./mkversion.sh $pkgver-$pkgrel
+
+  # Get golang dependencies
   XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
-  # Build/install snap and snapd
-  go install "${_gourl}/cmd/snap"
-  go install "${_gourl}/cmd/snapd"
 
   # Generate the real systemd units out of the available templates
   make -C data/systemd all
 
+  # Build/install snap and snapd
+  go install "${_gourl}/cmd/snap"
+  go install "${_gourl}/cmd/snapctl"
+  go install "${_gourl}/cmd/snapd"
+  go install "${_gourl}/cmd/snap-update-ns"
+  go install "${_gourl}/cmd/snap-seccomp"
+
   # Build snap-confine
-  ./mkversion.sh
   cd cmd
   autoreconf -i -f
   ./configure \
@@ -65,22 +76,31 @@ build() {
   make
 }
 
-# FIXME
 check() {
-  return
   export GOPATH="$srcdir/go"
   cd "$GOPATH/src/${_gourl}"
 
-  ./run-checks --unit
-  ./run-checks --static
+  # XXX: Those files are unknown to gitignore but are checked by run-checks
+  # --static. Before gitignore is updated we just remove the junk one and move
+  # the valuable one aside.
+  rm -f cmd/snap-confine/snap-confine-debug
+  mv data/info $srcdir/xxx-info
 
-   cd cmd
-   make -k check
+  ./run-checks --unit
+  # XXX: Static checks choke on autotools generated cruft. Let's not run them
+  # here as they are designed to pass on a clean tree, before anything else is
+  # done, not after building the tree.
+  # ./run-checks --static
+   make -C cmd -k check
+
+  mv $srcdir/xxx-info data/info
 }
 
-package_snapd() {
+package() {
   pkgdesc="Service and tools for management of snap packages."
-  depends=('snap-confine' 'squashfs-tools')
+  depends=('snap-confine' 'squashfs-tools' 'libseccomp' 'libsystemd')
+  replaces=('snap-confine')
+  provides=('snap-confine')
 
   export GOPATH="$srcdir/go"
   # Ensure that we have /var/lib/snapd/{hostfs,lib/gl}/ as they are required by snap-confine
@@ -93,17 +113,20 @@ package_snapd() {
   # Install the snapd socket and service for the main daemon
   install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.service" "$pkgdir/usr/lib/systemd/system"
   install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.socket" "$pkgdir/usr/lib/systemd/system"
-  # Install snap and snapd executables
+  # Install snap, snapctl, snap-update-ns, snap-seccomp and snapd executables
   install -d -m 755 "$pkgdir/usr/bin/"
   install -m 755 "$GOPATH/bin/snap" "$pkgdir/usr/bin/"
+  install -m 755 "$GOPATH/bin/snapctl" "$pkgdir/usr/bin/"
   install -d -m 755 "$pkgdir/usr/lib/snapd"
+  install -m 755 "$GOPATH/bin/snap-update-ns" "$pkgdir/usr/lib/snapd/"
+  install -m 755 "$GOPATH/bin/snap-seccomp" "$pkgdir/usr/lib/snapd/"
   install -m 755 "$GOPATH/bin/snapd" "$pkgdir/usr/lib/snapd/"
+  # Install snap-confine
+  make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir/"
   # Install script to export binaries paths of snaps
   install -Dm 755 "$srcdir/snapd.sh" "$pkgdir/etc/profile.d/apps-bin-path.sh"
-}
-
-package_snap-confine() {
-  pkgdesc="Confinement system for snap applications"
-  depends=('libseccomp' 'libsystemd')
-  make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir/"
+  # Install the bash tab completion files
+  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/snap" "$pkgdir/usr/share/bash-completion/completions/snap"
+  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/complete.sh" "$pkgdir/usr/lib/snapd/complete.sh"
+  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/etelpmoc.sh" "$pkgdir/usr/lib/snapd/etelpmoc.sh"
 }
