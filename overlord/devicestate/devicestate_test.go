@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -929,10 +929,12 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.mgr.KeypairManager().Put(devKey)
 	s.state.Unlock()
 
-	sessReq, model, serial, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	sessReq, serial, model, err := s.mgr.DeviceSessionRequest("NONCE-1")
 	c.Assert(err, IsNil)
 
 	c.Check(model.Model(), Equals, "pc")
+
+	c.Check(serial.Model(), Equals, "pc")
 	c.Check(serial.Serial(), Equals, "8989")
 
 	// correctly signed with device key

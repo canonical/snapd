@@ -620,7 +620,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	sessionRequest, modelAssertion, serialAssertion, err := s.authContext.DeviceSessionRequest(nonce)
+	sessionRequest, serialAssertion, modelAssertion, err := s.authContext.DeviceSessionRequest(nonce)
 	if err != nil {
 		return err
 	}

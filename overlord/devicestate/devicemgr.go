@@ -367,8 +367,8 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device model and serial assertions.
-func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Model, *asserts.Serial, error) {
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial and model assertions.
+func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -398,6 +398,6 @@ func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessi
 		return nil, nil, nil, err
 	}
 
-	return a.(*asserts.DeviceSessionRequest), model, serial, err
+	return a.(*asserts.DeviceSessionRequest), serial, model, err
 
 }
