@@ -81,13 +81,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical
-# memory. With STRICT_DEVMEM=y, allow reading /dev/mem for read-only
-# access to architecture-specific subset of the physical address (eg, PCI,
-# space, BIOS code and data regions on x86, etc).
-/dev/mem r,
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mem r,`)
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestUDevSpec(c *C) {

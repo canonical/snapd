@@ -79,12 +79,7 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Allow read access to optical drives
-/dev/sr[0-9]* r,
-/dev/scd[0-9]* r,
-@{PROC}/sys/dev/cdrom/info r,
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sr[0-9]* r,`)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {

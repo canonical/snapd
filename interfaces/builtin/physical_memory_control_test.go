@@ -80,17 +80,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Description: With kernels with STRICT_DEVMEM=n, write access to all physical
-# memory.
-#
-# With STRICT_DEVMEM=y, allow writing to /dev/mem to access
-# architecture-specific subset of the physical address (eg, PCI space,
-# BIOS code and data regions on x86, etc) for all common uses of /dev/mem
-# (eg, X without KMS, dosemu, etc).
-capability sys_rawio,
-/dev/mem rw,
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mem rw,`)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestUDevSpec(c *C) {
