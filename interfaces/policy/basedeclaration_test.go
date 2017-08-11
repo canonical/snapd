@@ -155,6 +155,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"unity7":                  true,
 		"unity8":                  true,
 		"upower-observe":          true,
+		"wayland":                 true,
 		"x11":                     true,
 	}
 
@@ -484,9 +485,10 @@ var (
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
-		"ppp":                       {"core"},
-		"pulseaudio":                {"app", "core"},
-		"serial-port":               {"core", "gadget"},
+		"ppp":         {"core"},
+		"pulseaudio":  {"app", "core"},
+		"serial-port": {"core", "gadget"},
+		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},

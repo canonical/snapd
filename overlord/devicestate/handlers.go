@@ -479,7 +479,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	sto := snapstate.Store(st)
 	db := assertstate.DB(st)
 	for {
-		_, err := db.FindTrusted(asserts.AccountKeyType, map[string]string{
+		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
 			"public-key-sha3-384": keyID,
 		})
 		if err == nil {
