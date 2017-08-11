@@ -1,6 +1,7 @@
-snapd (2.27~rc8) xenial; urgency=medium
+snapd (2.27) xenial; urgency=medium
 
   * New upstream release, LP: #1703798
+    - fix build failure on 32bit fedora
     - interfaces: add password-manager-service implicit classic interface
     - interfaces/greengrass-support: adjust accesses now that have working
       snap
@@ -261,7 +262,7 @@ snapd (2.27~rc8) xenial; urgency=medium
     - api, ifacestate: resolve disconnect early
     - interfaces/builtin: ensure we don't register interfaces twice
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 12 Jul 2017 11:53:07 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 10 Aug 2017 12:43:16 +0200
 
 snapd (2.26.14) xenial; urgency=medium
 
