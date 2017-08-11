@@ -22,7 +22,6 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1788,13 +1787,13 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
 
-func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
+func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	_, _, _, err := s.ac.DeviceSessionRequest("NONCE")
+	_, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
@@ -1815,10 +1814,11 @@ func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
 	})
 
 	st.Unlock()
-	req, encSerial, encModel, err := s.ac.DeviceSessionRequest("NONCE")
+	params, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
-	c.Check(encModel, DeepEquals, asserts.Encode(s.model))
-	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
+	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)
+	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
+	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
+
 }

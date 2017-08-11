@@ -233,23 +233,27 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, []byte, error) {
+func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	model, err := asserts.Decode([]byte(exModel))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), asserts.Encode(model.(*asserts.Model)), nil
+	return &auth.DeviceSessionRequestParams{
+		Request: sessReq.(*asserts.DeviceSessionRequest),
+		Serial:  serial.(*asserts.Serial),
+		Model:   model.(*asserts.Model),
+	}, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
