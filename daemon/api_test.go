@@ -250,7 +250,6 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	assertstateRefreshSnapDeclarations = nil
-	snapstateCoreInfo = nil
 	snapstateInstall = nil
 	snapstateInstallMany = nil
 	snapstateInstallPath = nil
@@ -272,7 +271,6 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
-	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstall = snapstate.Install
 	snapstateInstallMany = snapstate.InstallMany
 	snapstateInstallPath = snapstate.InstallPath
@@ -631,8 +629,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
-		"defaultCoreSnapName",
-		"oldDefaultSnapCoreName",
 		"errDevJailModeConflict",
 		"errNoJailMode",
 		"errClassicDevmodeConflict",
@@ -642,7 +638,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdate",
 		"snapstateInstallPath",
 		"snapstateTryPath",
-		"snapstateCoreInfo",
 		"snapstateUpdateMany",
 		"snapstateInstallMany",
 		"snapstateRemoveMany",
@@ -1949,7 +1944,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{RemoveSnapPath: true}, false)
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{RemoveSnapPath: true})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1960,7 +1955,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	restore := release.MockForcedDevmode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, flags, false)
+	chgSummary := s.sideloadCheck(c, body, head, flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1979,7 +1974,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
-	chgSummary := s.sideloadCheck(c, body, head, flags, true)
+	chgSummary := s.sideloadCheck(c, body, head, flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -2001,7 +1996,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, flags, true)
+	chgSummary := s.sideloadCheck(c, body, head, flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -2102,9 +2097,6 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		return nil, nil
-	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
@@ -2237,22 +2229,13 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	}
 
 	for _, t := range []struct {
-		coreInfoErr error
-		nTasks      int
-		installSnap string
-		flags       snapstate.Flags
-		desc        string
+		flags snapstate.Flags
+		desc  string
 	}{
-		// core installed
-		{nil, 1, "", snapstate.Flags{}, "core; -"},
-		{nil, 1, "", snapstate.Flags{DevMode: true}, "core; devmode"},
-		{nil, 1, "", snapstate.Flags{JailMode: true}, "core; jailmode"},
-		{nil, 1, "", snapstate.Flags{Classic: true}, "core; classic"},
-		// no-core-installed
-		{state.ErrNoState, 2, "core", snapstate.Flags{}, "no core; -"},
-		{state.ErrNoState, 2, "core", snapstate.Flags{DevMode: true}, "no core; devmode"},
-		{state.ErrNoState, 2, "core", snapstate.Flags{JailMode: true}, "no core; jailmode"},
-		{state.ErrNoState, 2, "core", snapstate.Flags{Classic: true}, "no core; classic"},
+		{snapstate.Flags{}, "core; -"},
+		{snapstate.Flags{DevMode: true}, "core; devmode"},
+		{snapstate.Flags{JailMode: true}, "core; jailmode"},
+		{snapstate.Flags{Classic: true}, "core; classic"},
 	} {
 		soon := 0
 		ensureStateSoon = func(st *state.State) {
@@ -2278,10 +2261,6 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		}
 
-		snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-			return nil, t.coreInfoErr
-		}
-
 		// try the snap (without an installed core)
 		rsp := postSnaps(snapsCmd, reqForFlags(t.flags), nil).(*resp)
 		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync, check.Commentf(t.desc))
@@ -2292,8 +2271,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		chg := st.Change(rsp.Change)
 		c.Assert(chg, check.NotNil, check.Commentf(t.desc))
 
-		c.Assert(chg.Tasks(), check.HasLen, t.nTasks, check.Commentf(t.desc))
-		c.Check(installSnap, check.Equals, t.installSnap, check.Commentf(t.desc))
+		c.Assert(chg.Tasks(), check.HasLen, 1, check.Commentf(t.desc))
 
 		st.Unlock()
 		<-chg.Ready()
@@ -2335,7 +2313,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags) string {
 	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -2352,13 +2330,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: "local"}, nil
 	}
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		if hasCoreSnap {
-			return nil, nil
-		}
-		// pretend we do not have a state for ubuntu-core
-		return nil, state.ErrNoState
-	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
 		c.Check(flags, check.Equals, snapstate.Flags{})
@@ -2390,13 +2361,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
-	if !hasCoreSnap {
-		n++
-	}
 	c.Assert(installQueue, check.HasLen, n)
-	if !hasCoreSnap {
-		c.Check(installQueue[0], check.Equals, defaultCoreSnapName)
-	}
 	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
 
 	st := d.overlord.State()
@@ -2658,10 +2623,6 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	restore := release.MockForcedDevmode(forcedDevmode)
 	defer restore()
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have core
-		return nil, nil
-	}
 	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
@@ -2672,7 +2633,6 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	}
 
 	defer func() {
-		snapstateCoreInfo = nil
 		snapstateInstall = nil
 	}()
 
@@ -2721,10 +2681,6 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	installQueue := []string{}
 	assertstateCalledUserID := 0
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have core
-		return nil, nil
-	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
@@ -2764,10 +2720,6 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have core
-		return nil, nil
-	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
@@ -2806,10 +2758,6 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 func (s *apiSuite) TestRefreshClassic(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have ubuntu-core
-		return nil, nil
-	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		return nil, nil
@@ -2840,10 +2788,6 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have ubuntu-core
-		return nil, nil
-	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
@@ -3055,94 +2999,7 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	c.Check(removes, check.DeepEquals, inst.Snaps)
 }
 
-func (s *apiSuite) TestInstallMissingCoreSnap(c *check.C) {
-	installQueue := []*state.Task{}
-
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// pretend we do not have a core
-		return nil, state.ErrNoState
-	}
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		t1 := s.NewTask("fake-install-snap", name)
-		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
-		installQueue = append(installQueue, t1, t2)
-		return state.NewTaskSet(t1, t2), nil
-	}
-
-	d := s.daemon(c)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	buf := bytes.NewBufferString(`{"action": "install"}`)
-	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
-	c.Assert(err, check.IsNil)
-
-	s.vars = map[string]string{"name": "some-snap"}
-	rsp := postSnap(snapCmd, req, nil).(*resp)
-
-	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	chg := st.Change(rsp.Change)
-	c.Assert(chg, check.NotNil)
-
-	c.Check(chg.Tasks(), check.HasLen, 4)
-
-	c.Check(installQueue, check.HasLen, 4)
-	// the two OS snap install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
-	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
-	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
-	// the two "some-snap" install tasks
-	c.Check(installQueue[2].Summary(), check.Equals, "some-snap")
-	c.Check(installQueue[2].WaitTasks(), check.HasLen, 2)
-	c.Check(installQueue[3].WaitTasks(), check.HasLen, 2)
-}
-
-// Installing ubuntu-core when not having ubuntu-core doesn't misbehave and try
-// to install ubuntu-core twice.
-func (s *apiSuite) TestInstallCoreSnapWhenMissing(c *check.C) {
-	installQueue := []*state.Task{}
-
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// pretend we do not have a core
-		return nil, state.ErrNoState
-	}
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		t1 := s.NewTask("fake-install-snap", name)
-		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
-		installQueue = append(installQueue, t1, t2)
-		return state.NewTaskSet(t1, t2), nil
-	}
-
-	d := s.daemon(c)
-	inst := &snapInstruction{
-		Action: "install",
-		Snaps:  []string{defaultCoreSnapName},
-	}
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	_, _, err := inst.dispatch()(inst, st)
-	c.Check(err, check.IsNil)
-
-	c.Check(installQueue, check.HasLen, 2)
-	// the only OS snap install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
-	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
-	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
-}
-
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		// we have core
-		return nil, nil
-	}
-
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
@@ -3206,10 +3063,6 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		return nil, nil
-	}
-
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
@@ -3236,10 +3089,6 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
-
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		return nil, nil
-	}
 
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -5693,10 +5542,6 @@ func (s *apiSuite) TestAliases(c *check.C) {
 
 func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
-
-	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
-		return nil, nil
-	}
 
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags

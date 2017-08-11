@@ -53,6 +53,10 @@ type Flags struct {
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
+
+	// DoNotAutoInstallMissingBases is set to request that missing bases
+	// are ignored
+	DoNotAutoInstallMissingBases bool `json:"do-not-auto-install-missing-bases,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)

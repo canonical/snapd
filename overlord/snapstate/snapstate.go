@@ -43,6 +43,7 @@ import (
 const (
 	maybeCore = 1 << iota
 	skipConfigure
+	doNotAutoInstallMissingBases
 )
 
 // control flags for "Configure()"
@@ -51,6 +52,9 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
+
+const defaultCoreSnapName = "core"
+const defaultBaseSnapsChannel = "stable"
 
 func needsMaybeCore(typ snap.Type) int {
 	if typ == snap.TypeOS {
@@ -76,6 +80,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	if err := CheckChangeConflict(st, snapsup.Name(), nil, snapst); err != nil {
 		return nil, err
+	}
+
+	// ensure core gets installed. if it is already installed return
+	// an empty task set
+	ts := state.NewTaskSet()
+	if flags&doNotAutoInstallMissingBases == 0 {
+		var err error
+		ts, err = ensureCore(st, snapsup.Name(), snapsup.UserID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	targetRevision := snapsup.Revision()
@@ -229,6 +244,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	installSet := state.NewTaskSet(tasks...)
+	installSet.WaitAll(ts)
+	ts.AddAll(installSet)
 
 	if flags&skipConfigure != 0 {
 		return installSet, nil
@@ -242,10 +259,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
-	configSet.WaitAll(installSet)
-	installSet.AddAll(configSet)
+	configSet.WaitAll(ts)
+	ts.AddAll(configSet)
 
-	return installSet, nil
+	return ts, nil
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -253,7 +270,7 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
-	if snapName == "core" {
+	if snapName == defaultCoreSnapName {
 		confFlags |= IgnoreHookError
 		confFlags |= TrackHookError
 	}
@@ -387,6 +404,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		// into SnapSetup
 		instFlags |= skipConfigure
 	}
+	if flags.DoNotAutoInstallMissingBases {
+		instFlags |= doNotAutoInstallMissingBases
+	}
 
 	snapsup := &SnapSetup{
 		SideInfo: si,
@@ -404,6 +424,52 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 	flags.TryMode = true
 
 	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", flags)
+}
+
+// ensureCore ensures that the core snap is installed
+func ensureCore(st *state.State, snapName string, userID int) (*state.TaskSet, error) {
+	ts := &state.TaskSet{}
+
+	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+		return ts, nil
+	}
+
+	// check that there is no task that installs core already
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Kind() == "link-snap" {
+				snapsup, err := TaskSnapSetup(t)
+				if err != nil {
+					return nil, err
+				}
+				// some other change aleady installs core
+				if snapsup.Name() == defaultCoreSnapName {
+					return ts, nil
+				}
+			}
+		}
+	}
+
+	// check that core is not installed already
+	_, err := CoreInfo(st)
+	if err == nil {
+		return ts, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	// not installed, nor queued for install -> install it
+	ts, err = Install(st, defaultCoreSnapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	if err != nil {
+		return nil, err
+	}
+	ts.JoinLane(st.NewLane())
+
+	return ts, nil
 }
 
 // Install returns a set of tasks for installing snap.
@@ -1550,10 +1616,10 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	// some systems have two cores: ubuntu-core/core
 	// we always return "core" in this case
 	if len(res) == 2 {
-		if res[0].Name() == "core" && res[1].Name() == "ubuntu-core" {
+		if res[0].Name() == defaultCoreSnapName && res[1].Name() == "ubuntu-core" {
 			return res[0], nil
 		}
-		if res[0].Name() == "ubuntu-core" && res[1].Name() == "core" {
+		if res[0].Name() == "ubuntu-core" && res[1].Name() == defaultCoreSnapName {
 			return res[1], nil
 		}
 		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
