@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -249,7 +249,7 @@ func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, [
 		return nil, nil, nil, err
 	}
 
-	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(model.(*asserts.Model)), asserts.Encode(serial.(*asserts.Serial)), nil
+	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), asserts.Encode(model.(*asserts.Model)), nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -1545,6 +1545,16 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 		case "/api/v1/auth/nonces":
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case "/api/v1/auth/sessions":
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
 			authorization := r.Header.Get("X-Device-Authorization")
 			if authorization == "" {
 				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)

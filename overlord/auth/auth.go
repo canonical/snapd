@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -338,8 +338,8 @@ type DeviceAssertions interface {
 	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
-	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device model and serial assertions.
-	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Model, *asserts.Serial, error)
+	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial and model assertions.
+	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error)
 }
 
 var (

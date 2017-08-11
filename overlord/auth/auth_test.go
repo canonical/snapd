@@ -606,27 +606,28 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Model, *asserts.Serial, error) {
+func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error) {
 	if da.nothing {
 		return nil, nil, nil, state.ErrNoState
 	}
 	ex := strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)
 	ex = strings.Replace(ex, "@TS@", time.Now().Format(time.RFC3339), 1)
-	a1, err := asserts.Decode([]byte(ex))
+	aReq, err := asserts.Decode([]byte(ex))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	a2, err := asserts.Decode([]byte(exModel))
+	aSer, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	a3, err := asserts.Decode([]byte(exSerial))
+	aMod, err := asserts.Decode([]byte(exModel))
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return a1.(*asserts.DeviceSessionRequest), a2.(*asserts.Model), a3.(*asserts.Serial), nil
+
+	return aReq.(*asserts.DeviceSessionRequest), aSer.(*asserts.Serial), aMod.(*asserts.Model), nil
 }
 
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
@@ -645,12 +646,15 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
 
-	req, model, serial, err := authContext.DeviceSessionRequest("NONCE-1")
+	req, serial, model, err := authContext.DeviceSessionRequest("NONCE-1")
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(req), "nonce: NONCE-1\n"), Equals, true)
 	c.Check(strings.Contains(string(req), "serial: 9999\n"), Equals, true)
+
+	c.Check(strings.Contains(string(serial), "model: baz-3000\n"), Equals, true)
 	c.Check(strings.Contains(string(serial), "serial: 9999\n"), Equals, true)
 	c.Check(strings.Contains(string(model), "model: baz-3000\n"), Equals, true)
+	c.Check(strings.Contains(string(model), "serial:\n"), Equals, false)
 
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
