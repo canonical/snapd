@@ -87,6 +87,10 @@ network sna,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
 
+# For advanced wireless configuration
+/sys/kernel/debug/ieee80211/ r,
+/sys/kernel/debug/ieee80211/** r,
+
 # read netfilter module parameters
 /sys/module/nf_*/                r,
 /sys/module/nf_*/parameters/{,*} r,
