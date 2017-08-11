@@ -122,6 +122,24 @@ deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 # DBus accesses
 #include <abstractions/dbus-strict>
 
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 dbus (send)
    bus=system
    path=/org/freedesktop/DBus
@@ -395,8 +413,8 @@ func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
@@ -438,14 +456,6 @@ func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification
 
 func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

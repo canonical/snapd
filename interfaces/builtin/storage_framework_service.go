@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -118,8 +117,8 @@ func (iface *storageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
 }
 
-func (iface *storageFrameworkServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              storageFrameworkServiceSummary,
 		BaseDeclarationSlots: storageFrameworkServiceBaseDeclarationSlots,
 	}
@@ -150,20 +149,6 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *appar
 
 func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotSecComp)
-	return nil
-}
-
-func (iface *storageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *storageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

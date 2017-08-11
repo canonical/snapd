@@ -39,7 +39,12 @@ type TestInterfaceSuite struct {
 }
 
 var _ = Suite(&TestInterfaceSuite{
-	iface: &ifacetest.TestInterface{InterfaceName: "test"},
+	iface: &ifacetest.TestInterface{
+		InterfaceName: "test",
+		InterfaceStaticInfo: interfaces.StaticInfo{
+			Summary: "summary",
+		},
+	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
@@ -59,6 +64,12 @@ var _ = Suite(&TestInterfaceSuite{
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "test")
+}
+
+func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
+	c.Assert(interfaces.StaticInfoOf(s.iface), Equals, interfaces.StaticInfo{
+		Summary: "summary",
+	})
 }
 
 // TestInterface has provisions to customize validation
@@ -86,8 +97,7 @@ func (s *TestInterfaceSuite) TestValidateSlotError(c *C) {
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
@@ -98,26 +108,12 @@ func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
-	err := iface.SanitizePlug(s.plug)
-	c.Assert(err, ErrorMatches, "sanitize plug failed")
-}
-
-// TestInterface sanitization still checks for interface identity
-func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "other-interface",
-		},
-	}
-	c.Assert(func() { s.iface.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
+	c.Assert(s.plug.Sanitize(iface), ErrorMatches, "sanitize plug failed")
 }
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
@@ -128,20 +124,7 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
-	err := iface.SanitizeSlot(s.slot)
-	c.Assert(err, ErrorMatches, "sanitize slot failed")
-}
-
-// TestInterface sanitization still checks for interface identity
-func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "interface",
-		},
-	}
-	c.Assert(func() { s.iface.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
+	c.Assert(s.slot.Sanitize(iface), ErrorMatches, "sanitize slot failed")
 }
 
 // TestInterface hands out empty plug security snippets

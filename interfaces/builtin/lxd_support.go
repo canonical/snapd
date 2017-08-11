@@ -61,8 +61,8 @@ func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
-func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *lxdSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              lxdSupportSummary,
 		ImplicitOnCore:       true,
 		ImplicitOnClassic:    true,
@@ -78,14 +78,6 @@ func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 
 func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

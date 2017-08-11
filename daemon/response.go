@@ -20,15 +20,19 @@
 package daemon
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // ResponseType is the response type
@@ -129,6 +133,7 @@ const (
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
@@ -202,6 +207,68 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
+// A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to
+// be, each one on its own, a JSON dump of a systemd.Log, as output by
+// journalctl -o json) from an io.ReadCloser, loads that into a client.Log, and
+// outputs the json dump of that, padded with RS and LF to make it a valid
+// json-seq response.
+//
+// The reader is always closed when done (this is important for
+// osutil.WatingStdoutPipe).
+//
+// Tip: “jq” knows how to read this; “jq --seq” both reads and writes this.
+type journalLineReaderSeqResponse struct {
+	io.ReadCloser
+	follow bool
+}
+
+func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	flusher, hasFlusher := w.(http.Flusher)
+
+	var err error
+	dec := json.NewDecoder(rr)
+	writer := bufio.NewWriter(w)
+	enc := json.NewEncoder(writer)
+	for {
+		var log systemd.Log
+		if err = dec.Decode(&log); err != nil {
+			break
+		}
+
+		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+
+		// ignore the error...
+		t, _ := log.Time()
+		if err = enc.Encode(client.Log{
+			Timestamp: t,
+			Message:   log.Message(),
+			SID:       log.SID(),
+			PID:       log.PID(),
+		}); err != nil {
+			break
+		}
+
+		if rr.follow {
+			if e := writer.Flush(); e != nil {
+				break
+			}
+			if hasFlusher {
+				flusher.Flush()
+			}
+		}
+	}
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		logger.Noticef("cannot stream response; problem writing: %v", err)
+	}
+	rr.Close()
+}
+
 type assertResponse struct {
 	assertions []asserts.Assertion
 	bundle     bool
@@ -250,13 +317,30 @@ var (
 	Conflict         = makeErrorResponder(409)
 )
 
-func SnapNotFound(err error) Response {
+// SnapNotFound is an error responder used when an operation is
+// requested on a snap that doesn't exist.
+func SnapNotFound(snapName string, err error) Response {
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
 		},
+		Status: 404,
+	}
+}
+
+// AppNotFound is an error responder used when an operation is
+// requested on a app that doesn't exist.
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
 		Status: 404,
 	}
 }
