@@ -1,5 +1,12 @@
 summary: Check install popular snaps
 
+details: |
+    This test is intended to install some popular snaps from
+    different channels. The idea is to detect any problem
+    installing that are currently published and some of them
+    with many revisions.
+    The execution of this test is made on the nightly build.
+
 manual: true
 
 environment:
@@ -60,15 +67,25 @@ environment:
     SNAP/vault: vault
 
 execute: |
-    CHANNELS=(stable candidate beta edge)
-    for CHANNEL in "${CHANNELS[@]}"; do
-        CHANNEL_INFO="$(snap info $SNAP | grep " $CHANNEL: ")" || exit
-        if echo $CHANNEL_INFO | grep -q -E "$CHANNEL:.*–"; then
+    . "$TESTSLIB/snaps.sh"
+
+    CHANNELS="stable candidate beta edge"
+    for CHANNEL in $CHANNELS; do
+        if ! CHANNEL_INFO="$(snap info $SNAP | grep " $CHANNEL: ")"; then
+            echo "Snap $SNAP not found"
+            exit
+        fi
+        if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*–"; then
             continue
         fi
 
         if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*classic"; then
-            snap install $SNAP --$CHANNEL --classic
+            if is_classic_confinement_supported; then
+                snap install $SNAP --$CHANNEL --classic
+            else
+                echo "The snap $SNAP requires classic confinement which is not supported yet"
+                exit
+            fi
         elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*jailmode"; then
             snap install $SNAP --$CHANNEL --jailmode
         elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*devmode"; then
@@ -79,4 +96,4 @@ execute: |
         break
     done
 
-    snap list | grep -q -E $SNAP
+    snap list | MATCH $SNAP
