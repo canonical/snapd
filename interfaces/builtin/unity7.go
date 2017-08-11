@@ -543,6 +543,7 @@ shutdown
 
 # Needed by QtSystems on X to detect mouse and keyboard
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 type unity7Interface struct{}
