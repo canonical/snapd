@@ -882,9 +882,9 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	c.Check(ser.Serial(), Equals, "8989")
 }
 
-func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
+func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	// nothing there
-	_, _, _, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	_, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a model assertion
@@ -929,14 +929,15 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.mgr.KeypairManager().Put(devKey)
 	s.state.Unlock()
 
-	sessReq, serial, model, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
 
-	c.Check(model.Model(), Equals, "pc")
+	c.Check(params.Model.Model(), Equals, "pc")
 
-	c.Check(serial.Model(), Equals, "pc")
-	c.Check(serial.Serial(), Equals, "8989")
+	c.Check(params.Serial.Model(), Equals, "pc")
+	c.Check(params.Serial.Serial(), Equals, "8989")
 
+	sessReq := params.Request
 	// correctly signed with device key
 	err = asserts.SignatureCheck(sessReq, devKey.PublicKey())
 	c.Check(err, IsNil)
