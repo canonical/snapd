@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,26 +39,21 @@ var _ = Suite(&OpenglInterfaceSuite{
 	iface: builtin.MustInterface("opengl"),
 })
 
-func (s *OpenglInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+const openglConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [opengl]
+`
+
+const openglCoreYaml = `name: core
 type: os
 slots:
-  test-opengl:
-    interface: opengl
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-opengl"]}
+  opengl:
+`
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-apps:
-  app-accessing-opengl:
-    command: foo
-    plugs: [opengl]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["opengl"]}
+func (s *OpenglInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, openglConsumerYaml, nil, "opengl")
+	s.slot = MockSlot(c, openglCoreYaml, nil, "opengl")
 }
 
 func (s *OpenglInterfaceSuite) TestName(c *C) {
@@ -81,8 +75,11 @@ func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *OpenglInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet := `
+func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Can access opengl.
 
   # specific gl libs
@@ -94,8 +91,6 @@ func (s *OpenglInterfaceSuite) TestUsedSecuritySystems(c *C) {
   # nvidia
   @{PROC}/driver/nvidia/params r,
   @{PROC}/modules r,
-  /dev/nvidiactl rw,
-  /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
   unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
@@ -117,15 +112,19 @@ func (s *OpenglInterfaceSuite) TestUsedSecuritySystems(c *C) {
   # For now, allow 'c'haracter devices and 'b'lock devices based on
   # https://www.kernel.org/doc/Documentation/devices.txt
   /run/udev/data/c226:[0-9]* r,  # 226 drm
-`
+`)
+}
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-opengl"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-opengl")
-	c.Assert(aasnippet, Equals, expectedSnippet)
+func (s *OpenglInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to OpenGL stack`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "opengl")
+}
+
+func (s *OpenglInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *OpenglInterfaceSuite) TestInterfaces(c *C) {

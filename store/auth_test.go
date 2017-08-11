@@ -283,7 +283,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 		io.WriteString(w, mockStoreReturnNonce)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, IsNil)
@@ -301,7 +301,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
 		}
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, IsNil)
@@ -316,7 +316,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	_, err := requestStoreDeviceNonce()
 	c.Assert(err, NotNil)
@@ -325,7 +325,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
-	MyAppsDeviceNonceAPI = "http://nonexistingserver121321.com/identity/api/v1/nonces"
+	DeviceNonceAPI = "http://nonexistingserver121321.com/api/v1/snaps/auth/nonces"
 	_, err := requestStoreDeviceNonce()
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get nonce from store.*`)
@@ -336,7 +336,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 		io.WriteString(w, mockStoreReturnNoNonce)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
@@ -350,7 +350,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
@@ -368,7 +368,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, IsNil)
@@ -385,7 +385,7 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "previous-session")
 	c.Assert(err, IsNil)
@@ -397,7 +397,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
@@ -412,7 +412,7 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
