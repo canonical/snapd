@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,85 +25,75 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type PppInterfaceSuite struct {
+type OpticalDriveInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&PppInterfaceSuite{
-	iface: builtin.MustInterface("ppp"),
+var _ = Suite(&OpticalDriveInterfaceSuite{
+	iface: builtin.MustInterface("optical-drive"),
 })
 
-const pppConsumerYaml = `name: consumer
+const opticalDriveConsumerYaml = `name: consumer
 apps:
  app:
-  plugs: [ppp]
+  plugs: [optical-drive]
 `
 
-const pppCoreYaml = `name: core
+const opticalDriveCoreYaml = `name: core
 type: os
 slots:
-  ppp:
+  optical-drive:
 `
 
-func (s *PppInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, pppConsumerYaml, nil, "ppp")
-	s.slot = MockSlot(c, pppCoreYaml, nil, "ppp")
+func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
+	s.slot = MockSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
 
-func (s *PppInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ppp")
+func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "optical-drive")
 }
 
-func (s *PppInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "ppp",
-		Interface: "ppp",
+		Name:      "optical-drive",
+		Interface: "optical-drive",
 	}}
-
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"ppp slots are reserved for the core snap")
+		"optical-drive slots are reserved for the core snap")
 }
 
-func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/ppp rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sr[0-9]* r,`)
 }
 
-func (s *PppInterfaceSuite) TestKModSpec(c *C) {
-	spec := &kmod.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
-		"ppp_generic": true,
-	})
-}
-
-func (s *PppInterfaceSuite) TestStaticInfo(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows operating as the ppp service`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ppp")
+	c.Assert(si.Summary, Equals, `allows read access to optical drives`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
 }
 
-func (s *PppInterfaceSuite) TestAutoConnect(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
-func (s *PppInterfaceSuite) TestInterfaces(c *C) {
+func (s *OpticalDriveInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

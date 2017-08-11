@@ -19,35 +19,29 @@
 
 package builtin
 
-const joystickSummary = `allows access to joystick devices`
+const waylandSummary = `allows access to compositors supporting wayland protocol`
 
-const joystickBaseDeclarationSlots = `
-  joystick:
+const waylandBaseDeclarationSlots = `
+  wayland:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: true
 `
 
-const joystickConnectedPlugAppArmor = `
-# Description: Allow reading and writing to joystick devices (/dev/input/js*).
+const waylandConnectedPlugAppArmor = `
+# Description: Can access compositors supporting the wayland protocol
 
-# Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
-# only js0-js31 is valid so limit the /dev and udev entries to those devices.
-/dev/input/js{[0-9],[12][0-9],3[01]} rw,
-/run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
+# Allow access to the wayland compsitor server socket
+owner /run/user/*/wayland-[0-9]* rw,
 `
-
-//const joystickConnectedPlugUDev = `KERNEL=="js[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "joystick",
-		summary:               joystickSummary,
-		implicitOnCore:        true,
+		name:                  "wayland",
+		summary:               waylandSummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  joystickBaseDeclarationSlots,
-		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
+		baseDeclarationSlots:  waylandBaseDeclarationSlots,
+		connectedPlugAppArmor: waylandConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }
