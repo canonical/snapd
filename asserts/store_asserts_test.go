@@ -159,14 +159,14 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	assert, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
+	store, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "store1",
 		"operator-id": "op-id1",
 	}, nil, "")
 	c.Assert(err, IsNil)
 
 	// No account for operator op-id1 yet, so Check fails.
-	err = db.Check(assert)
+	err = db.Check(store)
 	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
@@ -175,7 +175,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	// Now the operator exists so Check succeeds.
-	err = db.Check(assert)
+	err = db.Check(store)
 	c.Assert(err, IsNil)
 }
 
