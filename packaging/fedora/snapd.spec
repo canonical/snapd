@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27~rc8
+Version:        2.27
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -639,8 +639,9 @@ fi
 
 
 %changelog
-* Thu Jul 13 2017 Michael Vogt <mvo@ubuntu.com>
-- New upstream release 2.27~rc8:
+* Thu Aug 10 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27
+ - fix build failure on 32bit fedora
  - interfaces: add password-manager-service implicit classic interface
  - interfaces/greengrass-support: adjust accesses now that have working
    snap
