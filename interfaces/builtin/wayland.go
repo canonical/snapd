@@ -33,6 +33,9 @@ const waylandConnectedPlugAppArmor = `
 
 # Allow access to the wayland compsitor server socket
 owner /run/user/*/wayland-[0-9]* rw,
+
+# Needed when using QT_QPA_PLATFORM=wayland-egl
+/etc/drirc r,
 `
 
 func init() {
