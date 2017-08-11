@@ -19,14 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-)
-
 const kvmSummary = `allows access to the kvm device`
 
 const kvmBaseDeclarationSlots = `
@@ -44,45 +36,17 @@ const kvmConnectedPlugAppArmor = `
 /dev/kvm rw,
 `
 
-// The type for kvm interface
-type kvmInterface struct{}
-
-func (iface *kvmInterface) Name() string {
-	return "kvm"
-}
-
-func (iface *kvmInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              kvmSummary,
-		ImplicitOnClassic:    true,
-		ImplicitOnCore:       true,
-		BaseDeclarationSlots: kvmBaseDeclarationSlots,
-	}
-}
-
-func (iface *kvmInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
-func (iface *kvmInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(kvmConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *kvmInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	const udevRule = `KERNEL=="kvm", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
-	return nil
-}
-
-func (iface *kvmInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
+const kvmConnectedPlugUDev = `KERNEL=="kvm", TAG+="###SLOT_SECURITY_TAGS###"`
 
 func init() {
-	registerIface(&kvmInterface{})
+	registerIface(&commonInterface{
+		name:                  "kvm",
+		summary:               kvmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  kvmBaseDeclarationSlots,
+		connectedPlugAppArmor: kvmConnectedPlugAppArmor,
+		connectedPlugUDev:     kvmConnectedPlugUDev,
+		reservedForOS:         true,
+	})
 }

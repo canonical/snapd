@@ -28,7 +28,17 @@ import (
 )
 
 // AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
-func AddSnapBinaries(s *snap.Info) error {
+func AddSnapBinaries(s *snap.Info) (err error) {
+	var created []string
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, fn := range created {
+			os.Remove(fn)
+		}
+	}()
+
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
@@ -38,12 +48,14 @@ func AddSnapBinaries(s *snap.Info) error {
 			continue
 		}
 
-		if err := os.Remove(app.WrapperPath()); err != nil && !os.IsNotExist(err) {
+		wrapperPath := app.WrapperPath()
+		if err := os.Remove(wrapperPath); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		if err := os.Symlink("/usr/bin/snap", app.WrapperPath()); err != nil {
+		if err := os.Symlink("/usr/bin/snap", wrapperPath); err != nil {
 			return err
 		}
+		created = append(created, wrapperPath)
 	}
 
 	return nil

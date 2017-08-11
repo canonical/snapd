@@ -2557,7 +2557,9 @@ func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 		"status":      "Not Found",
 		"result": map[string]interface{}{
 			"message": "no state entry for key",
-			"kind":    "snap-not-found"},
+			"kind":    "snap-not-found",
+			"value":   "config-snap",
+		},
 		"type": "error"})
 }
 
@@ -6186,4 +6188,153 @@ func (s *appSuite) TestLogsSad(c *check.C) {
 	rsp := getLogs(logsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 500)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+}
+
+func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall []string) *state.Change {
+	postBody, err := json.Marshal(inst)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	c.Assert(err, check.IsNil)
+
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(rsp.Change, check.Matches, `[0-9]+`)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Tasks(), check.HasLen, 1)
+	st.Unlock()
+	<-chg.Ready()
+
+	c.Check(s.cmd.Calls(), check.DeepEquals, [][]string{systemctlCall})
+	return chg
+}
+
+func (s *appSuite) TestPostAppsStartOne(c *check.C) {
+	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
+	expected := []string{"systemctl", "start", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
+	inst := appInstruction{Action: "start", Names: []string{"snap-a"}}
+	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
+	chg := s.testPostApps(c, inst, expected)
+	// check the summary expands the snap into actual apps
+	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+}
+
+func (s *appSuite) TestPostAppsStartThree(c *check.C) {
+	inst := appInstruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
+	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
+	chg := s.testPostApps(c, inst, expected)
+	// check the summary expands the snap into actual apps
+	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+}
+
+func (s *appSuite) TestPosetAppsStop(c *check.C) {
+	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
+	expected := []string{"systemctl", "stop", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPosetAppsRestart(c *check.C) {
+	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
+	expected := []string{"systemctl", "restart", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPosetAppsReload(c *check.C) {
+	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
+	inst.Reload = true
+	expected := []string{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPosetAppsEnableNow(c *check.C) {
+	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
+	inst.Enable = true
+	expected := []string{"systemctl", "enable", "--now", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPosetAppsDisableNow(c *check.C) {
+	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
+	inst.Disable = true
+	expected := []string{"systemctl", "disable", "--now", "snap.snap-a.svc2.service"}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appSuite) TestPostAppsBadJSON(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`'junk`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, ".*cannot decode request body.*")
+}
+
+func (s *appSuite) TestPostAppsBadOp(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"random": "json"}`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, ".*cannot perform operation on services without a list of services.*")
+}
+
+func (s *appSuite) TestPostAppsBadSnap(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-c"]}`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 404)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-c" has no services`)
+}
+
+func (s *appSuite) TestPostAppsBadApp(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-a.what"]}`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 404)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has no service "what"`)
+}
+
+func (s *appSuite) TestPostAppsBadAction(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "discombobulate", "names": ["snap-a.svc1"]}`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `unknown action "discombobulate"`)
+}
+
+func (s *appSuite) TestPostAppsConflict(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			st.Unlock()
+		}
+	}()
+
+	ts, err := snapstate.Remove(st, "snap-a", snap.R(0))
+	c.Assert(err, check.IsNil)
+	// need a change to make the tasks visible
+	st.NewChange("enable", "...").AddAll(ts)
+	st.Unlock()
+	locked = false
+
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
+	c.Assert(err, check.IsNil)
+	rsp := postApps(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
 }
