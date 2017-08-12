@@ -561,6 +561,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+
+	// auto-refreshes are possible
+	ok, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
@@ -1896,47 +1901,6 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 		Serial: "8989",
 	})
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
-	c.Check(canAutoRefresh(), Equals, true)
-
-	// not seeded, model, serial -> no auto-refresh
-	s.state.Set("seeded", false)
-	c.Check(canAutoRefresh(), Equals, false)
-}
-
-func (s *deviceMgrSuite) TestCanAutoRefreshOnClassicDummyModel(c *C) {
-	release.OnClassic = true
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	canAutoRefresh := func() bool {
-		ok, err := devicestate.CanAutoRefresh(s.state)
-		c.Assert(err, IsNil)
-		return ok
-	}
-
-	// not seeded, no model, no serial -> no auto-refresh
-	s.state.Set("seeded", false)
-	c.Check(canAutoRefresh(), Equals, false)
-
-	// seeded, no model -> auto-refresh
-	s.state.Set("seeded", true)
-	c.Check(canAutoRefresh(), Equals, false)
-
-	// seeded, dummy model (no assertion), no serial -> no auto-refresh
-	auth.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "generic-classic",
-	})
-	c.Check(canAutoRefresh(), Equals, false)
-
-	// seeded, model, serial -> auto-refresh
-	auth.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "generic-classic",
-		Serial: "8989",
-	})
-	s.makeSerialAssertionInState(c, "canonical", "generic-classic", "8989")
 	c.Check(canAutoRefresh(), Equals, true)
 
 	// not seeded, model, serial -> no auto-refresh

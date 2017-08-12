@@ -105,7 +105,16 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	_, err := Serial(st)
+	// checking for model for sanity
+	_, err := Model(st)
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	_, err = Serial(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
