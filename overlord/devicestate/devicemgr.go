@@ -367,19 +367,24 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
-func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error) {
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial and model assertions.
+func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	model, err := Model(m.state)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	serial, err := Serial(m.state)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	privKey, err := m.keyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
@@ -390,9 +395,9 @@ func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessi
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, privKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return a.(*asserts.DeviceSessionRequest), serial, err
+	return a.(*asserts.DeviceSessionRequest), serial, model, err
 
 }

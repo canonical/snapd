@@ -270,10 +270,11 @@ func requestStoreDeviceNonce() (string, error) {
 }
 
 // requestDeviceSession requests a device session macaroon from the store.
-func requestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
+func requestDeviceSession(modelAssertion, serialAssertion, sessionRequest, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
+		"model-assertion":        modelAssertion,
 		"serial-assertion":       serialAssertion,
 		"device-session-request": sessionRequest,
 	}
