@@ -44,7 +44,6 @@ type Runner struct {
 func NewRunner() *Runner {
 	// TODO: pass TLSConfig with lower-bounded time
 	opts := httputil.ClientOpts{
-		Timeout:    15 * time.Second,
 		MayLogBody: false,
 	}
 	cli := httputil.NewHTTPClient(&opts)
