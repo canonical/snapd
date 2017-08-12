@@ -167,7 +167,7 @@ distro_install_package() {
                 quiet apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install $DNF_FLAGS "$package_name"
+                dnf -q -y --refresh install $DNF_FLAGS "$package_name"
                 ;;
             opensuse-*)
                 zypper -q install -y $ZYPPER_FLAGS "$package_name"
@@ -195,6 +195,7 @@ distro_purge_package() {
                 ;;
             fedora-*)
                 dnf -y -q remove "$package_name"
+                dnf -q clean all
                 ;;
             opensuse-*)
                 zypper -q remove -y "$package_name"
@@ -315,6 +316,16 @@ distro_install_build_snapd(){
     fi
 }
 
+distro_get_package_extension() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            echo "deb"
+            ;;
+        fedora-*|opensuse-*)
+            echo "rpm"
+            ;;
+    esac
+}
 
 pkg_dependencies_ubuntu_generic(){
     echo "

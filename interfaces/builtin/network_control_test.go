@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,28 +36,25 @@ type NetworkControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-const netctlMockPlugSnapInfoYaml = `name: other
-version: 1.0
-apps:
- app2:
-  command: foo
-  plugs: [network-control]
-`
-
 var _ = Suite(&NetworkControlInterfaceSuite{
 	iface: builtin.MustInterface("network-control"),
 })
 
+const networkControlConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [network-control]
+`
+
+const networkControlCoreYaml = `name: core
+type: os
+slots:
+  network-control:
+`
+
 func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-control",
-			Interface: "network-control",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, netctlMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-control"]}
+	s.plug = MockPlug(c, networkControlConsumerYaml, nil, "network-control")
+	s.slot = MockSlot(c, networkControlCoreYaml, nil, "network-control")
 }
 
 func (s *NetworkControlInterfaceSuite) TestName(c *C) {
@@ -66,44 +62,45 @@ func (s *NetworkControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "network-control",
 		Interface: "network-control",
-	}})
-	c.Assert(err, ErrorMatches, "network-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"network-control slots are reserved for the core snap")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *NetworkControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network-control"`)
+func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
 }
 
-func (s *NetworkControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/run/netns/* rw,\n")
-
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "setns - CLONE_NEWNET\n")
+func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "setns - CLONE_NEWNET\n")
 }
 
+func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows configuring networking and network namespaces`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "network-control")
+}
+
+func (s *NetworkControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+}
 func (s *NetworkControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

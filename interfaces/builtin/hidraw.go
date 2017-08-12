@@ -71,14 +71,8 @@ var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Check slot is of right type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("hidraw slots only allowed on gadget or core snaps")
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Check slot has a path attribute identify hidraw device
@@ -119,15 +113,6 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("hidraw path attribute must be a valid device node")
 		}
 	}
-	return nil
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (iface *hidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
 

@@ -81,3 +81,19 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 
 	c.Check(osutil.FileExists(link), Equals, false)
 }
+
+func (s *binariesTestSuite) TestAddSnapBinariesCleansUpOnFailure(c *C) {
+	link := filepath.Join(dirs.SnapBinariesDir, "hello-snap.hello")
+	c.Assert(osutil.FileExists(link), Equals, false)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBinariesDir, "hello-snap.bye", "potato"), 0755), IsNil)
+
+	info := snaptest.MockSnap(c, packageHello+`
+ bye:
+  command: bin/bye
+`, contentsHello, &snap.SideInfo{Revision: snap.R(11)})
+
+	err := wrappers.AddSnapBinaries(info)
+	c.Assert(err, NotNil)
+
+	c.Check(osutil.FileExists(link), Equals, false)
+}

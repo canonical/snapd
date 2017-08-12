@@ -299,11 +299,18 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
-// CheckChangeConflict ensures that for the given snapName no other
-// changes that alters the snap (like remove, install, refresh) are in
-// progress. It also ensures that snapst (if not nil) did not get
-// modified. If a conflict is detected an error is returned.
-func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(taskKind string) bool, snapst *SnapState) error {
+// CheckChangeConflictMany ensures that for the given snapNames no other
+// changes that alters the snaps (like remove, install, refresh) are in
+// progress. If a conflict is detected an error is returned.
+//
+// It's like CheckChangeConflict, but for multiple snaps, and does not
+// check snapst.
+func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictPredicate func(taskKind string) bool) error {
+	snapMap := make(map[string]bool, len(snapNames))
+	for _, k := range snapNames {
+		snapMap[k] = true
+	}
+
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -322,7 +329,13 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 				if err != nil {
 					return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
 				}
-				if (plugRef.Snap == snapName || slotRef.Snap == snapName) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+					var snapName string
+					if snapMap[plugRef.Snap] {
+						snapName = plugRef.Snap
+					} else {
+						snapName = slotRef.Snap
+					}
 					return fmt.Errorf("snap %q has changes in progress", snapName)
 				}
 			} else {
@@ -330,11 +343,24 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 				if err != nil {
 					return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 				}
-				if (snapsup.Name() == snapName) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				snapName := snapsup.Name()
+				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
 					return fmt.Errorf("snap %q has changes in progress", snapName)
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+// CheckChangeConflict ensures that for the given snapName no other
+// changes that alters the snap (like remove, install, refresh) are in
+// progress. It also ensures that snapst (if not nil) did not get
+// modified. If a conflict is detected an error is returned.
+func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(taskKind string) bool, snapst *SnapState) error {
+	if err := CheckChangeConflictMany(st, []string{snapName}, checkConflictPredicate); err != nil {
+		return err
 	}
 
 	if snapst != nil {

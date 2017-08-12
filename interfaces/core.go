@@ -38,6 +38,19 @@ func (plug *Plug) Ref() PlugRef {
 	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
+// Sanitize plug with a given snapd interface.
+func (plug *Plug) Sanitize(iface Interface) error {
+	if iface.Name() != plug.Interface {
+		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
+			plug.Ref(), plug.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(PlugSanitizer); ok {
+		err = iface.SanitizePlug(plug)
+	}
+	return err
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -58,6 +71,19 @@ type Slot struct {
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
 	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+}
+
+// Sanitize slot with a given snapd interface.
+func (slot *Slot) Sanitize(iface Interface) error {
+	if iface.Name() != slot.Interface {
+		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
+			slot.Ref(), slot.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(SlotSanitizer); ok {
+		err = iface.SanitizeSlot(slot)
+	}
+	return err
 }
 
 // SlotRef is a reference to a slot.
@@ -123,17 +149,21 @@ type Interface interface {
 	// Unique and public name of this interface.
 	Name() string
 
-	// SanitizePlug checks if a plug is correct, altering if necessary.
-	SanitizePlug(plug *Plug) error
-
-	// SanitizeSlot checks if a slot is correct, altering if necessary.
-	SanitizeSlot(slot *Slot) error
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
+type PlugSanitizer interface {
+	SanitizePlug(plug *Plug) error
+}
+
+// SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
+type SlotSanitizer interface {
+	SanitizeSlot(slot *Slot) error
 }
 
 // StaticInfo describes various static-info of a given interface.

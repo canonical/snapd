@@ -134,7 +134,9 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
 /sys/devices/**/product r,
+/sys/devices/**/revision r,
 /sys/devices/**/serial r,
+/sys/devices/system/node/node[0-9]*/meminfo r,
 
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
@@ -263,15 +265,7 @@ func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
 func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
