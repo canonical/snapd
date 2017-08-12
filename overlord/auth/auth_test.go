@@ -525,10 +525,10 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }
-func (as *authSuite) TestAuthContextDeviceSessionRequestNilDeviceAssertions(c *C) {
+func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
-	_, _, _, err := authContext.DeviceSessionRequest("NONCE")
+	_, err := authContext.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
@@ -606,35 +606,39 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error) {
+func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	if da.nothing {
-		return nil, nil, nil, state.ErrNoState
+		return nil, state.ErrNoState
 	}
 	ex := strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)
 	ex = strings.Replace(ex, "@TS@", time.Now().Format(time.RFC3339), 1)
 	aReq, err := asserts.Decode([]byte(ex))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	aSer, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	aMod, err := asserts.Decode([]byte(exModel))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return aReq.(*asserts.DeviceSessionRequest), aSer.(*asserts.Serial), aMod.(*asserts.Model), nil
+	return &auth.DeviceSessionRequestParams{
+		Request: aReq.(*asserts.DeviceSessionRequest),
+		Serial:  aSer.(*asserts.Serial),
+		Model:   aMod.(*asserts.Model),
+	}, nil
 }
 
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
 
-	_, _, _, err := authContext.DeviceSessionRequest("NONCE")
+	_, err := authContext.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 
 	storeID, err := authContext.StoreID("fallback")
@@ -646,15 +650,20 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
 
-	req, serial, model, err := authContext.DeviceSessionRequest("NONCE-1")
+	params, err := authContext.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(req), "nonce: NONCE-1\n"), Equals, true)
-	c.Check(strings.Contains(string(req), "serial: 9999\n"), Equals, true)
 
-	c.Check(strings.Contains(string(serial), "model: baz-3000\n"), Equals, true)
-	c.Check(strings.Contains(string(serial), "serial: 9999\n"), Equals, true)
-	c.Check(strings.Contains(string(model), "model: baz-3000\n"), Equals, true)
-	c.Check(strings.Contains(string(model), "serial:\n"), Equals, false)
+	req := params.EncodedRequest()
+	serial := params.EncodedSerial()
+	model := params.EncodedModel()
+
+	c.Check(strings.Contains(req, "nonce: NONCE-1\n"), Equals, true)
+	c.Check(strings.Contains(req, "serial: 9999\n"), Equals, true)
+
+	c.Check(strings.Contains(serial, "model: baz-3000\n"), Equals, true)
+	c.Check(strings.Contains(serial, "serial: 9999\n"), Equals, true)
+	c.Check(strings.Contains(model, "model: baz-3000\n"), Equals, true)
+	c.Check(strings.Contains(model, "serial:\n"), Equals, false)
 
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)

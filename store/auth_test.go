@@ -358,6 +358,20 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 	c.Assert(nonce, Equals, "")
 }
 
+type testDeviceSessionRequestParamsEncoder struct{}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedRequest() string {
+	return "session-request"
+}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedSerial() string {
+	return "serial-assertion"
+}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedModel() string {
+	return "model-assertion"
+}
+
 func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -370,7 +384,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	defer mockServer.Close()
 	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("model-assertion", "serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -387,7 +401,7 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	defer mockServer.Close()
 	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("model-assertion", "serial-assertion", "session-request", "previous-session")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "previous-session")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -399,7 +413,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 	defer mockServer.Close()
 	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("model-assertion", "serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -414,7 +428,7 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	defer mockServer.Close()
 	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("model-assertion", "serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
