@@ -26,8 +26,10 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -170,13 +172,14 @@ func (m *DeviceManager) ensureOperational() error {
 			return nil
 		}
 		// we are on classic and seeded but there is no model:
-		// use a dummy model!
-		// TODO: have a real matching model assertion?  use a
-		// different brand (requires store support!)?
-		device.Brand = "canonical"
+		// use a fallback model!
+		err = assertstate.Add(m.state, sysdb.GenericClassicModel())
+		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
+		}
+		device.Brand = "generic"
 		device.Model = "generic-classic"
-		err := auth.SetDevice(m.state, device)
-		if err != nil {
+		if err := auth.SetDevice(m.state, device); err != nil {
 			return err
 		}
 	}

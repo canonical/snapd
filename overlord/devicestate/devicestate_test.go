@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
@@ -55,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -70,7 +72,8 @@ type deviceMgrSuite struct {
 
 	reqID string
 
-	restoreOnClassic func()
+	restoreOnClassic         func()
+	restoreGenericClassicMod func()
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -145,6 +148,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
 	s.state = state.New(nil)
 
+	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
+
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
@@ -184,6 +189,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
 	dirs.SetRootDir("")
+	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
 }
 
@@ -239,8 +245,12 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			keyID := ""
 			switch model {
 			case "pc", "pc2":
-			case "generic-classic", "classic-alt-store":
+			case "classic-alt-store":
 				c.Check(brandID, Equals, "canonical")
+			case "generic-classic":
+				c.Check(brandID, Equals, "generic")
+				authID = "generic"
+				keyID = s.storeSigning.GenericKey.PublicKeyID()
 			case "my-model":
 				c.Check(brandID, Equals, "my-brand")
 				authID = "generic"
@@ -316,6 +326,15 @@ func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents str
 	})
 }
 
+func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.Change {
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" && !strutil.ListContains(skipIDs, chg.ID()) {
+			return chg
+		}
+	}
+	return nil
+}
+
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
@@ -355,13 +374,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	s.mgr.Ensure()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
 
 	s.setupGadget(c, `
@@ -375,12 +388,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -448,13 +456,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -512,13 +514,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	s.mgr.Ensure()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
 
 	// have a in-progress installation
@@ -531,12 +527,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -544,12 +535,21 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 
 	device, err := auth.Device(s.state)
 	c.Assert(err, IsNil)
-	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	c.Check(device.Serial, Equals, "9999")
 
+	// model was installed
+	_, err = s.db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "generic",
+		"model":    "generic-classic",
+		"classic":  "true",
+	})
+	c.Assert(err, IsNil)
+
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
-		"brand-id": "canonical",
+		"brand-id": "generic",
 		"model":    "generic-classic",
 		"serial":   "9999",
 	})
@@ -607,13 +607,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -827,13 +821,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -928,13 +916,7 @@ hooks:
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -1017,13 +999,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 	firstTryID := becomeOperational.ID()
 
@@ -1046,13 +1022,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	becomeOperational = nil
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" && chg.ID() != firstTryID {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational = s.findBecomeOperationalChange(firstTryID)
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -1134,13 +1104,7 @@ version: gadget
 	s.settle()
 	s.state.Lock()
 
-	var becomeOperational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			becomeOperational = chg
-			break
-		}
-	}
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)

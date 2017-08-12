@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -179,6 +180,11 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 	st.Unlock()
 }
 

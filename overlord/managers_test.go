@@ -150,9 +150,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	st.Lock()
 	// seeded
 	st.Set("seeded", true)
-	// registred
+	// registered
 	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "can0nical",
+		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
 	})
