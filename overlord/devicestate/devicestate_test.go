@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -884,8 +884,24 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	// nothing there
-	_, _, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	_, _, _, err := s.mgr.DeviceSessionRequest("NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
+
+	// have a model assertion
+	modela, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, modela)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	// setup state as done by device initialisation
 	s.state.Lock()
@@ -913,9 +929,12 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.mgr.KeypairManager().Put(devKey)
 	s.state.Unlock()
 
-	sessReq, serial, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	sessReq, serial, model, err := s.mgr.DeviceSessionRequest("NONCE-1")
 	c.Assert(err, IsNil)
 
+	c.Check(model.Model(), Equals, "pc")
+
+	c.Check(serial.Model(), Equals, "pc")
 	c.Check(serial.Serial(), Equals, "8989")
 
 	// correctly signed with device key
