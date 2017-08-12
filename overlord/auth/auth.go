@@ -329,6 +329,25 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
+// DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.
+type DeviceSessionRequestParams struct {
+	Request *asserts.DeviceSessionRequest
+	Serial  *asserts.Serial
+	Model   *asserts.Model
+}
+
+func (p *DeviceSessionRequestParams) EncodedRequest() string {
+	return string(asserts.Encode(p.Request))
+}
+
+func (p *DeviceSessionRequestParams) EncodedSerial() string {
+	return string(asserts.Encode(p.Serial))
+}
+
+func (p *DeviceSessionRequestParams) EncodedModel() string {
+	return string(asserts.Encode(p.Model))
+}
+
 // DeviceAssertions helps exposing the assertions about device identity.
 // All methods should return state.ErrNoState if the underlying needed
 // information is not (yet) available.
@@ -338,8 +357,8 @@ type DeviceAssertions interface {
 	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
-	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial and model assertions.
-	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, *asserts.Model, error)
+	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
+	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 }
 
 var (
@@ -357,7 +376,7 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, model []byte, err error)
+	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -448,17 +467,17 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, model []byte, err error) {
+// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
 	if ac.deviceAsserts == nil {
-		return nil, nil, nil, ErrNoSerial
+		return nil, ErrNoSerial
 	}
-	req, ser, mod, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	params, err := ac.deviceAsserts.DeviceSessionRequestParams(nonce)
 	if err == state.ErrNoState {
-		return nil, nil, nil, ErrNoSerial
+		return nil, ErrNoSerial
 	}
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	return asserts.Encode(req), asserts.Encode(ser), asserts.Encode(mod), nil
+	return params, nil
 }
