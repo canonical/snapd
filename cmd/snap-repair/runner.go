@@ -53,16 +53,16 @@ func NewRunner() *Runner {
 }
 
 var (
-	fetchRetryStrategy = retry.LimitCount(10, retry.LimitTime(1*time.Minute,
+	fetchRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 		retry.Exponential{
-			Initial: 100 * time.Millisecond,
+			Initial: 500 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
 
-	peekRetryStrategy = retry.LimitCount(7, retry.LimitTime(30*time.Second,
+	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
 		retry.Exponential{
-			Initial: 100 * time.Millisecond,
+			Initial: 300 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
