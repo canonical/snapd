@@ -24,7 +24,9 @@ If you have found an issue with the application, please [file a bug](https://bug
 
 ## Get in touch
 
-We're friendly! Talk to us on [Rocket Chat](https://rocket.ubuntu.com/channel/snapcraft) 
+We're friendly! Talk to us on 
+[IRC](https://webchat.freenode.net/?channels=snappy),
+[Rocket Chat](https://rocket.ubuntu.com/channel/snappy),
 or on [our forums](https://forum.snapcraft.io/).
 
 Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
