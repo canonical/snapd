@@ -35,8 +35,6 @@ restore: |
     rm -f $SNAP_FILE $SERVICE_FILE
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     :network +$SNAP_NAME"
@@ -50,17 +48,17 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network ${core_name}:network
+    snap disconnect $SNAP_NAME:network
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network ${core_name}:network
+    snap connect $SNAP_NAME:network
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:network ${core_name}:network
+    snap connect $SNAP_NAME:network
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access a network service"
@@ -69,7 +67,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network ${core_name}:network
+    snap disconnect $SNAP_NAME:network
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access a network service"

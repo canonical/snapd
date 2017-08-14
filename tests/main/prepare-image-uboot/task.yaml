@@ -6,7 +6,7 @@ environment:
 prepare: |
     mkdir -p $ROOT
     chown test:test $ROOT
-restore:
+restore: |
     rm -rf $ROOT
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
@@ -30,15 +30,15 @@ execute: |
     export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
 
     echo Running prepare-image as a user
-    su -c "snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE
     for f in pi2 pi2-kernel core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
     done
-    grep snap_core=core $IMAGE/boot/uboot/uboot.env
-    grep snap_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
+    MATCH snap_core=core < $IMAGE/boot/uboot/uboot.env
+    MATCH snap_kernel=pi2-kernel < $IMAGE/boot/uboot/uboot.env
 
     echo Verify that the kernel is available unpacked
     ls $IMAGE/boot/uboot/pi2-kernel_*.snap/kernel.img
@@ -52,12 +52,18 @@ execute: |
     echo Verify that we have valid looking seed.yaml
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
     # snap-id of core
-    grep -q "snap-id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776" $IMAGE/var/lib/snapd/seed/seed.yaml
+    if [ "$REMOTE_STORE" = staging ]; then
+        core_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+    else
+        core_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+    fi
+
+    MATCH "snap-id: $core_id" < $IMAGE/var/lib/snapd/seed/seed.yaml
     for snap in pi2 pi2-kernel core; do
-      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+      MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
     for name in pi2 pi2-kernel core; do
-        grep "snap-name: $name" $IMAGE/var/lib/snapd/seed/assertions/*
+        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done

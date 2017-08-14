@@ -20,7 +20,8 @@ restore: |
     rm -f mount-observe-consumer_1.0_all.snap
 
 execute: |
-    . "$TESTSLIB/names.sh"
+    . $TESTSLIB/dirs.sh
+
     CONNECTED_PATTERN=":mount-observe +mount-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +mount-observe-consumer:mount-observe"
 
@@ -30,29 +31,31 @@ execute: |
     echo "========================================="
 
     echo "When the plug is connected"
-    snap connect mount-observe-consumer:mount-observe ${core_name}:mount-observe
+    snap connect mount-observe-consumer:mount-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the mount info is reachable"
-    expected="/snap/mount-observe-consumer"
+    expected="$SNAPMOUNTDIR/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
-    echo "========================================="
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "========================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect mount-observe-consumer:mount-observe ${core_name}:mount-observe
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect mount-observe-consumer:mount-observe
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the mount info is not reachable"
-    if su -l -c "mount-observe-consumer" test; then
-        echo "Expected error accessing mount info with disconnected plug"
-        exit 1
+        echo "Then the mount info is not reachable"
+        if su -l -c "mount-observe-consumer" test; then
+            echo "Expected error accessing mount info with disconnected plug"
+            exit 1
+        fi
     fi
 
     echo "========================================="
 
     echo "When the plug is connected"
-    snap connect mount-observe-consumer:mount-observe ${core_name}:mount-observe
+    snap connect mount-observe-consumer:mount-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And a new mount is created"
@@ -60,5 +63,5 @@ execute: |
     install_local test-snapd-tools
 
     echo "Then the new mount info is reachable"
-    expected="/snap/test-snapd-tools"
+    expected="$SNAPMOUNTDIR/test-snapd-tools"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"

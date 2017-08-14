@@ -19,14 +19,19 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const bluetoothControlSummary = `allows managing the kernel bluetooth stack`
+
+const bluetoothControlBaseDeclarationSlots = `
+  bluetooth-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
-#  because this gives privileged access to the system.
-# Usage: reserved
+# because this gives privileged access to the system.
 
   network bluetooth,
   # For crypto functionality the kernel offers
@@ -47,17 +52,19 @@ const bluetoothControlConnectedPlugAppArmor = `
 
 const bluetoothControlConnectedPlugSecComp = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
-#  because this gives privileged access to the system.
-# Usage: reserved
+# because this gives privileged access to the system.
 bind
-getsockopt
 `
 
-func NewBluetoothControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "bluetooth-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "bluetooth-control",
+		summary:               bluetoothControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  bluetoothControlBaseDeclarationSlots,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

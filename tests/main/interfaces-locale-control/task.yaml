@@ -1,7 +1,5 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
-
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
 
@@ -13,6 +11,15 @@ summary: |
     file both for reading and writing.
 
 prepare: |
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
+
     echo "Given a snap declaring a plug on the locale-control interface is installed"
     snapbuild $TESTSLIB/snaps/locale-control-consumer .
     snap install --dangerous locale-control-consumer_1.0_all.snap
@@ -23,11 +30,27 @@ prepare: |
     EOF
 
 restore: |
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
+
     rm -f locale-control-consumer_1.0_all.snap locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
-    . "$TESTSLIB/names.sh"
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
 
     CONNECTED_PATTERN=":locale-control +locale-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
@@ -38,40 +61,44 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect locale-control-consumer:locale-control ${core_name}:locale-control
+    snap connect locale-control-consumer:locale-control
 
     echo "Then the snap is able to read the locale configuration"
     [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
 
     echo "==================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control ${core_name}:locale-control
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "When the plug is disconnected"
+        snap disconnect locale-control-consumer:locale-control
 
-    echo "Then the snap is not able to read the locale configuration"
-    if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
-        echo "Expected permission error accessing locale configuration with disconnected plug"
-        exit 1
+        echo "Then the snap is not able to read the locale configuration"
+        if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
+            echo "Expected permission error accessing locale configuration with disconnected plug"
+            exit 1
+        fi
+        grep -q "Permission denied" locale-read.error
+
+        echo "==================================="
     fi
-    grep -q "Permission denied" locale-read.error
-
-    echo "==================================="
 
     echo "When the plug is connected"
-    snap connect locale-control-consumer:locale-control ${core_name}:locale-control
+    snap connect locale-control-consumer:locale-control
 
     echo "Then the snap is able to write the locale configuration"
     locale-control-consumer.set LANG mylang
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
-    echo "==================================="
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "==================================="
 
-    echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control ${core_name}:locale-control
+        echo "When the plug is disconnected"
+        snap disconnect locale-control-consumer:locale-control
 
-    echo "Then the snap is not able to read the locale configuration"
-    if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
-        echo "Expected permission error accessing locale configuration with disconnected plug"
-        exit 1
+        echo "Then the snap is not able to read the locale configuration"
+        if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
+            echo "Expected permission error accessing locale configuration with disconnected plug"
+            exit 1
+        fi
+        grep -q "Permission denied" locale-write.error
     fi
-    grep -q "Permission denied" locale-write.error

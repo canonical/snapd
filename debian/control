@@ -16,6 +16,7 @@ Build-Depends: autoconf,
                dh-systemd,
                fakeroot,
                gettext,
+               grub-common,
                gnupg2,
                golang-check.v1-dev,
                golang-context-dev,
@@ -23,32 +24,36 @@ Build-Depends: autoconf,
                golang-github-gorilla-mux-dev,
                golang-github-gosexy-gettext-dev,
                golang-github-mvo5-goconfigparser-dev,
-               golang-github-mvo5-uboot-go-dev,
+               golang-github-seccomp-libseccomp-golang-dev,
                golang-go,
                golang-go-flags-dev,
                golang-golang-x-crypto-dev,
                golang-golang-x-net-dev,
                golang-gopkg-tomb.v2-dev (>= 0.0~git20161208.0.d5d1b58-1),
                golang-gopkg-cheggaaa-pb.v1-dev,
-               golang-websocket-dev,
                golang-yaml.v2-dev,
                golang-gopkg-macaroon.v1-dev,
+               golang-gopkg-mgo.v2-dev,
                golang-gopkg-retry.v1-dev,
+               golang-gopkg-tylerb-graceful.v1-dev,
                golang-github-gosexy-gettext-dev,
                golang-any (>=2:1.6) | golang-1.6,
                indent,
                init-system-helpers,
+               libcap-dev,
                libapparmor-dev,
                libglib2.0-dev,
                libseccomp-dev,
                libudev-dev,
+               openssh-client,
                pkg-config,
                python3,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
                tzdata,
-               udev
+               udev,
+               xfslibs-dev
 Standards-Version: 3.9.8
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/snapd.git
@@ -77,18 +82,15 @@ Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
          gnupg1 | gnupg,
-         snap-confine (= ${binary:Version}),
+         openssh-client,
          squashfs-tools,
          systemd,
-         ubuntu-core-launcher (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Breaks: snap (<< 2013-11-29-5~)
-Replaces: snap (<< 2013-11-29-5~)
-Built-Using: ${misc:Built-Using}
+Breaks: snap (<< 2013-11-29-5~), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
+Replaces: snap (<< 2013-11-29-5~), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
+Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
- Manage an Ubuntu system with snappy.
- .
  Install, configure, refresh and remove snap packages. Snaps are
  'universal' packages that work across many different Linux systems,
  enabling secure distribution of the latest apps and utilities for
@@ -99,18 +101,15 @@ Description: Tool to interact with Ubuntu Core Snappy.
 
 Package: snap-confine
 Architecture: any
-Breaks: ubuntu-core-launcher (<< 1.0.32)
-Replaces: ubuntu-core-launcher (<< 1.0.32)
-Depends: apparmor (>= 2.10.95-0ubuntu2.2), ${misc:Depends}, ${shlibs:Depends}
-Description: Support executable to apply confinement for snappy apps
- This package contains an internal tool for applying confinement to snappy app.
- The executable (snap-confine) is ran internally by snapd to apply confinement
- to the started application process. The tool is written in C and carefully
- reviewed to limit the attack surface on the security model of snapd.
+Section: oldlibs
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Description: Transitional package for snapd
+ This is a transitional dummy package. It can safely be removed.
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: snap-confine (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Launcher for ubuntu-core (snappy) apps
- This package contains the launcher for launching snappy applications
+Description: Transitional package for snapd
+ This is a transitional dummy package. It can safely be removed.

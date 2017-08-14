@@ -19,19 +19,25 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const rawusbSummary = `allows raw access to all USB devices`
+
+const rawusbBaseDeclarationSlots = `
+  raw-usb:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
-# Reserved because this gives privileged access to the system.
-# Usage: reserved
+# This gives privileged access to the system.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb[0-9]** r,
+/sys/devices/platform/soc/*.usb/usb[0-9]** r,
 
 /run/udev/data/c16[67]:[0-9] r, # ACM USB modems
 /run/udev/data/b180:*    r, # various USB block devices
@@ -39,11 +45,14 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
-// Transitional interface which allows access to all usb devices.
-func NewRawUsbInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "raw-usb",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "raw-usb",
+		summary:               rawusbSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }

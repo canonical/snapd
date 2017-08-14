@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type TimeserverControlInterfaceSuite struct {
@@ -34,22 +37,27 @@ type TimeserverControlInterfaceSuite struct {
 }
 
 var _ = Suite(&TimeserverControlInterfaceSuite{
-	iface: builtin.NewTimeserverControlInterface(),
-	slot: &interfaces.Slot{
+	iface: builtin.MustInterface("timeserver-control"),
+})
+
+func (s *TimeserverControlInterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [timeserver-control]
+`
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "timeserver-control",
 			Interface: "timeserver-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "timeserver-control",
-			Interface: "timeserver-control",
-		},
-	},
-})
+	}
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["timeserver-control"]}
+}
 
 func (s *TimeserverControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "timeserver-control")
@@ -80,12 +88,13 @@ func (s *TimeserverControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *TimeserverControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timedate1")
+}
 
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+func (s *TimeserverControlInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

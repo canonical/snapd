@@ -15,22 +15,22 @@
  *
  */
 #include "config.h"
-#include "udev-support.h"
 
-#include <unistd.h>
+#include <ctype.h>
+#include <errno.h>
 #include <limits.h>
+#include <linux/kdev_t.h>
+#include <sched.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <errno.h>
-#include <sched.h>
-#include <string.h>
-#include <linux/kdev_t.h>
+#include <unistd.h>
 
-#include <ctype.h>
-
-#include "utils.h"
-#include "snap.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
+#include "udev-support.h"
 
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {
@@ -74,7 +74,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 		char *env[] = { NULL };
 		unsigned major = MAJOR(devnum);
 		unsigned minor = MINOR(devnum);
-		must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
 		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
 		       "add", udev_s->tagname, path, buf, NULL, env);
 		die("execl failed");
@@ -97,15 +97,11 @@ int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 	debug("%s", __func__);
 	int rc = 0;
 
-	// extra paranoia
-	if (!verify_security_tag(security_tag))
-		die("security tag %s not allowed", security_tag);
-
 	udev_s->tagname[0] = '\0';
 	udev_s->tagname_len = 0;
 	// TAG+="snap_<security tag>" (udev doesn't like '.' in the tag name)
-	udev_s->tagname_len = must_snprintf(udev_s->tagname, MAX_BUF,
-					    "%s", security_tag);
+	udev_s->tagname_len = sc_must_snprintf(udev_s->tagname, MAX_BUF,
+					       "%s", security_tag);
 	for (int i = 0; i < udev_s->tagname_len; i++)
 		if (udev_s->tagname[i] == '.')
 			udev_s->tagname[i] = '_';
@@ -157,9 +153,6 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		NULL,
 	};
 
-	// extra paranoia
-	if (!verify_security_tag(security_tag))
-		die("security tag %s not allowed", security_tag);
 	if (udev_s == NULL)
 		die("snappy_udev is NULL");
 	if (udev_s->udev == NULL)
@@ -177,27 +170,27 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// create devices cgroup controller
 	char cgroup_dir[PATH_MAX];
 
-	must_snprintf(cgroup_dir, sizeof(cgroup_dir),
-		      "/sys/fs/cgroup/devices/%s/", security_tag);
+	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
+			 "/sys/fs/cgroup/devices/%s/", security_tag);
 
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
 		die("mkdir failed");
 
 	// move ourselves into it
 	char cgroup_file[PATH_MAX];
-	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
-		      "tasks");
+	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
+			 "tasks");
 
 	char buf[128];
-	must_snprintf(buf, sizeof(buf), "%i", getpid());
+	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
 	// deny by default. Write 'a' to devices.deny to remove all existing
 	// devices that were added in previous launcher invocations, then add
 	// the static and assigned devices. This ensures that at application
 	// launch the cgroup only has what is currently assigned.
-	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
-		      "devices.deny");
+	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
+			 "devices.deny");
 	write_string_to_file(cgroup_file, "a");
 
 	// add the common devices

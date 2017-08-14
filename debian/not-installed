@@ -1,1 +1,2 @@
-debian/tmp/usr/bin/uboot-go
+usr/bin/snap-repair
+usr/lib/snapd/system-shutdown

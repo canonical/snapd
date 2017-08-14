@@ -19,19 +19,26 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const openvswitchSupportSummary = `allows operating as the openvswitch service`
 
-const openvswitchSupportConnectedPlugKmod = `
-openvswitch
+const openvswitchSupportBaseDeclarationSlots = `
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
 `
 
-// NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
-func NewOpenvSwitchSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name:              "openvswitch-support",
-		connectedPlugKMod: openvswitchSupportConnectedPlugKmod,
-		reservedForOS:     true,
-	}
+var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
+
+func init() {
+	registerIface(&commonInterface{
+		name:                     "openvswitch-support",
+		summary:                  openvswitchSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
+		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
+		reservedForOS:            true,
+	})
 }

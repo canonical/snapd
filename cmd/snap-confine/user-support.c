@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 void setup_user_data()
 {

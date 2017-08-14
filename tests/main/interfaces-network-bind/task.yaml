@@ -33,10 +33,9 @@ restore: |
     rm -f $SNAP_FILE $REQUEST_FILE
 
 execute: |
-    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
-    :network-bind +$SNAP_NAME"
+    :network-bind +.*$SNAP_NAME"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     - +$SNAP_NAME:network-bind"
@@ -47,26 +46,30 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network-bind ${core_name}:network-bind
+    snap disconnect $SNAP_NAME:network-bind
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network-bind ${core_name}:network-bind
+    snap connect $SNAP_NAME:network-bind
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:network-bind ${core_name}:network-bind
+    snap connect $SNAP_NAME:network-bind
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the service is accessible by a client"
     nc -w 2 -q 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network-bind ${core_name}:network-bind
+    snap disconnect $SNAP_NAME:network-bind
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the service is not accessible by a client"

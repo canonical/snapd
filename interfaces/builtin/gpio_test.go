@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,18 +20,16 @@
 package builtin_test
 
 import (
-	"encoding/json"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type GpioInterfaceSuite struct {
-	testutil.BaseTest
 	iface                   interfaces.Interface
 	gadgetGpioSlot          *interfaces.Slot
 	gadgetMissingNumberSlot *interfaces.Slot
@@ -44,7 +42,7 @@ type GpioInterfaceSuite struct {
 }
 
 var _ = Suite(&GpioInterfaceSuite{
-	iface: &builtin.GpioInterface{},
+	iface: builtin.MustInterface("gpio"),
 })
 
 func (s *GpioInterfaceSuite) SetUpTest(c *C) {
@@ -135,20 +133,20 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
 }
 
-func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.gadgetPlug, s.gadgetGpioSlot, interfaces.SecuritySystemd)
+func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
+	spec := &systemd.Specification{}
+	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, nil, s.gadgetGpioSlot, nil)
 	c.Assert(err, IsNil)
-	var data interface{}
-	err = json.Unmarshal(snippet, &data)
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, map[string]interface{}{
-		"services": map[string]interface{}{
-			"snap.my-device.interface.gpio-100.service": map[string]interface{}{
-				"type":              "oneshot",
-				"remain-after-exit": true,
-				"exec-start":        `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
-				"exec-stop":         `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
-			},
+	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
+		"snap.my-device.interface.gpio-100.service": {
+			Type:            "oneshot",
+			RemainAfterExit: true,
+			ExecStart:       `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
+			ExecStop:        `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
 		},
 	})
+}
+
+func (s *GpioInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

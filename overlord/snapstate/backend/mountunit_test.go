@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -75,19 +76,21 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount"))
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, un))
 	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, `[Unit]
+	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
-Where=/snap/foo/13
+Where=%s/foo/13
 Type=squashfs
+Options=nodev,ro
 
 [Install]
 WantedBy=multi-user.target
-`)
+`, dirs.StripRootDir(dirs.SnapMountDir)))
 
 }
 
@@ -105,12 +108,13 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	p := filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount")
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
+	p := filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
 	err = backend.RemoveMountUnit(info.MountDir(), &s.nullProgress)
 	c.Assert(err, IsNil)
-	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
+	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)
 }

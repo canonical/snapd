@@ -5,24 +5,26 @@ details: |
     namespace.
 prepare: |
     snap install --devmode snapd-hacker-toolbelt
-    echo "Workaround complain-mode EPERM (LP: #1648903)"
-    sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
-    apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "Workaround complain-mode EPERM (LP: #1648903)"
+        sed -i 's#^}#/{,usr/}{,s}bin/ip ixr,\n}#' /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+        apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.snapd-hacker-toolbelt.busybox
+    fi
 execute: |
     export PATH=$PATH:/snap/bin
     test ! -e /run/netns/canary
     echo "Network namespace created within a snap exists in global"
     snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns add canary'
     test -e /run/netns/canary
-    ip netns list | grep canary
+    ip netns list | MATCH canary
     echo "Network namespace deleted from global is removed from snap"
     ip netns delete canary
     test ! -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | grep canary && false
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | MATCH -v canary
     echo "Network namespace created from global exists in snap"
     ip netns add canary
     test -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | grep canary
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | MATCH canary
     echo "Network namespace deleted from snap is removed from global"
     snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns delete canary'
     test ! -e /run/netns/canary

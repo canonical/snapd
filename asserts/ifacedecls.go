@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,20 +22,34 @@ package asserts
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-type attrMatcher interface {
-	match(context string, v interface{}) error
+// AttrMatchContext has contextual helpers for evaluating attribute constraints.
+type AttrMatchContext interface {
+	PlugAttr(arg string) (interface{}, error)
+	SlotAttr(arg string) (interface{}, error)
 }
 
-func chain(context, k string) string {
-	if context == "" {
+const (
+	// feature label for $SLOT()/$PLUG()/$MISSING
+	dollarAttrConstraintsFeature = "dollar-attr-constraints"
+)
+
+type attrMatcher interface {
+	match(apath string, v interface{}, ctx AttrMatchContext) error
+
+	feature(flabel string) bool
+}
+
+func chain(path, k string) string {
+	if path == "" {
 		return k
 	}
-	return fmt.Sprintf("%s.%s", context, k)
+	return fmt.Sprintf("%s.%s", path, k)
 }
 
 type compileContext struct {
@@ -78,6 +92,12 @@ func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher
 		if !cc.hadMap {
 			return nil, fmt.Errorf("first level of non alternative constraints must be a set of key-value contraints")
 		}
+		if strings.HasPrefix(x, "$") {
+			if x == "$MISSING" {
+				return missingAttrMatcher{}, nil
+			}
+			return compileEvalAttrMatcher(cc, x)
+		}
 		return compileRegexpAttrMatcher(cc, x)
 	default:
 		return nil, fmt.Errorf("constraint %q must be a key-value map, regexp or a list of alternative constraints: %v", cc, x)
@@ -98,38 +118,107 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(context, k string, matcher1 attrMatcher, v interface{}) error {
-	context = chain(context, k)
-	if v == nil {
-		return fmt.Errorf("attribute %q has constraints but is unset", context)
+func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
+	apath = chain(apath, k)
+	// every entry matcher expects the attribute to be set except for $MISSING
+	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
+		return fmt.Errorf("attribute %q has constraints but is unset", apath)
 	}
-	if err := matcher1.match(context, v); err != nil {
+	if err := matcher1.match(apath, v, ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func matchList(context string, matcher attrMatcher, l []interface{}) error {
+func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
 	for i, elem := range l {
-		if err := matcher.match(chain(context, strconv.Itoa(i)), elem); err != nil {
+		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (matcher mapAttrMatcher) match(context string, v interface{}) error {
+func (matcher mapAttrMatcher) feature(flabel string) bool {
+	for _, matcher1 := range matcher {
+		if matcher1.feature(flabel) {
+			return true
+		}
+	}
+	return false
+}
+
+func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	switch x := v.(type) {
 	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
-			if err := matchEntry(context, k, matcher1, x[k]); err != nil {
+			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
 				return err
 			}
 		}
 	case []interface{}:
-		return matchList(context, matcher, x)
+		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a map", context)
+		return fmt.Errorf("attribute %q must be a map", apath)
+	}
+	return nil
+}
+
+type missingAttrMatcher struct{}
+
+func (matcher missingAttrMatcher) feature(flabel string) bool {
+	return flabel == dollarAttrConstraintsFeature
+}
+
+func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+	if v != nil {
+		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
+	}
+	return nil
+}
+
+type evalAttrMatcher struct {
+	// first iteration supports just $(SLOT|PLUG)(arg)
+	op  string
+	arg string
+}
+
+var (
+	validEvalAttrMatcher = regexp.MustCompile(`^\$(SLOT|PLUG)\((.+)\)$`)
+)
+
+func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
+	ops := validEvalAttrMatcher.FindStringSubmatch(s)
+	if len(ops) == 0 {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid $SLOT()/$PLUG() constraint", cc, s)
+	}
+	return evalAttrMatcher{
+		op:  ops[1],
+		arg: ops[2],
+	}, nil
+}
+
+func (matcher evalAttrMatcher) feature(flabel string) bool {
+	return flabel == dollarAttrConstraintsFeature
+}
+
+func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+	if ctx == nil {
+		return fmt.Errorf("attribute %q cannot be matched without context", apath)
+	}
+	var comp func(string) (interface{}, error)
+	switch matcher.op {
+	case "SLOT":
+		comp = ctx.SlotAttr
+	case "PLUG":
+		comp = ctx.PlugAttr
+	}
+	v1, err := comp(matcher.arg)
+	if err != nil {
+		return fmt.Errorf("attribute %q constraint $%s(%s) cannot be evaluated: %v", apath, matcher.op, matcher.arg, err)
+	}
+	if !reflect.DeepEqual(v, v1) {
+		return fmt.Errorf("attribute %q does not match $%s(%s): %v != %v", apath, matcher.op, matcher.arg, v, v1)
 	}
 	return nil
 }
@@ -146,7 +235,11 @@ func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) 
 	return regexpAttrMatcher{rx}, nil
 }
 
-func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
+func (matcher regexpAttrMatcher) feature(flabel string) bool {
+	return false
+}
+
+func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -156,12 +249,12 @@ func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
 	case int64:
 		s = strconv.FormatInt(x, 10)
 	case []interface{}:
-		return matchList(context, matcher, x)
+		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a scalar or list", context)
+		return fmt.Errorf("attribute %q must be a scalar or list", apath)
 	}
 	if !matcher.Regexp.MatchString(s) {
-		return fmt.Errorf("attribute %q value %q does not match %v", context, s, matcher.Regexp)
+		return fmt.Errorf("attribute %q value %q does not match %v", apath, s, matcher.Regexp)
 	}
 	return nil
 
@@ -184,10 +277,19 @@ func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, err
 
 }
 
-func (matcher altAttrMatcher) match(context string, v interface{}) error {
+func (matcher altAttrMatcher) feature(flabel string) bool {
+	for _, alt := range matcher.alts {
+		if alt.feature(flabel) {
+			return true
+		}
+	}
+	return false
+}
+
+func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	var firstErr error
 	for _, alt := range matcher.alts {
-		err := alt.match(context, v)
+		err := alt.match(apath, v, ctx)
 		if err == nil {
 			return nil
 		}
@@ -195,16 +297,20 @@ func (matcher altAttrMatcher) match(context string, v interface{}) error {
 			firstErr = err
 		}
 	}
-	ctxDescr := ""
-	if context != "" {
-		ctxDescr = fmt.Sprintf(" for attribute %q", context)
+	apathDescr := ""
+	if apath != "" {
+		apathDescr = fmt.Sprintf(" for attribute %q", apath)
 	}
-	return fmt.Errorf("no alternative%s matches: %v", ctxDescr, firstErr)
+	return fmt.Errorf("no alternative%s matches: %v", apathDescr, firstErr)
 }
 
 // AttributeConstraints implements a set of constraints on the attributes of a slot or plug.
 type AttributeConstraints struct {
 	matcher attrMatcher
+}
+
+func (ac *AttributeConstraints) feature(flabel string) bool {
+	return ac.matcher.feature(flabel)
 }
 
 // compileAttributeConstraints checks and compiles a mapping or list
@@ -221,7 +327,11 @@ type fixedAttrMatcher struct {
 	result error
 }
 
-func (matcher fixedAttrMatcher) match(context string, v interface{}) error {
+func (matcher fixedAttrMatcher) feature(flabel string) bool {
+	return false
+}
+
+func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	return matcher.result
 }
 
@@ -231,8 +341,8 @@ var (
 )
 
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
-	return c.matcher.match("", attrs)
+func (c *AttributeConstraints) Check(attrs map[string]interface{}, ctx AttrMatchContext) error {
+	return c.matcher.match("", attrs, ctx)
 }
 
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
@@ -438,6 +548,26 @@ type PlugRule struct {
 	DenyAutoConnection  []*PlugConnectionConstraints
 }
 
+func (r *PlugRule) feature(flabel string) bool {
+	for _, cs := range [][]*PlugInstallationConstraints{r.AllowInstallation, r.DenyInstallation} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	for _, cs := range [][]*PlugConnectionConstraints{r.AllowConnection, r.DenyConnection, r.AllowAutoConnection, r.DenyAutoConnection} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func castPlugInstallationConstraints(cstrs []constraintsHolder) (res []*PlugInstallationConstraints) {
 	res = make([]*PlugInstallationConstraints, len(cstrs))
 	for i, cstr := range cstrs {
@@ -496,6 +626,10 @@ type PlugInstallationConstraints struct {
 	OnClassic *OnClassicConstraint
 }
 
+func (c *PlugInstallationConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel)
+}
+
 func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
 	switch field {
 	case "plug-attributes":
@@ -539,6 +673,10 @@ type PlugConnectionConstraints struct {
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+}
+
+func (c *PlugConnectionConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
 func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -649,6 +787,26 @@ func castSlotInstallationConstraints(cstrs []constraintsHolder) (res []*SlotInst
 	return res
 }
 
+func (r *SlotRule) feature(flabel string) bool {
+	for _, cs := range [][]*SlotInstallationConstraints{r.AllowInstallation, r.DenyInstallation} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	for _, cs := range [][]*SlotConnectionConstraints{r.AllowConnection, r.DenyConnection, r.AllowAutoConnection, r.DenyAutoConnection} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func castSlotConnectionConstraints(cstrs []constraintsHolder) (res []*SlotConnectionConstraints) {
 	res = make([]*SlotConnectionConstraints, len(cstrs))
 	for i, cstr := range cstrs {
@@ -700,6 +858,10 @@ type SlotInstallationConstraints struct {
 	OnClassic *OnClassicConstraint
 }
 
+func (c *SlotInstallationConstraints) feature(flabel string) bool {
+	return c.SlotAttributes.feature(flabel)
+}
+
 func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
 	switch field {
 	case "slot-attributes":
@@ -743,6 +905,10 @@ type SlotConnectionConstraints struct {
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+}
+
+func (c *SlotConnectionConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
 func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {

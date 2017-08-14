@@ -21,14 +21,6 @@ package i18n
 
 //go:generate update-pot
 
-import ()
-
-func bindTextDomain(domain, dir string) {
-}
-
-func setLocale(loc string) {
-}
-
 // G is the shorthand for Gettext
 func G(msgid string) string {
 	return msgid

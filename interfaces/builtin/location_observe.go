@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,27 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
-var locationObservePermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const locationObserveSummary = `allows access to the current physical location`
+
+const locationObserveBaseDeclarationSlots = `
+  location-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
+const locationObservePermanentSlotAppArmor = `
+# Description: Allow operating as the location service. This gives privileged
+# access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -56,9 +68,9 @@ dbus (receive, send)
     path=/com/ubuntu/location/Service{,/**}
     interface=org.freedesktop.DBus**
     peer=(label=unconfined),
-`)
+`
 
-var locationObserveConnectedSlotAppArmor = []byte(`
+const locationObserveConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service
 
 # Allow the service to host sessions
@@ -118,12 +130,11 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var locationObserveConnectedPlugAppArmor = []byte(`
-# Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+const locationObserveConnectedPlugAppArmor = `
+# Description: Allow using location service. This gives privileged access to
+# the service.
 
 #include <abstractions/dbus-strict>
 
@@ -165,10 +176,38 @@ dbus (send)
     member="{Start,Stop}VelocityUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member="{Start,Stop}PositionUpdates"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member="{Start,Stop}HeadingUpdates"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member="{Start,Stop}VelocityUpdates"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
 # Allow clients to receive updates from the service
 dbus (receive)
     bus=system
     path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member="Update{Position,Heading,Velocity}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service/sessions/*
     interface=com.ubuntu.location.Service.Session
     member="Update{Position,Heading,Velocity}"
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -185,23 +224,17 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
-`)
 
-var locationObservePermanentSlotSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
+# Allow clients to introspect the service
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
 
-var locationObserveConnectedPlugSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationObservePermanentSlotDBus = []byte(`
+const locationObservePermanentSlotDBus = `
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
     <allow own="com.ubuntu.location.Service.Session"/>
@@ -210,9 +243,9 @@ var locationObservePermanentSlotDBus = []byte(`
     <allow send_interface="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service.Session"/>
 </policy>
-`)
+`
 
-var locationObserveConnectedPlugDBus = []byte(`
+const locationObserveConnectedPlugDBus = `
 <policy context="default">
     <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
@@ -220,68 +253,65 @@ var locationObserveConnectedPlugDBus = []byte(`
     <allow send_interface="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service.Session"/>
 </policy>
-`)
+`
 
-type LocationObserveInterface struct{}
+type locationObserveInterface struct{}
 
-func (iface *LocationObserveInterface) Name() string {
+func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
-		return snippet, nil
-	case interfaces.SecurityDBus:
-		return locationObserveConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObserveConnectedPlugSecComp, nil
-	default:
-		return nil, nil
+func (iface *locationObserveInterface) MetaData() interfaces.MetaData {
+	return interfaces.MetaData{
+		Summary:              locationObserveSummary,
+		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
 	}
 }
 
-func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return locationObservePermanentSlotAppArmor, nil
-	case interfaces.SecurityDBus:
-		return locationObservePermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObservePermanentSlotSecComp, nil
-	default:
-		return nil, nil
-	}
-}
-
-func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	default:
-		return nil, nil
-	}
-}
-
-func (iface *LocationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(locationObserveConnectedPlugDBus)
 	return nil
 }
 
-func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObservePermanentSlotDBus)
 	return nil
 }
 
-func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *locationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObservePermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *locationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *locationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *locationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func init() {
+	registerIface(&locationObserveInterface{})
 }

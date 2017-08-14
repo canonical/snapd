@@ -19,15 +19,39 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const networkBindSummary = `allows operating as a network service`
+
+const networkBindBaseDeclarationSlots = `
+  network-bind:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
-# Usage: common
 #include <abstractions/nameservice>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 # These probably shouldn't be something that apps should use, but this offers
@@ -45,59 +69,40 @@ const networkBindConnectedPlugAppArmor = `
 @{PROC}/@{pid}/net/if_inet6 r,
 @{PROC}/@{pid}/net/ipv6_route r,
 
-# java apps request this but seem to work fine without it. Netlink sockets
-# are used to talk to kernel subsystems though and since apps run as root,
-# allowing blanket access needs to be carefully considered. Kernel capabilities
-# checks (which apparmor mediates) *should* be enough to keep abuse down,
-# however Linux capabilities can be quite broad and there have been CVEs in
-# this area. The issue is complicated because reservied policy groups like
-# 'network-admin' and 'network-firewall' have legitimate use for this rule,
-# however a network facing server shouldn't typically be running with these
-# policy groups. LP: #1499897
-# Note: for now, don't explicitly deny this noisy denial so --devmode isn't
-# broken but eventually we may conditionally deny this.
+# java apps attempt this, presumably to handle interface changes, but a
+# corresponding seccomp socket rule is required to use netlink. When
+# fine-grained netlink mediation is implemented (LP: #1669552), we can perhaps
+# allow 'read' with NETLINK_ROUTE, but for now we omit it here and don't
+# explicitly deny this noisy denial so --devmode isn't broken. LP: #1499897
 #deny network netlink dgram,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugSecComp = `
 # Description: Can access the network as a server.
-# Usage: common
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 shutdown
-
-# LP: #1446748 - limit this to AF_INET/AF_INET6
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
+# TODO: remove this rule once seccomp errno with logging is implemented.
+# java apps attempt this, presumably to handle interface changes, but a
+# corresponding AppArmor rule is required (eg, network netlink dgram) to use
+# netlink. We allow it here but not network-bind policy for AppArmor since java
+# falls back gracefully when faced with an EPERM. Without this rule, the
+# application would be KILLed due to our default seccomp policy.
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
-// NewNetworkBindInterface returns a new "network-bind" interface.
-func NewNetworkBindInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network-bind",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network-bind",
+		summary:               networkBindSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBindBaseDeclarationSlots,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

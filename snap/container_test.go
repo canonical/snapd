@@ -46,3 +46,9 @@ func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
 }
+
+func (s *FileSuite) TestFileOpenForSnapDirErrors(c *C) {
+	_, err := snap.Open(c.MkDir())
+	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Assert(err, ErrorMatches, `"/.*" is not a snap or snapdir`)
+}

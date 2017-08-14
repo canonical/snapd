@@ -187,7 +187,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		st.Lock()
 
 		// Delete previous changes.
-		st.Prune(1, 1)
+		st.Prune(1, 1, 1)
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
@@ -399,6 +399,36 @@ func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (ts *taskRunnerSuite) TestErrorsOnStopAreRetried(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("error-on-stop", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		// error here could be due to cancellation, task will be retried
+		return errors.New("error at stop")
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("error-on-stop", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	// still Doing, will be retried
+	c.Check(t.Status(), Equals, state.DoingStatus)
+}
+
 func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
@@ -410,7 +440,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 		ch <- true
 		<-tb.Dying()
 		// ask for retry
-		return &state.Retry{}
+		return &state.Retry{After: 2 * time.Minute}
 	}, nil)
 
 	st.Lock()
@@ -426,6 +456,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {

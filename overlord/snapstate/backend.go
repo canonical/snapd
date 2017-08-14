@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,7 @@ import (
 type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
+	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
@@ -50,8 +51,8 @@ type managerBackend interface {
 	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
-	StartSnapServices(info *snap.Info, meter progress.Meter) error
-	StopSnapServices(info *snap.Info, meter progress.Meter) error
+	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
+	StopServices(svcs []*snap.AppInfo, meter progress.Meter) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
@@ -67,8 +68,6 @@ type managerBackend interface {
 	DiscardSnapNamespace(snapName string) error
 
 	// alias related
-	MatchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error)
-	MissingAliases(aliases []*backend.Alias) ([]*backend.Alias, error)
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error
 	RemoveSnapAliases(snapName string) error
 

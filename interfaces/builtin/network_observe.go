@@ -19,16 +19,21 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const networkObserveSummary = `allows querying network status`
+
+const networkObserveBaseDeclarationSlots = `
+  network-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-observe
 const networkObserveConnectedPlugAppArmor = `
 # Description: Can query network status information. This is restricted because
 # it gives privileged read-only access to networking information and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # network-monitor can't allow this otherwise we are basically
 # network-management, but don't explicitly deny since someone might try to use
@@ -36,6 +41,26 @@ const networkObserveConnectedPlugAppArmor = `
 #capability net_admin,
 
 #include <abstractions/nameservice>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 @{PROC}/@{pid}/net/ r,
@@ -65,6 +90,7 @@ const networkObserveConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 
@@ -85,6 +111,9 @@ network inet6 raw,
 
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # network devices
 /sys/devices/**/net/** r,
@@ -95,18 +124,32 @@ const networkObserveConnectedPlugSecComp = `
 # Description: Can query network status information. This is restricted because
 # it gives privileged read-only access to networking information and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # for ping and ping6
 capset
+
+# for using socket(AF_NETLINK, ...)
+bind
+
+# for ss
+socket AF_NETLINK - NETLINK_INET_DIAG
+
+# arp
+socket AF_NETLINK - NETLINK_ROUTE
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
-// NewNetworkObserveInterface returns a new "network-observe" interface.
-func NewNetworkObserveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "network-observe",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "network-observe",
+		summary:               networkObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

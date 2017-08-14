@@ -52,6 +52,7 @@ func formatPrice(val float64, currency string) string {
 // snap, in order to present a brief summary of it.
 type Notes struct {
 	Price    string
+	SnapType snap.Type
 	Private  bool
 	DevMode  bool
 	JailMode bool
@@ -68,37 +69,40 @@ func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
 	}
 }
 
-func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
+func NotesFromRemote(snp *client.Snap, resInfo *client.ResultInfo) *Notes {
 	notes := &Notes{
-		Private: snap.Private,
-		DevMode: snap.Confinement == client.DevModeConfinement,
-		Classic: snap.Confinement == client.ClassicConfinement,
+		Private:  snp.Private,
+		DevMode:  snp.Confinement == client.DevModeConfinement,
+		Classic:  snp.Confinement == client.ClassicConfinement,
+		SnapType: snap.Type(snp.Type),
 	}
 	if resInfo != nil {
-		notes.Price = getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status)
+		notes.Price = getPriceString(snp.Prices, resInfo.SuggestedCurrency, snp.Status)
 	}
 
 	return notes
 }
 
-func NotesFromLocal(snap *client.Snap) *Notes {
+func NotesFromLocal(snp *client.Snap) *Notes {
 	return &Notes{
-		Private:  snap.Private,
-		DevMode:  !snap.JailMode && (snap.DevMode || snap.Confinement == client.DevModeConfinement),
-		Classic:  !snap.JailMode && (snap.Confinement == client.ClassicConfinement),
-		JailMode: snap.JailMode,
-		TryMode:  snap.TryMode,
-		Disabled: snap.Status != client.StatusActive,
-		Broken:   snap.Broken != "",
+		SnapType: snap.Type(snp.Type),
+		Private:  snp.Private,
+		DevMode:  snp.DevMode,
+		Classic:  !snp.JailMode && (snp.Confinement == client.ClassicConfinement),
+		JailMode: snp.JailMode,
+		TryMode:  snp.TryMode,
+		Disabled: snp.Status != client.StatusActive,
+		Broken:   snp.Broken != "",
 	}
 }
 
 func NotesFromInfo(info *snap.Info) *Notes {
 	return &Notes{
-		Private: info.Private,
-		DevMode: info.Confinement == client.DevModeConfinement,
-		Classic: info.Confinement == client.ClassicConfinement,
-		Broken:  info.Broken != "",
+		SnapType: info.Type,
+		Private:  info.Private,
+		DevMode:  info.Confinement == client.DevModeConfinement,
+		Classic:  info.Confinement == client.ClassicConfinement,
+		Broken:   info.Broken != "",
 	}
 }
 
@@ -108,6 +112,14 @@ func (n *Notes) String() string {
 	}
 	var ns []string
 
+	switch n.SnapType {
+	case "", snap.TypeApp:
+		// nothing
+	case snap.TypeOS:
+		ns = append(ns, "core")
+	default:
+		ns = append(ns, string(n.SnapType))
+	}
 	if n.Disabled {
 		// TRANSLATORS: if possible, a single short word
 		ns = append(ns, i18n.G("disabled"))

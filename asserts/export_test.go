@@ -40,17 +40,12 @@ var DecodePrivateKeyInTest = decodePrivateKey
 // NewDecoderStressed makes a Decoder with a stressed setup with the given buffer and maximum sizes.
 func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
 	return (&Decoder{
-		rd:             r,
-		initialBufSize: bufSize,
-		maxHeadersSize: maxHeadersSize,
-		maxBodySize:    maxBodySize,
-		maxSigSize:     maxSigSize,
+		rd:                 r,
+		initialBufSize:     bufSize,
+		maxHeadersSize:     maxHeadersSize,
+		maxSigSize:         maxSigSize,
+		defaultMaxBodySize: maxBodySize,
 	}).initBuffer()
-}
-
-// Encoder.append exposed for tests
-func EncoderAppend(enc *Encoder, encoded []byte) error {
-	return enc.append(encoded)
 }
 
 func BootstrapAccountForTest(authorityID string) *Account {
@@ -146,6 +141,12 @@ func init() {
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
 	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
 	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
+	formatAnalyzer[TestOnlyType] = func(headers map[string]interface{}, _ []byte) (int, error) {
+		if _, ok := headers["format-1-feature"]; ok {
+			return 1, nil
+		}
+		return 0, nil
+	}
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
@@ -182,3 +183,11 @@ var (
 	CompilePlugRule             = compilePlugRule
 	CompileSlotRule             = compileSlotRule
 )
+
+type featureExposer interface {
+	feature(flabel string) bool
+}
+
+func RuleFeature(rule featureExposer, flabel string) bool {
+	return rule.feature(flabel)
+}

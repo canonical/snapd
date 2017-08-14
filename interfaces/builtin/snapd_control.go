@@ -19,41 +19,38 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const snapdControlSummary = `allows communicating with snapd`
+
+const snapdControlBaseDeclarationPlugs = `
+  snapd-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const snapdControlBaseDeclarationSlots = `
+  snapd-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
-# Usage: reserved
 
 /run/snapd.socket rw,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/snapd-control
-const snapdControlConnectedPlugSecComp = `
-# Description: Can use snapd.
-# Usage: reserved
-
-# Can communicate with snapd abstract socket
-connect
-getsockname
-recv
-recvmsg
-send
-sendto
-sendmsg
-socket
-socketpair
-`
-
-// NewSnapdControlInterface returns a new "snapd-control" interface.
-func NewSnapdControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "snapd-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "snapd-control",
+		summary:               snapdControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  snapdControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  snapdControlBaseDeclarationSlots,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  snapdControlConnectedPlugSecComp,
 		reservedForOS:         true,
-	}
+	})
 }

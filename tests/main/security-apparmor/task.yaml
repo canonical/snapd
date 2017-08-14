@@ -4,8 +4,10 @@ prepare: |
     echo "Given a basic snap is installed"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
-
 execute: |
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
     echo "Then an unconfined action should succeed"
     test-snapd-tools.cmd touch /dev/shm/snap.test-snapd-tools.foo
     test -f /dev/shm/snap.test-snapd-tools.foo
@@ -16,3 +18,5 @@ execute: |
         exit 1
     fi
     [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-tools.foo': Permission denied" ]
+restore: |
+    rm -f touch.error

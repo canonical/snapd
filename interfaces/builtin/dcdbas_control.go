@@ -19,9 +19,15 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+const dcdbasControlSummary = `allows access to Dell Systems Management Base Driver`
+
+const dcdbasControlBaseDeclarationSlots = `
+  dcdbas-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 // https://www.kernel.org/doc/Documentation/dcdbas.txt
 const dcdbasControlConnectedPlugAppArmor = `
@@ -32,8 +38,6 @@ const dcdbasControlConnectedPlugAppArmor = `
 # towards providing access to as much BIOS information as possible.
 #
 # See http://linux.dell.com/libsmbios/main/ for more information about the libsmbios project.
-
-# Usage: reserved
 
 # entries pertaining to System Management Interrupts (SMI)
 /sys/devices/platform/dcdbas/smi_data rw,
@@ -47,11 +51,14 @@ const dcdbasControlConnectedPlugAppArmor = `
 /sys/devices/platform/dcdbas/host_control_on_shutdown rw,
 `
 
-// NewHardwareObserveInterface returns a new "dcdbas-control" interface.
-func NewDcdbasControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "dcdbas-control",
+func init() {
+	registerIface(&commonInterface{
+		name:                  "dcdbas-control",
+		summary:               dcdbasControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  dcdbasControlBaseDeclarationSlots,
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	}
+	})
 }
