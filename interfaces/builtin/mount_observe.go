@@ -42,6 +42,7 @@ const mountObserveConnectedPlugAppArmor = `
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
+/sys/devices/*/block/{,**} r,
 
 @{PROC}/swaps r,
 
