@@ -245,6 +245,21 @@ Potatoes
 	c.Check(out, IsNil)
 }
 
+func (s *SystemdTestSuite) TestStatusBadId(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=bar.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
+	c.Check(out, IsNil)
+}
+
 func (s *SystemdTestSuite) TestStatusBadField(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
@@ -392,33 +407,22 @@ func (s *SystemdTestSuite) TestLogPID(c *C) {
 	c.Check(Log{"_PID": "42", "SYSLOG_PID": "99"}.PID(), Equals, "42")
 }
 
-func (s *SystemdTestSuite) TestTimestamp(c *C) {
-	c.Check(Log{}.Timestamp(), Equals, "-(no timestamp!)-")
-	c.Check(Log{"__REALTIME_TIMESTAMP": "what"}.Timestamp(), Equals, `-(timestamp not a decimal number: "what")-`)
-	c.Check(Log{"__REALTIME_TIMESTAMP": "0"}.Timestamp(), Equals, "1970-01-01T00:00:00.000000Z")
-	c.Check(Log{"__REALTIME_TIMESTAMP": "42"}.Timestamp(), Equals, "1970-01-01T00:00:00.000042Z")
-}
+func (s *SystemdTestSuite) TestTime(c *C) {
+	t, err := Log{}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, "no timestamp")
 
-func (s *SystemdTestSuite) TestLogString(c *C) {
-	c.Check(Log{}.String(), Equals, "-(no timestamp!)- -[-]: -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "0",
-	}.String(), Equals, "1970-01-01T00:00:00.000000Z -[-]: -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "0",
-		"MESSAGE":              "hi",
-	}.String(), Equals, "1970-01-01T00:00:00.000000Z -[-]: hi")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "42",
-		"MESSAGE":              "hi",
-		"SYSLOG_IDENTIFIER":    "me",
-	}.String(), Equals, "1970-01-01T00:00:00.000042Z me[-]: hi")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "42",
-		"MESSAGE":              "hi",
-		"SYSLOG_IDENTIFIER":    "me",
-		"_PID":                 "99",
-	}.String(), Equals, "1970-01-01T00:00:00.000042Z me[99]: hi")
+	t, err = Log{"__REALTIME_TIMESTAMP": "what"}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `timestamp not a decimal number: "what"`)
+
+	t, err = Log{"__REALTIME_TIMESTAMP": "0"}.Time()
+	c.Check(err, IsNil)
+	c.Check(t.String(), Equals, "1970-01-01 00:00:00 +0000 UTC")
+
+	t, err = Log{"__REALTIME_TIMESTAMP": "42"}.Time()
+	c.Check(err, IsNil)
+	c.Check(t.String(), Equals, "1970-01-01 00:00:00.000042 +0000 UTC")
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
