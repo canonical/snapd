@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/strutil"
 )
@@ -91,13 +92,29 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		return errors.New("internal error: AtomicWriteFileChown needs none or both of uid and gid set")
 	}
 
-	if err := fd.Sync(); err != nil {
-		return err
+	if shouldReallySync {
+		if err := fd.Sync(); err != nil {
+			return err
+		}
 	}
 
 	if err := os.Rename(tmp, filename); err != nil {
 		return err
 	}
 
-	return dir.Sync()
+	if shouldReallySync {
+		return dir.Sync()
+	}
+	return nil
+}
+
+// Allow disabling sync for testing. This brings massive improvements on
+// certain filesystems (like btrfs) and very much noticeable improvements in
+// all unit tests in genreal.
+var shouldReallySync bool = true
+
+func init() {
+	if len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO") {
+		shouldReallySync = false
+	}
 }
