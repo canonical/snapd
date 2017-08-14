@@ -43,7 +43,6 @@ restore: |
 
 debug: |
     systemctl status cups || true
-    journalctl -u cups || true
 
 execute: |
     CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
