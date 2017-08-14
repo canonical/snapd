@@ -1,10 +1,11 @@
 snapd (2.27-1~test) UNRELEASED; urgency=medium
 
-  * New upstream release.
+  * New upstream release. (Closes: #868959, #869268)
   * New changes to upstream sources:
     - Disable cmd/snap-seccomp tests as they depend on an unpackaged fork of
       golang/x/net.
     - Use upstream version of libseccomp-golang.
+  * Do not install ancient ubuntu-core-launcher symlink.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Thu, 10 Aug 2017 21:03:57 +1200
 
