@@ -157,7 +157,7 @@ distro_install_package() {
                 quiet apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install $DNF_FLAGS "$package_name"
+                dnf -q -y --refresh install $DNF_FLAGS "$package_name"
                 ;;
             opensuse-*)
                 zypper -q install -y $ZYPPER_FLAGS "$package_name"
