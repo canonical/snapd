@@ -269,13 +269,20 @@ func requestStoreDeviceNonce() (string, error) {
 	return responseData.Nonce, nil
 }
 
+type deviceSessionRequestParamsEncoder interface {
+	EncodedRequest() string
+	EncodedSerial() string
+	EncodedModel() string
+}
+
 // requestDeviceSession requests a device session macaroon from the store.
-func requestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
+func requestDeviceSession(paramsEncoder deviceSessionRequestParamsEncoder, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
-		"serial-assertion":       serialAssertion,
-		"device-session-request": sessionRequest,
+		"device-session-request": paramsEncoder.EncodedRequest(),
+		"serial-assertion":       paramsEncoder.EncodedSerial(),
+		"model-assertion":        paramsEncoder.EncodedModel(),
 	}
 	var err error
 	deviceJSONData, err := json.Marshal(data)

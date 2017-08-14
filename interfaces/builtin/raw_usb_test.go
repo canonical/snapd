@@ -39,21 +39,21 @@ var _ = Suite(&RawUsbInterfaceSuite{
 	iface: builtin.MustInterface("raw-usb"),
 })
 
-const rawUsbConsumerYaml = `name: consumer
+const rawusbConsumerYaml = `name: consumer
 apps:
  app:
   plugs: [raw-usb]
 `
 
-const rawUsbCoreYaml = `name: core
+const rawusbCoreYaml = `name: core
 type: os
 slots:
   raw-usb:
 `
 
 func (s *RawUsbInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, rawUsbConsumerYaml, nil, "raw-usb")
-	s.slot = MockSlot(c, rawUsbCoreYaml, nil, "raw-usb")
+	s.plug = MockPlug(c, rawusbConsumerYaml, nil, "raw-usb")
+	s.slot = MockSlot(c, rawusbCoreYaml, nil, "raw-usb")
 }
 
 func (s *RawUsbInterfaceSuite) TestName(c *C) {
