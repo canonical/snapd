@@ -275,6 +275,9 @@ type StoreStack struct {
 // NewStoreStack creates a new store assertion stack. It panics on error.
 // optional privKeys can be in order: root, store, generic
 func NewStoreStack(authorityID string, privKeys ...asserts.PrivateKey) *StoreStack {
+	if len(privKeys) > 3 {
+		panic("too many private keys specified, expected at most: root, store, generic")
+	}
 	for len(privKeys) < 3 {
 		privKey, _ := GenerateKey(752)
 		privKeys = append(privKeys, privKey)
