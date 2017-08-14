@@ -33,6 +33,8 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
+#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
+
 #ifdef NVIDIA_ARCH
 
 // List of globs that describe nvidia userspace libraries.
@@ -196,7 +198,6 @@ struct sc_nvidia_driver {
 	int minor_version;
 };
 
-#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 #define SC_LIBGL_DIR "/var/lib/snapd/lib/gl"
 
 static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
@@ -260,6 +261,10 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
+	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
+	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
+		return;
+	}
 #ifdef NVIDIA_UBUNTU
 	sc_mount_nvidia_driver_ubuntu(rootfs_dir);
 #endif				// ifdef NVIDIA_UBUNTU
