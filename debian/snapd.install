@@ -1,8 +1,6 @@
 usr/bin/snap
 usr/bin/snapctl
-usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
-usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
@@ -15,8 +13,6 @@ etc/X11
 data/completion/snap /usr/share/bash-completion/completions
 data/completion/complete.sh /usr/lib/snapd/
 data/completion/etelpmoc.sh /usr/lib/snapd/
-# udev, must be installed before 80-udisks
-data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
 data/info /usr/lib/snapd/
 
