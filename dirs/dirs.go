@@ -47,6 +47,7 @@ var (
 	SnapUdevRulesDir          string
 	SnapKModModulesDir        string
 	LocaleDir                 string
+	CompletersDir             string
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
@@ -181,6 +182,7 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel":

@@ -110,6 +110,18 @@ apps:
 	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
 
+func (s *infoSuite) TestAppInfoCompleterPath(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["bar"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo.bar"))
+	c.Check(info.Apps["foo"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo"))
+}
+
 func (s *infoSuite) TestAppInfoLauncherCommand(c *C) {
 	dirs.SetRootDir("")
 
