@@ -91,8 +91,6 @@ Breaks: snap (<< 2013-11-29-5~), snap-confine (<< 2.23), ubuntu-core-launcher (<
 Replaces: snap (<< 2013-11-29-5~), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
 Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
- Manage an Ubuntu system with snappy.
- .
  Install, configure, refresh and remove snap packages. Snaps are
  'universal' packages that work across many different Linux systems,
  enabling secure distribution of the latest apps and utilities for
