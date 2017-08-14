@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27
+Version:        2.27.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -636,6 +636,19 @@ fi
 
 
 %changelog
+* Thu Aug 14 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.1
+ - tests: use dnf --refresh install to avert stale cache
+ - tests: fix test failure on 14.04 due to old version of
+   flock
+ - updates for unity7/x11, browser-support, network-control,
+   mount-observe
+ - interfaces/unity7,x11: update for NETLINK_KOBJECT_UEVENT
+ - interfaces/browser-support: update sysfs reads for
+   newer browser versions
+ - interfaces/network-control: rw for ieee80211 advanced wireless
+ - interfaces/mount-observe: allow read on sysfs entries for block
+   devices
 * Thu Aug 10 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27
  - fix build failure on 32bit fedora
