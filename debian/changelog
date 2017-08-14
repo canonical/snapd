@@ -1,6 +1,6 @@
-snapd (2.27-1~test) UNRELEASED; urgency=medium
+snapd (2.27.1-1~test) UNRELEASED; urgency=medium
 
-  * New upstream release. (Closes: #868959, #869268)
+  * New upstream release. (Closes: #868959, #869268, #872071)
   * New changes to upstream sources:
     - Disable cmd/snap-seccomp tests as they depend on an unpackaged fork of
       golang/x/net.
