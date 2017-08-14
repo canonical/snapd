@@ -62,12 +62,12 @@ func (iface *lxdInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(lxdConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *lxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *lxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(lxdConnectedPlugSecComp)
 	return nil
 }

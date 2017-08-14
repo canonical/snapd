@@ -76,7 +76,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *interfaces.SlotData) erro
 	}
 	if err != nil || len(contentstr) == 0 {
 		// content defaults to "slot" name if unspecified
-		slot.SetAttr("content", slot.Name)
+		slot.SetStaticAttr("content", slot.Name())
 	}
 
 	// check that we have either a read or write path
@@ -105,7 +105,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *interfaces.PlugData) erro
 	}
 	if len(contentstr) == 0 {
 		// content defaults to "plug" name if unspecified
-		plug.SetAttr("content", plug.Name)
+		plug.SetStaticAttr("content", plug.Name())
 	}
 	var targetstr string
 	if target, err := plug.Attr("target"); err == nil {

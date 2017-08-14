@@ -84,14 +84,14 @@ func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-time-control"})
 	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-time-control"), testutil.Contains, "org/freedesktop/timedate1")
 
 	// connected plugs have a non-nil security snippet for udev
 	spec := &udev.Specification{}
-	spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]

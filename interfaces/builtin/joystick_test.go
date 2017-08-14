@@ -93,7 +93,7 @@ func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-joystick"})
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-joystick")

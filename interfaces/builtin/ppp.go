@@ -74,12 +74,12 @@ func (iface *pppInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(pppConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	return spec.AddModule(pppConnectedPlugKmod)
 }
 

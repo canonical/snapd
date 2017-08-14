@@ -84,7 +84,7 @@ func (iface *commonInterface) BeforePrepareSlot(slot *interfaces.SlotData) error
 	return nil
 }
 
-func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
@@ -100,7 +100,7 @@ func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return !iface.rejectAutoConnectPairs
 }
 
-func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	for _, m := range iface.connectedPlugKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -109,7 +109,7 @@ func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	for _, m := range iface.connectedSlotKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -118,7 +118,7 @@ func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
+func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.PlugData) error {
 	for _, m := range iface.permanentPlugKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -127,7 +127,7 @@ func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
+func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.SlotData) error {
 	for _, m := range iface.permanentSlotKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -136,7 +136,7 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 	return nil
 }
 
-func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	if iface.connectedPlugSecComp != "" {
 		spec.AddSnippet(iface.connectedPlugSecComp)
 	}

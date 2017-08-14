@@ -89,7 +89,7 @@ func (iface *boolFileInterface) BeforePrepareSlot(slot *interfaces.SlotData) err
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
-func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -102,7 +102,7 @@ func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	// Allow write and lock on the file designated by the path.
 	// Dereference symbolic links to file path handed out to apparmor since
 	// sysfs is full of symlinks and apparmor requires uses real path for
@@ -115,22 +115,26 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path, err := evalSymlinks(path)
-		if err != nil {
-			return "", err
+func (iface *boolFileInterface) dereferencedPath(slot *interfaces.SlotData) (string, error) {
+	if path, err := slot.Attr("path"); err == nil {
+		if pathstr, ok := path.(string); ok {
+			pathstr, err := evalSymlinks(pathstr)
+			if err != nil {
+				return "", err
+			}
+			return filepath.Clean(pathstr), nil
 		}
-		return filepath.Clean(path), nil
 	}
 	panic("slot is not sanitized")
 }
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
-func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path = filepath.Clean(path)
-		return boolFileGPIOValuePattern.MatchString(path)
+func (iface *boolFileInterface) isGPIO(slot *interfaces.SlotData) bool {
+	if path, err := slot.Attr("path"); err == nil {
+		if pathstr, ok := path.(string); ok {
+			pathstr = filepath.Clean(pathstr)
+			return boolFileGPIOValuePattern.MatchString(pathstr)
+		}
 	}
 	panic("slot is not sanitized")
 }

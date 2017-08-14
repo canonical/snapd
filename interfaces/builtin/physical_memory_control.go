@@ -75,15 +75,15 @@ func (iface *physicalMemoryControlInterface) BeforePrepareSlot(slot *interfaces.
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *physicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(physicalMemoryControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *physicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *physicalMemoryControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	const udevRule = `KERNEL=="mem", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil

@@ -62,12 +62,12 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) string {
-	return appLabelExpr(slot.Apps, slot.Snap)
+func slotAppLabelExpr(slot *interfaces.SlotData) string {
+	return appLabelExpr(slot.Apps(), slot.Snap())
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) string {
-	return appLabelExpr(plug.Apps, plug.Snap)
+func plugAppLabelExpr(plug *interfaces.PlugData) string {
+	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
 // Function to support creation of udev snippet

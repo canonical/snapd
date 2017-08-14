@@ -69,12 +69,12 @@ func (iface *framebufferInterface) BeforePrepareSlot(slot *interfaces.SlotData) 
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *framebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *framebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(framebufferConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *framebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *framebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	// This will fix access denied of opengl interface when it's used with
 	// framebuffer interface in the same snap.
 	// https://bugs.launchpad.net/snapd/+bug/1675738

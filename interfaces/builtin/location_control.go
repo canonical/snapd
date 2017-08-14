@@ -214,7 +214,7 @@ func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
@@ -222,22 +222,22 @@ func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *locationControlInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationControlInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(locationControlConnectedPlugDBus)
 	return nil
 }
 
-func (iface *locationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *locationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(locationControlPermanentSlotDBus)
 	return nil
 }
 
-func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(locationControlPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)

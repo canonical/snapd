@@ -329,15 +329,15 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 	var validateSlotAttrs map[string]interface{}
 	testIface1 := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		ValidatePlugCallback: func(plug *interfaces.Plug, attrs map[string]interface{}) error {
+		AfterPreparePlugCallback: func(plug *interfaces.PlugData) (err error) {
 			validatePlugCalled = true
-			validatePlugAttrs = attrs
-			return nil
+			validatePlugAttrs, err = plug.Attrs()
+			return err
 		},
-		ValidateSlotCallback: func(plug *interfaces.Slot, attrs map[string]interface{}) error {
+		AfterPrepareSlotCallback: func(plug *interfaces.SlotData) (err error) {
 			validateSlotCalled = true
-			validateSlotAttrs = attrs
-			return nil
+			validateSlotAttrs, err = plug.Attrs()
+			return err
 		},
 	}
 	s.mockIface(c, testIface1)

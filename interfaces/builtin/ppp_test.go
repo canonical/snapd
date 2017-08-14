@@ -71,31 +71,31 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 
 func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/usr/sbin/pppd ix,`)
 
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	err = apparmorSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = dbusSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 	dbusSpec = &dbus.Specification{}
-	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	err = dbusSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot, nil)), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
 
 	spec := &kmod.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,

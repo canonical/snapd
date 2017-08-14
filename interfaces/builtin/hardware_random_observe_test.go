@@ -83,14 +83,14 @@ func (s *HardwareRandomObserveInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *HardwareRandomObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap.app"})
 	c.Assert(spec.SnippetForTag("snap.snap.app"), testutil.Contains, "hw_random/rng_{available,current} r,")
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil)), IsNil)
 	expected := []string{`KERNEL=="hwrng", TAG+="snap_snap_app"`}
 	c.Assert(spec.Snippets(), DeepEquals, expected)
 }

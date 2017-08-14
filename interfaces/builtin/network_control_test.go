@@ -83,14 +83,14 @@ func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *NetworkControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/run/netns/* rw,\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "setns - CLONE_NEWNET\n")

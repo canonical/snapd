@@ -109,7 +109,7 @@ func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -118,15 +118,15 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(thumbnailerServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
-	new := plug.Snap.Name()
+	new := plug.Snap().Name()
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	old = "###PLUG_SECURITY_TAGS###"

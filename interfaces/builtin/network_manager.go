@@ -421,7 +421,7 @@ func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -436,7 +436,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
@@ -444,17 +444,17 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(networkManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(networkManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
 	return nil
 }

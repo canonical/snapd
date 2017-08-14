@@ -64,15 +64,15 @@ func (iface *uhidInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *uhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *uhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *uhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	const udevRule = `KERNEL=="uhid", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil

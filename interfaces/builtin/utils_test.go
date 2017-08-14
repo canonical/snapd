@@ -44,21 +44,21 @@ var _ = Suite(&utilsSuite{
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {
 	errmsg := "iface slots are reserved for the core snap"
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotGadget), ErrorMatches, errmsg)
+	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, interfaces.NewSlotData(s.slotOS, nil)), IsNil)
+	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, interfaces.NewSlotData(s.slotApp, nil)), ErrorMatches, errmsg)
+	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, interfaces.NewSlotData(s.slotGadget, nil)), ErrorMatches, errmsg)
 }
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOSOrGadget(c *C) {
 	errmsg := "iface slots are reserved for the core and gadget snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotGadget), IsNil)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, interfaces.NewSlotData(s.slotOS, nil)), IsNil)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, interfaces.NewSlotData(s.slotApp, nil)), ErrorMatches, errmsg)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, interfaces.NewSlotData(s.slotGadget, nil)), IsNil)
 }
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
 	errmsg := "iface slots are reserved for the core and app snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotApp), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotGadget), ErrorMatches, errmsg)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, interfaces.NewSlotData(s.slotOS, nil)), IsNil)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, interfaces.NewSlotData(s.slotApp, nil)), IsNil)
+	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, interfaces.NewSlotData(s.slotGadget, nil)), ErrorMatches, errmsg)
 }

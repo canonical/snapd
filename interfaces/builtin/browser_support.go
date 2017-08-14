@@ -275,8 +275,11 @@ func (iface *browserSupportInterface) BeforePreparePlug(plug *interfaces.PlugDat
 	return nil
 }
 
-func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var allowSandbox bool
+	if as, err := plug.StaticAttr("allow-sandbox"); err == nil {
+		allowSandbox, _ = as.(bool)
+	}
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
@@ -286,8 +289,11 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var allowSandbox bool
+	if as, err := plug.StaticAttr("allow-sandbox"); err == nil {
+		allowSandbox, _ = as.(bool)
+	}
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
 		snippet += browserSupportConnectedPlugSecCompWithSandbox

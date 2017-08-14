@@ -35,14 +35,23 @@ type SlotData struct {
 	dynamicAttrs map[string]interface{}
 }
 
-func newSlotData(slot *Slot, dynamicAttrs map[string]interface{}) *SlotData {
+type Attributes interface {
+	SetStaticAttr(key string, value interface{})
+	StaticAttr(key string) (interface{}, error)
+	StaticAttrs() map[string]interface{}
+	Attr(key string) (interface{}, error)
+	Attrs() (map[string]interface{}, error)
+	SetAttr(key string, value interface{}) error
+}
+
+func NewSlotData(slot *Slot, dynamicAttrs map[string]interface{}) *SlotData {
 	return &SlotData{
 		slot:         slot,
 		dynamicAttrs: dynamicAttrs,
 	}
 }
 
-func newPlugData(plug *Plug, dynamicAttrs map[string]interface{}) *PlugData {
+func NewPlugData(plug *Plug, dynamicAttrs map[string]interface{}) *PlugData {
 	return &PlugData{
 		plug:         plug,
 		dynamicAttrs: dynamicAttrs,
@@ -65,6 +74,10 @@ func (attrs *PlugData) Apps() map[string]*snap.AppInfo {
 	return attrs.plug.Apps
 }
 
+func (attrs *PlugData) SecurityTags() []string {
+	return attrs.plug.SecurityTags()
+}
+
 func (attrs *PlugData) StaticAttr(key string) (interface{}, error) {
 	if val, ok := attrs.plug.Attrs[key]; ok {
 		return val, nil
@@ -73,6 +86,9 @@ func (attrs *PlugData) StaticAttr(key string) (interface{}, error) {
 }
 
 func (attrs *PlugData) SetStaticAttr(key string, value interface{}) {
+	if attrs.plug.Attrs == nil {
+		attrs.plug.Attrs = make(map[string]interface{})
+	}
 	attrs.plug.Attrs[key] = value
 }
 
@@ -116,6 +132,14 @@ func (attrs *SlotData) Snap() *snap.Info {
 	return attrs.slot.Snap
 }
 
+func (attrs *SlotData) SecurityTags() []string {
+	return attrs.slot.SecurityTags()
+}
+
+func (attrs *SlotData) Apps() map[string]*snap.AppInfo {
+	return attrs.slot.Apps
+}
+
 func (attrs *SlotData) StaticAttr(key string) (interface{}, error) {
 	if val, ok := attrs.slot.Attrs[key]; ok {
 		return val, nil
@@ -124,6 +148,9 @@ func (attrs *SlotData) StaticAttr(key string) (interface{}, error) {
 }
 
 func (attrs *SlotData) SetStaticAttr(key string, value interface{}) {
+	if attrs.slot.Attrs == nil {
+		attrs.slot.Attrs = make(map[string]interface{})
+	}
 	attrs.slot.Attrs[key] = value
 }
 

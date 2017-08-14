@@ -72,7 +72,7 @@ func (iface *joystickInterface) BeforePrepareSlot(slot *interfaces.SlotData) err
 
 // AppArmorConnectedPlug adds the necessary appamor snippet to the spec that
 // allows access to joystick devices.
-func (iface *joystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *joystickInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(joystickConnectedPlugAppArmor)
 	return nil
 }

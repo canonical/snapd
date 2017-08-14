@@ -127,20 +127,32 @@ func (iface *hidrawInterface) BeforePrepareSlot(slot *interfaces.SlotData) error
 	return nil
 }
 
-func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.SlotData) error {
+	var usbVendor, usbProduct int64
+	var vendorOk, pOk, ok bool
+	var pathstr string
+
+	if vendor, err := slot.StaticAttr("usb-vendor"); err == nil {
+		usbVendor, vendorOk = vendor.(int64)
+	}
+	if !vendorOk {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+
+	if prod, err := slot.StaticAttr("usb-product"); err == nil {
+		usbProduct, pOk = prod.(int64)
+	}
 	if !pOk {
 		return nil
 	}
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+
+	if path, err := slot.StaticAttr("path"); err == nil {
+		pathstr, ok = path.(string)
+	}
+	if !ok || pathstr == "" {
 		return nil
 	}
-	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(pathstr, "/dev/")))
 	return nil
 }
 
@@ -167,17 +179,25 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var usbVendor, usbProduct int64
+	var vendorOk, pOk bool
+
+	if vendor, err := slot.Attr("usb-vendor"); err == nil {
+		usbVendor, vendorOk = vendor.(int64)
+	}
+	if !vendorOk {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if prod, err := slot.Attr("usb-product"); err == nil {
+		usbProduct, pOk = prod.(int64)
+	}
 	if !pOk {
 		return nil
 	}
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
 	}
 	return nil

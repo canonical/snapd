@@ -89,28 +89,37 @@ func (iface *i2cInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return nil
 }
 
-func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
 
-	cleanedPath := filepath.Clean(path)
+	cleanedPath := filepath.Clean(pathstr)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(pathstr, "/dev/")))
 	return nil
 }
 
-func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
+
 	const pathPrefix = "/dev/"
 	const udevRule string = `KERNEL=="%s", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(pathstr, pathPrefix), tag))
 	}
 	return nil
 }

@@ -381,7 +381,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n")
 	defer restoreClassicTemplate()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *interfaces.Slot) error {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 			if scenario.snippet == "" {
 				return nil
 			}

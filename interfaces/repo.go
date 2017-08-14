@@ -152,12 +152,12 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	if opts != nil && opts.Connected {
 		connected = make(map[string]bool)
 		for _, plugMap := range r.slotPlugs {
-			for plug, _ := range plugMap {
+			for plug := range plugMap {
 				connected[plug.Interface] = true
 			}
 		}
 		for _, slotMap := range r.plugSlots {
-			for slot, _ := range slotMap {
+			for slot := range slotMap {
 				connected[slot.Interface] = true
 			}
 		}
@@ -657,13 +657,13 @@ func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *Conn
 		AfterPrepareSlot(slot *SlotData) error
 	}
 	if validate, ok := iface.(afterPreparePlug); ok {
-		attrData := newPlugData(plug, attributes.PlugAttrs)
+		attrData := NewPlugData(plug, attributes.PlugAttrs)
 		if err := validate.AfterPreparePlug(attrData); err != nil {
 			return err
 		}
 	}
 	if validate, ok := iface.(afterPrepareSlot); ok {
-		attrData := newSlotData(slot, attributes.SlotAttrs)
+		attrData := NewSlotData(slot, attributes.SlotAttrs)
 		if err := validate.AfterPrepareSlot(attrData); err != nil {
 			return err
 		}
@@ -850,12 +850,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
-		if err := spec.AddPermanentSlot(iface, slot); err != nil {
+		if err := spec.AddPermanentSlot(iface, NewSlotData(slot, nil)); err != nil {
 			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
 			attrs := r.slotPlugs[slot][plug]
-			if err := spec.AddConnectedSlot(iface, plug, attrs.PlugAttrs, slot, attrs.SlotAttrs); err != nil {
+			if err := spec.AddConnectedSlot(iface, NewPlugData(plug, attrs.PlugAttrs), NewSlotData(slot, attrs.SlotAttrs)); err != nil {
 				return nil, err
 			}
 		}
@@ -863,12 +863,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
-		if err := spec.AddPermanentPlug(iface, plug); err != nil {
+		if err := spec.AddPermanentPlug(iface, NewPlugData(plug, nil)); err != nil {
 			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
 			attrs := r.plugSlots[plug][slot]
-			if err := spec.AddConnectedPlug(iface, plug, attrs.PlugAttrs, slot, attrs.SlotAttrs); err != nil {
+			if err := spec.AddConnectedPlug(iface, NewPlugData(plug, attrs.PlugAttrs), NewSlotData(slot, attrs.SlotAttrs)); err != nil {
 				return nil, err
 			}
 		}

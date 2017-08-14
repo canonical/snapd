@@ -77,7 +77,7 @@ func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
@@ -85,7 +85,7 @@ func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := seccompSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil))
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "shutdown\n")

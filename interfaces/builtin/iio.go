@@ -119,16 +119,20 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
 	const pathPrefix = "/dev/"
 	const udevRule = `KERNEL=="%s", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(pathstr, pathPrefix), tag))
 	}
 	return nil
 }

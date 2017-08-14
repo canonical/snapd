@@ -86,22 +86,22 @@ func (iface *broadcomAsicControlInterface) BeforePrepareSlot(slot *interfaces.Sl
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *broadcomAsicControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *broadcomAsicControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(broadcomAsicControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *broadcomAsicControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *broadcomAsicControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		snippet := strings.Replace(broadcomAsicControlConnectedPlugUDev, old, tag, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
 }
 
-func (iface *broadcomAsicControlInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *broadcomAsicControlInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	for _, kmod := range broadcomAsicControlConnectedPlugKMod {
 		if err := spec.AddModule(kmod); err != nil {
 			return err

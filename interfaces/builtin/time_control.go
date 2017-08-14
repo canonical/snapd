@@ -126,15 +126,15 @@ func (iface *timeControlInterface) BeforePrepareSlot(slot *interfaces.SlotData) 
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(timeControlConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil

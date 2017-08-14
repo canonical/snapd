@@ -1343,19 +1343,19 @@ const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
-	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *PlugData) error {
 		spec.AddSnippet("static plug snippet")
 		return nil
 	},
-	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *PlugData, slot *SlotData) error {
 		spec.AddSnippet("connection-specific plug snippet")
 		return nil
 	},
-	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *SlotData) error {
 		spec.AddSnippet("static slot snippet")
 		return nil
 	},
-	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *PlugData, slot *SlotData) error {
 		spec.AddSnippet("connection-specific slot snippet")
 		return nil
 	},
@@ -1404,10 +1404,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *PlugData, slot *SlotData) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *PlugData, slot *SlotData) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
@@ -1433,10 +1433,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	var testSecurity SecuritySystem = "security"
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *SlotData) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *PlugData) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
@@ -1926,8 +1926,8 @@ slots:
 	c.Assert(r.AddSnap(s3), IsNil)
 
 	// Connect a few things for the tests below.
-	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}), IsNil)
-	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}), IsNil)
+	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil), IsNil)
+	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil), IsNil)
 
 	// Without any names or options we get the summary of all the interfaces.
 	infos := r.Info(nil)

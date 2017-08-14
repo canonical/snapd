@@ -112,26 +112,26 @@ func (iface *networkStatusInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *networkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	const old = "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *networkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	const old = "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *networkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(networkStatusPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(networkStatusPermanentSlotDBus)
 	return nil
 }
