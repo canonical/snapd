@@ -710,3 +710,46 @@ apps:
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 }
+
+func (s *infoSuite) TestLayoutParsing(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: layout-demo
+layout:
+  /usr:
+    bind: $SNAP/usr
+  /mytmp:
+    type: tmpfs
+    user: nobody
+    group: nobody
+    mode: 1777
+  /mylink:
+    symlink: /link/target
+`))
+	c.Assert(err, IsNil)
+
+	layout := info.Layout
+	c.Assert(layout, NotNil)
+	c.Check(layout["/usr"], DeepEquals, &snap.Layout{
+		Snap:  info,
+		Path:  "/usr",
+		User:  "root",
+		Group: "root",
+		Mode:  0755,
+		Bind:  "$SNAP/usr",
+	})
+	c.Check(layout["/mytmp"], DeepEquals, &snap.Layout{
+		Snap:  info,
+		Path:  "/mytmp",
+		Type:  "tmpfs",
+		User:  "nobody",
+		Group: "nobody",
+		Mode:  01777,
+	})
+	c.Check(layout["/mylink"], DeepEquals, &snap.Layout{
+		Snap:    info,
+		Path:    "/mylink",
+		User:    "root",
+		Group:   "root",
+		Mode:    0755,
+		Symlink: "/link/target",
+	})
+}
