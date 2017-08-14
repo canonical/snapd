@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,11 +45,20 @@ func (s *flockSuite) TestNewFileLock(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func flockSupportsConflictExitCodeSwitch(c *C) bool {
+	output, err := exec.Command("flock", "--help").CombinedOutput()
+	c.Assert(err, IsNil)
+	return bytes.Contains(output, []byte("--conflict-exit-code"))
+}
+
 // Test that Lock and Unlock work as expected.
 func (s *flockSuite) TestLockUnlockWorks(c *C) {
 	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
 		c.Skip("Cannot use this under travis")
 		return
+	}
+	if !flockSupportsConflictExitCodeSwitch(c) {
+		c.Skip("flock too old for this test")
 	}
 
 	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
