@@ -1,4 +1,4 @@
-snapd (2.27.1-1) UNRELEASED; urgency=medium
+snapd (2.27.1-1) unstable; urgency=medium
 
   * New upstream release. (Closes: #868959, #869268, #872071)
   * New changes to upstream sources:
@@ -7,7 +7,7 @@ snapd (2.27.1-1) UNRELEASED; urgency=medium
     - Use upstream version of libseccomp-golang.
   * Do not install ancient ubuntu-core-launcher symlink.
 
- -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Thu, 10 Aug 2017 21:03:57 +1200
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Mon, 14 Aug 2017 21:53:09 +1200
 
 snapd (2.27.1) xenial; urgency=medium
 
