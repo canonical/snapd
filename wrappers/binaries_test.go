@@ -78,7 +78,8 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithCompleters(c *C) {
 	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
-	c.Assert(osutil.FileExists(wrappers.CompleteSh), Equals, true)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteSh), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.CompleteSh, nil, 0644), IsNil)
 	// full completers support -> we get completers \o/
 
 	s.testAddSnapBinariesAndRemove(c)
@@ -86,7 +87,8 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithCompleters(c *C) {
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithExistingCompleters(c *C) {
 	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
-	c.Assert(osutil.FileExists(wrappers.CompleteSh), Equals, true)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteSh), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.CompleteSh, nil, 0644), IsNil)
 	// existing completers -> they're left alone \o/
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.CompletersDir, "hello-snap.world"), nil, 0644), IsNil)
 
@@ -117,7 +119,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C) {
 		} else {
 			target, err := os.Readlink(completer)
 			c.Assert(err, IsNil)
-			c.Check(target, Equals, wrappers.CompleteSh)
+			c.Check(target, Equals, dirs.CompleteSh)
 		}
 	}
 

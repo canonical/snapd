@@ -32,9 +32,6 @@ var (
 	SanitizeDesktopFile    = sanitizeDesktopFile
 	RewriteExecLine        = rewriteExecLine
 	IsValidDesktopFileLine = isValidDesktopFileLine
-
-	// completion
-	CompleteSh = completeSh
 )
 
 func MockKillWait(wait time.Duration) (restore func()) {

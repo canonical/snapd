@@ -47,7 +47,6 @@ var (
 	SnapUdevRulesDir          string
 	SnapKModModulesDir        string
 	LocaleDir                 string
-	CompletersDir             string
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
@@ -81,6 +80,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelper string
+	CompletersDir    string
+	CompleteSh       string
 )
 
 const (
@@ -182,7 +183,6 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
-	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel":
@@ -195,4 +195,6 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
 }

@@ -22,14 +22,11 @@ package wrappers
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
-
-var completeSh = filepath.Join(dirs.SnapMountDir, "core", "current", "usr", "lib", "snapd", "complete.sh")
 
 // AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
 func AddSnapBinaries(s *snap.Info) (err error) {
@@ -47,7 +44,7 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		return err
 	}
 
-	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(completeSh)
+	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
 	for _, app := range s.Apps {
 		if app.IsService() {
 			continue
@@ -67,7 +64,7 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		}
 		// symlink the completion snippet
 		compPath := app.CompleterPath()
-		if err := os.Symlink(completeSh, compPath); err == nil {
+		if err := os.Symlink(dirs.CompleteSh, compPath); err == nil {
 			created = append(created, compPath)
 		} else if !os.IsExist(err) {
 			return err
@@ -79,14 +76,14 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 
 // RemoveSnapBinaries removes the wrapper binaries for the applications from the snap which aren't services from.
 func RemoveSnapBinaries(s *snap.Info) error {
-	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(completeSh)
+	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
 	for _, app := range s.Apps {
 		os.Remove(app.WrapperPath())
 		if noCompletion || app.Completer == "" {
 			continue
 		}
 		compPath := app.CompleterPath()
-		if target, err := os.Readlink(compPath); err == nil && target == completeSh {
+		if target, err := os.Readlink(compPath); err == nil && target == dirs.CompleteSh {
 			os.Remove(compPath)
 		}
 	}
