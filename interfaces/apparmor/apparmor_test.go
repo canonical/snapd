@@ -87,6 +87,7 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplaceWithSnapdDebug(c
 	})
 }
 
+// Tests for Profile.Unload()
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
