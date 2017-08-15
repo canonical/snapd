@@ -76,10 +76,9 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 
 // RemoveSnapBinaries removes the wrapper binaries for the applications from the snap which aren't services from.
 func RemoveSnapBinaries(s *snap.Info) error {
-	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
 	for _, app := range s.Apps {
 		os.Remove(app.WrapperPath())
-		if noCompletion || app.Completer == "" {
+		if app.Completer == "" {
 			continue
 		}
 		compPath := app.CompleterPath()
