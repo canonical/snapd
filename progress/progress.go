@@ -25,7 +25,7 @@ import (
 	"os"
 	"unicode"
 
-	"gopkg.in/cheggaaa/pb.v1"
+	"github.com/cheggaaa/pb"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

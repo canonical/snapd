@@ -1,7 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
-// +build ignore
-
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -35,7 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/seccomp/libseccomp-golang"
+	"github.com/mvo5/libseccomp-golang"
 
 	// forked from "golang.org/x/net/bpf"
 	// until https://github.com/golang/go/issues/20556
