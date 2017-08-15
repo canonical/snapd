@@ -19,7 +19,7 @@
 
 package builtin
 
-const desktopSummary = `allows running in modern Desktop Environments`
+const desktopSummary = `allows access to basic graphical desktop resources`
 
 const desktopBaseDeclarationSlots = `
   desktop:
@@ -29,8 +29,8 @@ const desktopBaseDeclarationSlots = `
 `
 
 const desktopConnectedPlugAppArmor = `
-# Description: Can access modern Desktop Environments such as gnome-shell. To
-# be used with other interfaces (eg, wayland).
+# Description: Can access basic graphical desktop resources. To be used with
+# other interfaces (eg, wayland).
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
