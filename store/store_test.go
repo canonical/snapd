@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -148,6 +148,20 @@ type remoteRepoTestSuite struct {
 var _ = Suite(&remoteRepoTestSuite{})
 
 const (
+	exModel = `type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: baz-3000
+architecture: armhf
+gadget: gadget
+kernel: kernel
+store: my-brand-store-id
+timestamp: 2016-08-20T13:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
+
 	exSerial = `type: serial
 authority-id: my-brand
 brand-id: my-brand
@@ -219,18 +233,27 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
+func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+	model, err := asserts.Decode([]byte(exModel))
+	if err != nil {
+		return nil, err
+	}
+
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), nil
+	return &auth.DeviceSessionRequestParams{
+		Request: sessReq.(*asserts.DeviceSessionRequest),
+		Serial:  serial.(*asserts.Serial),
+		Model:   model.(*asserts.Model),
+	}, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -1526,6 +1549,16 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 		case "/api/v1/auth/nonces":
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case "/api/v1/auth/sessions":
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
 			authorization := r.Header.Get("X-Device-Authorization")
 			if authorization == "" {
 				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)

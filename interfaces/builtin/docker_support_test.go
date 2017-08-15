@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -168,11 +167,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
-
-	udevSpec := &udev.Specification{}
-	err = udevSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 0)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {

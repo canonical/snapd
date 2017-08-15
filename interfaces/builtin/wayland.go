@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,35 +19,29 @@
 
 package builtin
 
-const uhidSummary = `allows control over UHID devices`
+const waylandSummary = `allows access to compositors supporting wayland protocol`
 
-const uhidBaseDeclarationSlots = `
-  uhid:
+const waylandBaseDeclarationSlots = `
+  wayland:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: true
 `
 
-const uhidConnectedPlugAppArmor = `
-# Description: Allows accessing the UHID to create kernel
-# hid devices from user-space.
+const waylandConnectedPlugAppArmor = `
+# Description: Can access compositors supporting the wayland protocol
 
-  # Requires CONFIG_UHID
-  /dev/uhid rw,
+# Allow access to the wayland compsitor server socket
+owner /run/user/*/wayland-[0-9]* rw,
 `
-
-const uhidConnectedPlugUDev = `KERNEL=="uhid", TAG+="###SLOT_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "uhid",
-		summary:               uhidSummary,
-		implicitOnCore:        true,
+		name:                  "wayland",
+		summary:               waylandSummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  uhidBaseDeclarationSlots,
-		connectedPlugAppArmor: uhidConnectedPlugAppArmor,
-		connectedPlugUDev:     uhidConnectedPlugUDev,
+		baseDeclarationSlots:  waylandBaseDeclarationSlots,
+		connectedPlugAppArmor: waylandConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }

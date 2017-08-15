@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
@@ -569,11 +568,6 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 		snippet += dockerSupportPrivilegedSecComp
 	}
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	//  since docker can be used to add devices to a container so we are intentionally not creating udev rules.
 	return nil
 }
 
