@@ -1,0 +1,23 @@
+Description: modify apparmor rules to work with upstream apparmor implementation
+ The Ubuntu kernel contains apparmor features that have not yet gone upstream.
+ The patch changes the rules to work with the upstream implementation.
+ .
+ NB: this does not actually work, see bugs.debian.org/851473
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: not-needed
+Last-Update: 2018-08-15
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/cmd/snap-confine/snap-confine.apparmor.in
++++ b/cmd/snap-confine/snap-confine.apparmor.in
+@@ -387,4 +387,9 @@
+ 
+     # Allow snap-confine to be killed
+     signal (receive) peer=unconfined,
++
++    # Required when using unpatched upstream kernel
++    capability sys_ptrace,
++    # Debian compiles snap-confine without AppArmor, so allow running snaps unconfined
++    /usr/lib/snapd/snap-exec uxr,
+ }
