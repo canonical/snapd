@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,15 +97,17 @@ type Runner struct {
 
 // NewRunner returns a Runner.
 func NewRunner() *Runner {
-	// TODO: pass TLSConfig with lower-bounded time
-	opts := httputil.ClientOpts{
-		MayLogBody: false,
-	}
-	cli := httputil.NewHTTPClient(&opts)
-	return &Runner{
-		cli:          cli,
+	run := &Runner{
 		sequenceNext: make(map[string]int),
 	}
+	opts := httputil.ClientOpts{
+		MayLogBody: false,
+		TLSConfig: &tls.Config{
+			Time: run.now,
+		},
+	}
+	run.cli = httputil.NewHTTPClient(&opts)
+	return run
 }
 
 var (
@@ -180,6 +183,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 		return nil, nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
@@ -189,6 +200,7 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	case 404:
 		return nil, nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
@@ -249,12 +261,21 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 		return nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
 	case 404:
 		return nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, fmt.Errorf("cannot peek repair headers, unexpected status %d", resp.StatusCode)
 	}
 
@@ -290,8 +311,9 @@ type RepairState struct {
 
 // state holds the atomically updated control state of the runner with sequences of repairs and their states.
 type state struct {
-	Device    deviceInfo                `json:"device"`
-	Sequences map[string][]*RepairState `json:"sequences,omitempty"`
+	Device         deviceInfo                `json:"device"`
+	Sequences      map[string][]*RepairState `json:"sequences,omitempty"`
+	TimeLowerBound time.Time                 `json:"time-lower-bound"`
 }
 
 func (run *Runner) setRepairState(brandID string, state RepairState) {
@@ -318,12 +340,36 @@ func (run *Runner) readState() error {
 	return dec.Decode(&run.state)
 }
 
+func (run *Runner) moveTimeLowerBound(t time.Time) {
+	if t.After(run.state.TimeLowerBound) {
+		run.state.TimeLowerBound = t.UTC()
+	}
+}
+
+var timeNow = time.Now
+
+func (run *Runner) now() time.Time {
+	now := timeNow().UTC()
+	if now.Before(run.state.TimeLowerBound) {
+		return run.state.TimeLowerBound
+	}
+	return now
+}
+
 func (run *Runner) initState() error {
 	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
 		return fmt.Errorf("cannot create repair state directory: %v", err)
 	}
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
+	run.state = state{}
+	// initialize time lower bound with image built time/seed.yaml time
+	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	if err != nil {
+		return err
+	}
+	run.moveTimeLowerBound(info.ModTime())
+	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
 	}
