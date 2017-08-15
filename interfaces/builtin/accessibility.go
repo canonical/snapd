@@ -19,7 +19,7 @@
 
 package builtin
 
-const accessibilitySummary = `allows using desktop accessibility (a11y)`
+const accessibilitySummary = `allows privileged access to input for accessibility`
 
 const accessibilityBaseDeclarationSlots = `
   accessibility:
@@ -31,7 +31,7 @@ const accessibilityBaseDeclarationSlots = `
 
 const accessibilityConnectedPlugAppArmor = `
 # Description: Can access desktop accessibility features. This gives privileged
-# access to the user's input.
+# access to the user's input via a11y.
 
 #include <abstractions/dbus-session-strict>
 dbus (send)

@@ -108,7 +108,7 @@ func (s *AccessibilityInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows using desktop accessibility (a11y)`)
+	c.Assert(si.Summary, Equals, `allows privileged access to input for accessibility`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "accessibility")
 }
 
