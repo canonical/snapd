@@ -1,0 +1,14 @@
+diff --git a/cmd/snap-confine/snap-confine.apparmor.in b/cmd/snap-confine/snap-confine.apparmor.in
+index 5c93982..81562c8 100644
+--- a/cmd/snap-confine/snap-confine.apparmor.in
++++ b/cmd/snap-confine/snap-confine.apparmor.in
+@@ -387,4 +387,9 @@
+ 
+     # Allow snap-confine to be killed
+     signal (receive) peer=unconfined,
++
++    # Required when using unpatched upstream kernel
++    capability sys_ptrace,
++    # Debian compiles snap-confine without AppArmor, so allow running snaps unconfined
++    /usr/lib/snapd/snap-exec uxr,
+ }

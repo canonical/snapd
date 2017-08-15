@@ -1,0 +1,13 @@
+diff --git a/cmd/snap-seccomp/main.go b/cmd/snap-seccomp/main.go
+index ed0ef7f..77d5e69 100644
+--- a/cmd/snap-seccomp/main.go
++++ b/cmd/snap-seccomp/main.go
+@@ -151,7 +151,7 @@ import (
+ 	// FIXME: we want github.com/seccomp/libseccomp-golang but that
+ 	// will not work with trusty because libseccomp-golang checks
+ 	// for the seccomp version and errors if it find one < 2.2.0
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	"github.com/snapcore/snapd/arch"
+ 	"github.com/snapcore/snapd/osutil"
