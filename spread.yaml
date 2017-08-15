@@ -62,9 +62,9 @@ backends:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
-                workers: 2
+                workers: 3
             - opensuse-42.2-64:
-                workers: 1
+                workers: 2
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -347,7 +347,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -374,13 +373,8 @@ suites:
 
     tests/completion/:
         summary: completion tests
-
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -opensuse-*]
-
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
         prepare: |
             . $TESTSLIB/prepare.sh
             prepare_classic
@@ -410,10 +404,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
-        systems: [-opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -432,8 +422,8 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
+        # Test cases are not yet ported to openSUSE that is why we keep
+        # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -opensuse-*]
         restore: |
@@ -516,7 +506,7 @@ suites:
         prepare: |
             . $TESTSLIB/pkgdb.sh
             distro_update_package_db
-            distro_install_package qemu genisoimage sshpass
+            distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
             . $TESTSLIB/pkgdb.sh
