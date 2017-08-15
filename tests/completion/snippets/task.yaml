@@ -6,9 +6,6 @@ prepare: |
       snap try
       mv complexion.bash-completer complexion.bash-completer.orig
       cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" complexion.bash-completer
-      # current ordering should ensure this anyway, but just in case, make sure we're
-      # using complete.sh and not the generated snippet by removing the snippet
-      rm /usr/share/bash-completion/completions/complexion
   )
 
 restore: |
