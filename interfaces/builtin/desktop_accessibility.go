@@ -76,8 +76,6 @@ dbus (send)
 
 # org.a11y.atspi is not designed for application isolation and these rules
 # can be used to send change events for other processes.
-# TODO: verify that these don't need some sort of application key or otherwise
-# aren't safe
 dbus (send)
     bus=accessibility
     path="/org/a11y/atspi/accessible/root"
@@ -103,7 +101,6 @@ dbus (send)
     member="Get{,All}"
     peer=(label=unconfined),
 
-# TODO: what does this do?
 dbus (send)
     bus=accessibility
     path="/org/a11y/atspi/cache"
