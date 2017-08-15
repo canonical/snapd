@@ -50,7 +50,13 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 `
 
 const broadcomAsicControlConnectedPlugUDev = `
-SUBSYSTEM=="net", KERNEL=="bdev", TAG+="###SLOT_SECURITY_TAGS###"
+# The content of the udev database on a machine with a kernel built for openswitch
+# http://paste.ubuntu.com/25262850/
+# The first rule for matched device http://paste.ubuntu.com/25262846/
+# The second rule for matched device http://paste.ubuntu.com/25262841/
+
+KERNEL=="0000:01:00.0", SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde", TAG+="###SLOT_SECURITY_TAGS###"
+SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
 `
 
 // The upstream linux kernel doesn't come with support for the
