@@ -1,8 +1,15 @@
-diff --git a/i18n/i18n.go b/i18n/i18n.go
-index b03278b..37d0e1b 100644
+Description: disable i18n
+ The i18n support in snapd depends on a package that has not yet been packaged.
+ Disable for now until we get the ITP done.
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: not-needed
+Last-Update: 2018-08-15
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/i18n/i18n.go
 +++ b/i18n/i18n.go
-@@ -21,86 +21,7 @@ package i18n
+@@ -21,86 +21,7 @@
  
  //go:generate update-pot
  
@@ -90,9 +97,6 @@ index b03278b..37d0e1b 100644
 -	return locale.NGettext(msgid, msgidPlural, n)
 +	return msgid
  }
-diff --git a/i18n/i18n_test.go b/i18n/i18n_test.go
-deleted file mode 100644
-index 81cb050..0000000
 --- a/i18n/i18n_test.go
 +++ /dev/null
 @@ -1,162 +0,0 @@
@@ -258,9 +262,6 @@ index 81cb050..0000000
 -	var Gtest = G
 -	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
 -}
-diff --git a/tests/main/i18n/task.yaml b/tests/main/i18n/task.yaml
-deleted file mode 100644
-index db2c060..0000000
 --- a/tests/main/i18n/task.yaml
 +++ /dev/null
 @@ -1,16 +0,0 @@

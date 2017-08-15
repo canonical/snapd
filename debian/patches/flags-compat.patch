@@ -1,8 +1,13 @@
-diff --git a/progress/progress.go b/progress/progress.go
-index 820c6db..8722632 100644
+Description: update a test that fails with a new golang-go-flags-dev
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: not-needed
+Last-Update: 2017-08-15
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/progress/progress.go
 +++ b/progress/progress.go
-@@ -25,7 +25,7 @@ import (
+@@ -25,7 +25,7 @@
  	"os"
  	"unicode"
  
