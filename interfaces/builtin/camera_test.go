@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,71 +29,71 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type AlsaInterfaceSuite struct {
+type CameraInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AlsaInterfaceSuite{
-	iface: builtin.MustInterface("alsa"),
+var _ = Suite(&CameraInterfaceSuite{
+	iface: builtin.MustInterface("camera"),
 })
 
-const alsaConsumerYaml = `name: consumer
+const cameraConsumerYaml = `name: consumer
 apps:
  app:
-  plugs: [alsa]
+  plugs: [camera]
 `
 
-const alsaCoreYaml = `name: core
+const cameraCoreYaml = `name: core
 type: os
 slots:
-  alsa:
+  camera:
 `
 
-func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, alsaConsumerYaml, nil, "alsa")
-	s.slot = MockSlot(c, alsaCoreYaml, nil, "alsa")
+func (s *CameraInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, cameraConsumerYaml, nil, "camera")
+	s.slot = MockSlot(c, cameraCoreYaml, nil, "camera")
 }
 
-func (s *AlsaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "alsa")
+func (s *CameraInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "camera")
 }
 
-func (s *AlsaInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "alsa",
-		Interface: "alsa",
+		Name:      "camera",
+		Interface: "camera",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"alsa slots are reserved for the core snap")
+		"camera slots are reserved for the core snap")
 }
 
-func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *CameraInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/snd/* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/video[0-9]* rw")
 }
 
-func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {
+func (s *CameraInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to raw ALSA devices`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "alsa")
+	c.Assert(si.Summary, Equals, `allows access to all cameras`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "camera")
 }
 
-func (s *AlsaInterfaceSuite) TestAutoConnect(c *C) {
+func (s *CameraInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
-func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
+func (s *CameraInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
