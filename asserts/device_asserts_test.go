@@ -348,7 +348,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand or the "generic" authority: "random" != "brand-id1"`},
+		{"authority-id: brand-id1\n", "authority-id: random\n", `serial assertions must be generic or signed by the brand \("brand-id1"\) instead of "random"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: _what\n", `"model" header contains invalid characters: "_what"`},

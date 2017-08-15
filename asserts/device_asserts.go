@@ -279,7 +279,7 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	brand := assert.HeaderString("brand-id")
 	if brand != authorityID && authorityID != "generic" {
-		return nil, fmt.Errorf(`authority-id and brand-id must match, serial assertions are expected to be signed by the brand or the "generic" authority: %q != %q`, authorityID, brand)
+		return nil, fmt.Errorf(`serial assertions must be generic or signed by the brand (%q) instead of %q`, brand, authorityID)
 	}
 
 	_, err := checkModel(assert.headers)
