@@ -90,7 +90,7 @@ func (s *BroadcomAsicControlSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="net", KERNEL=="bdev", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="snap_consumer_app"`)
 }
 
 func (s *BroadcomAsicControlSuite) TestKModSpec(c *C) {
