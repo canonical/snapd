@@ -101,10 +101,7 @@ dbus (send)
   member="Get{,All}"
   peer=(label=unconfined),
 
-# Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
-# only in environments supporting dbus-send (eg, X11). In the future once
-# snappy's xdg-open supports all snaps images, this access may move to another
-# interface.
+# Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
