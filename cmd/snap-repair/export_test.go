@@ -20,7 +20,11 @@
 package main
 
 import (
+	"time"
+
 	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
@@ -53,6 +57,16 @@ func MockMaxRepairScriptSize(maxSize int) (restore func()) {
 	}
 }
 
+func MockTimeNow(f func() time.Time) (restore func()) {
+	origTimeNow := timeNow
+	timeNow = f
+	return func() { timeNow = origTimeNow }
+}
+
+func (run *Runner) TLSTime() time.Time {
+	return httputil.BaseTransport(run.cli).TLSClientConfig.Time()
+}
+
 func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
@@ -64,6 +78,10 @@ func (run *Runner) SetStateModified(modified bool) {
 func (run *Runner) SetBrandModel(brand, model string) {
 	run.state.Device.Brand = brand
 	run.state.Device.Model = model
+}
+
+func (run *Runner) TimeLowerBound() time.Time {
+	return run.state.TimeLowerBound
 }
 
 func (run *Runner) Sequence(brand string) []*RepairState {
