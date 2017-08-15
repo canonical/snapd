@@ -30,54 +30,54 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type DesktopAccessibilityInterfaceSuite struct {
+type AccessibilityInterfaceSuite struct {
 	iface    interfaces.Interface
 	coreSlot *interfaces.Slot
 	plug     *interfaces.Plug
 }
 
-var _ = Suite(&DesktopAccessibilityInterfaceSuite{
-	iface: builtin.MustInterface("desktop-accessibility"),
+var _ = Suite(&AccessibilityInterfaceSuite{
+	iface: builtin.MustInterface("accessibility"),
 })
 
-const desktopAccessibilityConsumerYaml = `name: consumer
+const accessibilityConsumerYaml = `name: consumer
 apps:
  app:
-  plugs: [desktop-accessibility]
+  plugs: [accessibility]
 `
 
-const desktopAccessibilityCoreYaml = `name: core
+const accessibilityCoreYaml = `name: core
 type: os
 slots:
-  desktop-accessibility:
+  accessibility:
 `
 
-func (s *DesktopAccessibilityInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, desktopAccessibilityConsumerYaml, nil, "desktop-accessibility")
-	s.coreSlot = MockSlot(c, desktopAccessibilityCoreYaml, nil, "desktop-accessibility")
+func (s *AccessibilityInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, accessibilityConsumerYaml, nil, "accessibility")
+	s.coreSlot = MockSlot(c, accessibilityCoreYaml, nil, "accessibility")
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "desktop-accessibility")
+func (s *AccessibilityInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "accessibility")
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *AccessibilityInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
-	// desktop-accessibility slot currently only used with core
+	// accessibility slot currently only used with core
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "desktop-accessibility",
-		Interface: "desktop-accessibility",
+		Name:      "accessibility",
+		Interface: "accessibility",
 	}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"desktop-accessibility slots are reserved for the core snap")
+		"accessibility slots are reserved for the core snap")
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *AccessibilityInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *AccessibilityInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
@@ -91,7 +91,7 @@ func (s *DesktopAccessibilityInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *AccessibilityInterfaceSuite) TestSecCompSpec(c *C) {
 	// connected plug to core slot
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
@@ -104,14 +104,14 @@ func (s *DesktopAccessibilityInterfaceSuite) TestSecCompSpec(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestStaticInfo(c *C) {
+func (s *AccessibilityInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows using desktop accessibility`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop-accessibility")
+	c.Assert(si.Summary, Equals, `allows using desktop accessibility (a11y)`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "accessibility")
 }
 
-func (s *DesktopAccessibilityInterfaceSuite) TestInterfaces(c *C) {
+func (s *AccessibilityInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

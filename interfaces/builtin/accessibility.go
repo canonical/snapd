@@ -19,17 +19,17 @@
 
 package builtin
 
-const desktopAccessibilitySummary = `allows using desktop accessibility`
+const accessibilitySummary = `allows using desktop accessibility (a11y)`
 
-const desktopAccessibilityBaseDeclarationSlots = `
-  desktop-accessibility:
+const accessibilityBaseDeclarationSlots = `
+  accessibility:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const desktopAccessibilityConnectedPlugAppArmor = `
+const accessibilityConnectedPlugAppArmor = `
 # Description: Can access desktop accessibility features. This gives privileged
 # access to the user's input.
 
@@ -109,7 +109,7 @@ dbus (send)
     peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
-const desktopAccessibilityConnectedPlugSecComp = `
+const accessibilityConnectedPlugSecComp = `
 # Description: Can access desktop accessibility features. This gives privileged
 # access to the user's input.
 listen
@@ -119,12 +119,12 @@ accept4
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "desktop-accessibility",
-		summary:               desktopAccessibilitySummary,
+		name:                  "accessibility",
+		summary:               accessibilitySummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  desktopAccessibilityBaseDeclarationSlots,
-		connectedPlugAppArmor: desktopAccessibilityConnectedPlugAppArmor,
-		connectedPlugSecComp:  desktopAccessibilityConnectedPlugSecComp,
+		baseDeclarationSlots:  accessibilityBaseDeclarationSlots,
+		connectedPlugAppArmor: accessibilityConnectedPlugAppArmor,
+		connectedPlugSecComp:  accessibilityConnectedPlugSecComp,
 		reservedForOS:         true,
 	})
 }
