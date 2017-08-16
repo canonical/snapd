@@ -238,6 +238,12 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 
 func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
 	if _, ok := headers["authority-id"]; !ok {
+		// copy before modifying
+		headers2 := make(map[string]interface{}, len(headers)+1)
+		for h, v := range headers {
+			headers2[h] = v
+		}
+		headers = headers2
 		headers["authority-id"] = db.AuthorityID
 	}
 	if keyID == "" {
