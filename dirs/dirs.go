@@ -85,6 +85,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelper string
+	CompletersDir    string
+	CompleteSh       string
 )
 
 const (
@@ -203,4 +205,6 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
 }

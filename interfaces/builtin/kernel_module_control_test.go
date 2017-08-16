@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,28 +36,25 @@ type KernelModuleControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-const kernelmodctlMockPlugSnapInfoYaml = `name: other
-version: 1.0
-apps:
- app2:
-  command: foo
-  plugs: [kernel-module-control]
-`
-
 var _ = Suite(&KernelModuleControlInterfaceSuite{
 	iface: builtin.MustInterface("kernel-module-control"),
 })
 
+const kernelmodctlConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [kernel-module-control]
+`
+
+const kernelmodctlCoreYaml = `name: core
+type: os
+slots:
+  kernel-module-control:
+`
+
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "kernel-module-control",
-			Interface: "kernel-module-control",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, kernelmodctlMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["kernel-module-control"]}
+	s.plug = MockPlug(c, kernelmodctlConsumerYaml, nil, "kernel-module-control")
+	s.slot = MockSlot(c, kernelmodctlCoreYaml, nil, "kernel-module-control")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {
@@ -81,19 +77,29 @@ func (s *KernelModuleControlInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability sys_module,")
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability sys_module,")
+}
 
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "finit_module\n")
+func (s *KernelModuleControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "finit_module\n")
+}
+
+func (s *KernelModuleControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows insertion, removal and querying of kernel modules`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "kernel-module-control")
+}
+
+func (s *KernelModuleControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestInterfaces(c *C) {
