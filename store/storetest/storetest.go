@@ -30,13 +30,14 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-var _ snapstate.StoreService = storetest.Store{}
-
 // Store implements a snapstate.StoreService where every single method panics.
 //
 // Embed in your own fakeStore to avoid having to keep up with that interface's
 // evolution when it's unrelated to your code.
 type Store struct{}
+
+// ensure we conform
+var _ snapstate.StoreService = Store{}
 
 func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
@@ -74,6 +75,10 @@ func (Store) Sections(*auth.UserState) ([]string, error) {
 	panic("Store.Sections not expected")
 }
 
-func (Store) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Store.Assertion not expected")
+}
+
+func (Store) SnapCommands() (map[string][]string, error) {
+	panic("fakeStore.SnapCommands not expected")
 }
