@@ -439,12 +439,14 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 	defer os.Chmod(dirs.SnapRepairDir, 0775)
 
 	// no error because this is a no-op
-	runner.SaveState()
+	err = runner.SaveState()
+	c.Check(err, IsNil)
 
 	// mark as modified
 	runner.SetStateModified(true)
 
-	c.Check(runner.SaveState, PanicMatches, `cannot save repair state:.*`)
+	err = runner.SaveState()
+	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }
 
 func (s *runnerSuite) TestSaveState(c *C) {
@@ -459,7 +461,8 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	// mark as modified
 	runner.SetStateModified(true)
 
-	runner.SaveState()
+	err = runner.SaveState()
+	c.Assert(err, IsNil)
 
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
@@ -743,4 +746,55 @@ AXNpZw==`
 	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":1,"status":1}]}}`)
+}
+
+func (s *runnerSuite) TestNext500(c *C) {
+	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err := runner.Next("canonical")
+	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
+}
+
+func (s *runnerSuite) TestNextSaveStateError(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 33
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	// break SaveState
+	err := os.Chmod(dirs.SnapRepairDir, 0555)
+	c.Assert(err, IsNil)
+	defer os.Chmod(dirs.SnapRepairDir, 0775)
+
+	_, err = runner.Next("canonical")
+	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }

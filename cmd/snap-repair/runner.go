@@ -275,8 +275,7 @@ func (run *Runner) initState() error {
 	os.Remove(dirs.SnapRepairStateFile)
 	// TODO: init Device
 	run.stateModified = true
-	run.SaveState()
-	return nil
+	return run.SaveState()
 }
 
 // LoadState loads the repairs' state from disk, and (re)initializes it if it's missing or corrupted.
@@ -293,19 +292,20 @@ func (run *Runner) LoadState() error {
 }
 
 // SaveState saves the repairs' state to disk.
-func (run *Runner) SaveState() {
+func (run *Runner) SaveState() error {
 	if !run.stateModified {
-		return
+		return nil
 	}
 	m, err := json.Marshal(&run.state)
 	if err != nil {
-		panic(fmt.Sprintf("cannot marshal repair state: %v", err))
+		return fmt.Errorf("cannot marshal repair state: %v", err)
 	}
 	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0)
 	if err != nil {
-		panic(fmt.Sprintf("cannot save repair state: %v", err))
+		return fmt.Errorf("cannot save repair state: %v", err)
 	}
 	run.stateModified = false
+	return nil
 }
 
 func stringList(headers map[string]interface{}, name string) ([]string, error) {
@@ -480,12 +480,20 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 	}
 	for {
 		repair, err := run.makeReady(brandID, sequenceNext)
-		if err == ErrRepairNotFound {
-			run.SaveState()
-			return nil, ErrRepairNotFound
-		}
-		if err != nil && err != errSkip {
+		// SaveState is a no-op unless makeReady modified the state
+		stateErr := run.SaveState()
+		if err != nil && err != errSkip && err != ErrRepairNotFound {
+			// err is a non trivial error, just log the SaveState error and report err
+			if stateErr != nil {
+				logger.Noticef("%v", stateErr)
+			}
 			return nil, err
+		}
+		if stateErr != nil {
+			return nil, stateErr
+		}
+		if err == ErrRepairNotFound {
+			return nil, ErrRepairNotFound
 		}
 
 		sequenceNext += 1
@@ -493,7 +501,6 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 		if err == errSkip {
 			continue
 		}
-		run.SaveState()
 		return repair, nil
 	}
 }
