@@ -24,11 +24,18 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
+var _ snapstate.StoreService = storetest.Store{}
+
+// Store implements a snapstate.StoreService where every single method panics.
+//
+// Embed in your own fakeStore to avoid having to keep up with that interface's
+// evolution when it's unrelated to your code.
 type Store struct{}
 
 func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
