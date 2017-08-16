@@ -5,14 +5,16 @@ Forwarded: not-needed
 Last-Update: 2017-08-15
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/progress/progress.go
-+++ b/progress/progress.go
-@@ -25,7 +25,7 @@
- 	"os"
- 	"unicode"
+
+--- a/cmd/snap/cmd_interfaces_test.go
++++ b/cmd/snap/cmd_interfaces_test.go
+@@ -62,7 +62,8 @@
+       -i=                          Constrain listing to specific interfaces
  
--	"github.com/cheggaaa/pb"
-+	"gopkg.in/cheggaaa/pb.v1"
- 	"golang.org/x/crypto/ssh/terminal"
- )
- 
+ [interfaces command arguments]
+-  <snap>:<slot or plug>:           Constrain listing to a specific snap or snap:name
++  <snap>:<slot or plug>:           Constrain listing to a specific snap or
++                                   snap:name
+ `
+ 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
+ 	c.Assert(err.Error(), Equals, msg)
