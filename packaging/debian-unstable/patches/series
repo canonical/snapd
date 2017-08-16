@@ -1,5 +1,5 @@
 apparmor-compat.patch
 disable-i18n.patch
 disable-seccomp-tests.patch
-flags-compat.patch
 no-seccomp-fork.patch
+pb.v1-canonical-path.patch

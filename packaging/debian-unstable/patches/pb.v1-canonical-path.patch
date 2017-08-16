@@ -1,0 +1,20 @@
+Description: switch to canonical path for gopkg.in/cheggaaa/pb.v1
+ This library can be fetched from two different locations with 'go get' but
+ only one of them is available in Debian.
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Forwarded: https://github.com/snapcore/snapd/pull/3733
+Applied-Upstream: https://github.com/snapcore/snapd/commit/f4ebd95f583db0eedf719e6bdd98b322664c8d80
+Last-Update: 2017-08-17
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/progress/progress.go
++++ b/progress/progress.go
+@@ -25,7 +25,7 @@
+ 	"os"
+ 	"unicode"
+ 
+-	"github.com/cheggaaa/pb"
++	"gopkg.in/cheggaaa/pb.v1"
+ 	"golang.org/x/crypto/ssh/terminal"
+ )
+ 
