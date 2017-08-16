@@ -32,7 +32,7 @@ prepare: |
     env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
     env DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID"
     script
-        $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
+        $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
     end script
     EOF
         initctl reload-configuration
@@ -42,7 +42,7 @@ prepare: |
                     --setenv=DISPLAY=$DISPLAY \
                     --setenv=DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
                     --setenv=DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID \
-                    $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
+                    $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
     fi
 
 restore: |

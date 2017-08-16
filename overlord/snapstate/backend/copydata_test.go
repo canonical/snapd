@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -444,4 +445,105 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	// copy data will fail
 	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
+}
+
+func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+
+	s.populateData(c, snap.R(10))
+	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
+	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+
+	// sanity check: the 20 dirs don't exist yet (but 10 do)
+	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
+		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
+		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
+	}
+
+	c.Assert(os.Chmod(filepath.Join(homedir2, "hello", "10", "canary.home"), 0), IsNil)
+
+	// try to copy data
+	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Assert(err, NotNil)
+
+	// the copy data failed, so check it cleaned up after itself (but not too much!)
+	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
+		c.Check(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
+		c.Check(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
+	}
+}
+
+func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+
+	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
+	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
+	c.Assert(os.MkdirAll(v1.DataDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(v1.CommonDataDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.DataDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataDir(), "canary.common"), nil, 0644), IsNil)
+
+	// the data is there
+	for _, fn := range []string{
+		filepath.Join(v1.DataDir(), "canary.txt"),
+		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(homedir1, "hello", "10", "canary.home"),
+		filepath.Join(homedir2, "hello", "10", "canary.home"),
+	} {
+		c.Assert(osutil.FileExists(fn), Equals, true, Commentf(fn))
+	}
+
+	// copy data works
+	err := s.be.CopySnapData(v1, v1, &s.nullProgress)
+	c.Assert(err, IsNil)
+
+	// the data is still there :-)
+	for _, fn := range []string{
+		filepath.Join(v1.DataDir(), "canary.txt"),
+		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(homedir1, "hello", "10", "canary.home"),
+		filepath.Join(homedir2, "hello", "10", "canary.home"),
+	} {
+		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
+	}
+
+}
+
+func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+
+	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
+	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
+	c.Assert(os.MkdirAll(v1.DataDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(v1.CommonDataDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.DataDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataDir(), "canary.common"), nil, 0644), IsNil)
+
+	// the data is there
+	for _, fn := range []string{
+		filepath.Join(v1.DataDir(), "canary.txt"),
+		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(homedir1, "hello", "10", "canary.home"),
+		filepath.Join(homedir2, "hello", "10", "canary.home"),
+	} {
+		c.Assert(osutil.FileExists(fn), Equals, true, Commentf(fn))
+	}
+
+	// undo copy data works
+	err := s.be.UndoCopySnapData(v1, v1, &s.nullProgress)
+	c.Assert(err, IsNil)
+
+	// the data is still there :-)
+	for _, fn := range []string{
+		filepath.Join(v1.DataDir(), "canary.txt"),
+		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(homedir1, "hello", "10", "canary.home"),
+		filepath.Join(homedir2, "hello", "10", "canary.home"),
+	} {
+		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
+	}
+
 }

@@ -198,8 +198,8 @@ func (iface *bluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *bluezInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              bluezSummary,
 		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
@@ -233,14 +233,6 @@ func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

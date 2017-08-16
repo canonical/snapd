@@ -235,20 +235,19 @@ func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
 }
 
 func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
-	si := &client.ServiceInfo{
-		Daemon:          "daemon",
-		ServiceFileName: "filename",
-		Enabled:         true,
-		Active:          false,
-	}
-	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello", ServiceInfo: si}, "\t", "\t")
+	buf, err := json.MarshalIndent(client.AppInfo{
+		Snap:    "foo",
+		Name:    "hello",
+		Daemon:  "daemon",
+		Enabled: true,
+		Active:  false,
+	}, "\t", "\t")
 	c.Assert(err, check.IsNil)
 	c.Check(string(buf), check.Equals, `{
+		"snap": "foo",
 		"name": "hello",
 		"daemon": "daemon",
-		"service-file-name": "filename",
-		"enabled": true,
-		"active": false
+		"enabled": true
 	}`)
 }
 
@@ -261,7 +260,6 @@ func (cs *clientSuite) TestAppInfoNoDaemonNotService(c *check.C) {
 	var app *client.AppInfo
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello"}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
-	c.Check(app.ServiceInfo, check.IsNil)
 	c.Check(app.IsService(), check.Equals, false)
 }
 
@@ -269,7 +267,6 @@ func (cs *clientSuite) TestAppInfoEmptyDaemonNotService(c *check.C) {
 	var app *client.AppInfo
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": ""}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
-	c.Check(app.ServiceInfo, check.NotNil)
 	c.Check(app.IsService(), check.Equals, false)
 }
 
@@ -278,6 +275,5 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
-	c.Check(app.ServiceInfo, check.NotNil)
 	c.Check(app.IsService(), check.Equals, true)
 }

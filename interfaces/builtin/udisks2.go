@@ -358,8 +358,8 @@ func (iface *udisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *udisks2Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              udisks2Summary,
 		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
@@ -403,14 +403,6 @@ func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 
 func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

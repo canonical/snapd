@@ -15,7 +15,7 @@ execute: |
     echo "===================================="
 
     echo "Abort with valid id - error"
-    subdirPath="$SNAPMOUNTDIR/$SNAP_NAME/current/foo"
+    subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
     mkdir -p "$subdirPath"
     . "$TESTSLIB/snaps.sh"
     if install_local "$SNAP_NAME"; then

@@ -59,8 +59,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
@@ -74,8 +73,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
@@ -89,8 +87,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "read or write path must be set")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
@@ -105,8 +102,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "read or write path must be set")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotHasRelativePath(c *C) {
@@ -120,8 +116,7 @@ slots:
 	for _, rw := range []string{"read: [../foo]", "write: [../bar]"} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
 		slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "content interface path is not clean:.*")
+		c.Assert(slot.Sanitize(s.iface), ErrorMatches, "content interface path is not clean:.*")
 	}
 }
 
@@ -136,8 +131,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
@@ -150,8 +144,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 	c.Assert(plug.Attrs["content"], Equals, plug.Name)
 }
 
@@ -165,8 +158,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content plug must contain target path")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleTargetRelative(c *C) {
@@ -180,8 +172,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content interface target path is not clean:.*")
 }
 
 func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
@@ -194,8 +185,7 @@ apps:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content plug must contain target path")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {

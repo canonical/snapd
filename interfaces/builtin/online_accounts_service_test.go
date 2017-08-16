@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -71,15 +70,8 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
-	c.Assert(s.iface.SanitizePlug(s.plug), IsNil)
-	c.Assert(s.iface.SanitizeSlot(s.slot), IsNil)
-}
-
-func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "online-accounts-service"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "online-accounts-service"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
