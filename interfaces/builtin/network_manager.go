@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -409,7 +408,7 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
-const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="%s"`
+const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###SLOT_SECURITY_TAGS###"`
 
 type networkManagerInterface struct{}
 
@@ -464,9 +463,11 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 }
 
 func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(networkManagerPermanentSlotUdev, tag))
+		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
 	}
 	return nil
 }
