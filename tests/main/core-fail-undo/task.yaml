@@ -42,7 +42,7 @@ execute: |
     snap changes
     failed_task_id=$(snap changes|grep Error|cut -f1 -d' ')
     snap change $failed_task_id
-    daemon_restarts=$(snap change $failed_task_id|grep -c 'Requested daemon restart.')
+    daemon_restarts=$(snap change $failed_task_id|grep -c 'Requested daemon restart')
     if [ "$daemon_restarts" != "2" ]; then
         echo "Expected two daemon restarts, got $daemon_restarts"
         exit 1
