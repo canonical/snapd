@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -1616,4 +1618,52 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
+}
+
+func refreshMisc(aStore StoreService) error {
+	e1 := refreshNames(aStore)
+	e2 := refreshSections(aStore)
+	if e1 != nil {
+		return e1
+	}
+	return e2
+}
+
+func refreshNames(aStore StoreService) error {
+	snapCmds, err := aStore.SnapCommands()
+	if err != nil {
+		return err
+	}
+
+	names := make([]string, len(snapCmds))
+	bufsize := 0
+	n := 0
+	for k := range snapCmds {
+		bufsize += len(k)
+		names[n] = k
+		n++
+	}
+	bufsize += n
+	sort.Strings(names)
+	buf := bytes.NewBuffer(make([]byte, 0, bufsize))
+	for _, name := range names {
+		fmt.Fprintln(buf, name)
+	}
+
+	return osutil.AtomicWriteFile(dirs.SnapNamesFile, buf.Bytes(), 0644, 0)
+}
+
+func refreshSections(aStore StoreService) error {
+	sections, err := aStore.Sections(nil)
+	if err != nil {
+		return err
+	}
+
+	sort.Strings(sections)
+	var buf bytes.Buffer
+	for _, section := range sections {
+		fmt.Fprintln(&buf, section)
+	}
+
+	return osutil.AtomicWriteFile(dirs.SnapSectionsFile, buf.Bytes(), 0644, 0)
 }

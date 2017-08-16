@@ -37,6 +37,7 @@ type StoreService interface {
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
+	SnapCommands() (map[string][]string, error)
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)

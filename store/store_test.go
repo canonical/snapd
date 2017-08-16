@@ -73,17 +73,7 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 	err = cfg.SetAPI(api)
 	c.Assert(err, IsNil)
 
-	uris := []*url.URL{
-		cfg.SearchURI,
-		cfg.DetailsURI,
-		cfg.BulkURI,
-		cfg.SectionsURI,
-		cfg.OrdersURI,
-		cfg.BuyURI,
-		cfg.CustomersMeURI,
-		cfg.AssertionsURI,
-	}
-	for _, uri := range uris {
+	for _, uri := range cfg.apiURIs() {
 		c.Assert(uri, NotNil)
 		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
 	}
@@ -98,7 +88,7 @@ func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	cfg = DefaultConfig()
 	c.Assert(cfg.SetAPI(apiURL()), IsNil)
-	for _, u := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI, cfg.AssertionsURI} {
+	for _, u := range cfg.apiURIs() {
 		c.Check(u.String(), Matches, "https://force-api.local/.*")
 	}
 }
@@ -2541,6 +2531,80 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 	sections, err := repo.Sections(t.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
+}
+
+const mockNamesJSON = `
+{
+  "_embedded": {
+    "clickindex:package": [
+      {
+        "aliases": null,
+        "package_name": "foo"
+      },
+      {
+        "aliases": [
+          {
+            "name": "potato",
+            "target": "baz"
+          },
+          {
+            "name": "meh",
+            "target": "baz"
+          }
+        ],
+        "package_name": "bar"
+      }
+    ]
+  }
+}`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
+	t.testUbuntuStoreSnapCommands(c, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
+	t.testUbuntuStoreSnapCommands(c, false)
+}
+
+func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+	defer release.MockOnClassic(onClassic)()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			query := r.URL.Query()
+			c.Check(query, HasLen, 1)
+			expectedConfinement := "strict"
+			if onClassic {
+				expectedConfinement = "strict,classic"
+			}
+			c.Check(query.Get("confinement"), Equals, expectedConfinement)
+			c.Check(r.URL.Path, Equals, "/snaps/names")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, mockNamesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	commandsURI, _ := serverURL.Parse("/snaps/names")
+	cfg := Config{
+		CommandsURI: commandsURI,
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	commands, err := repo.SnapCommands()
+	c.Check(err, IsNil)
+	// NOTE no actual commands just yet
+	c.Check(commands, DeepEquals, map[string][]string{"foo": nil, "bar": nil})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
