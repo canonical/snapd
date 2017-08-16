@@ -22,6 +22,7 @@ package overlord
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -141,17 +143,45 @@ func New() (*Overlord, error) {
 	o.cmdMgr = cmdstate.Manager(s)
 	o.stateEng.AddManager(o.cmdMgr)
 
-	// setting up the store
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(nil, authContext)
 	s.Lock()
-	snapstate.ReplaceStore(s, sto)
+	defer s.Unlock()
+
+	// Setting up the store.
+	// The store's API address can be reconfigured at runtime but doing so
+	// requires an auth context. Unfortunately, an auth context is only
+	// available to the overlord (because of the device manager).
+	// For now, cache the auth context so it's possible for storestate to
+	// handle the store API change.
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	storestate.ReplaceAuthContext(s, authContext)
+	storeConfig, err := initialStoreConfig(s)
+	if err != nil {
+		return nil, err
+	}
+	sto := storeNew(storeConfig, authContext)
+	storestate.ReplaceStore(s, sto)
+
 	if err := o.snapMgr.GenerateCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
-	s.Unlock()
 
 	return o, nil
+}
+
+func initialStoreConfig(s *state.State) (*store.Config, error) {
+	config := store.DefaultConfig()
+	apiState := storestate.API(s)
+	if apiState != "" {
+		api, err := url.Parse(apiState)
+		if err != nil {
+			return nil, fmt.Errorf("invalid store API URL: %s", err)
+		}
+		err = config.SetAPI(api)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return config, nil
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
