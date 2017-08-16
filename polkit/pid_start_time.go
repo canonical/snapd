@@ -50,15 +50,15 @@ func getStartTimeForPid(pid uint32) (uint64, error) {
 	// processes trying to fool us
 	idx := strings.IndexByte(contents, ')')
 	if idx < 0 {
-		return 0, fmt.Errorf("Error parsing file %s", filename)
+		return 0, fmt.Errorf("cannot parse %s", filename)
 	}
 	idx += 2 // skip ") "
 	if idx > len(contents) {
-		return 0, fmt.Errorf("Error parsing file %s", filename)
+		return 0, fmt.Errorf("cannot parse %s", filename)
 	}
 	tokens := strings.Split(contents[idx:], " ")
 	if len(tokens) < 20 {
-		return 0, fmt.Errorf("Error parsing file %s", filename)
+		return 0, fmt.Errorf("cannot parse %s", filename)
 	}
 	return strconv.ParseUint(tokens[19], 10, 64)
 }
