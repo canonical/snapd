@@ -25,19 +25,19 @@ import (
 	"github.com/godbus/dbus"
 )
 
-type CheckAuthorizationFlags uint32
+type CheckFlags uint32
 
 const (
-	CheckAuthorizationNone                 CheckAuthorizationFlags = 0x00
-	CheckAuthorizationAllowUserInteraction CheckAuthorizationFlags = 0x01
+	CheckNone             CheckFlags = 0x00
+	CheckAllowInteraction CheckFlags = 0x01
 )
 
 var (
-	ErrDismissed           = errors.New("Authorization request dismissed")
-	ErrInteractionRequired = errors.New("Authorization requires interaction")
+	ErrDismissed   = errors.New("Authorization request dismissed")
+	ErrInteraction = errors.New("Authorization requires interaction")
 )
 
-func checkAuthorization(subject subject, actionId string, details map[string]string, flags CheckAuthorizationFlags) (bool, error) {
+func checkAuthorization(subject authSubject, actionId string, details map[string]string, flags CheckFlags) (bool, error) {
 	bus, err := dbus.SystemBus()
 	if err != nil {
 		return false, err
@@ -45,13 +45,13 @@ func checkAuthorization(subject subject, actionId string, details map[string]str
 	authority := bus.Object("org.freedesktop.PolicyKit1",
 		"/org/freedesktop/PolicyKit1/Authority")
 
-	var result authorizationResult
+	var result authResult
 	err = authority.Call(
 		"org.freedesktop.PolicyKit1.Authority.CheckAuthorization", 0,
 		subject, actionId, details, flags, "").Store(&result)
 	if err != nil && !result.IsAuthorized {
 		if result.IsChallenge {
-			err = ErrInteractionRequired
+			err = ErrInteraction
 		} else if result.Details["polkit.dismissed"] != "" {
 			err = ErrDismissed
 		}
@@ -61,8 +61,8 @@ func checkAuthorization(subject subject, actionId string, details map[string]str
 
 // CheckAuthorizationForPid queries polkit to determine whether a process is
 // authorized to perform an action.
-func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags CheckAuthorizationFlags) (bool, error) {
-	subject := subject{
+func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags CheckFlags) (bool, error) {
+	subject := authSubject{
 		Kind:    "unix-process",
 		Details: make(map[string]dbus.Variant),
 	}
@@ -75,12 +75,12 @@ func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]st
 	return checkAuthorization(subject, actionId, details, flags)
 }
 
-type subject struct {
+type authSubject struct {
 	Kind    string
 	Details map[string]dbus.Variant
 }
 
-type authorizationResult struct {
+type authResult struct {
 	IsAuthorized bool
 	IsChallenge  bool
 	Details      map[string]string

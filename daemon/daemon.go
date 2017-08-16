@@ -78,8 +78,8 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
-	// can polkit grant access?
-	ActionID string
+	// can polkit grant access? set to polkit action ID if so
+	PolkitOK string
 
 	d *Daemon
 }
@@ -100,8 +100,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 			return true
 		}
 
-		if c.ActionID != "" {
-			if authorized, err := polkitCheckAuthorizationForPid(pid, c.ActionID, nil, polkit.CheckAuthorizationAllowUserInteraction); err == nil {
+		if c.PolkitOK != "" {
+			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, polkit.CheckAllowInteraction); err == nil {
 				if authorized {
 					// polkit says user is authorised
 					return true

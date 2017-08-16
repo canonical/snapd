@@ -53,7 +53,7 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckAuthorizationFlags) (bool, error) {
+func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	return s.authorized, s.err
 }
 
@@ -219,7 +219,7 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 
 func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
-	cmd := &Command{d: newTestDaemon(c), ActionID: "polkit.action"}
+	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 
 	// polkit says user is not authorised
 	s.authorized = false
