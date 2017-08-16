@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -290,12 +289,12 @@ LABEL="ofono_speedup_end"
 `
 
 const ofonoPermanentSlotUDevTag = `
-KERNEL=="tty[A-RT-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="%[1]s"
-KERNEL=="tun",         TAG+="%[1]s"
-KERNEL=="tun[0-9]*",   TAG+="%[1]s"
-KERNEL=="dsp",         TAG+="%[1]s"
-KERNEL=="ttyLTM[0-9]", TAG+="%[1]s"
-KERNEL=="ttyUSB[0-9]", TAG+="%[1]s"
+KERNEL=="tty[A-RT-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="tun",         TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="tun[0-9]*",   TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="dsp",         TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="ttyLTM[0-9]", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="ttyUSB[0-9]", TAG+="###SLOT_SECURITY_TAGS###"
 `
 
 type ofonoInterface struct{}
@@ -335,10 +334,12 @@ func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *i
 }
 
 func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
 	udevRule := ofonoPermanentSlotUDev
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule += fmt.Sprintf(ofonoPermanentSlotUDevTag, tag)
+		udevRule += strings.Replace(ofonoPermanentSlotUDevTag, old, tag, -1)
+		spec.AddSnippet(udevRule)
 	}
 	spec.AddSnippet(udevRule)
 	return nil

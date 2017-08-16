@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -127,9 +127,9 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const pulseaudioPermanentSlotUdev = `
-KERNEL=="controlC[0-9]*",        TAG+="%[1]s"
-KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="%[1]s"
-KERNEL=="timer",                 TAG+="%[1]s"
+KERNEL=="controlC[0-9]*",        TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="timer",                 TAG+="###SLOT_SECURITY_TAGS###"
 `
 
 type pulseAudioInterface struct{}
@@ -155,9 +155,11 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 }
 
 func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(pulseaudioPermanentSlotUdev, tag))
+		udevRule := strings.Replace(pulseaudioPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
 	}
 	return nil
 }
