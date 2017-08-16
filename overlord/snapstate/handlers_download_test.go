@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -49,7 +50,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
 	}
-	snapstate.ReplaceStore(s.state, s.fakeStore)
+	storestate.ReplaceStore(s.state, s.fakeStore)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
