@@ -198,6 +198,19 @@ apps:
 	c.Assert(err, ErrorMatches, "content plug must contain target path")
 }
 
+func (s *ContentSuite) TestSanitizeSlotNilAttrMap(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+apps:
+  foo:
+    command: foo
+    slots: [content]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: info.Slots["content"]}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
+}
+
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
 	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
