@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -62,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var api = []*Command{
@@ -86,6 +88,8 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	appsCmd,
+	logsCmd,
 	debugCmd,
 }
 
@@ -140,6 +144,19 @@ var (
 		POST:   postSnap,
 	}
 
+	appsCmd = &Command{
+		Path:   "/v2/apps",
+		UserOK: true,
+		GET:    getAppsInfo,
+		POST:   postApps,
+	}
+
+	logsCmd = &Command{
+		Path:   "/v2/logs",
+		UserOK: true,
+		GET:    getLogs,
+	}
+
 	snapConfCmd = &Command{
 		Path: "/v2/snaps/{name}/conf",
 		GET:  getSnapConf,
@@ -149,14 +166,16 @@ var (
 	interfacesCmd = &Command{
 		Path:   "/v2/interfaces",
 		UserOK: true,
-		GET:    getInterfaces,
+		GET:    interfacesConnectionsMultiplexer,
 		POST:   changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/v2/assertions",
-		POST: doAssert,
+		Path:   "/v2/assertions",
+		UserOK: true,
+		GET:    getAssertTypeNames,
+		POST:   doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
@@ -462,7 +481,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 
 		return InternalError("%v", err)
@@ -614,7 +633,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
 		if err == store.ErrSnapNotFound {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1112,7 +1131,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	switch err {
 	case store.ErrSnapNotFound:
-		return SnapNotFound(err)
+		return SnapNotFound(inst.Snaps[0], err)
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1492,7 +1511,7 @@ func iconGet(st *state.State, name string) Response {
 	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
-			return SnapNotFound(err)
+			return SnapNotFound(name, err)
 		}
 		return InternalError("%v", err)
 	}
@@ -1574,7 +1593,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		if err == state.ErrNoState {
-			return SnapNotFound(err)
+			return SnapNotFound(snapName, err)
 		} else {
 			return InternalError("%v", err)
 		}
@@ -1590,8 +1609,41 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-// getInterfaces returns all plugs and slots.
+// interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
+func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		return getLegacyConnections(c, r, user)
+	} else {
+		return getInterfaces(c, r, user)
+	}
+}
+
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	q := r.URL.Query()
+	pselect := q.Get("select")
+	if pselect != "all" && pselect != "connected" {
+		return BadRequest("unsupported select qualifier")
+	}
+	var names []string
+	namesStr := q.Get("names")
+	if namesStr != "" {
+		names = strings.Split(namesStr, ",")
+	}
+
+	opts := &interfaces.InfoOptions{
+		Names:     names,
+		Doc:       q.Get("doc") == "true",
+		Plugs:     q.Get("plugs") == "true",
+		Slots:     q.Get("slots") == "true",
+		Connected: pselect == "connected",
+	}
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Info(opts), nil)
+}
+
+func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
 }
@@ -1714,6 +1766,12 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
+	return SyncResponse(map[string][]string{
+		"types": asserts.TypeNames(),
+	}, nil)
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2513,4 +2571,156 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+
+	opts := appInfoOptions{}
+	switch sel := query.Get("select"); sel {
+	case "":
+		// nothing to do
+	case "service":
+		opts.service = true
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+}
+
+func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	n := "10"
+	if s := query.Get("n"); s != "" {
+		m, err := strconv.ParseInt(s, 0, 32)
+		if err != nil {
+			return BadRequest(`invalid value for n: %q: %v`, s, err)
+		}
+		if m < 0 {
+			n = "all"
+		} else {
+			n = s
+		}
+	}
+	follow := false
+	if s := query.Get("follow"); s != "" {
+		f, err := strconv.ParseBool(s)
+		if err != nil {
+			return BadRequest(`invalid value for follow: %q: %v`, s, err)
+		}
+		follow = f
+	}
+
+	// only services have logs for now
+	opts := appInfoOptions{service: true}
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	serviceNames := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		serviceNames[i] = appInfo.ServiceName()
+	}
+
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	reader, err := sysd.LogReader(serviceNames, n, follow)
+	if err != nil {
+		return InternalError("cannot get logs: %v", err)
+	}
+
+	return &journalLineReaderSeqResponse{
+		ReadCloser: reader,
+		follow:     follow,
+	}
+}
+
+type appInstruction struct {
+	Action string   `json:"action"`
+	Names  []string `json:"names"`
+	client.StartOptions
+	client.StopOptions
+	client.RestartOptions
+}
+
+func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
+	var inst appInstruction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into service operation: %v", err)
+	}
+	if len(inst.Names) == 0 {
+		// on POST, don't allow empty to mean all
+		return BadRequest("cannot perform operation on services without a list of services to operate on")
+	}
+
+	st := c.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, inst.Names, appInfoOptions{service: true})
+	if rsp != nil {
+		return rsp
+	}
+	if len(appInfos) == 0 {
+		// can't happen: appInfosFor with a non-empty list of services
+		// shouldn't ever return an empty appInfos with no error response
+		return InternalError("no services found")
+	}
+
+	// the argv to call systemctl will need at most one entry per appInfo,
+	// plus one for "systemctl", one for the action, and sometimes one for
+	// an option. That's a maximum of 3+len(appInfos).
+	argv := make([]string, 2, 3+len(appInfos))
+	argv[0] = "systemctl"
+
+	argv[1] = inst.Action
+	switch inst.Action {
+	case "start":
+		if inst.Enable {
+			argv[1] = "enable"
+			argv = append(argv, "--now")
+		}
+	case "stop":
+		if inst.Disable {
+			argv[1] = "disable"
+			argv = append(argv, "--now")
+		}
+	case "restart":
+		if inst.Reload {
+			argv[1] = "reload-or-restart"
+		}
+	default:
+		return BadRequest("unknown action %q", inst.Action)
+	}
+
+	snapNames := make([]string, 0, len(appInfos))
+	lastName := ""
+	names := make([]string, len(appInfos))
+	for i, svc := range appInfos {
+		argv = append(argv, svc.ServiceName())
+		snapName := svc.Snap.Name()
+		names[i] = snapName + "." + svc.Name
+		if snapName != lastName {
+			snapNames = append(snapNames, snapName)
+			lastName = snapName
+		}
+	}
+
+	desc := fmt.Sprintf("%s of %v", inst.Action, names)
+
+	st.Lock()
+	defer st.Unlock()
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
+		return InternalError(err.Error())
+	}
+
+	ts := cmdstate.Exec(st, desc, argv)
+	chg := st.NewChange("service-control", desc)
+	chg.AddAll(ts)
+	st.EnsureBefore(0)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

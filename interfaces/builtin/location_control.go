@@ -207,8 +207,8 @@ func (iface *locationControlInterface) Name() string {
 	return "location-control"
 }
 
-func (iface *locationControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              locationControlSummary,
 		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
 	}
@@ -242,14 +242,6 @@ func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *locationControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *locationControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
