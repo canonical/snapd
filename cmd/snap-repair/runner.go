@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
@@ -49,8 +50,8 @@ type Runner struct {
 
 	state state
 
-	// nextIdx keeps track of the next internal idx in a brand sequence to considered in this run, see Next.
-	nextIdx map[string]int
+	// sequenceNext keeps track of the next integer id in a brand sequence to considered in this run, see Next.
+	sequenceNext map[string]int
 }
 
 // NewRunner returns a Runner.
@@ -61,10 +62,9 @@ func NewRunner() *Runner {
 	}
 	cli := httputil.NewHTTPClient(&opts)
 	return &Runner{
-		cli:     cli,
-		nextIdx: make(map[string]int),
+		cli:          cli,
+		sequenceNext: make(map[string]int),
 	}
-	// TODO: call LoadState implicitly?
 }
 
 var (
@@ -90,12 +90,13 @@ var (
 )
 
 // Fetch retrieves a stream with the repair with the given ids and any auxiliary assertions.
-func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err error) {
+func (run *Runner) Fetch(brandID, repairID string) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	var r []asserts.Assertion
 	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
 		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
@@ -127,39 +128,40 @@ func (run *Runner) Fetch(brandID, repairID string) (r []asserts.Assertion, err e
 	}, fetchRetryStrategy)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	switch resp.StatusCode {
 	case 200:
 		// ok
 	case 404:
-		return nil, ErrRepairNotFound
+		return nil, nil, ErrRepairNotFound
 	default:
-		return nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
-	if err := checkStreamSanity(brandID, repairID, r); err != nil {
-		return nil, fmt.Errorf("cannot fetch repair, %v", err)
+	repair, aux, err = checkStream(brandID, repairID, r)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
-
-	return r, nil
+	return
 }
 
-func checkStreamSanity(brandID, repairID string, r []asserts.Assertion) error {
+func checkStream(brandID, repairID string, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	if len(r) == 0 {
-		return fmt.Errorf("empty repair assertions stream")
+		return nil, nil, fmt.Errorf("empty repair assertions stream")
 	}
-	repair, ok := r[0].(*asserts.Repair)
+	var ok bool
+	repair, ok = r[0].(*asserts.Repair)
 	if !ok {
-		return fmt.Errorf("unexpected first assertion %q", r[0].Type().Name)
+		return nil, nil, fmt.Errorf("unexpected first assertion %q", r[0].Type().Name)
 	}
 
 	if repair.BrandID() != brandID || repair.RepairID() != repairID {
-		return fmt.Errorf("id mismatch %s/%s != %s/%s", repair.BrandID(), repair.RepairID(), brandID, repairID)
+		return nil, nil, fmt.Errorf("repair id mismatch %s/%s != %s/%s", repair.BrandID(), repair.RepairID(), brandID, repairID)
 	}
 
-	return nil
+	return repair, r[1:], nil
 }
 
 type peekResp struct {
@@ -206,7 +208,7 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 
 	headers = rsp.Headers
 	if headers["brand-id"] != brandID || headers["repair-id"] != repairID {
-		return nil, fmt.Errorf("cannot peek repair headers, id mismatch %s/%s != %s/%s", headers["brand-id"], headers["repair-id"], brandID, repairID)
+		return nil, fmt.Errorf("cannot peek repair headers, repair id mismatch %s/%s != %s/%s", headers["brand-id"], headers["repair-id"], brandID, repairID)
 	}
 
 	return headers, nil
@@ -223,13 +225,13 @@ type RepairStatus int
 
 const (
 	RetryStatus RepairStatus = iota
-	NotApplicableStatus
+	SkipStatus
 	DoneStatus
 )
 
 // RepairState holds the current revision and status of a repair in a sequence of repairs.
 type RepairState struct {
-	Seq      int          `json:"seq"`
+	Sequence int          `json:"sequence"`
 	Revision int          `json:"revision"`
 	Status   RepairStatus `json:"status"`
 }
@@ -252,7 +254,7 @@ func (run *Runner) readState() error {
 
 func (run *Runner) initState() error {
 	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
-		panic(fmt.Sprintf("cannot create repair state directory: %v", err))
+		return fmt.Errorf("cannot create repair state directory: %v", err)
 	}
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
@@ -268,7 +270,9 @@ func (run *Runner) LoadState() error {
 		return nil
 	}
 	// error => initialize from scratch
-	// TODO: log error?
+	if !os.IsNotExist(err) {
+		logger.Noticef("cannor read repair state: %v", err)
+	}
 	return run.initState()
 }
 
@@ -291,13 +295,13 @@ func stringList(headers map[string]interface{}, name string) ([]string, error) {
 	}
 	l, ok := v.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid %q header", name)
+		return nil, fmt.Errorf("header %q is not a list", name)
 	}
 	r := make([]string, len(l))
 	for i, v := range l {
 		s, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid %q header", name)
+			return nil, fmt.Errorf("header %q contains non-string elements", name)
 		}
 		r[i] = s
 	}
@@ -317,41 +321,41 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	return true
 }
 
-var errNotToRun = errors.New("repair is not to run")
+var errSkip = errors.New("repair unnecessary on this system")
 
-func (run *Runner) fetch(brandID string, seq int) (r []asserts.Assertion, err error) {
+func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	repairID := strconv.Itoa(seq)
 	headers, err := run.Peek(brandID, repairID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !run.Applicable(headers) {
-		return nil, errNotToRun
+		return nil, nil, errSkip
 	}
 	return run.Fetch(brandID, repairID)
 }
 
 var errReuse = errors.New("reuse repair on disk")
 
-func (run *Runner) refetch(brandID string, seq, revision int) (r []asserts.Assertion, err error) {
+func (run *Runner) refetch(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	// TODO: the endpoint should support revision based E-Tags and then we
 	// can use them here instead of two requests
 	repairID := strconv.Itoa(seq)
 	headers, err := run.Peek(brandID, repairID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	refetchRevision, ok := headers["revision"]
 	if !ok {
 		refetchRevision = "0"
 	}
 	if refetchRevision == strconv.Itoa(revision) {
-		return nil, errReuse
+		return nil, nil, errReuse
 	}
 	return run.Fetch(brandID, repairID)
 }
 
-func (run *Runner) saveStream(brandID string, seq int, r []asserts.Assertion) error {
+func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, aux []asserts.Assertion) error {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
 	err := os.MkdirAll(d, 0775)
@@ -360,6 +364,7 @@ func (run *Runner) saveStream(brandID string, seq int, r []asserts.Assertion) er
 	}
 	buf := &bytes.Buffer{}
 	enc := asserts.NewEncoder(buf)
+	r := append([]asserts.Assertion{repair}, aux...)
 	for _, a := range r {
 		if err := enc.Encode(a); err != nil {
 			return fmt.Errorf("cannot encode repair assertions %q-%s for saving: %v", brandID, repairID, err)
@@ -369,107 +374,105 @@ func (run *Runner) saveStream(brandID string, seq int, r []asserts.Assertion) er
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
-func (run *Runner) readSavedStream(brandID string, seq, revision int) (r []asserts.Assertion, err error) {
+func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
 	p := filepath.Join(d, fmt.Sprintf("repair.r%d", revision))
 	f, err := os.Open(p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
+
 	dec := asserts.NewDecoder(f)
+	var r []asserts.Assertion
 	for {
 		a, err := dec.Decode()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("cannot decode repair assertions %q-%s from disk: %v", brandID, repairID, err)
+			return nil, nil, fmt.Errorf("cannot decode repair assertions %q-%s from disk: %v", brandID, repairID, err)
 		}
 		r = append(r, a)
 	}
-	if err := checkStreamSanity(brandID, repairID, r); err != nil {
-		return nil, err
-	}
-	return r, nil
+	return checkStream(brandID, repairID, r)
 }
 
-func (run *Runner) makeReady(brandID string, idx int) (state *RepairState, repair *asserts.Repair, err error) {
+func (run *Runner) makeReady(brandID string, sequenceNext int) (state *RepairState, repair *asserts.Repair, err error) {
 	sequence := run.state.Sequences[brandID]
-	var a []asserts.Assertion
-	if idx < len(sequence) {
+	var aux []asserts.Assertion
+	if sequenceNext <= len(sequence) {
 		// consider retries
-		state = sequence[idx]
+		state = sequence[sequenceNext-1]
 		if state.Status != RetryStatus {
-			return nil, nil, errNotToRun
+			return nil, nil, errSkip
 		}
 		var err error
-		a, err = run.refetch(brandID, state.Seq, state.Revision)
+		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
 		if err != nil {
-			// TODO: log error
+			logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
 			// try to use what we have already on disk
-			a, err = run.readSavedStream(brandID, state.Seq, state.Revision)
+			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 	} else {
 		// fetch the next repair in the sequence
-		nextSeq := 0
-		if n := len(sequence); n != 0 {
-			nextSeq = sequence[n-1].Seq
-		}
-		nextSeq += 1
+		// assumes no gaps, each repair id is present so far,
+		// possibly skipped
 		var err error
-		a, err = run.fetch(brandID, nextSeq)
-		if err != nil && err != errNotToRun {
+		repair, aux, err = run.fetch(brandID, sequenceNext)
+		if err != nil && err != errSkip {
 			return nil, nil, err
 		}
 		state = &RepairState{
-			Seq: nextSeq,
+			Sequence: sequenceNext,
 		}
-		if err == errNotToRun {
+		if err == errSkip {
 			// TODO: store headers to justify decision
-			state.Status = NotApplicableStatus
-			return state, nil, errNotToRun
+			state.Status = SkipStatus
+			return state, nil, errSkip
 		}
 	}
 	// TODO: verify with signatures
-	if err := run.saveStream(brandID, state.Seq, a); err != nil {
+	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
 		return nil, nil, err
 	}
-	repair = a[0].(*asserts.Repair)
 	state.Revision = repair.Revision()
 	if !run.Applicable(repair.Headers()) {
-		state.Status = NotApplicableStatus
-		return state, nil, errNotToRun
+		state.Status = SkipStatus
+		return state, nil, errSkip
 	}
 	return state, repair, nil
 }
 
 // Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
 func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
-	nextIdx, _ := run.nextIdx[brandID]
+	sequenceNext := run.sequenceNext[brandID]
+	if sequenceNext == 0 {
+		sequenceNext = 1
+	}
 	for {
-		state, repair, err := run.makeReady(brandID, nextIdx)
+		state, repair, err := run.makeReady(brandID, sequenceNext)
 		if err == ErrRepairNotFound {
 			run.SaveState()
 			return nil, ErrRepairNotFound
 		}
-		if err != nil && err != errNotToRun {
+		if err != nil && err != errSkip {
 			return nil, err
 		}
 		// append state for new repair in sequence
-		if nextIdx == len(run.state.Sequences[brandID]) {
+		if sequenceNext-1 == len(run.state.Sequences[brandID]) {
 			if run.state.Sequences == nil {
 				run.state.Sequences = make(map[string][]*RepairState)
 			}
 			run.state.Sequences[brandID] = append(run.state.Sequences[brandID], state)
 		}
-		nextIdx += 1
-		run.nextIdx[brandID] = nextIdx
-		if err == errNotToRun {
+		sequenceNext += 1
+		run.sequenceNext[brandID] = sequenceNext
+		if err == errSkip {
 			continue
 		}
 		run.SaveState()

@@ -113,11 +113,13 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	a, err := runner.Fetch("canonical", "2")
+	repair, aux, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
-	c.Check(a, HasLen, 1)
-	_, ok := a[0].(*asserts.Repair)
-	c.Check(ok, Equals, true)
+	c.Check(repair, NotNil)
+	c.Check(aux, HasLen, 0)
+	c.Check(repair.BrandID(), Equals, "canonical")
+	c.Check(repair.RepairID(), Equals, "2")
+	c.Check(repair.Body(), DeepEquals, []byte("script\n"))
 }
 
 func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
@@ -138,7 +140,7 @@ func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, `assertion body length 7 exceeds maximum body size 4 for "repair".*`)
 	c.Assert(n, Equals, 1)
 }
@@ -168,7 +170,7 @@ func (s *runnerSuite) TestFetch500(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, "cannot fetch repair, unexpected status 500")
 	c.Assert(n, Equals, 5)
 }
@@ -189,7 +191,7 @@ func (s *runnerSuite) TestFetchEmpty(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -211,7 +213,7 @@ func (s *runnerSuite) TestFetchBroken(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -232,7 +234,7 @@ func (s *runnerSuite) TestFetchNotFound(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 }
@@ -249,8 +251,8 @@ func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "4")
-	c.Assert(err, ErrorMatches, `cannot fetch repair, id mismatch canonical/2 != canonical/4`)
+	_, _, err := runner.Fetch("canonical", "4")
+	c.Assert(err, ErrorMatches, `cannot fetch repair, repair id mismatch canonical/2 != canonical/4`)
 }
 
 func (s *runnerSuite) TestFetchWrongFirstType(c *C) {
@@ -266,7 +268,7 @@ func (s *runnerSuite) TestFetchWrongFirstType(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Fetch("canonical", "2")
+	_, _, err := runner.Fetch("canonical", "2")
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
 }
 
@@ -285,12 +287,11 @@ func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	a, err := runner.Fetch("canonical", "2")
+	repair, aux, err := runner.Fetch("canonical", "2")
 	c.Assert(err, IsNil)
-	c.Check(a, HasLen, 2)
-	_, ok := a[0].(*asserts.Repair)
-	c.Check(ok, Equals, true)
-	_, ok = a[1].(*asserts.AccountKey)
+	c.Check(repair, NotNil)
+	c.Check(aux, HasLen, 1)
+	_, ok := aux[0].(*asserts.AccountKey)
 	c.Check(ok, Equals, true)
 }
 
@@ -388,7 +389,7 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
 	_, err := runner.Peek("canonical", "4")
-	c.Assert(err, ErrorMatches, `cannot peek repair headers, id mismatch canonical/2 != canonical/4`)
+	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
 func (s *runnerSuite) TestLoadState(c *C) {
@@ -399,7 +400,7 @@ func (s *runnerSuite) TestLoadState(c *C) {
 	runner := repair.NewRunner()
 	err = runner.LoadState()
 	c.Assert(err, IsNil)
-	brand, model := runner.Device()
+	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model")
 }
@@ -413,7 +414,7 @@ func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
 	// TODO: init state will do more later
-	brand, model := runner.Device()
+	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "")
 	c.Check(model, Equals, "")
 }
@@ -421,9 +422,11 @@ func (s *runnerSuite) TestLoadStateInitState(c *C) {
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
 	err := os.Chmod(s.tmpdir, 0555)
 	c.Assert(err, IsNil)
+	defer os.Chmod(s.tmpdir, 0775)
 
 	runner := repair.NewRunner()
-	c.Check(runner.LoadState, PanicMatches, `cannot create repair state directory:.*`)
+	err = runner.LoadState()
+	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
 }
 
 func (s *runnerSuite) TestSaveStateFail(c *C) {
@@ -443,16 +446,16 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 
-	runner.SetDevice("my-brand", "my-model")
+	runner.SetBrandModel("my-brand", "my-model")
 	runner.SetSequence("canonical", []*repair.RepairState{
-		{Seq: 1, Revision: 3},
+		{Sequence: 1, Revision: 3},
 	})
 
 	runner.SaveState()
 
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"seq":1,"revision":3,"status":0}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]}}`)
 }
 
 var (
@@ -589,13 +592,13 @@ func (s *runnerSuite) TestNext(c *C) {
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
 	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
-		{Seq: 1},
-		{Seq: 2, Status: repair.NotApplicableStatus},
-		{Seq: 3, Revision: 2},
+		{Sequence: 1},
+		{Sequence: 2, Status: repair.SkipStatus},
+		{Sequence: 3, Revision: 2},
 	})
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":0},{"seq":2,"revision":0,"status":1},{"seq":3,"revision":2,"status":0}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":0},{"sequence":2,"revision":0,"status":1},{"sequence":3,"revision":2,"status":0}]}}`)
 
 	// start fresh run with new runner
 	// will refetch repair 3
@@ -628,14 +631,14 @@ func (s *runnerSuite) TestNext(c *C) {
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
 	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
-		{Seq: 1},
-		{Seq: 2, Status: repair.NotApplicableStatus},
-		{Seq: 3, Revision: 4},
-		{Seq: 4},
+		{Sequence: 1},
+		{Sequence: 2, Status: repair.SkipStatus},
+		{Sequence: 3, Revision: 4},
+		{Sequence: 4},
 	})
 }
 
-func (s *runnerSuite) TestNextImmediateNotApplicable(c *C) {
+func (s *runnerSuite) TestNextImmediateSkip(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
 brand-id: canonical
@@ -663,14 +666,14 @@ AXNpZw==`}
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
 	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
-		{Seq: 1, Status: repair.NotApplicableStatus},
+		{Sequence: 1, Status: repair.SkipStatus},
 	})
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":1}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":1}]}}`)
 }
 
-func (s *runnerSuite) TestNextRefetchNotApplicable(c *C) {
+func (s *runnerSuite) TestNextRefetchSkip(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
 brand-id: canonical
@@ -697,11 +700,11 @@ AXNpZw==`}
 	c.Assert(err, IsNil)
 
 	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
-		{Seq: 1},
+		{Sequence: 1},
 	})
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":0,"status":0}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":0}]}}`)
 
 	// new fresh run, repair becomes now unapplicable
 	seqRepairs[0] = `type: repair
@@ -727,9 +730,9 @@ AXNpZw==`
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
 	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
-		{Seq: 1, Revision: 1, Status: repair.NotApplicableStatus},
+		{Sequence: 1, Revision: 1, Status: repair.SkipStatus},
 	})
 	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"seq":1,"revision":1,"status":1}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":1,"status":1}]}}`)
 }
