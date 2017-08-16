@@ -25,7 +25,7 @@ GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 # ways (LP: #1711052).
 # See also https://forum.snapcraft.io/t/artful-i386-panics/
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
-ifneq ($(shell dpkg --print-architecture),i386)
+ifneq ($(shell dpkg-architecture -qDEB_TARGET_ARCH),i386)
 BUILDFLAGS+= -buildmode=pie
 endif
 
