@@ -198,8 +198,7 @@ apps:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "read or write path must be set")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
