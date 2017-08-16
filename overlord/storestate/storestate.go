@@ -20,6 +20,7 @@
 package storestate
 
 import (
+	"fmt"
 	"net/url"
 
 	"golang.org/x/net/context"
@@ -31,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
+
+var storeNew = store.New
 
 // StoreState holds the state for the store in the system.
 type StoreState struct {
@@ -74,15 +77,60 @@ type StoreService interface {
 	ReadyToBuy(*auth.UserState) error
 }
 
+// SetupStore configures the system's initial store.
+func SetupStore(st *state.State, authContext auth.AuthContext) error {
+	storeConfig, err := initialStoreConfig(st)
+	if err != nil {
+		return err
+	}
+	sto := storeNew(storeConfig, authContext)
+	replaceAuthContext(st, authContext)
+	ReplaceStore(st, sto)
+	return nil
+}
+
+// SetupStoreAPI replaces the API of the store used by the system. If the API
+// URL is nil the store is reverted to the system's default.
+func SetupStoreAPI(state *state.State, api *url.URL) error {
+	apiState := ""
+	config := store.DefaultConfig()
+	if api != nil {
+		apiState = api.String()
+		err := config.SetAPI(api)
+		if err != nil {
+			return err
+		}
+	}
+	authContext := authContext(state)
+	store := store.New(config, authContext)
+	ReplaceStore(state, store)
+	updateAPI(state, apiState)
+	return nil
+}
+
+func initialStoreConfig(st *state.State) (*store.Config, error) {
+	config := store.DefaultConfig()
+	apiState := API(st)
+	if apiState != "" {
+		api, err := url.Parse(apiState)
+		if err != nil {
+			return nil, fmt.Errorf("invalid store API URL: %s", err)
+		}
+		err = config.SetAPI(api)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return config, nil
+}
+
 type cachedAuthContextKey struct{}
 
-// ReplaceAuthContext replaces the auth context used by the store.
-func ReplaceAuthContext(state *state.State, authContext auth.AuthContext) {
+func replaceAuthContext(state *state.State, authContext auth.AuthContext) {
 	state.Cache(cachedAuthContextKey{}, authContext)
 }
 
-// AuthContext returns the auth context used by the store.
-func AuthContext(state *state.State) auth.AuthContext {
+func authContext(state *state.State) auth.AuthContext {
 	cached := state.Cached(cachedAuthContextKey{})
 	if cached != nil {
 		return cached.(auth.AuthContext)
@@ -95,25 +143,6 @@ type cachedStoreKey struct{}
 // ReplaceStore replaces the store used by the system.
 func ReplaceStore(state *state.State, store StoreService) {
 	state.Cache(cachedStoreKey{}, store)
-}
-
-// ReplaceStoreAPI replaces the API of the store used by the system. If the API
-// URL is nil the store is reverted to the system's default.
-func ReplaceStoreAPI(state *state.State, api *url.URL) error {
-	apiState := ""
-	config := store.DefaultConfig()
-	if api != nil {
-		apiState = api.String()
-		err := config.SetAPI(api)
-		if err != nil {
-			return err
-		}
-	}
-	authContext := AuthContext(state)
-	store := store.New(config, authContext)
-	ReplaceStore(state, store)
-	updateAPI(state, apiState)
-	return nil
 }
 
 func cachedStore(st *state.State) StoreService {
