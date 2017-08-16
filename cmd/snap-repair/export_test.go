@@ -57,6 +57,10 @@ func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
 
+func (run *Runner) SetStateModified(modified bool) {
+	run.stateModified = modified
+}
+
 func (run *Runner) SetBrandModel(brand, model string) {
 	run.state.Device.Brand = brand
 	run.state.Device.Model = model

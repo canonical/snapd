@@ -438,6 +438,12 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Chmod(dirs.SnapRepairDir, 0775)
 
+	// no error because this is a no-op
+	runner.SaveState()
+
+	// mark as modified
+	runner.SetStateModified(true)
+
 	c.Check(runner.SaveState, PanicMatches, `cannot save repair state:.*`)
 }
 
@@ -450,6 +456,8 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	runner.SetSequence("canonical", []*repair.RepairState{
 		{Sequence: 1, Revision: 3},
 	})
+	// mark as modified
+	runner.SetStateModified(true)
 
 	runner.SaveState()
 

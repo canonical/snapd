@@ -48,7 +48,8 @@ type Runner struct {
 	BaseURL *url.URL
 	cli     *http.Client
 
-	state state
+	state         state
+	stateModified bool
 
 	// sequenceNext keeps track of the next integer id in a brand sequence to considered in this run, see Next.
 	sequenceNext map[string]int
@@ -242,6 +243,20 @@ type state struct {
 	Sequences map[string][]*RepairState `json:"sequences,omitempty"`
 }
 
+func (run *Runner) setRepairState(brandID string, state RepairState) {
+	if run.state.Sequences == nil {
+		run.state.Sequences = make(map[string][]*RepairState)
+	}
+	sequence := run.state.Sequences[brandID]
+	if state.Sequence > len(sequence) {
+		run.stateModified = true
+		run.state.Sequences[brandID] = append(sequence, &state)
+	} else if *sequence[state.Sequence-1] != state {
+		run.stateModified = true
+		sequence[state.Sequence-1] = &state
+	}
+}
+
 func (run *Runner) readState() error {
 	r, err := os.Open(dirs.SnapRepairStateFile)
 	if err != nil {
@@ -259,6 +274,7 @@ func (run *Runner) initState() error {
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
 	// TODO: init Device
+	run.stateModified = true
 	run.SaveState()
 	return nil
 }
@@ -278,6 +294,9 @@ func (run *Runner) LoadState() error {
 
 // SaveState saves the repairs' state to disk.
 func (run *Runner) SaveState() {
+	if !run.stateModified {
+		return
+	}
 	m, err := json.Marshal(&run.state)
 	if err != nil {
 		panic(fmt.Sprintf("cannot marshal repair state: %v", err))
@@ -286,6 +305,7 @@ func (run *Runner) SaveState() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot save repair state: %v", err))
 	}
+	run.stateModified = false
 }
 
 func stringList(headers map[string]interface{}, name string) ([]string, error) {
@@ -399,14 +419,15 @@ func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *a
 	return checkStream(brandID, repairID, r)
 }
 
-func (run *Runner) makeReady(brandID string, sequenceNext int) (state *RepairState, repair *asserts.Repair, err error) {
+func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.Repair, err error) {
 	sequence := run.state.Sequences[brandID]
 	var aux []asserts.Assertion
+	var state RepairState
 	if sequenceNext <= len(sequence) {
 		// consider retries
-		state = sequence[sequenceNext-1]
+		state = *sequence[sequenceNext-1]
 		if state.Status != RetryStatus {
-			return nil, nil, errSkip
+			return nil, errSkip
 		}
 		var err error
 		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
@@ -415,7 +436,7 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (state *RepairSta
 			// try to use what we have already on disk
 			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	} else {
@@ -425,27 +446,30 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (state *RepairSta
 		var err error
 		repair, aux, err = run.fetch(brandID, sequenceNext)
 		if err != nil && err != errSkip {
-			return nil, nil, err
+			return nil, err
 		}
-		state = &RepairState{
+		state = RepairState{
 			Sequence: sequenceNext,
 		}
 		if err == errSkip {
 			// TODO: store headers to justify decision
 			state.Status = SkipStatus
-			return state, nil, errSkip
+			run.setRepairState(brandID, state)
+			return nil, errSkip
 		}
 	}
 	// TODO: verify with signatures
 	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	state.Revision = repair.Revision()
 	if !run.Applicable(repair.Headers()) {
 		state.Status = SkipStatus
-		return state, nil, errSkip
+		run.setRepairState(brandID, state)
+		return nil, errSkip
 	}
-	return state, repair, nil
+	run.setRepairState(brandID, state)
+	return repair, nil
 }
 
 // Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
@@ -455,7 +479,7 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 		sequenceNext = 1
 	}
 	for {
-		state, repair, err := run.makeReady(brandID, sequenceNext)
+		repair, err := run.makeReady(brandID, sequenceNext)
 		if err == ErrRepairNotFound {
 			run.SaveState()
 			return nil, ErrRepairNotFound
@@ -463,13 +487,7 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 		if err != nil && err != errSkip {
 			return nil, err
 		}
-		// append state for new repair in sequence
-		if sequenceNext-1 == len(run.state.Sequences[brandID]) {
-			if run.state.Sequences == nil {
-				run.state.Sequences = make(map[string][]*RepairState)
-			}
-			run.state.Sequences[brandID] = append(run.state.Sequences[brandID], state)
-		}
+
 		sequenceNext += 1
 		run.sequenceNext[brandID] = sequenceNext
 		if err == errSkip {
