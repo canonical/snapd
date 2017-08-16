@@ -474,6 +474,18 @@ func (app *AppInfo) WrapperPath() string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
+// CompleterPath returns the path to the completer snippet for the app binary.
+func (app *AppInfo) CompleterPath() string {
+	var binName string
+	if app.Name == app.Snap.Name() {
+		binName = filepath.Base(app.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
+	}
+
+	return filepath.Join(dirs.CompletersDir, binName)
+}
+
 func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
