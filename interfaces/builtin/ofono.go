@@ -294,8 +294,8 @@ func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *ofonoInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ofonoSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
@@ -338,14 +338,6 @@ func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 
 func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

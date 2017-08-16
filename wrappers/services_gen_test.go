@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -125,7 +124,7 @@ apps:
     app:
         restart-condition: %s
 `
-	for name, cond := range systemd.RestartMap {
+	for name, cond := range snap.RestartMap {
 		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yamlText))
@@ -136,7 +135,7 @@ apps:
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
 		wrapperText := string(generatedWrapper)
-		if cond == systemd.RestartNever {
+		if cond == snap.RestartNever {
 			c.Check(wrapperText, Matches,
 				`(?ms).*^Restart=no$.*`, Commentf(name))
 		} else {
