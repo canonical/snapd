@@ -138,46 +138,23 @@ func (s *I2cInterfaceSuite) TestName(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.testSlot1)
-	c.Assert(err, IsNil)
+	c.Assert(s.testSlot1.Sanitize(s.iface), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
-
-	err := s.iface.SanitizeSlot(s.testUDev1)
-	c.Assert(err, IsNil)
-
-	err = s.iface.SanitizeSlot(s.testUDev2)
-	c.Assert(err, IsNil)
-
-	err = s.iface.SanitizeSlot(s.testUDev3)
-	c.Assert(err, IsNil)
+	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev3.Sanitize(s.iface), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-
-	err := s.iface.SanitizeSlot(s.testUDevBadValue1)
-	c.Assert(err, ErrorMatches, "i2c path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue2)
-	c.Assert(err, ErrorMatches, "i2c path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue3)
-	c.Assert(err, ErrorMatches, "i2c path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue4)
-	c.Assert(err, ErrorMatches, "i2c path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue5)
-	c.Assert(err, ErrorMatches, "i2c path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue6)
-	c.Assert(err, ErrorMatches, "i2c slot must have a path attribute")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue7)
-	c.Assert(err, ErrorMatches, "i2c slot must have a path attribute")
-
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "i2c"`)
+	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue6.Sanitize(s.iface), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(s.testUDevBadValue7.Sanitize(s.iface), ErrorMatches, "i2c slot must have a path attribute")
 }
 
 func (s *I2cInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
