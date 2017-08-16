@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.1
+Version:        2.27.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -636,6 +636,16 @@ fi
 
 
 %changelog
+* Thu Aug 16 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.2
+ - tests: remove TestInterfacesHelp as it breaks when go-flags
+   changes
+ - interfaces: don't crash if content slot has no attributes
+ - debian: do not build with -buildmode=pie on i386
+ - interfaces: backport broadcom-asic-control interface
+ - interfaces: allow /usr/bin/xdg-open in unity7
+ - store: do not resume a download when we already have the whole
+   thing
 * Thu Aug 14 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.1
  - tests: use dnf --refresh install to avert stale cache
