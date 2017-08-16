@@ -105,7 +105,7 @@ var (
 	loginCmd = &Command{
 		Path:     "/v2/login",
 		POST:     loginUser,
-		ActionID: "io.snapcraft.snapd.login",
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	logoutCmd = &Command{

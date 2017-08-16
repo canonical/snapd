@@ -8,8 +8,8 @@
   <vendor_url>http://snapcraft.io</vendor_url>
 
   <action id="io.snapcraft.snapd.login">
-    <description>Add a Snap store account</description>
-    <message>Authentication is required to add a Snap store account to the system</message>
+    <description>Authenticate on snap daemon</description>
+    <message>Authorization is required to authenticate on the snap daemon</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
