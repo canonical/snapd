@@ -211,9 +211,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
 	}
 
-	// useful for tests
+	// useful for integration tests
 	marker := fmt.Sprintf("/var/lib/snapd/%s.force-fail", info.Name())
-	if osutil.FileExists(marker) {
+	if osutil.GetenvBool("SNAPD_DEBUG") && osutil.FileExists(marker) {
 		return fmt.Errorf("failing because user added %q", marker)
 	}
 
