@@ -1,4 +1,4 @@
-snapd (2.27.2-1) UNRELEASED; urgency=medium
+snapd (2.27.2-1) unstable; urgency=medium
 
   * New upstream release.
   * Stop using single-debian-patch, split delta into separate patches.
@@ -7,7 +7,7 @@ snapd (2.27.2-1) UNRELEASED; urgency=medium
   * Disable re-exec on Debian until core snap can cope with a partial apparmor
     implementation. (Closes: #851473)
 
- -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Tue, 15 Aug 2017 14:03:19 +1200
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Fri, 18 Aug 2017 11:00:31 +1200
 
 snapd (2.27.1-1) unstable; urgency=medium
 
