@@ -32,15 +32,18 @@ var rx = regexp.MustCompile(`^[ \t]*(#?)[ \t#]*([a-z_]+)=(.*)$`)
 // updateKeyValueStream updates simple key=value files with comments.
 // Example for such formats are: /etc/environment or /boot/uboot/config.txt
 //
-// An r io.Reader and a configuration "patch" is taken as input, the r is
-// read line-by-line and any line and any required configuration change from
-// the "config" input is applied. If changes need to be written a []string
+// An r io.Reader, map of supported config keys and a configuration
+// "patch" is taken as input, the r is read line-by-line and any line
+// and any required configuration change from the "config" input is
+// applied.
+//
+// If changes need to be written a []string
 // that contains the full file is returned. On error an error is returned.
-func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[string]string) (toWrite []string, err error) {
+func updateKeyValueStream(r io.Reader, supportedConfigKeys map[string]bool, newConfig map[string]string) (toWrite []string, err error) {
 	cfgKeys := make([]string, len(newConfig))
 	i := 0
 	for k := range newConfig {
-		if !allConfig[k] {
+		if !supportedConfigKeys[k] {
 			return nil, fmt.Errorf("cannot set unsupported configuration value %q", k)
 		}
 		cfgKeys[i] = k
@@ -55,7 +58,7 @@ func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[
 	for scanner.Scan() {
 		line := scanner.Text()
 		matches := rx.FindStringSubmatch(line)
-		if len(matches) > 0 && allConfig[matches[2]] {
+		if len(matches) > 0 && supportedConfigKeys[matches[2]] {
 			wasComment := (matches[1] == "#")
 			key := matches[2]
 			oldValue := matches[3]
