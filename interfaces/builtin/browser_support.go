@@ -134,7 +134,9 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
 /sys/devices/**/product r,
+/sys/devices/**/revision r,
 /sys/devices/**/serial r,
+/sys/devices/system/node/node[0-9]*/meminfo r,
 
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the

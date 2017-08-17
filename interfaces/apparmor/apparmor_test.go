@@ -59,7 +59,7 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -70,6 +70,18 @@ func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
 apparmor_parser output:
 `)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+	})
+}
+
+func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplaceWithSnapdDebug(c *C) {
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
+	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
 	})

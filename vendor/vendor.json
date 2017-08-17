@@ -8,7 +8,7 @@
 		},
 		{
 			"checksumSHA1": "f4UJKXymPS31lDRMfsmPA4PvwVw=",
-			"path": "github.com/cheggaaa/pb",
+			"path": "gopkg.in/cheggaaa/pb.v1",
 			"revision": "6e9d17711bb763b26b68b3931d47f24c1323abab",
 			"revisionTime": "2016-08-12T10:57:48Z"
 		},
