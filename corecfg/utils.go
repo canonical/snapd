@@ -53,7 +53,13 @@ func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[
 	for scanner.Scan() {
 		line := scanner.Text()
 		matches := rx.FindStringSubmatch(line)
-		if len(matches) > 0 && allConfig[matches[2]] {
+		if len(matches) < 3 {
+			toWrite = append(toWrite, line)
+			continue
+		}
+		_, inNewConfig := newConfig[matches[2]]
+		inAllConfig := allConfig[matches[2]]
+		if inNewConfig || inAllConfig {
 			wasComment := (matches[1] == "#")
 			key := matches[2]
 			oldValue := matches[3]

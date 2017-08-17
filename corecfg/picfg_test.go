@@ -109,29 +109,25 @@ func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
-	st1, err := os.Stat(s.mockConfigPath)
+	// ensure we cannot write to the dir to test that we really
+	// do not update the file
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
 	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
 	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_safe": ""})
 	c.Assert(err, IsNil)
-
-	st2, err := os.Stat(s.mockConfigPath)
-	c.Assert(err, IsNil)
-
-	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
-	st1, err := os.Stat(s.mockConfigPath)
+	// ensure we cannot write to the dir to test that we really
+	// do not update the file
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
 	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
 	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "are-kept"})
 	c.Assert(err, IsNil)
-
-	st2, err := os.Stat(s.mockConfigPath)
-	c.Assert(err, IsNil)
-
-	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
