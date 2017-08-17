@@ -94,8 +94,8 @@ var (
 )
 
 // Fetch retrieves a stream with the repair with the given ids and any
-// auxiliary assertions. If revision>=0 Fetch sets in the request the
-// If-None-Match header with an E-Tag based on it, and
+// auxiliary assertions. If revision>=0 the request will include an
+// If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
 func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
