@@ -64,6 +64,11 @@ var (
 
 	SnapStateFile string
 
+	SnapRepairDir        string
+	SnapRepairStateFile  string
+	SnapRepairRunDir     string
+	SnapRepairAssertsDir string
+
 	SnapBinariesDir     string
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
@@ -80,6 +85,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelper string
+	CompletersDir    string
+	CompleteSh       string
 )
 
 const (
@@ -166,6 +173,11 @@ func SetRootDir(rootdir string) {
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
+	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
+	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
+	SnapRepairRunDir = filepath.Join(SnapRepairDir, "run")
+	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
+
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
@@ -193,4 +205,6 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
 }
