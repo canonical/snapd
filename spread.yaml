@@ -39,6 +39,8 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
+    # This skips various sync calls which can greatly speed up test execution.
+    SNAPD_UNSAFE_IO: 1
 
 backends:
     linode:
