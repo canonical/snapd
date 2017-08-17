@@ -91,6 +91,11 @@ prepare_each_classic() {
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
     fi
+    # the re-exec setting may have changed in the service so we need
+    # to ensure snapd is reloaded
+    systemctl daemon-reload
+    systemctl restart snapd
+
     if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1

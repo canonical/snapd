@@ -14,7 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-_complete() {
+_complete_snap() {
     # TODO: add support for sourcing this function from the core snap.
     local cur prev words cword
     _init_completion -n : || return
@@ -62,4 +62,4 @@ _complete() {
     return 0
 }
 
-complete -F _complete snap
+complete -F _complete_snap snap

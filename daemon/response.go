@@ -319,12 +319,13 @@ var (
 
 // SnapNotFound is an error responder used when an operation is
 // requested on a snap that doesn't exist.
-func SnapNotFound(err error) Response {
+func SnapNotFound(snapName string, err error) Response {
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
 		},
 		Status: 404,
 	}

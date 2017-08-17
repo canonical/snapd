@@ -106,6 +106,31 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	})
 }
 
+func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
+	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
+	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockSnap(c, desktopAppYaml, desktopContents, &snap.SideInfo{Revision: snap.R(11)})
+
+	// generate .desktop file in the package baseDir
+	baseDir := info.MountDir()
+	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+
+	err = wrappers.AddSnapDesktopFiles(info)
+	c.Check(err, NotNil)
+	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
+}
+
 // sanitize
 
 type sanitizeDesktopFileSuite struct{}
