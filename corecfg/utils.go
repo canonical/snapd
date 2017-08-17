@@ -37,10 +37,12 @@ var rx = regexp.MustCompile(`^[ \t]*(#?)[ \t#]*([a-z_]+)=(.*)$`)
 // the "config" input is applied. If changes need to be written a []string
 // that contains the full file is returned. On error an error is returned.
 func updateKeyValueStream(r io.Reader, allConfig map[string]bool, newConfig map[string]string) (toWrite []string, err error) {
-	// build regexp
 	cfgKeys := make([]string, len(newConfig))
 	i := 0
 	for k := range newConfig {
+		if !allConfig[k] {
+			return nil, fmt.Errorf("cannot set unsupported configuration value %q", k)
+		}
 		cfgKeys[i] = k
 		i++
 	}
