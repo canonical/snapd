@@ -43,7 +43,6 @@ import (
 const (
 	maybeCore = 1 << iota
 	skipConfigure
-	doNotAutoInstallMissingBases
 )
 
 // control flags for "Configure()"
@@ -85,13 +84,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// ensure core gets installed. if it is already installed return
 	// an empty task set
 	ts := state.NewTaskSet()
-	if flags&doNotAutoInstallMissingBases == 0 {
-		var err error
-		ts, err = ensureCore(st, snapsup.Name(), snapsup.UserID)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	targetRevision := snapsup.Revision()
 	revisionStr := ""
@@ -101,6 +93,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// check if we already have the revision locally (alters tasks)
 	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
+
+	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.Name()))
+	prereq.Set("snap-setup", snapsup)
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -112,8 +107,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prepare = st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.Name(), revisionStr, snapsup.Channel))
 	}
 	prepare.Set("snap-setup", snapsup)
+	prepare.WaitFor(prereq)
 
-	tasks := []*state.Task{prepare}
+	tasks := []*state.Task{prereq, prepare}
 	addTask := func(t *state.Task) {
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
@@ -302,6 +298,7 @@ var snapTopicalTasks = map[string]bool{
 	"prefer-aliases":     true,
 	"connect":            true,
 	"disconnect":         true,
+	"prerequisite":       true,
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
@@ -430,9 +427,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		// into SnapSetup
 		instFlags |= skipConfigure
 	}
-	if flags.DoNotAutoInstallMissingBases {
-		instFlags |= doNotAutoInstallMissingBases
-	}
 
 	snapsup := &SnapSetup{
 		SideInfo: si,
@@ -450,52 +444,6 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 	flags.TryMode = true
 
 	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", flags)
-}
-
-// ensureCore ensures that the core snap is installed
-func ensureCore(st *state.State, snapName string, userID int) (*state.TaskSet, error) {
-	ts := &state.TaskSet{}
-
-	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
-		return ts, nil
-	}
-
-	// check that there is no task that installs core already
-	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
-			continue
-		}
-		for _, t := range chg.Tasks() {
-			if t.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(t)
-				if err != nil {
-					return nil, err
-				}
-				// some other change aleady installs core
-				if snapsup.Name() == defaultCoreSnapName {
-					return ts, nil
-				}
-			}
-		}
-	}
-
-	// check that core is not installed already
-	_, err := CoreInfo(st)
-	if err == nil {
-		return ts, nil
-	}
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-
-	// not installed, nor queued for install -> install it
-	ts, err = Install(st, defaultCoreSnapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
-	if err != nil {
-		return nil, err
-	}
-	ts.JoinLane(st.NewLane())
-
-	return ts, nil
 }
 
 // Install returns a set of tasks for installing snap.

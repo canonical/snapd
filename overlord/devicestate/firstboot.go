@@ -127,7 +127,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if coreSeed == nil {
 			return nil, fmt.Errorf("cannot proceed without seeding core")
 		}
-		ts, err := installSeedSnap(st, coreSeed, snapstate.Flags{SkipConfigure: true, DoNotAutoInstallMissingBases: true})
+		ts, err := installSeedSnap(st, coreSeed, snapstate.Flags{SkipConfigure: true})
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if kernelSeed == nil {
 			return nil, fmt.Errorf("cannot find seed information for kernel snap %q", kernelName)
 		}
-		ts, err := installSeedSnap(st, kernelSeed, snapstate.Flags{SkipConfigure: true, DoNotAutoInstallMissingBases: true})
+		ts, err := installSeedSnap(st, kernelSeed, snapstate.Flags{SkipConfigure: true})
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +160,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if gadgetSeed == nil {
 			return nil, fmt.Errorf("cannot find seed information for gadget snap %q", gadgetName)
 		}
-		ts, err := installSeedSnap(st, gadgetSeed, snapstate.Flags{SkipConfigure: true, DoNotAutoInstallMissingBases: true})
+		ts, err := installSeedSnap(st, gadgetSeed, snapstate.Flags{SkipConfigure: true})
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +188,6 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if required[sn.Name] {
 			flags.Required = true
 		}
-		flags.DoNotAutoInstallMissingBases = true
 
 		ts, err := installSeedSnap(st, sn, flags)
 		if err != nil {
