@@ -22,3 +22,14 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
  		return false
  	}
+--- a/cmd/cmd_test.go
++++ b/cmd/cmd_test.go
+@@ -131,7 +131,7 @@
+ 	}
+ 
+ 	// While others do.
+-	for _, id := range []string{"debian", "ubuntu"} {
++	for _, id := range []string{"ubuntu"} {
+ 		restore = release.MockReleaseInfo(&release.OS{ID: id})
+ 		defer restore()
+ 		c.Check(cmd.DistroSupportsReExec(), Equals, true, Commentf("ID: %q", id))
