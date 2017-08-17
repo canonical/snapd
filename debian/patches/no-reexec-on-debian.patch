@@ -7,7 +7,7 @@ Description: disable re-exec on Debian
  into the core snap on Debian.
 Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
 Origin: vendor
-Forwarded: no
+Forwarded: https://github.com/snapcore/snapd/pull/3761
 Last-Update: 2018-08-17
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
