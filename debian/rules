@@ -57,7 +57,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    VENDOR_ARGS=--disable-apparmor --disable-seccomp
+    VENDOR_ARGS=--disable-apparmor --disable-seccomp --enable-static-libcap
     BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
