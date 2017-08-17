@@ -68,6 +68,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
 )
@@ -92,6 +93,7 @@ var typeRegistry = map[string]*AssertionType{
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
 	RepairType.Name:          RepairType,
+	StoreType.Name:           StoreType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,

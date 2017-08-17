@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,24 +39,21 @@ var _ = Suite(&AlsaInterfaceSuite{
 	iface: builtin.MustInterface("alsa"),
 })
 
-func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
-version: 1.0
+const alsaConsumerYaml = `name: consumer
 apps:
  app:
-  command: foo
   plugs: [alsa]
 `
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "alsa",
-			Interface: "alsa",
-		},
-	}
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["alsa"]}
-	c.Assert(s.iface, NotNil)
+
+const alsaCoreYaml = `name: core
+type: os
+slots:
+  alsa:
+`
+
+func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, alsaConsumerYaml, nil, "alsa")
+	s.slot = MockSlot(c, alsaCoreYaml, nil, "alsa")
 }
 
 func (s *AlsaInterfaceSuite) TestName(c *C) {
@@ -79,21 +75,25 @@ func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/dev/snd/* rw,")
-}
-
-func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
-	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/snd/* rw,")
 }
 
 func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.Summary, Equals, "allows access to raw ALSA devices")
-	c.Assert(si.DocURL, Equals, "")
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to raw ALSA devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "alsa")
+}
+
+func (s *AlsaInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+}
+
+func (s *AlsaInterfaceSuite) TestInterfaces(c *C) {
+	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

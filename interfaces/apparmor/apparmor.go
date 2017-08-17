@@ -34,6 +34,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // LoadProfile loads an apparmor profile from the given file.
@@ -42,10 +43,14 @@ import (
 // If there was a profile with the same name before, that profile is replaced.
 func LoadProfile(fname string) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-	output, err := exec.Command(
-		"apparmor_parser", "--replace", "--write-cache", "-O",
-		"no-expr-simplify", fmt.Sprintf("--cache-loc=%s", dirs.AppArmorCacheDir),
-		fname).CombinedOutput()
+	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify",
+		fmt.Sprintf("--cache-loc=%s", dirs.AppArmorCacheDir)}
+	if !osutil.GetenvBool("SNAPD_DEBUG") {
+		args = append(args, "--quiet")
+	}
+	args = append(args, fname)
+
+	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}

@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -43,6 +44,7 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		return err
 	}
 
+	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
 	for _, app := range s.Apps {
 		if app.IsService() {
 			continue
@@ -56,6 +58,17 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 			return err
 		}
 		created = append(created, wrapperPath)
+
+		if noCompletion || app.Completer == "" {
+			continue
+		}
+		// symlink the completion snippet
+		compPath := app.CompleterPath()
+		if err := os.Symlink(dirs.CompleteSh, compPath); err == nil {
+			created = append(created, compPath)
+		} else if !os.IsExist(err) {
+			return err
+		}
 	}
 
 	return nil
@@ -65,6 +78,13 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 func RemoveSnapBinaries(s *snap.Info) error {
 	for _, app := range s.Apps {
 		os.Remove(app.WrapperPath())
+		if app.Completer == "" {
+			continue
+		}
+		compPath := app.CompleterPath()
+		if target, err := os.Readlink(compPath); err == nil && target == dirs.CompleteSh {
+			os.Remove(compPath)
+		}
 	}
 
 	return nil

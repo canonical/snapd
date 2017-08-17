@@ -71,6 +71,9 @@ func cleanSubPath(path string) bool {
 func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
+		if slot.Attrs == nil {
+			slot.Attrs = make(map[string]interface{})
+		}
 		// content defaults to "slot" name if unspecified
 		slot.Attrs["content"] = slot.Name
 	}
