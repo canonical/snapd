@@ -29,7 +29,12 @@ execute: |
     echo "Check that powerkey handling works"
     snap set core system.power-key-action=reboot
     cat /etc/systemd/logind.conf.d/00-snap-core.conf | MATCH HandlePowerKey=reboot
+    echo "Ensure unsetting cleans the file again"
     snap set core system.power-key-action=""
+    if test -f /etc/systemd/logind.conf.d/00-snap-core.conf; then
+        echo "unsetting system.power-key-action did not cleanup correctly"
+        exit 1
+    fi
 
     
     echo "Check that pi config handline works"
