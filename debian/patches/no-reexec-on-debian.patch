@@ -1,0 +1,11 @@
+--- a/cmd/cmd.go
++++ b/cmd/cmd.go
+@@ -67,7 +67,7 @@
+ 		return false
+ 	}
+ 	switch release.ReleaseInfo.ID {
+-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch":
++	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch", "debian":
+ 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
+ 		return false
+ 	}

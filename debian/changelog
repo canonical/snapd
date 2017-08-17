@@ -4,6 +4,8 @@ snapd (2.27.2-1) UNRELEASED; urgency=medium
   * Stop using single-debian-patch, split delta into separate patches.
   * Allow confining snap-confine even when --disable-apparmor is used.
   * Pass --enable-static-libcap to cmd/configure, as was always the intention.
+  * Disable re-exec on Debian until core snap can cope with a partial apparmor
+    implementation.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Tue, 15 Aug 2017 14:03:19 +1200
 

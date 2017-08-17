@@ -3,3 +3,4 @@ disable-i18n.patch
 disable-seccomp-tests.patch
 no-seccomp-fork.patch
 pb.v1-canonical-path.patch
+no-reexec-on-debian.patch
