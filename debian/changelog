@@ -5,7 +5,7 @@ snapd (2.27.2-1) UNRELEASED; urgency=medium
   * Allow confining snap-confine even when --disable-apparmor is used.
   * Pass --enable-static-libcap to cmd/configure, as was always the intention.
   * Disable re-exec on Debian until core snap can cope with a partial apparmor
-    implementation.
+    implementation. (Closes: #851473)
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Tue, 15 Aug 2017 14:03:19 +1200
 
