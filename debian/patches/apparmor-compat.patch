@@ -11,13 +11,157 @@ Last-Update: 2018-08-15
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/cmd/snap-confine/snap-confine.apparmor.in
 +++ b/cmd/snap-confine/snap-confine.apparmor.in
-@@ -387,4 +387,9 @@
+@@ -1,7 +1,8 @@
++changequote(`<<',`>>')dnl
+ # Author: Jamie Strandboge <jamie@canonical.com>
+ #include <tunables/global>
+ 
+-@LIBEXECDIR@/snap-confine (attach_disconnected) {
++LIBEXECDIR/snap-confine (attach_disconnected) {
+     # We run privileged, so be fanatical about what we include and don't use
+     # any abstractions
+     /etc/ld.so.cache r,
+@@ -22,7 +23,7 @@
+     /usr/lib/@{multiarch}/libseccomp.so* mr,
+     /lib/@{multiarch}/libseccomp.so* mr,
+ 
+-    @LIBEXECDIR@/snap-confine mr,
++    LIBEXECDIR/snap-confine mr,
+ 
+     /dev/null rw,
+     /dev/full rw,
+@@ -106,7 +107,7 @@
+     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
+     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
+     # the next line is for classic system
+-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/ -> /tmp/snap.rootfs_*/,
++    mount options=(rw rbind) SNAP_MOUNT_DIR/*/*/ -> /tmp/snap.rootfs_*/,
+     # the next line is for core system
+     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
+     # all of the constructed rootfs is a rslave
+@@ -162,16 +163,16 @@
+     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
+     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+     # /etc/alternatives (classic)
+-    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+-    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
+-    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
++    mount options=(rw bind) SNAP_MOUNT_DIR/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
++    mount options=(rw bind) SNAP_MOUNT_DIR/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
++    mount options=(rw bind) SNAP_MOUNT_DIR/{,ubuntu-}core/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
+     # /etc/alternatives (core)
+     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
+     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
+     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
+     # the /snap directory
+-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
++    mount options=(rw rbind) SNAP_MOUNT_DIR/ -> /tmp/snap.rootfs_*/snap/,
+     mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
+     # pivot_root preparation and execution
+     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+@@ -202,8 +203,8 @@
+     # for running snaps on classic
+     /snap/ r,
+     /snap/** r,
+-    @SNAP_MOUNT_DIR@/ r,
+-    @SNAP_MOUNT_DIR@/** r,
++    SNAP_MOUNT_DIR/ r,
++    SNAP_MOUNT_DIR/** r,
+ 
+     # NOTE: at this stage the /snap directory is stable as we have called
+     # pivot_root already.
+@@ -315,14 +316,14 @@
+     /run/snapd/ns/*.lock rwk,
+     /run/snapd/ns/*.mnt rw,
+     /run/snapd/ns/*.fstab rw,
+-    ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
++    ptrace (read, readby, tracedby) peer=LIBEXECDIR/snap-confine//mount-namespace-capture-helper,
+     @{PROC}/*/mountinfo r,
+     capability sys_chroot,
+     capability sys_admin,
+-    signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
+-    signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+-    signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+-    signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
++    signal (send, receive) set=(abrt) peer=LIBEXECDIR/snap-confine,
++    signal (send) set=(int) peer=LIBEXECDIR/snap-confine//mount-namespace-capture-helper,
++    signal (send, receive) set=(alrm, exists) peer=LIBEXECDIR/snap-confine,
++    signal (receive) set=(exists) peer=LIBEXECDIR/snap-confine//mount-namespace-capture-helper,
+ 
+     # For aa_change_hat() to go into ^mount-namespace-capture-helper
+     @{PROC}/[0-9]*/attr/current w,
+@@ -347,7 +348,7 @@
+         /usr/lib/@{multiarch}/libseccomp.so* mr,
+         /lib/@{multiarch}/libseccomp.so* mr,
+ 
+-        @LIBEXECDIR@/snap-confine mr,
++        LIBEXECDIR/snap-confine mr,
+ 
+         /dev/null rw,
+         /dev/full rw,
+@@ -370,21 +371,30 @@
+         # NOTE: the source name is / even though we map /proc/123/ns/mnt
+         mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
+         # This is the SIGALRM that we send and receive if a timeout expires
+-        signal (send, receive) set=(alrm) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
++        signal (send, receive) set=(alrm) peer=LIBEXECDIR/snap-confine//mount-namespace-capture-helper,
+         # Those two rules are exactly the same but we don't know if the parent process is still alive
+         # and hence has the appropriate label or is already dead and hence has no label.
+-        signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
++        signal (send) set=(exists) peer=LIBEXECDIR/snap-confine,
+         signal (send) set=(exists) peer=unconfined,
+         # This is so that we can abort
+-        signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
++        signal (send, receive) set=(abrt) peer=LIBEXECDIR/snap-confine//mount-namespace-capture-helper,
+         #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
+-        signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
++        signal (receive) set=(int) peer=LIBEXECDIR/snap-confine,
+         # This allows snap-confine to be killed from the outside.
+         signal (receive) peer=unconfined,
+         # This allows snap-confine to wait for us
+-        ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
++        ptrace (read, trace, tracedby) peer=LIBEXECDIR/snap-confine,
+     }
  
      # Allow snap-confine to be killed
      signal (receive) peer=unconfined,
++ifdef(<<ALLOW_SNAP_EXEC>>,<<dnl
 +
 +    # Required when using unpatched upstream kernel
 +    capability sys_ptrace,
-+    # Debian compiles snap-confine without AppArmor, so allow running snaps unconfined
++    # Allow running snaps unconfined when snap-confine is built without apparmor
++    # (It is still worth confining snap-confine even if the kernel's implementation of
++    # apparmor is not sufficient for all of snapds features).
 +    /usr/lib/snapd/snap-exec uxr,
++>>)dnl
  }
+--- a/cmd/Makefile.am
++++ b/cmd/Makefile.am
+@@ -277,8 +277,14 @@
+ 	$(HAVE_RST2MAN) $^ > $@
+ endif
+ 
++
++m4_args = -DLIBEXECDIR=$(libexecdir) -DSNAP_MOUNT_DIR=$(SNAP_MOUNT_DIR)
++if !APPARMOR
++m4_args += -DALLOW_SNAP_EXEC
++endif
++
+ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
+-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
++	m4 $(m4_args) snap-confine/snap-confine.apparmor.in > snap-confine/snap-confine.apparmor
+ 
+ # Install the apparmor profile
+ #
+@@ -286,10 +292,8 @@
+ # foo.bar.froz The inner subst replaces slashes with dots and the outer
+ # patsubst strips the leading dot
+ install-data-local:: snap-confine/snap-confine.apparmor
+-if APPARMOR
+ 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
+ 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+-endif
+ 
+ # NOTE: The 'void' directory *has to* be chmod 000
+ install-data-local::

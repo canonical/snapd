@@ -2,6 +2,7 @@ snapd (2.27.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Stop using single-debian-patch, split delta into separate patches.
+  * Allow confining snap-confine even when --disable-apparmor is used.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Tue, 15 Aug 2017 14:03:19 +1200
 
