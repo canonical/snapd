@@ -172,6 +172,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	kinds := taskKinds(ts.Tasks())
 
 	expected := []string{
+		"prerequisites",
 		"download-snap",
 		"validate-snap",
 		"mount-snap",
@@ -218,6 +219,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	kinds := taskKinds(ts.Tasks())
 
 	expected := []string{
+		"prerequisites",
 		"download-snap",
 		"validate-snap",
 		"mount-snap",
@@ -444,6 +446,7 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prerequisites",
 		"prepare-snap",
 		"stop-snap-services",
 		"remove-aliases",
@@ -753,6 +756,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	// ensure that we do not run any form of garbage-collection
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prerequisites",
 		"prepare-snap",
 		"stop-snap-services",
 		"remove-aliases",
@@ -1462,7 +1466,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 	// check progress
 	ta := ts.Tasks()
-	task := ta[0]
+	task := ta[1]
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
@@ -1637,7 +1641,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
-	task := ts.Tasks()[0]
+	task := ts.Tasks()[1]
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
@@ -2430,7 +2434,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			j++
 			expectedUpdatesSet["some-snap"] = true
 			first := updateTs.Tasks()[0]
-			c.Check(first.Kind(), Equals, "download-snap")
+			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
 				wait = true
@@ -2571,8 +2575,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 14
-			c.Check(first.Kind(), Equals, "download-snap")
+			j += 15
+			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
 				wait = true
@@ -2727,7 +2731,7 @@ version: 1.0`)
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
-	task := ts.Tasks()[0]
+	task := ts.Tasks()[1]
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
@@ -2819,7 +2823,7 @@ version: 1.0`)
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
-	task := ts.Tasks()[0]
+	task := ts.Tasks()[1]
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
@@ -4547,8 +4551,9 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 		"Revision":                  "11",
 	})
 	c.Check(errMsg, Matches, `(?sm)change "install": "install a snap"
-download-snap: Undoing
+prerequisites: Undo
  snap-setup: "some-snap" \(11\) "some-channel"
+download-snap: Undoing
 validate-snap: Done
 .*
 link-snap: Error
@@ -4560,8 +4565,9 @@ start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
-download-snap: Undoing
+prerequisites: Undo
  snap-setup: "some-snap"
+download-snap: Undoing
 validate-snap: Done
 .*
 link-snap: Error
@@ -5222,6 +5228,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 
 	c.Check(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prerequisites",
 		"prepare-snap",
 		"mount-snap",
 		"copy-snap-data",

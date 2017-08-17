@@ -314,7 +314,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	// install/update related
-	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
+	runner.AddHandler("prerequisites", m.doPrerequisites, m.undoPrerequisites)
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)

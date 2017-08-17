@@ -176,6 +176,12 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) undoPrerequisites(t *state.Task, _ *tomb.Tomb) error {
+	// FIXME: undo any bases/content-providers once we start installing
+	//        those
+	return nil
+}
+
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
