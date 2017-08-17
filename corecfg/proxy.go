@@ -29,9 +29,9 @@ import (
 )
 
 var proxyConfigKeys = map[string]bool{
-	"http":  true,
-	"https": true,
-	"ftp":   true,
+	"http_proxy":  true,
+	"https_proxy": true,
+	"ftp_proxy":   true,
 }
 
 func etcEnvironment() string {

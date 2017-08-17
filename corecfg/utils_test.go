@@ -31,7 +31,7 @@ type utilsSuite struct{}
 
 var _ = Suite(&utilsSuite{})
 
-func (s *utilsSuite) TestUpdateKeyValueStreamNoChanges(c *C) {
+func (s *utilsSuite) TestUpdateKeyValueStreamNoNewConfig(c *C) {
 	in := bytes.NewBufferString("foo=bar")
 	newConfig := map[string]string{}
 	allConfig := map[string]bool{}
@@ -39,6 +39,17 @@ func (s *utilsSuite) TestUpdateKeyValueStreamNoChanges(c *C) {
 	toWrite, err := corecfg.UpdateKeyValueStream(in, allConfig, newConfig)
 	c.Check(err, IsNil)
 	c.Check(toWrite, IsNil)
+}
+
+func (s *utilsSuite) TestUpdateKeyValueStreamConfigNotInAllConfig(c *C) {
+	in := bytes.NewBufferString("")
+	newConfig := map[string]string{"unsupported-options": "cannot be set"}
+	allConfig := map[string]bool{
+		"foo": true,
+	}
+
+	_, err := corecfg.UpdateKeyValueStream(in, allConfig, newConfig)
+	c.Check(err, ErrorMatches, `cannot set unsupported configuration value \"unsupported-options"`)
 }
 
 func (s *utilsSuite) TestUpdateKeyValueStreamOneChange(c *C) {
