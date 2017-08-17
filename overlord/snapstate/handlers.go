@@ -115,6 +115,67 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 */
 
+func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// check if core is installed already
+	_, err := CoreInfo(st)
+	if err == nil {
+		return nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// check if we need to inject tasks to install core
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+		return nil
+	}
+
+	// check that there is no task that installs core already
+	// FIXME: is there a better way for this?
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Kind() == "link-snap" {
+				snapsup, err := TaskSnapSetup(t)
+				if err != nil {
+					return err
+				}
+				// some other change aleady installs core
+				if snapsup.Name() == defaultCoreSnapName {
+					return nil
+				}
+			}
+		}
+	}
+
+	// not installed, nor queued for install -> install it
+	ts, err := Install(st, defaultCoreSnapName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	if err != nil {
+		return err
+	}
+	ts.JoinLane(st.NewLane())
+
+	// inject install for core into this change
+	chg := t.Change()
+	for _, tNext := range chg.Tasks()[1:] {
+		tNext.WaitAll(ts)
+	}
+	chg.AddAll(ts)
+
+	return nil
+}
+
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
