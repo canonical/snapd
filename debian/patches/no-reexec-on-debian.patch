@@ -1,3 +1,16 @@
+Description: disable re-exec on Debian
+ The core snap's snap-confine is built with apparmor support, which expects
+ snapd to have written a profile before invoking snap-confine. But because the
+ debian kernel does not support all apparmor features used by snapd yet, snapd
+ will not have written that profile and snap-confine fails. snap-confine should
+ become more flexible about this but until this happens, disable re-exec-ing
+ into the core snap on Debian.
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: no
+Last-Update: 2018-08-17
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/cmd/cmd.go
 +++ b/cmd/cmd.go
 @@ -67,7 +67,7 @@
