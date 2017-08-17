@@ -131,7 +131,7 @@ func (s *cmdSuite) TestDistroSupportsReExec(c *C) {
 	}
 
 	// While others do.
-	for _, id := range []string{"debian", "ubuntu"} {
+	for _, id := range []string{"ubuntu"} {
 		restore = release.MockReleaseInfo(&release.OS{ID: id})
 		defer restore()
 		c.Check(cmd.DistroSupportsReExec(), Equals, true, Commentf("ID: %q", id))
