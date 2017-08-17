@@ -34,9 +34,9 @@ var _ = Suite(&utilsSuite{})
 func (s *utilsSuite) TestUpdateKeyValueStreamNoNewConfig(c *C) {
 	in := bytes.NewBufferString("foo=bar")
 	newConfig := map[string]string{}
-	allConfig := map[string]bool{}
+	supportedConfigKeys := map[string]bool{}
 
-	toWrite, err := corecfg.UpdateKeyValueStream(in, allConfig, newConfig)
+	toWrite, err := corecfg.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
 	c.Check(err, IsNil)
 	c.Check(toWrite, IsNil)
 }
@@ -44,22 +44,22 @@ func (s *utilsSuite) TestUpdateKeyValueStreamNoNewConfig(c *C) {
 func (s *utilsSuite) TestUpdateKeyValueStreamConfigNotInAllConfig(c *C) {
 	in := bytes.NewBufferString("")
 	newConfig := map[string]string{"unsupported-options": "cannot be set"}
-	allConfig := map[string]bool{
+	supportedConfigKeys := map[string]bool{
 		"foo": true,
 	}
 
-	_, err := corecfg.UpdateKeyValueStream(in, allConfig, newConfig)
+	_, err := corecfg.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
 	c.Check(err, ErrorMatches, `cannot set unsupported configuration value \"unsupported-options"`)
 }
 
 func (s *utilsSuite) TestUpdateKeyValueStreamOneChange(c *C) {
 	in := bytes.NewBufferString("foo=bar")
 	newConfig := map[string]string{"foo": "baz"}
-	allConfig := map[string]bool{
+	supportedConfigKeys := map[string]bool{
 		"foo": true,
 	}
 
-	toWrite, err := corecfg.UpdateKeyValueStream(in, allConfig, newConfig)
+	toWrite, err := corecfg.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
 	c.Check(err, IsNil)
 	c.Check(toWrite, DeepEquals, []string{"foo=baz"})
 }
