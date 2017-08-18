@@ -5,14 +5,11 @@ systems: [ ubuntu-1*-*64 ]
 
 prepare: |
     . $TESTSLIB/pkgdb.sh
-    echo "Ensure we have a wayland compositor"
-    distro_install_package weston
     snap install --edge test-wayland
 
 restore: |
     . $TESTSLIB/pkgdb.sh
     /usr/bin/killall -9 /usr/bin/weston || true
-    distro_auto_remove_packages weston
 
 execute: |
     CONNECTED_PATTERN=":wayland +test-wayland"
