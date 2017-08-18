@@ -35,9 +35,9 @@ restore: |
 
 debug: |
     systemctl status fakestore || true
-    netstat -ntlp | grep LISTEN
     journalctl -u fakestore
     snap changes || true
+    netstat -ntlp | grep LISTEN
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
