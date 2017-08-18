@@ -115,7 +115,15 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 */
 
+const defaultCoreSnapName = "core"
+const defaultBaseSnapsChannel = "stable"
+
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
+	// the state lock is not enough to ensure this is not run in
+	// parallel as it is dropped in snapstate.Install() below
+	m.prerequisitesLock.Lock()
+	defer m.prerequisitesLock.Unlock()
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -139,20 +147,29 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	waitNextHelper := func(chg *state.Change, ts *state.TaskSet) {
+		for _, t := range chg.Tasks() {
+			t.Kind()
+			t.WaitAll(ts)
+		}
+	}
+
 	// check that there is no task that installs core already
-	// FIXME: is there a better way for this?
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.Status().Ready() || chg.ID() == t.Change().ID() {
 			continue
 		}
-		for _, t := range chg.Tasks() {
-			if t.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(t)
+		for _, tc := range chg.Tasks() {
+			if tc.Kind() == "link-snap" {
+				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
 					return err
 				}
 				// some other change aleady installs core
 				if snapsup.Name() == defaultCoreSnapName {
+					// if something else installs core
+					// we need to wait for it
+					waitNextHelper(t.Change(), state.NewTaskSet(chg.Tasks()...))
 					return nil
 				}
 			}
@@ -168,9 +185,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 	// inject install for core into this change
 	chg := t.Change()
-	for _, tNext := range chg.Tasks()[1:] {
-		tNext.WaitAll(ts)
-	}
+	waitNextHelper(chg, ts)
 	chg.AddAll(ts)
 
 	return nil
