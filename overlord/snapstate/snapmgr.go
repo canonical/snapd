@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -81,8 +80,6 @@ type SnapManager struct {
 	lastRefreshAttempt     time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
-
-	prerequisitesLock sync.Mutex
 
 	runner *state.TaskRunner
 }
@@ -366,6 +363,17 @@ func Manager(st *state.State) (*SnapManager, error) {
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// Serialize "prerequisites", the state lock is not enough as
+	// Install() inside doPrerequisites() will unlock to talk to
+	// the store.
+	if cand.Kind() == "prerequisites" {
+		for _, t := range running {
+			if t.Kind() == "prerequisites" {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
