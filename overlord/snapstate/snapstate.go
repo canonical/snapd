@@ -309,6 +309,14 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+type changeConflictError struct {
+	snapName string
+}
+
+func (e changeConflictError) Error() string {
+	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
+}
+
 // CheckChangeConflictMany ensures that for the given snapNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -346,7 +354,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 					} else {
 						snapName = slotRef.Snap
 					}
-					return fmt.Errorf("snap %q has changes in progress", snapName)
+					return changeConflictError{snapName}
 				}
 			} else {
 				snapsup, err := TaskSnapSetup(task)
@@ -355,7 +363,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 				}
 				snapName := snapsup.Name()
 				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
-					return fmt.Errorf("snap %q has changes in progress", snapName)
+					return changeConflictError{snapName}
 				}
 			}
 		}
