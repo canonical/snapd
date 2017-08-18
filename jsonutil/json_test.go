@@ -38,7 +38,7 @@ var _ = Suite(&utilSuite{})
 func (s *utilSuite) TestDecodeError(c *C) {
 	input := "{]"
 	var output interface{}
-	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `invalid character ']' looking for beginning of object key string`)
 }
@@ -46,15 +46,15 @@ func (s *utilSuite) TestDecodeError(c *C) {
 func (s *utilSuite) TestDecodeErrorOnExcessData(c *C) {
 	input := "1000000000[1,2]"
 	var output interface{}
-	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `excess data found, not a valid json`)
+	c.Assert(err, ErrorMatches, `cannot parse json value`)
 }
 
 func (s *utilSuite) TestDecodeSuccess(c *C) {
 	input := `{"a":1000000000, "b": 1.2, "c": "foo", "d":null}`
 	var output interface{}
-	err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(input), &output)
+	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
 	c.Assert(err, IsNil)
 	c.Assert(output, DeepEquals, map[string]interface{}{
 		"a": json.Number("1000000000"),

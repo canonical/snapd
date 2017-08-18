@@ -64,7 +64,7 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(kv[1]), &v); err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v); err != nil {
 			v = kv[1]
 		}
 		m[kv[0]] = v
@@ -245,7 +245,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						continue
 					}
 					var cfg interface{}
-					c.Assert(jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
 					c.Assert(cfg, DeepEquals, expected)
 				}
 
