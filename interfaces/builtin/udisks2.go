@@ -102,6 +102,8 @@ umount /{,run/}media/**,
 # give raw read access to the system disks and therefore the entire system.
 /dev/sd* r,
 /dev/mmcblk* r,
+/dev/vd* r,
+
 
 # Needed for probing raw devices
 capability sys_rawio,
