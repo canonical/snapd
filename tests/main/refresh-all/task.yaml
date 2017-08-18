@@ -26,6 +26,17 @@ prepare: |
     echo "And the daemon is configured to point to the fake store"
     setup_fake_store $BLOB_DIR
 
+    echo "Wait until fake store is ready"
+    for i in $(seq 5); do
+        if snap refresh 2>&1 | MATCH "All snaps up to date"; then
+            exit
+        fi
+        sleep 1
+    done
+
+    echo "Snap refresh against the fakestore not working properly"
+    exit 1
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -47,9 +58,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    echo "Sanity check for the fake store"
-    snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/files.sh
