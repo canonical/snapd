@@ -42,7 +42,7 @@ const cameraConnectedPlugAppArmor = `
 /sys/devices/pci**/usb*/**/video4linux/** r,
 `
 
-const cameraConnectedPlugUDev = `KERNEL=="video[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
+const cameraConnectedPlugUDev = `KERNEL=="video[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

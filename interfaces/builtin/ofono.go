@@ -288,13 +288,18 @@ ATTRS{idVendor}=="1c9e", ATTRS{idProduct}=="9605", ENV{ID_USB_INTERFACE_NUM}=="0
 LABEL="ofono_speedup_end"
 `
 
+/*
+  1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
+    to the actual device to /dev/ttyS*
+  2./dev/socket/rild is just a socket, not device node created by rild daemon.
+    Similar case for chnlat*.
+  So we intetionally skipped modem, rild and chnlat.
+*/
 const ofonoPermanentSlotUDevTag = `
-KERNEL=="tty[A-RT-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="tun",         TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="tun[0-9]*",   TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="dsp",         TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="ttyLTM[0-9]", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="ttyUSB[0-9]", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",          TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="dsp",          TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 type ofonoInterface struct{}
@@ -334,7 +339,7 @@ func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *i
 }
 
 func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###SLOT_SECURITY_TAGS###"
+	old := "###CONNECTED_SECURITY_TAGS###"
 	udevRule := ofonoPermanentSlotUDev
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)

@@ -39,24 +39,17 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 /dev/linux-kernel-bde rw,
 /dev/linux-bcm-knet rw,
 
-# The device info "0000:00:1c.0" can be found under the sysfs
-# and it's the parent device of first matched device node "0000:01:00.0"
-/sys/devices/pci[0-9]*/0000:00:1c.0/config r,
-/sys/devices/pci[0-9]*/0000:00:1c.0/{,subsystem_}device r,
-/sys/devices/pci[0-9]*/0000:00:1c.0/{,subsystem_}vendor r,
+/sys/devices/pci[0-9]*/**/config r,
+/sys/devices/pci[0-9]*/**/{,subsystem_}device r,
+/sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
 
-/sys/bus/pci/devices/0000:00:1c.0/** r,
-/run/udev/data/+pci:0000:00:1c.0 r,
+/sys/bus/pci/devices/ r,
+/run/udev/data/+pci:[0-9]* r,
 `
 
 const broadcomAsicControlConnectedPlugUDev = `
-# The content of the udev database on a machine with a kernel built for openswitch
-# http://paste.ubuntu.com/25262850/
-# The first rule for matched device http://paste.ubuntu.com/25262846/
-# The second rule for matched device http://paste.ubuntu.com/25262841/
-
-KERNEL=="0000:01:00.0", SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde", TAG+="###SLOT_SECURITY_TAGS###"
-SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="0000:01:00.0", SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde", TAG+="###CONNECTED_SECURITY_TAGS###"
+SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 // The upstream linux kernel doesn't come with support for the

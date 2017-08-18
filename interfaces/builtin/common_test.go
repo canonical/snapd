@@ -49,7 +49,7 @@ slots:
 	// common interface can define connected plug udev rules
 	iface := &commonInterface{
 		name:              "common",
-		connectedPlugUDev: `KERNEL="foo", TAG+="###SLOT_SECURITY_TAGS###"`,
+		connectedPlugUDev: `KERNEL="foo", TAG+="###CONNECTED_SECURITY_TAGS###"`,
 	}
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)

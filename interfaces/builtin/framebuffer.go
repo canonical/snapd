@@ -37,7 +37,7 @@ const framebufferConnectedPlugAppArmor = `
 /run/udev/data/c29:[0-9]* r,
 `
 
-const framebufferConnectedPlugUDev = `KERNEL=="fb[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
+const framebufferConnectedPlugUDev = `KERNEL=="fb[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

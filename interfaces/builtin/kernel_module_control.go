@@ -60,7 +60,7 @@ init_module
 finit_module
 delete_module
 `
-const kernelModuleControlConnectedPlugUDev = `KERNEL=="mem", TAG+="###SLOT_SECURITY_TAGS###"`
+const kernelModuleControlConnectedPlugUDev = `KERNEL=="mem", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

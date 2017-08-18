@@ -202,7 +202,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUDev(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="ofono_isi_end"`)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="tty[A-RT-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
 }
 
 func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {
