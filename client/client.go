@@ -257,7 +257,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	}
 
 	if v != nil {
-		if err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(rsp.Result), v); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v); err != nil {
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
 		}
 	}

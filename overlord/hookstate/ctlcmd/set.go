@@ -102,7 +102,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		}
 		key := parts[0]
 		var value interface{}
-		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON-- just save the string as-is.
 			value = parts[1]
 		}
@@ -153,7 +153,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		if err := jsonutil.DecodeJsonWithNumbers(strings.NewReader(parts[1]), &value); err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}

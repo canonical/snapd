@@ -25,16 +25,16 @@ import (
 	"io"
 )
 
-// DecodeJsonWithNumbers decodes input data using json.Decoder, ensuring numbers are preserved
+// DecodeWithNumber decodes input data using json.Decoder, ensuring numbers are preserved
 // via json.Number data type. It errors out on invalid json or any excess input.
-func DecodeJsonWithNumbers(r io.Reader, value interface{}) error {
+func DecodeWithNumber(r io.Reader, value interface{}) error {
 	dec := json.NewDecoder(r)
 	dec.UseNumber()
 	if err := dec.Decode(&value); err != nil {
 		return err
 	}
 	if dec.More() {
-		return fmt.Errorf("excess data found, not a valid json")
+		return fmt.Errorf("cannot parse json value")
 	}
 	return nil
 }

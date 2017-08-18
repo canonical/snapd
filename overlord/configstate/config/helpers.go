@@ -59,7 +59,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
 
-		if err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*config), &configm); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
 		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
@@ -100,7 +100,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		if err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*raw), &result); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			key := strings.Join(subkeys, ".")
 			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
 		}
@@ -113,7 +113,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		if err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*raw), &configm); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
 			return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 		}
 	}

@@ -182,7 +182,7 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	err := jsonutil.DecodeJsonWithNumbers(bytes.NewReader(*raw), &value)
+	err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &value)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}
