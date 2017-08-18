@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -1189,8 +1188,7 @@ LABEL="mm_candidate_end"
 `
 
 const modemManagerPermanentSlotUDevTag = `
-# omit ttyS* since that is covered by the serial-port interface
-KERNEL=="tty[A-RT-Z]*[0-9]|cdc-wdm[0-9]*", TAG+="%s"
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 type modemManagerInterface struct{}
@@ -1234,10 +1232,11 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 }
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
 	udevRule := modemManagerPermanentSlotUDev
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule += fmt.Sprintf(modemManagerPermanentSlotUDevTag, tag)
+		udevRule += strings.Replace(modemManagerPermanentSlotUDevTag, old, tag, -1)
 	}
 	spec.AddSnippet(udevRule)
 	return nil

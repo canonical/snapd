@@ -37,8 +37,8 @@ const opticalDriveConnectedPlugAppArmor = `
 `
 
 const opticalDriveConnectedPlugUDev = `
-KERNEL=="sr[0-9]*",  TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="scd[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="sr[0-9]*",  TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="scd[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {

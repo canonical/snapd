@@ -130,9 +130,9 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const pulseaudioPermanentSlotUdev = `
-KERNEL=="controlC[0-9]*",        TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="timer",                 TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 type pulseAudioInterface struct{}
@@ -158,7 +158,7 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 }
 
 func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###SLOT_SECURITY_TAGS###"
+	old := "###CONNECTED_SECURITY_TAGS###"
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
 		udevRule := strings.Replace(pulseaudioPermanentSlotUdev, old, tag, -1)

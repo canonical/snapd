@@ -354,9 +354,9 @@ ENV{ID_PART_TABLE_TYPE}=="dos", ENV{ID_PART_ENTRY_TYPE}=="0x0", ENV{ID_PART_ENTR
 `
 
 const udisks2PermanentSlotUDevTag = `
-SUBSYSTEM=="block", TAG+="###SLOT_SECURITY_TAGS###"
+SUBSYSTEM=="block", TAG+="###CONNECTED_SECURITY_TAGS###"
 # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
-SUBSYSTEM=="usb", TAG+="###SLOT_SECURITY_TAGS###"
+SUBSYSTEM=="usb", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 type udisks2Interface struct{}
@@ -396,7 +396,7 @@ func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 }
 
 func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###SLOT_SECURITY_TAGS###"
+	old := "###CONNECTED_SECURITY_TAGS###"
 	udevRule := udisks2PermanentSlotUDev
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)

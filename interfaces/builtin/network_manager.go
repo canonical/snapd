@@ -408,7 +408,7 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
-const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###SLOT_SECURITY_TAGS###"`
+const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 type networkManagerInterface struct{}
 
@@ -463,7 +463,7 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 }
 
 func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###SLOT_SECURITY_TAGS###"
+	old := "###CONNECTED_SECURITY_TAGS###"
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
 		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)

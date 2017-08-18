@@ -51,7 +51,7 @@ const openglConnectedPlugAppArmor = `
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
-  /sys/bus/pci/devices/** r,
+  /sys/bus/pci/devices/ r,
   /run/udev/data/+drm:card* r,
   /run/udev/data/+pci:[0-9]* r,
 
@@ -64,9 +64,9 @@ const openglConnectedPlugAppArmor = `
 `
 
 const openglConnectedPlugUDev = `
-SUBSYSTEM="drm", KERNEL=="card[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="nvidia*", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="vchiq",   TAG+="###SLOT_SECURITY_TAGS###"
+SUBSYSTEM="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="nvidia*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {

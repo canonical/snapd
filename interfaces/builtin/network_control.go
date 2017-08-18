@@ -247,10 +247,10 @@ socket AF_NETLINK - NETLINK_GENERIC
 `
 
 const networkControlConnectedPlugUDev = `
-KERNEL=="rfkill",    TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="tap[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="tun",       TAG+="###SLOT_SECURITY_TAGS###",
-KERNEL=="tun[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###",
+KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {

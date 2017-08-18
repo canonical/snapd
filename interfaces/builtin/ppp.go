@@ -56,8 +56,8 @@ var pppConnectedPlugKmod = []string{
 }
 
 const pppConnectedPlugUDev = `
-KERNEL=="ppp", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="tty[A-Z]*", TAG+="###SLOT_SECURITY_TAGS###"
+KERNEL=="ppp", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tty[A-Z]*[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
