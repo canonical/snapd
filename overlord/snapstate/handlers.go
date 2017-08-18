@@ -168,6 +168,11 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 	// not installed, nor queued for install -> install it
 	ts, err := Install(st, defaultCoreSnapName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	// something might have triggered an explicit install of core while
+	// the state was unlocked -> deal with that here
+	if _, ok := err.(changeConflictError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
 	if err != nil {
 		return err
 	}
