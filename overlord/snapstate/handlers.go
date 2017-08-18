@@ -119,11 +119,6 @@ const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
-	// the state lock is not enough to ensure this is not run in
-	// parallel as it is dropped in snapstate.Install() below
-	m.prerequisitesLock.Lock()
-	defer m.prerequisitesLock.Unlock()
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
