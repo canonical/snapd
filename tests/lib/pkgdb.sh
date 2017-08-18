@@ -361,6 +361,7 @@ pkg_dependencies_ubuntu_classic(){
         printer-driver-cups-pdf
         python3-yaml
         upower
+        weston
         "
 
     case "$SPREAD_SYSTEM" in
