@@ -52,6 +52,10 @@ type runnerSuite struct {
 	brandSigning *assertstest.SigningDB
 	brandAcct    *asserts.Account
 	brandAcctKey *asserts.AccountKey
+
+	modelAs *asserts.Model
+
+	seedAssertsDir string
 }
 
 var _ = Suite(&runnerSuite{})
@@ -69,11 +73,25 @@ func (s *runnerSuite) SetUpSuite(c *C) {
 	}, "")
 	s.brandAcctKey = assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model-2",
+		"architecture": "armhf",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.modelAs = modelAs.(*asserts.Model)
 }
 
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
+
+	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 }
 
 var (
@@ -456,38 +474,36 @@ func (s *runnerSuite) TestLoadState(c *C) {
 	c.Check(model, Equals, "my-model")
 }
 
+func (s *runnerSuite) initSeed(c *C) {
+	err := os.MkdirAll(s.seedAssertsDir, 0775)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) writeSeedAssert(c *C, fname string, a asserts.Assertion) {
+	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) rmSeedAssert(c *C, fname string) {
+	err := os.Remove(filepath.Join(s.seedAssertsDir, fname))
+	c.Assert(err, IsNil)
+}
+
 func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	// sanity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
-	seedAssertsDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	err := os.MkdirAll(seedAssertsDir, 0775)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(seedAssertsDir, "store.account-key"), asserts.Encode(s.storeSigning.StoreAccountKey("")), 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(seedAssertsDir, "brand.account"), asserts.Encode(s.brandAcct), 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(seedAssertsDir, "brand.account-key"), asserts.Encode(s.brandAcctKey), 0644)
-	c.Assert(err, IsNil)
-	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model-2",
-		"architecture": "armhf",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(seedAssertsDir, "model"), asserts.Encode(modelAs), 0644)
-	c.Assert(err, IsNil)
-
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()
+	s.initSeed(c)
+	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+	s.writeSeedAssert(c, "brand.account", s.brandAcct)
+	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+	s.writeSeedAssert(c, "model", s.modelAs)
 
 	runner := repair.NewRunner()
-	err = runner.LoadState()
+	err := runner.LoadState()
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
 
@@ -501,60 +517,37 @@ func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
-	seedAssertsDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	err := os.MkdirAll(seedAssertsDir, 0775)
-	c.Assert(err, IsNil)
-
-	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model-2",
-		"architecture": "armhf",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-
-	wr := func(fname string, a asserts.Assertion) {
-		err := ioutil.WriteFile(filepath.Join(seedAssertsDir, fname), asserts.Encode(a), 0644)
-		c.Assert(err, IsNil)
-	}
-	rm := func(fname string) {
-		err := os.Remove(filepath.Join(seedAssertsDir, fname))
-		c.Assert(err, IsNil)
-	}
-
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()
+	s.initSeed(c)
 
 	const errPrefix = "cannot set device information: "
 	tests := []struct {
 		breakFunc   func()
 		expectedErr string
 	}{
-		{func() { rm("model") }, errPrefix + "no model assertion in seed data"},
-		{func() { rm("brand.account") }, errPrefix + "no brand account assertion in seed data"},
-		{func() { rm("brand.account-key") }, errPrefix + `cannot find public key.*`},
+		{func() { s.rmSeedAssert(c, "model") }, errPrefix + "no model assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
 		{func() {
 			// broken signature
 			blob := asserts.Encode(s.brandAcct)
-			err := ioutil.WriteFile(filepath.Join(seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
 			c.Assert(err, IsNil)
 		}, errPrefix + "cannot decode signature:.*"},
-		{func() { wr("model2", modelAs) }, errPrefix + "multiple models in seed assertions"},
+		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
 	}
 
 	for _, test := range tests {
-		wr("store.account-key", s.storeSigning.StoreAccountKey(""))
-		wr("brand.account", s.brandAcct)
-		wr("brand.account-key", s.brandAcctKey)
-		wr("model", modelAs)
+		s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+		s.writeSeedAssert(c, "brand.account", s.brandAcct)
+		s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+		s.writeSeedAssert(c, "model", s.modelAs)
 
 		test.breakFunc()
 
 		runner := repair.NewRunner()
-		err = runner.LoadState()
+		err := runner.LoadState()
 		c.Check(err, ErrorMatches, test.expectedErr)
 	}
 }

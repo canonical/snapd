@@ -303,11 +303,12 @@ func trustedBackstore(trusted []asserts.Assertion) asserts.Backstore {
 }
 
 func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
-	switch a.Type() {
-	case asserts.AccountKeyType, asserts.AccountType:
-	default:
+	assertType := a.Type()
+	if assertType != asserts.AccountKeyType && assertType != asserts.AccountType {
 		return nil
 	}
+	// check that account and account-key assertions are signed by
+	// a trusted authority
 	acctID := a.AuthorityID()
 	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
 	if err != nil && err != asserts.ErrNotFound {
