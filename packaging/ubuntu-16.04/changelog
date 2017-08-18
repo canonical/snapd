@@ -1,3 +1,11 @@
+snapd (2.27.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - systemd: disable `Nice=-5` to fix error when running inside lxdSee
+      https://bugs.launchpad.net/snapd/+bug/1709536
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 18 Aug 2017 15:49:56 +0200
+
 snapd (2.27.2) xenial; urgency=medium
 
   * New upstream release, LP: #1703798:
