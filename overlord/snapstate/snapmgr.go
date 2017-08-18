@@ -314,7 +314,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	// install/update related
-	runner.AddHandler("prerequisites", m.doPrerequisites, m.undoPrerequisites)
+
+	// TODO: no undo handler here, we may use the GC for this and just
+	// remove anything that is not referenced anymore
+	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
