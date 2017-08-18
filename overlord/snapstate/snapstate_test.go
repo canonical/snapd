@@ -7060,6 +7060,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	defer restore()
+
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)
 
@@ -7075,7 +7078,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	for i := 0; i < 5; i++ {
+		s.settle()
+		time.Sleep(10 * time.Millisecond)
+	}
 	s.state.Lock()
 
 	// ensure all our tasks ran and core was only installed once
@@ -7103,53 +7109,77 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// pretend we don't have core
-	snapstate.Set(s.state, "core", nil)
+	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	defer restore()
 
-	chg1 := s.state.NewChange("install", "install snap 1")
-	ts1, err := snapstate.Install(s.state, "snap1", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg1.AddAll(ts1)
+	// Two changes are created, the first will fails, the second will
+	// be fine. The order of what change runs first is random, the
+	// first change will also insall core in its own lane. This test
+	// ensures that core gets installed and there are no conflicts
+	// even if core already got installed from the first change.
+	//
+	// It runs multiple times so that both possible cases get a chance
+	// to run
+	for i := 0; i < 10; i++ {
+		// start clean
+		snapstate.Set(s.state, "core", nil)
+		snapstate.Set(s.state, "snap2", nil)
 
-	tasks := ts1.Tasks()
-	last := tasks[len(tasks)-1]
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(last)
-	chg1.AddTask(terr)
+		// chg1 has an error
+		chg1 := s.state.NewChange("install", "install snap 1")
+		ts1, err := snapstate.Install(s.state, "snap1", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		chg1.AddAll(ts1)
 
-	// chg2
-	chg2 := s.state.NewChange("install", "install snap 2")
-	ts2, err := snapstate.Install(s.state, "snap2", "some-other-channel", snap.R(21), s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg2.AddAll(ts2)
+		tasks := ts1.Tasks()
+		last := tasks[len(tasks)-1]
+		terr := s.state.NewTask("error-trigger", "provoking total undo")
+		terr.WaitFor(last)
+		chg1.AddTask(terr)
 
-	tasks = ts2.Tasks()
-	last = tasks[len(tasks)-1]
-	terr = s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(last)
-	chg2.AddTask(terr)
+		// chg2 is good
+		chg2 := s.state.NewChange("install", "install snap 2")
+		ts2, err := snapstate.Install(s.state, "snap2", "some-other-channel", snap.R(21), s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		chg2.AddAll(ts2)
 
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	// FIXME: add DeepEquals and helpers to ensure tasks are correct
-	for _, chg := range []*state.Change{chg1, chg2} {
-		for _, t := range chg.Tasks() {
-			println(chg.ID(), t.Kind(), t.Status())
+		s.state.Unlock()
+		defer s.snapmgr.Stop()
+		for i := 0; i < 5; i++ {
+			s.settle()
+			time.Sleep(10 * time.Millisecond)
 		}
-		println()
-	}
+		s.state.Lock()
 
-	if chg1.Err() != nil {
+		// ensure expected change states
 		c.Check(chg1.Status(), Equals, state.ErrorStatus)
-		c.Check(chg2.Status(), Equals, state.UndoneStatus)
-	} else if chg2.Err() != nil {
-		c.Check(chg1.Status(), Equals, state.UndoneStatus)
-		c.Check(chg2.Status(), Equals, state.ErrorStatus)
-	} else {
-		c.Fatalf("test setup broken, one change must error")
+		c.Check(chg2.Status(), Equals, state.DoneStatus)
+
+		// ensure we have both core and snap2
+		var snapst snapstate.SnapState
+
+		err = snapstate.Get(s.state, "core", &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence, HasLen, 1)
+		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+			RealName: "core",
+			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			Channel:  "stable",
+			Revision: snap.R(11),
+		})
+
+		err = snapstate.Get(s.state, "snap2", &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence, HasLen, 1)
+		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+			RealName: "snap2",
+			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			Channel:  "some-other-channel",
+			Revision: snap.R(21),
+		})
+
 	}
 }
 

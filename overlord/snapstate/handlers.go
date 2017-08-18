@@ -118,6 +118,9 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
+// timeout for tasks to check if the prerequisites are ready
+var prerequisitesRetryTimeout = 1 * time.Minute
+
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -142,13 +145,6 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	waitNextHelper := func(chg *state.Change, ts *state.TaskSet) {
-		for _, t := range chg.Tasks() {
-			t.Kind()
-			t.WaitAll(ts)
-		}
-	}
-
 	// check that there is no task that installs core already
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() || chg.ID() == t.Change().ID() {
@@ -163,9 +159,8 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 				// some other change aleady installs core
 				if snapsup.Name() == defaultCoreSnapName {
 					// if something else installs core
-					// we need to wait for it
-					waitNextHelper(t.Change(), state.NewTaskSet(chg.Tasks()...))
-					return nil
+					// already we need to wait
+					return &state.Retry{After: prerequisitesRetryTimeout}
 				}
 			}
 		}
@@ -180,7 +175,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 	// inject install for core into this change
 	chg := t.Change()
-	waitNextHelper(chg, ts)
+	for _, t := range chg.Tasks() {
+		t.WaitAll(ts)
+	}
 	chg.AddAll(ts)
 
 	return nil
