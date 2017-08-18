@@ -6869,6 +6869,290 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// pretend we don't have core
+	snapstate.Set(s.state, "core", nil)
+
+	chg := s.state.NewChange("install", "install a snap on a system without core")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "core",
+		},
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-snap",
+		}})
+	expected := fakeOps{
+		// we check the snap
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		// then we check core because its not installed already
+		// and continue with that
+		{
+			op:    "storesvc-snap",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "core",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: "/var/lib/snapd/snaps/core_11.snap",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				Channel:  "stable",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "/var/lib/snapd/snaps/core_11.snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/11"),
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				Channel:  "stable",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/11"),
+		},
+		{
+			op: "update-aliases",
+		},
+		// after core is in place continue with the snap
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: "/var/lib/snapd/snaps/some-snap_42.snap",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(42),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "/var/lib/snapd/snaps/some-snap_42.snap",
+			revno: snap.R(42),
+		},
+		{
+			op:   "copy-data",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "some-snap/42"),
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(42),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "some-snap/42"),
+		},
+		{
+			op: "update-aliases",
+		},
+		// cleanups order is random
+		{
+			op:    "cleanup-trash",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	// compare the details without the cleanup tasks, the order is random
+	// as they run in parallel
+	opsLenWithoutCleanups := len(s.fakeBackend.ops) - 2
+	c.Assert(s.fakeBackend.ops[:opsLenWithoutCleanups], DeepEquals, expected[:opsLenWithoutCleanups])
+
+	// verify core in the system state
+	var snaps map[string]*snapstate.SnapState
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+
+	snapst := snaps["core"]
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Channel, Equals, "stable")
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "core",
+		Channel:  "stable",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Revision: snap.R(11),
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// pretend we don't have core
+	snapstate.Set(s.state, "core", nil)
+
+	chg1 := s.state.NewChange("install", "install snap 1")
+	ts1, err := snapstate.Install(s.state, "snap1", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg1.AddAll(ts1)
+
+	chg2 := s.state.NewChange("install", "install snap 2")
+	ts2, err := snapstate.Install(s.state, "snap2", "some-other-channel", snap.R(21), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg2.AddAll(ts2)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran and core was only installed once
+	c.Assert(chg1.Err(), IsNil)
+	c.Assert(chg2.Err(), IsNil)
+
+	c.Assert(chg1.IsReady(), Equals, true)
+	c.Assert(chg2.IsReady(), Equals, true)
+
+	// order in which the changes run is random
+	len1 := len(chg1.Tasks())
+	len2 := len(chg2.Tasks())
+	if len1 > len2 {
+		c.Assert(chg1.Tasks(), HasLen, 24)
+		c.Assert(chg2.Tasks(), HasLen, 12)
+	} else {
+		c.Assert(chg1.Tasks(), HasLen, 12)
+		c.Assert(chg2.Tasks(), HasLen, 24)
+	}
+
+	// FIXME: add helpers and do a DeepEquals here for the operations
+}
+
+func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// pretend we don't have core
+	snapstate.Set(s.state, "core", nil)
+
+	chg1 := s.state.NewChange("install", "install snap 1")
+	ts1, err := snapstate.Install(s.state, "snap1", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg1.AddAll(ts1)
+
+	tasks := ts1.Tasks()
+	last := tasks[len(tasks)-1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	chg1.AddTask(terr)
+
+	// chg2
+	chg2 := s.state.NewChange("install", "install snap 2")
+	ts2, err := snapstate.Install(s.state, "snap2", "some-other-channel", snap.R(21), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg2.AddAll(ts2)
+
+	tasks = ts2.Tasks()
+	last = tasks[len(tasks)-1]
+	terr = s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	chg2.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// FIXME: add DeepEquals and helpers to ensure tasks are correct
+	for _, chg := range []*state.Change{chg1, chg2} {
+		for _, t := range chg.Tasks() {
+			println(chg.ID(), t.Kind(), t.Status())
+		}
+		println()
+	}
+
+	if chg1.Err() != nil {
+		c.Check(chg1.Status(), Equals, state.ErrorStatus)
+		c.Check(chg2.Status(), Equals, state.UndoneStatus)
+	} else if chg2.Err() != nil {
+		c.Check(chg1.Status(), Equals, state.UndoneStatus)
+		c.Check(chg2.Status(), Equals, state.ErrorStatus)
+	} else {
+		c.Fatalf("test setup broken, one change must error")
+	}
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})

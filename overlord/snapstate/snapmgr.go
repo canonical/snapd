@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -80,6 +81,8 @@ type SnapManager struct {
 	lastRefreshAttempt     time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
+
+	prerequisitesLock sync.Mutex
 
 	runner *state.TaskRunner
 }

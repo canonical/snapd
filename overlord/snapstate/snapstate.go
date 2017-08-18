@@ -52,9 +52,6 @@ const (
 	UseConfigDefaults
 )
 
-const defaultCoreSnapName = "core"
-const defaultBaseSnapsChannel = "stable"
-
 func needsMaybeCore(typ snap.Type) int {
 	if typ == snap.TypeOS {
 		return maybeCore
@@ -298,7 +295,6 @@ var snapTopicalTasks = map[string]bool{
 	"prefer-aliases":     true,
 	"connect":            true,
 	"disconnect":         true,
-	"prerequisite":       true,
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
