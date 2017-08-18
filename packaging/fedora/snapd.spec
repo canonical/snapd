@@ -426,6 +426,8 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 
 # Install bash completion for "snap"
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 # Install snap-confine
 pushd ./cmd
@@ -535,6 +537,8 @@ popd
 %{_libexecdir}/snapd/snap-mgmt
 %{_mandir}/man1/snap.1*
 %{_datadir}/bash-completion/completions/snap
+%{_libexecdir}/snapd/complete.sh
+%{_libexecdir}/snapd/etelpmoc.sh
 %{_sysconfdir}/profile.d/snapd.sh
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
@@ -573,7 +577,6 @@ popd
 %{_prefix}/lib/udev/snappy-app-dev
 %{_udevrulesdir}/80-snappy-assign.rules
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
-
 
 %files selinux
 %license data/selinux/COPYING

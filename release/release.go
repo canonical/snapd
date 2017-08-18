@@ -76,7 +76,6 @@ var (
 func readOSRelease() OS {
 	// TODO: separate this out into its own thing maybe (if made more general)
 	osRelease := OS{
-		VersionID: "unknown",
 		// from os-release(5): If not set, defaults to "ID=linux".
 		ID: "linux",
 	}

@@ -158,11 +158,11 @@ if [ "$SPREAD_BACKEND" = external ]; then
    if [ ! -f "$GOHOME/bin/snapbuild" ]; then
        mkdir -p "$GOHOME/bin"
        snap install --edge test-snapd-snapbuild
-       cp "$SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
+       cp "$SNAP_MOUNT_DIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
+   if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
@@ -218,15 +218,12 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
 fi
 
 distro_purge_package snapd || true
-distro_install_package ${DISTRO_BUILD_DEPS[@]}
+install_pkg_dependencies
 
 # We take a special case for Debian/Ubuntu where we install additional build deps
 # base on the packaging. In Fedora/Suse this is handled via mock/osc
 case "$SPREAD_SYSTEM" in
     debian-*|ubuntu-*)
-        # ensure systemd is up-to-date, if there is a mismatch libudev-dev
-        # will fail to install because the poor apt resolver does not get it
-        apt-get install -y --only-upgrade systemd
         # in 16.04: apt build-dep -y ./
         gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
         ;;

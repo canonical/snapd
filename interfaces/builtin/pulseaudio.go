@@ -45,6 +45,9 @@ owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+
+/run/udev/data/c116:[0-9]* r,
+/run/udev/data/+sound:card[0-9]* r,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -129,8 +132,8 @@ func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              pulseaudioSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
@@ -157,14 +160,6 @@ func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 
 func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
