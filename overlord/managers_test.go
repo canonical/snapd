@@ -168,7 +168,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
-	a, err := ms.storeSigning.RootSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	err = assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	a, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, a)
 	c.Assert(err, IsNil)
@@ -641,9 +643,7 @@ apps:
 	defer st.Unlock()
 
 	// have the snap-declaration in the system db
-	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, ms.devAcct)
+	err := assertstate.Add(st, ms.devAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
@@ -711,9 +711,7 @@ slots:
 	defer st.Unlock()
 
 	// have the snap-declaration in the system db
-	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, ms.devAcct)
+	err := assertstate.Add(st, ms.devAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
@@ -952,8 +950,6 @@ type: kernel`
 	defer st.Unlock()
 
 	// setup model assertion
-	err = assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
