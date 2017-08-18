@@ -461,7 +461,7 @@ var (
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
-		"bluez":                   {"app"},
+		"bluez":                   {"app", "core"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
@@ -619,7 +619,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                     true,
 		"content":                   true,
 		"docker":                    true,
 		"fwupd":                     true,
