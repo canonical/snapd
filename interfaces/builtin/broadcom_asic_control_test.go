@@ -65,18 +65,18 @@ func (s *BroadcomAsicControlSuite) TestName(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.iface.SanitizeSlot(s.slot), IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "broadcom-asic-control",
 		Interface: "broadcom-asic-control",
 	}}
-	c.Assert(s.iface.SanitizeSlot(slot), ErrorMatches,
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"broadcom-asic-control slots are reserved for the core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.iface.SanitizePlug(s.plug), IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BroadcomAsicControlSuite) TestAppArmorSpec(c *C) {
@@ -103,12 +103,12 @@ func (s *BroadcomAsicControlSuite) TestKModSpec(c *C) {
 	})
 }
 
-func (s *BroadcomAsicControlSuite) TestMetaData(c *C) {
-	mi := interfaces.IfaceMetaData(s.iface)
-	c.Assert(mi.ImplicitOnCore, Equals, true)
-	c.Assert(mi.ImplicitOnClassic, Equals, true)
-	c.Assert(mi.Summary, Equals, "allows using the broadcom-asic kernel module")
-	c.Assert(mi.BaseDeclarationSlots, testutil.Contains, "broadcom-asic-control")
+func (s *BroadcomAsicControlSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, "allows using the broadcom-asic kernel module")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "broadcom-asic-control")
 }
 
 func (s *BroadcomAsicControlSuite) TestAutoConnect(c *C) {

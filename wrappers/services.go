@@ -101,15 +101,35 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, inter interacter) error {
+func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	nservices := 0
+	var written []string
+	var enabled []string
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, s := range enabled {
+			if e := sysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+		for _, s := range written {
+			if e := os.Remove(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
+			}
+		}
+		if len(written) > 0 {
+			if e := sysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
+			}
+		}
+	}()
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
 		}
-		nservices++
 		// Generate service file
 		content, err := generateSnapServiceFile(app)
 		if err != nil {
@@ -120,12 +140,15 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
 			return err
 		}
-		if err := sysd.Enable(app.ServiceName()); err != nil {
+		written = append(written, svcFilePath)
+		svcName := app.ServiceName()
+		if err := sysd.Enable(svcName); err != nil {
 			return err
 		}
+		enabled = append(enabled, svcName)
 	}
 
-	if nservices > 0 {
+	if len(enabled) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -216,14 +239,9 @@ WantedBy={{.ServicesTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
 
-	var restartCond string
-	if appInfo.RestartCond == systemd.RestartNever {
-		restartCond = "no"
-	} else {
-		restartCond = appInfo.RestartCond.String()
-	}
+	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
-		restartCond = systemd.RestartOnFailure.String()
+		restartCond = snap.RestartOnFailure.String()
 	}
 
 	var remain string

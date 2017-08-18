@@ -66,13 +66,11 @@ func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
@@ -83,10 +81,8 @@ plugs:
   allow-sandbox: true
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
@@ -97,11 +93,9 @@ plugs:
   allow-sandbox: bad
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "browser-support plug requires bool with 'allow-sandbox'")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches,
+		"browser-support plug requires bool with 'allow-sandbox'")
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
@@ -186,11 +180,6 @@ apps:
 	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(secCompSnippet, testutil.Contains, `chroot`)
-}
-
-func (s *BrowserSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "browser-support"`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -20,13 +20,11 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 )
 
 const unity7Summary = `allows interacting with Unity 7 services`
@@ -554,8 +552,8 @@ func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *unity7Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              unity7Summary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: unity7BaseDeclarationSlots,
@@ -579,25 +577,8 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
-	return nil
-}
-
 func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
