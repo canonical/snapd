@@ -38,7 +38,6 @@ prepare: |
     tail -n200 /var/log/syslog || true
     systemctl status fakestore || true
     journalctl -u fakestore || true
-    snap changes
     exit 1
 
 restore: |
