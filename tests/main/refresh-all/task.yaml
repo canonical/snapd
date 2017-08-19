@@ -27,20 +27,14 @@ prepare: |
     setup_fake_store $BLOB_DIR
 
     echo "Wait until fake store is ready"
-    for i in $(seq 2); do
-        if snap refresh 2>&1 | MATCH "All snaps up to date"; then
+    for i in $(seq 10); do
+        if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
             exit
         fi
         sleep 1
     done
 
-    echo "Snap refresh against the fakestore not working properly"
-    netstat -ntlp | grep LISTEN
-    netstat -ntlp | grep 11028
-    dmesg || true
-    tail -n200 /var/log/syslog || true
-    systemctl status fakestore || true
-    journalctl -u fakestore || true
+    echo "fakestore not working properly"
     exit 1
 
 restore: |
@@ -54,8 +48,8 @@ restore: |
     rm -rf $BLOB_DIR
 
 debug: |
-    netstat -ntlp | grep LISTEN
-    netstat -ntlp | grep 11028
+    netstat -ntlp | grep LISTEN || true
+    netstat -ntlp | grep 11028 || true
     dmesg || true
     tail -n200 /var/log/syslog || true
     systemctl status fakestore || true
