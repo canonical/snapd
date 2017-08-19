@@ -35,6 +35,13 @@ prepare: |
     done
 
     echo "Snap refresh against the fakestore not working properly"
+    netstat -ntlp | grep LISTEN
+    netstat -ntlp | grep 11028
+    dmesg || true
+    tail -n200 /var/log/syslog || true
+    systemctl status fakestore || true
+    journalctl -u fakestore || true
+    snap changes || true
     exit 1
 
 restore: |
@@ -48,8 +55,12 @@ restore: |
     rm -rf $BLOB_DIR
 
 debug: |
+    netstat -ntlp | grep LISTEN
+    netstat -ntlp | grep 11028
+    dmesg || true
+    tail -n200 /var/log/syslog || true
     systemctl status fakestore || true
-    journalctl -u fakestore
+    journalctl -u fakestore || true
     snap changes || true
 
 execute: |
