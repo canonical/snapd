@@ -27,7 +27,7 @@ prepare: |
     setup_fake_store $BLOB_DIR
 
     echo "Wait until fake store is ready"
-    for i in $(seq 3); do
+    for i in $(seq 2); do
         if snap refresh 2>&1 | MATCH "All snaps up to date"; then
             exit
         fi
