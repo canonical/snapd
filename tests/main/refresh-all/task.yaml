@@ -47,15 +47,6 @@ restore: |
     teardown_fake_store $BLOB_DIR
     rm -rf $BLOB_DIR
 
-debug: |
-    netstat -ntlp | grep LISTEN || true
-    netstat -ntlp | grep 11028 || true
-    dmesg || true
-    tail -n200 /var/log/syslog || true
-    systemctl status fakestore || true
-    journalctl -u fakestore || true
-    snap changes || true
-
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
