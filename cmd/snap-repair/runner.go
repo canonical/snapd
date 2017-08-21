@@ -20,12 +20,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -78,9 +78,9 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	now := time.Now().UnixNano()
+	now := time.Now().Format("2006-01-02T150405.999999999")
 	logPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.output", r.Revision(), now))
-	logf, err := os.Create(logPath)
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -96,6 +96,11 @@ func (r *Repair) Run() error {
 
 	// run the script
 	env := os.Environ()
+	// we need to hardcode FD=3 because this is the FD after
+	// exec.Command() forked. there is no way in go currently
+	// to run something right after fork() in the child to
+	// know the fd. However because go will close all fds
+	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
 	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
 
@@ -111,21 +116,25 @@ func (r *Repair) Run() error {
 	stW.Close()
 
 	// ignore error, we only care about what we got via the status pipe
+	// TODO: add timeout
 	cmd.Wait()
 
-	// check status, write stamp
-	statusOutput, err := ioutil.ReadAll(stR)
-	if err != nil {
+	// read repair status pipe, use the last value
+	var status RepairStatus
+	scanner := bufio.NewScanner(stR)
+	for scanner.Scan() {
+		switch strings.TrimSpace(scanner.Text()) {
+		case "done":
+			status = DoneStatus
+		case "skip":
+			status = SkipStatus
+		}
+	}
+	if scanner.Err() != nil {
 		return err
 	}
 
-	var status RepairStatus
-	switch strings.TrimSpace(string(statusOutput)) {
-	case "done":
-		status = DoneStatus
-	case "skip":
-		status = SkipStatus
-	}
+	// write stamp and set status
 	statusPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.%s", r.Revision(), now, status))
 	if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
 		return err
