@@ -863,7 +863,7 @@ AXNpZw==`}
 	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":2}]}}`)
 }
 
-func (s *runnerSuite) TestRepairBasicRun(c *C) {
+func (s *runnerSuite) TestRepairBasicRunHappy(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
 brand-id: canonical
@@ -871,9 +871,12 @@ repair-id: 1
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
-body-length: 7
+body-length: 71
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
 
+#!/bin/sh
+echo some-output
+echo "done" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 
 
@@ -889,9 +892,28 @@ AXNpZw==`}
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 
-	rpr.Run()
-	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
+	err = rpr.Run()
 	c.Assert(err, IsNil)
-	c.Check(string(scrpt), Equals, "exit 0\n")
 
+	runDir := filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
+	scrpt, err := ioutil.ReadFile(filepath.Join(runDir, "script.r0"))
+	c.Assert(err, IsNil)
+	c.Check(string(scrpt), Equals, `#!/bin/sh
+echo some-output
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0
+`)
+
+	li, err := ioutil.ReadDir(runDir)
+	c.Assert(err, IsNil)
+	c.Assert(li, HasLen, 3)
+	// li is already sorted
+	c.Check(li[0].Name(), Matches, `^r0\.[0-9]+\.done`)
+	c.Check(li[1].Name(), Matches, `^r0\.[0-9]+\.output`)
+	c.Check(li[2].Name(), Matches, `^script.r0$`)
+
+	// now check the captured output
+	output, err := ioutil.ReadFile(filepath.Join(runDir, li[1].Name()))
+	c.Assert(err, IsNil)
+	c.Check(string(output), Equals, "some-output\n")
 }
