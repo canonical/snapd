@@ -23,6 +23,17 @@ prepare: |
     echo "And the daemon is configured to point to the fake store"
     setup_fake_store $BLOB_DIR
 
+    echo "Wait until fake store is ready"
+    for i in $(seq 10); do
+        if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
+            exit
+        fi
+        sleep 1
+    done
+
+    echo "fakestore service not started properly"
+    exit 1
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
