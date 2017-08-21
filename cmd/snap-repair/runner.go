@@ -78,7 +78,7 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	now := time.Now().Unix()
+	now := time.Now().UnixNano()
 	logPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.output", r.Revision(), now))
 	logf, err := os.Create(logPath)
 	if err != nil {
@@ -95,10 +95,14 @@ func (r *Repair) Run() error {
 	defer stW.Close()
 
 	// run the script
+	env := os.Environ()
+	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
+	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
+
 	cmd := exec.Command(script)
+	cmd.Env = env
+	cmd.Dir = rundir
 	cmd.ExtraFiles = []*os.File{stW}
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAP_REPAIR_STATUS_FD=3")
 	cmd.Stdout = logf
 	cmd.Stderr = logf
 	if err = cmd.Start(); err != nil {
