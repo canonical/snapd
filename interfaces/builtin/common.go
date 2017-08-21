@@ -21,11 +21,13 @@ package builtin
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 type evalSymlinksFn func(string) (string, error)
@@ -47,6 +49,7 @@ type commonInterface struct {
 
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
+	connectedPlugUDev      string
 	reservedForOS          bool
 	rejectAutoConnectPairs bool
 
@@ -139,6 +142,18 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.connectedPlugSecComp != "" {
 		spec.AddSnippet(iface.connectedPlugSecComp)
+	}
+	return nil
+}
+
+func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	if iface.connectedPlugUDev != "" {
+		for appName := range plug.Apps {
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+			snippet := strings.Replace(iface.connectedPlugUDev, old, tag, -1)
+			spec.AddSnippet(snippet)
+		}
 	}
 	return nil
 }

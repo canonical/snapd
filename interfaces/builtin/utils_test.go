@@ -20,12 +20,15 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type utilsSuite struct {
@@ -61,4 +64,20 @@ func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
 	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotOS), IsNil)
 	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotApp), IsNil)
 	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotGadget), ErrorMatches, errmsg)
+}
+
+func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces.Plug {
+	info := snaptest.MockInfo(c, yaml, si)
+	if plugInfo, ok := info.Plugs[plugName]; ok {
+		return &interfaces.Plug{PlugInfo: plugInfo}
+	}
+	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
+}
+
+func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
+	info := snaptest.MockInfo(c, yaml, si)
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return &interfaces.Slot{SlotInfo: slotInfo}
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
 }

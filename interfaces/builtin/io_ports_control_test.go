@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,26 +41,21 @@ var _ = Suite(&ioPortsControlInterfaceSuite{
 	iface: builtin.MustInterface("io-ports-control"),
 })
 
-func (s *ioPortsControlInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+const ioPortsControlConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [io-ports-control]
+`
+
+const ioPortsControlCoreYaml = `name: core
 type: os
 slots:
-  test-io-ports:
-    interface: io-ports-control
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-io-ports"]}
+  io-ports-control:
+`
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-apps:
-  app-accessing-io-ports:
-    command: foo
-    plugs: [io-ports-control]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["io-ports-control"]}
+func (s *ioPortsControlInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, ioPortsControlConsumerYaml, nil, "io-ports-control")
+	s.slot = MockSlot(c, ioPortsControlCoreYaml, nil, "io-ports-control")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
@@ -83,47 +77,37 @@ func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *ioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
-# Description: Allow write access to all I/O ports.
-# See 'man 4 mem' for details.
+func (s *ioPortsControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/port rw,")
+}
 
-capability sys_rawio, # required by iopl
+func (s *ioPortsControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "ioperm\n")
+}
 
-/dev/port rw,
-`
-	expectedSnippet3 := `KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"`
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-io-ports"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports")
-	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
-
+func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet3)
+	c.Assert(udevSpec.Snippets()[0], Equals, `KERNEL=="port", TAG+="snap_consumer_app"`)
 }
 
-func (s *ioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
-	expectedSnippet2 := `
-# Description: Allow changes to the I/O port permissions and
-# privilege level of the calling process.  In addition to granting
-# unrestricted I/O port access, running at a higher I/O privilege
-# level also allows the process to disable interrupts.  This will
-# probably crash the system, and is not recommended.
-ioperm
-iopl
+func (s *ioPortsControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to all I/O ports`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "io-ports-control")
+}
 
-`
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-io-ports"})
-	c.Check(seccompSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports"), Equals, expectedSnippet2)
+func (s *ioPortsControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestInterfaces(c *C) {

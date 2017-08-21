@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,14 +18,6 @@
  */
 
 package builtin
-
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-)
 
 const timeControlSummary = `allows setting system date and time`
 
@@ -100,51 +92,17 @@ capability sys_time,
 /sbin/hwclock ixr,
 `
 
-// The type for the rtc interface
-type timeControlInterface struct{}
-
-// Getter for the name of the rtc interface
-func (iface *timeControlInterface) Name() string {
-	return "time-control"
-}
-
-func (iface *timeControlInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              timeControlSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: timeControlBaseDeclarationSlots,
-	}
-}
-
-func (iface *timeControlInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
-func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(timeControlConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
-	return nil
-}
-
-func (iface *timeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
+const timeControlConnectedPlugUDev = `KERNEL=="/dev/rtc0", TAG+="###SLOT_SECURITY_TAGS###"`
 
 func init() {
-	registerIface(&timeControlInterface{})
+	registerIface(&commonInterface{
+		name:                  "time-control",
+		summary:               timeControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeControlBaseDeclarationSlots,
+		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
+		connectedPlugUDev:     timeControlConnectedPlugUDev,
+		reservedForOS:         true,
+	})
 }

@@ -22,7 +22,11 @@ package builtin
 import (
 	"fmt"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 var (
@@ -55,4 +59,20 @@ func MustInterface(name string) interfaces.Interface {
 		return iface
 	}
 	panic(fmt.Errorf("cannot find interface with name %q", name))
+}
+
+func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces.Plug {
+	info := snaptest.MockInfo(c, yaml, si)
+	if plugInfo, ok := info.Plugs[plugName]; ok {
+		return &interfaces.Plug{PlugInfo: plugInfo}
+	}
+	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
+}
+
+func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
+	info := snaptest.MockInfo(c, yaml, si)
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return &interfaces.Slot{SlotInfo: slotInfo}
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
 }

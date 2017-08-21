@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -283,7 +283,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 		io.WriteString(w, mockStoreReturnNonce)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, IsNil)
@@ -301,7 +301,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
 		}
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, IsNil)
@@ -316,7 +316,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	_, err := requestStoreDeviceNonce()
 	c.Assert(err, NotNil)
@@ -325,7 +325,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
-	MyAppsDeviceNonceAPI = "http://nonexistingserver121321.com/identity/api/v1/nonces"
+	DeviceNonceAPI = "http://nonexistingserver121321.com/api/v1/snaps/auth/nonces"
 	_, err := requestStoreDeviceNonce()
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get nonce from store.*`)
@@ -336,7 +336,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 		io.WriteString(w, mockStoreReturnNoNonce)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
@@ -350,7 +350,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
@@ -358,19 +358,33 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 	c.Assert(nonce, Equals, "")
 }
 
+type testDeviceSessionRequestParamsEncoder struct{}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedRequest() string {
+	return "session-request"
+}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedSerial() string {
+	return "serial-assertion"
+}
+
+func (pe *testDeviceSessionRequestParamsEncoder) EncodedModel() string {
+	return "model-assertion"
+}
+
 func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","model-assertion":"model-assertion","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
 
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -379,15 +393,15 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","model-assertion":"model-assertion","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="previous-session"`)
 
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "previous-session")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "previous-session")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -397,9 +411,9 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -412,9 +426,9 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
