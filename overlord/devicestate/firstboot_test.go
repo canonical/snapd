@@ -97,9 +97,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
