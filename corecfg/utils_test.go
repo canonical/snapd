@@ -49,7 +49,7 @@ func (s *utilsSuite) TestUpdateKeyValueStreamConfigNotInAllConfig(c *C) {
 	}
 
 	_, err := corecfg.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
-	c.Check(err, ErrorMatches, `cannot set unsupported configuration value \"unsupported-options"`)
+	c.Check(err, ErrorMatches, `cannot set unsupported configuration value "unsupported-options"`)
 }
 
 func (s *utilsSuite) TestUpdateKeyValueStreamOneChange(c *C) {
