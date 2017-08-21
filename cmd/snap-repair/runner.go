@@ -79,7 +79,7 @@ func (r *Repair) SetStatus(status RepairStatus) {
 func nextCounter(r *Repair) int {
 	counter := 0
 
-	// format: "r99.000001.2006-01-02T150405.999999999.output"
+	// format: "r99.000001.2006-01-02T150405.output"
 	prefix := fmt.Sprintf("r%d.", r.Revision())
 	suffix := fmt.Sprintf(".output")
 	li, err := ioutil.ReadDir(r.RunDir())
@@ -87,6 +87,7 @@ func nextCounter(r *Repair) int {
 		// should never happen
 		return counter
 	}
+	// ioutil.ReadDir() is already sorted
 	for _, dirent := range li {
 		name := dirent.Name()
 		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
