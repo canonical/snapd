@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,6 +55,10 @@ type Repair struct {
 	sequence int
 }
 
+func (r *Repair) RunDir() string {
+	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+}
+
 // SetStatus sets the status of the repair in the state and saves the latter.
 func (r *Repair) SetStatus(status RepairStatus) {
 	brandID := r.BrandID()
@@ -63,10 +68,36 @@ func (r *Repair) SetStatus(status RepairStatus) {
 	r.run.SaveState()
 }
 
+// nextCounter finds the next counter prefix to use for the output and status
+// files of a repair run
+func nextCounter(r *Repair) int {
+	counter := 0
+
+	// format: "r99.000001.2006-01-02T150405.999999999.output"
+	prefix := fmt.Sprintf("r%d.", r.Revision())
+	suffix := fmt.Sprintf(".output")
+	li, err := ioutil.ReadDir(r.RunDir())
+	if err != nil {
+		// should never happen
+		return counter
+	}
+	for _, dirent := range li {
+		name := dirent.Name()
+		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
+			li := strings.Split(name, ".")
+			if c, err := strconv.Atoi(li[1]); err == nil {
+				counter = c
+			}
+		}
+	}
+
+	return counter + 1
+}
+
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
 	// write the script to disk
-	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	rundir := r.RunDir()
 	err := os.MkdirAll(rundir, 0775)
 	if err != nil {
 		return err
@@ -78,8 +109,12 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	now := time.Now().Format("2006-01-02T150405.999999999")
-	logPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.output", r.Revision(), now))
+	// the date may be broken so we use an additional counter
+	counter := nextCounter(r)
+	now := time.Now().Format("2006-01-02T150405")
+	baseName := fmt.Sprintf("r%d.%06d.%v", r.Revision(), counter, now)
+
+	logPath := filepath.Join(rundir, baseName+".output")
 	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
@@ -135,7 +170,7 @@ func (r *Repair) Run() error {
 	}
 
 	// write stamp and set status
-	statusPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.%s", r.Revision(), now, status))
+	statusPath := filepath.Join(rundir, baseName+"."+status.String())
 	if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
 		return err
 	}
