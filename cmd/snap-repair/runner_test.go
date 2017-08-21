@@ -952,8 +952,8 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9T.-]+\.done`,
-		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.done`,
+		`^r0\.000001\.[0-9T-]+\.output`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "happy output\n")
@@ -969,8 +969,8 @@ exit 1
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9T.-]+\.output`,
-		`^r0\.[0-9T.-]+\.retry`,
+		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.retry`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "unhappy output\n")
@@ -987,8 +987,8 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9T.-]+\.output`,
-		`^r0\.[0-9T.-]+\.skip`,
+		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.skip`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "other output\n")
@@ -1010,8 +1010,8 @@ exit 1
 	s.seqRepairs = []string{makeMockRepair(script)}
 	rpr := s.testScriptRun(c, script)
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9T.-]+\.output`,
-		`^r0\.[0-9T.-]+\.retry`,
+		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.retry`,
 		`^script.r0$`,
 		`^zzz-ran-once$`,
 	})
@@ -1023,10 +1023,10 @@ exit 1
 	c.Assert(err, IsNil)
 
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9T.-]+\.output`,
-		`^r0\.[0-9T.-]+\.retry`,
-		`^r0\.[0-9T.-]+\.done`,
-		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.retry`,
+		`^r0\.000002\.[0-9T-]+\.done`,
+		`^r0\.000002\.[0-9T-]+\.output`,
 		`^script.r0$`,
 		`^zzz-ran-once$`,
 	})
