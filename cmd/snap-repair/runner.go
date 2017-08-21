@@ -25,11 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -62,20 +65,79 @@ func (r *Repair) SetStatus(status RepairStatus) {
 
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
-	// XXX initial skeleton...
 	// write the script to disk
 	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
 	err := os.MkdirAll(rundir, 0775)
 	if err != nil {
 		return err
 	}
+
 	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
-	err = osutil.AtomicWriteFile(script, r.Body(), 0600, 0)
+	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
 		return err
 	}
 
-	// XXX actually run things and captures output etc
+	now := time.Now().Unix()
+	logPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.output", r.Revision(), now))
+	logf, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer logf.Close()
+
+	// run things and captures output etc
+	stR, stW, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer stR.Close()
+	defer stW.Close()
+
+	// run the script
+	cmd := exec.Command(script)
+	cmd.ExtraFiles = []*os.File{stW}
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "SNAP_REPAIR_STATUS_FD=3")
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+	stW.Close()
+
+	// stream output to logfile
+	rr := io.MultiReader(stdoutPipe, stderrPipe)
+	if _, err := io.Copy(logf, rr); err != nil {
+		return err
+	}
+	// ignore error, we only care about what we got via the status pipe
+	cmd.Wait()
+
+	// check status, write stamp
+	statusOutput, err := ioutil.ReadAll(stR)
+	if err != nil {
+		return err
+	}
+
+	var status RepairStatus
+	switch strings.TrimSpace(string(statusOutput)) {
+	case "done":
+		status = DoneStatus
+	case "skip":
+		status = SkipStatus
+	}
+	statusPath := filepath.Join(rundir, fmt.Sprintf("r%d.%v.%s", r.Revision(), now, status))
+	if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
+		return err
+	}
+	r.SetStatus(status)
 
 	return nil
 }
@@ -278,6 +340,19 @@ const (
 	SkipStatus
 	DoneStatus
 )
+
+func (rs RepairStatus) String() string {
+	switch rs {
+	case RetryStatus:
+		return "retry"
+	case SkipStatus:
+		return "skip"
+	case DoneStatus:
+		return "done"
+	default:
+		panic(fmt.Sprintf("unknown repair status %d", rs))
+	}
+}
 
 // RepairState holds the current revision and status of a repair in a sequence of repairs.
 type RepairState struct {
