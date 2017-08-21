@@ -146,10 +146,15 @@ func (r *Repair) Run() error {
 	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
 
+	workdir := filepath.Join(rundir, "work")
+	if err := os.MkdirAll(workdir, 0700); err != nil {
+		return err
+	}
+
 	cmd := exec.Command(script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = env
-	cmd.Dir = rundir
+	cmd.Dir = workdir
 	cmd.ExtraFiles = []*os.File{stW}
 	cmd.Stdout = logf
 	cmd.Stderr = logf

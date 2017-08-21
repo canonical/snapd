@@ -955,6 +955,7 @@ exit 0
 		`^r0\.000001\.[0-9T-]+\.done`,
 		`^r0\.000001\.[0-9T-]+\.output`,
 		`^script.r0$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "happy output\n")
 	verifyRepairStatus(c, repair.DoneStatus)
@@ -972,6 +973,7 @@ exit 1
 		`^r0\.000001\.[0-9T-]+\.output`,
 		`^r0\.000001\.[0-9T-]+\.retry`,
 		`^script.r0$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -990,6 +992,7 @@ exit 0
 		`^r0\.000001\.[0-9T-]+\.output`,
 		`^r0\.000001\.[0-9T-]+\.skip`,
 		`^script.r0$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "other output\n")
 	verifyRepairStatus(c, repair.SkipStatus)
@@ -1013,7 +1016,7 @@ exit 1
 		`^r0\.000001\.[0-9T-]+\.output`,
 		`^r0\.000001\.[0-9T-]+\.retry`,
 		`^script.r0$`,
-		`^zzz-ran-once$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -1028,7 +1031,7 @@ exit 1
 		`^r0\.000002\.[0-9T-]+\.done`,
 		`^r0\.000002\.[0-9T-]+\.output`,
 		`^script.r0$`,
-		`^zzz-ran-once$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "happy now\n")
 	verifyRepairStatus(c, repair.DoneStatus)
@@ -1053,6 +1056,7 @@ sleep 100
 		`^r0\.000001\.[0-9T-]+\.output`,
 		`^r0\.000001\.[0-9T-]+\.retry`,
 		`^script.r0$`,
+		`^work$`,
 	})
 	s.verifyLastOutput(c, "output before timeout\n")
 	verifyRepairStatus(c, repair.RetryStatus)
