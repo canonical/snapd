@@ -99,24 +99,13 @@ func (r *Repair) Run() error {
 	cmd.ExtraFiles = []*os.File{stW}
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAP_REPAIR_STATUS_FD=3")
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
+	cmd.Stdout = logf
+	cmd.Stderr = logf
 	if err = cmd.Start(); err != nil {
 		return err
 	}
 	stW.Close()
 
-	// stream output to logfile
-	rr := io.MultiReader(stdoutPipe, stderrPipe)
-	if _, err := io.Copy(logf, rr); err != nil {
-		return err
-	}
 	// ignore error, we only care about what we got via the status pipe
 	cmd.Wait()
 
