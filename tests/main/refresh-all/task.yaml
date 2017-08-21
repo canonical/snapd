@@ -34,7 +34,7 @@ prepare: |
         sleep 1
     done
 
-    echo "fakestore not started properly"
+    echo "fakestore service not started properly"
     exit 1
 
 restore: |
