@@ -25,8 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -36,30 +36,27 @@ type FramebufferInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
+const framebufferConsumerYaml = `
+name: consumer
+apps:
+  app:
+    plugs: [framebuffer]
+`
+
+const framebufferOsYaml = `
+name: core
+type: os
+slots:
+  framebuffer:
+`
+
 var _ = Suite(&FramebufferInterfaceSuite{
 	iface: builtin.MustInterface("framebuffer"),
 })
 
 func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
-type: os
-slots:
-  test-framebuffer:
-    interface: framebuffer
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-framebuffer"]}
-
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-apps:
-  app-accessing-framebuffer:
-    command: foo
-    plugs: [framebuffer]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["framebuffer"]}
+	s.plug = MockPlug(c, framebufferConsumerYaml, nil, "framebuffer")
+	s.slot = MockSlot(c, framebufferOsYaml, nil, "framebuffer")
 }
 
 func (s *FramebufferInterfaceSuite) TestName(c *C) {
@@ -81,21 +78,37 @@ func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
+func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
 
 /dev/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
-`
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-framebuffer"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-framebuffer")
-	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
+`)
+}
+
+func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	// UDev tagging is disabled and will be enabled with a separate patch.
+	// Remove this comment when enabling udev tagging.
+	c.Assert(spec.Snippets(), DeepEquals, []string(nil))
+}
+
+func (s *FramebufferInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to universal framebuffer devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "framebuffer")
+}
+
+func (s *FramebufferInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *FramebufferInterfaceSuite) TestInterfaces(c *C) {

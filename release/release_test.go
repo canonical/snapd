@@ -98,7 +98,7 @@ func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	defer reset()
 
 	os := release.ReadOSRelease()
-	c.Assert(os, DeepEquals, release.OS{ID: "linux", VersionID: "unknown"})
+	c.Assert(os, DeepEquals, release.OS{ID: "linux"})
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {

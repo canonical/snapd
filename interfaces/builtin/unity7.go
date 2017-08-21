@@ -193,6 +193,12 @@ dbus send
     member=GetAll
     peer=(label=unconfined),
 
+# Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
+# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# filtering.
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:* r,
 
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
@@ -509,8 +515,8 @@ dbus (receive)
 
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
-# interested in are pressed.
-dbus (send)
+# interested in are pressed, and allows us to receive those events.
+dbus (receive, send)
   bus=session
   interface=org.gnome.SettingsDaemon.MediaKeys
   path=/org/gnome/SettingsDaemon/MediaKeys
@@ -534,6 +540,10 @@ const unity7ConnectedPlugSeccomp = `
 
 # X
 shutdown
+
+# Needed by QtSystems on X to detect mouse and keyboard
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 type unity7Interface struct{}

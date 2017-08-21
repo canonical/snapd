@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,9 +36,14 @@ const alsaConnectedPlugAppArmor = `
 /dev/snd/* rw,
 
 /run/udev/data/c116:[0-9]* r, # alsa
+/run/udev/data/+sound:card[0-9]* r,
 
 # Allow access to the alsa state dir
 /var/lib/alsa/{,*}         r,
+
+# Allow access to alsa /proc entries
+@{PROC}/asound/   r,
+@{PROC}/asound/** rw,
 `
 
 func init() {

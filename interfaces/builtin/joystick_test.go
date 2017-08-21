@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,26 +39,21 @@ var _ = Suite(&JoystickInterfaceSuite{
 	iface: builtin.MustInterface("joystick"),
 })
 
-func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+const joystickConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [joystick]
+`
+
+const joystickCoreYaml = `name: core
 type: os
 slots:
-  test-joystick:
-    interface: joystick
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-joystick"]}
+  joystick:
+`
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-apps:
-  app-accessing-joystick:
-    command: foo
-    plugs: [joystick]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["joystick"]}
+func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, joystickConsumerYaml, nil, "joystick")
+	s.slot = MockSlot(c, joystickCoreYaml, nil, "joystick")
 }
 
 func (s *JoystickInterfaceSuite) TestName(c *C) {
@@ -81,23 +75,23 @@ func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet := `
-# Description: Allow reading and writing to joystick devices (/dev/input/js*).
+func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/js{[0-9],[12][0-9],3[01]} rw,`)
+}
 
-# Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
-# only js0-js31 is valid so limit the /dev and udev entries to those devices.
-/dev/input/js{[0-9],[12][0-9],3[01]} rw,
-/run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
-`
+func (s *JoystickInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to joystick devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "joystick")
+}
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-joystick"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-joystick")
-	c.Assert(aasnippet, Equals, expectedSnippet)
+func (s *JoystickInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *JoystickInterfaceSuite) TestInterfaces(c *C) {
