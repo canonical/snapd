@@ -97,8 +97,8 @@ purge() {
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf "${SNAP_MOUNT_DIR}"/*
-    rm -rf /var/snap/*
+    rm -rf "${SNAP_MOUNT_DIR}"
+    rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
     rm -rf /var/lib/snapd/desktop/applications/*

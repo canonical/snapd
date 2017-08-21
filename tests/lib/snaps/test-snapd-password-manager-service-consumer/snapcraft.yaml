@@ -1,0 +1,21 @@
+name: test-snapd-password-manager-consumer
+version: 1.0
+summary: Basic snap declaring a plug on the password-manager-service interface
+description: Basic snap declaring a plug on the password-manager-service interface
+grade: stable
+confinement: strict
+
+apps:
+    secret-tool:
+        command: bin/secret-tool
+        plugs: [password-manager-service]
+
+parts:
+    libsecret-tools:
+        plugin: dump
+        stage-packages:
+            - libsecret-tools
+        source: .
+        prime:
+            - bin/
+            - usr/

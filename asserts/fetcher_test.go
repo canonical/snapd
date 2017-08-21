@@ -39,9 +39,7 @@ type fetcherSuite struct {
 var _ = Suite(&fetcherSuite{})
 
 func (s *fetcherSuite) SetUpTest(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 }
 
 func fakeSnap(rev int) []byte {

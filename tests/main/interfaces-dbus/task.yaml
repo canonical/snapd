@@ -25,7 +25,7 @@ prepare: |
 
     echo "And the provider dbus loop is started"
     . $TESTSLIB/dbus.sh
-    start_dbus_unit $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
+    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
     rm -f call.error
