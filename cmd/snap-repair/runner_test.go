@@ -1033,3 +1033,27 @@ exit 1
 	s.verifyLastOutput(c, "happy now\n")
 	verifyRepairStatus(c, repair.DoneStatus)
 }
+
+func (s *runScriptSuite) TestRepairHitsTimeout(c *C) {
+	restore := repair.MockDefaultRepairTimeout(10 * time.Millisecond)
+	defer restore()
+
+	script := `#!/bin/sh
+echo "output before timeout"
+sleep 100
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	rpr, err := s.runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	err = rpr.Run()
+	c.Assert(err, ErrorMatches, "repair did not finish within 10ms")
+
+	s.verifyRundir(c, []string{
+		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0\.000001\.[0-9T-]+\.retry`,
+		`^script.r0$`,
+	})
+	s.verifyLastOutput(c, "output before timeout\n")
+	verifyRepairStatus(c, repair.RetryStatus)
+}

@@ -20,6 +20,8 @@
 package main
 
 import (
+	"time"
+
 	"gopkg.in/retry.v1"
 )
 
@@ -75,4 +77,12 @@ func (run *Runner) SetSequence(brand string, sequence []*RepairState) {
 		run.state.Sequences = make(map[string][]*RepairState)
 	}
 	run.state.Sequences[brand] = sequence
+}
+
+func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
+	orig := defaultRepairTimeout
+	defaultRepairTimeout = d
+	return func() {
+		defaultRepairTimeout = orig
+	}
 }

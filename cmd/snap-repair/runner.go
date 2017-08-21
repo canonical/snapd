@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -45,6 +46,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	// TODO: move inside the repairs themselfs?
+	defaultRepairTimeout = 30 * time.Minute
 )
 
 // Repair is a runnable repair.
@@ -140,6 +146,7 @@ func (r *Repair) Run() error {
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
 
 	cmd := exec.Command(script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = env
 	cmd.Dir = rundir
 	cmd.ExtraFiles = []*os.File{stW}
@@ -150,9 +157,28 @@ func (r *Repair) Run() error {
 	}
 	stW.Close()
 
-	// ignore error, we only care about what we got via the status pipe
-	// TODO: add timeout
-	cmd.Wait()
+	// wait for repair to finish or timeout
+	killTimerCh := time.After(defaultRepairTimeout)
+	doneCh := make(chan struct{})
+	go func() {
+		// ignore error, we only care about what we got via
+		// the status pipe
+		cmd.Wait()
+		close(doneCh)
+	}()
+	select {
+	case <-doneCh:
+		// done
+	case <-killTimerCh:
+		if err := osutil.KillProcessGroup(cmd); err != nil {
+			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
+		}
+		statusPath := filepath.Join(rundir, baseName+".retry")
+		if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
+			logger.Noticef("cannot write stamp: %s", statusPath)
+		}
+		return fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+	}
 
 	// read repair status pipe, use the last value
 	var status RepairStatus
