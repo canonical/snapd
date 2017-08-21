@@ -572,7 +572,7 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		urlPath := r.URL.Path
-		if redirectFirst {
+		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {
 			if !strings.HasPrefix(urlPath, "/final/") {
 				// redirect
 				finalURL := mockServer.URL + "/final" + r.URL.Path
@@ -692,11 +692,13 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 }
 
 func (s *runnerSuite) TestNext(c *C) {
-	s.testNext(c, false)
+	redirectFirst := false
+	s.testNext(c, redirectFirst)
 }
 
 func (s *runnerSuite) TestNextRedirect(c *C) {
-	s.testNext(c, true)
+	redirectFirst := true
+	s.testNext(c, redirectFirst)
 }
 
 func (s *runnerSuite) TestNextImmediateSkip(c *C) {
