@@ -61,10 +61,7 @@ type runnerSuite struct {
 var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpSuite(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 
