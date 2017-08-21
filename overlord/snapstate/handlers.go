@@ -722,7 +722,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// doUnlinkCurrentSnap() like we usually do when going from
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
-		t.Logf("Requested daemon restart (undo classic)")
+		t.Logf("Requested daemon restart (undo classic initial core install)")
 		st.RequestRestart(state.RestartDaemon)
 	}
 	return nil
