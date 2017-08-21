@@ -871,93 +871,162 @@ func (s *runnerSuite) TestRepairSetStatus(c *C) {
 }
 
 // tests related to correct execution
+type runScriptSuite struct {
+	tmpdir string
 
-func (s *runnerSuite) testScriptRun(c *C, mockScript, expectedOutput string) (string, []os.FileInfo) {
-	seqRepairs := []string{makeMockRepair(mockScript)}
+	seqRepairs []string
 
-	mockServer := makeMockServer(c, &seqRepairs)
-	defer mockServer.Close()
+	mockServer *httptest.Server
+	runner     *repair.Runner
 
-	runner := repair.NewRunner()
-	runner.BaseURL = mustParseURL(mockServer.URL)
-	runner.LoadState()
+	runDir string
+}
 
-	rpr, err := runner.Next("canonical")
+var _ = Suite(&runScriptSuite{})
+
+func (s *runScriptSuite) SetUpTest(c *C) {
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
+
+	s.mockServer = makeMockServer(c, &s.seqRepairs)
+
+	s.runner = repair.NewRunner()
+	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
+	s.runner.LoadState()
+
+	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
+}
+
+func (s *runScriptSuite) TearDownTest(c *C) {
+	s.mockServer.Close()
+}
+
+func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
+	rpr, err := s.runner.Next("canonical")
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
-	runDir := filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
-	scrpt, err := ioutil.ReadFile(filepath.Join(runDir, "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "script.r0"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, mockScript)
 
-	li, err := ioutil.ReadDir(runDir)
-	c.Assert(err, IsNil)
-	c.Assert(li, HasLen, 3)
-	// li is already sorted
-	return runDir, li
+	return rpr
 }
 
-func (s *runnerSuite) TestRepairBasicRunHappy(c *C) {
+func (s *runScriptSuite) verifyRundir(c *C, names []string) {
+	dirents, err := ioutil.ReadDir(s.runDir)
+	c.Assert(err, IsNil)
+	c.Check(dirents, HasLen, len(names))
+	for i := range dirents {
+		c.Check(dirents[i].Name(), Matches, names[i])
+	}
+}
+
+func (s *runScriptSuite) verifyLastOutput(c *C, expectedOutput string) {
+	dirents, err := ioutil.ReadDir(s.runDir)
+	c.Assert(err, IsNil)
+	for i := len(dirents) - 1; i >= 0; i-- {
+		name := dirents[i].Name()
+		if strings.HasSuffix(name, ".output") {
+			output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
+			c.Assert(err, IsNil)
+			c.Check(string(output), Equals, expectedOutput)
+			return
+		}
+	}
+	c.Fatalf("cannot find expected output")
+}
+
+func (s *runScriptSuite) TestRepairBasicRunHappy(c *C) {
 	script := `#!/bin/sh
 echo "happy output"
 echo "done" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
-	runDir, li := s.testScriptRun(c, script, "happy-output")
-
-	c.Check(li[0].Name(), Matches, `^r0\.[0-9]+\.done`)
-	c.Check(li[1].Name(), Matches, `^r0\.[0-9]+\.output`)
-	c.Check(li[2].Name(), Matches, `^script.r0$`)
-
-	// now check the captured output
-	output, err := ioutil.ReadFile(filepath.Join(runDir, li[1].Name()))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Equals, "happy output\n")
-
-	// and the status
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0\.[0-9]+\.done`,
+		`^r0\.[0-9]+\.output`,
+		`^script.r0$`,
+	})
+	s.verifyLastOutput(c, "happy output\n")
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
-func (s *runnerSuite) TestRepairBasicRunUnhappy(c *C) {
+func (s *runScriptSuite) TestRepairBasicRunUnhappy(c *C) {
 	script := `#!/bin/sh
 echo "unhappy output"
 exit 1
 `
-	runDir, li := s.testScriptRun(c, script, "happy-output")
-
-	c.Check(li[0].Name(), Matches, `^r0\.[0-9]+\.output`)
-	c.Check(li[1].Name(), Matches, `^r0\.[0-9]+\.retry`)
-	c.Check(li[2].Name(), Matches, `^script.r0$`)
-
-	// now check the captured output
-	output, err := ioutil.ReadFile(filepath.Join(runDir, li[0].Name()))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Equals, "unhappy output\n")
-
-	// and the status
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9]+\.retry`,
+		`^script.r0$`,
+	})
+	s.verifyLastOutput(c, "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
 }
 
-func (s *runnerSuite) TestRepairBasicSkip(c *C) {
+func (s *runScriptSuite) TestRepairBasicSkip(c *C) {
 	script := `#!/bin/sh
 echo "other output"
 echo "skip" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
-	runDir, li := s.testScriptRun(c, script, "happy-output")
-
-	c.Check(li[0].Name(), Matches, `^r0\.[0-9]+\.output`)
-	c.Check(li[1].Name(), Matches, `^r0\.[0-9]+\.skip`)
-	c.Check(li[2].Name(), Matches, `^script.r0$`)
-
-	// now check the captured output
-	output, err := ioutil.ReadFile(filepath.Join(runDir, li[0].Name()))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Equals, "other output\n")
-
-	// and the status
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9]+\.skip`,
+		`^script.r0$`,
+	})
+	s.verifyLastOutput(c, "other output\n")
 	verifyRepairStatus(c, repair.SkipStatus)
+}
+
+func (s *runScriptSuite) TestRepairBasicRunUnhappyThenHappy(c *C) {
+	script := `#!/bin/sh
+if [ -f zzz-ran-once ]; then
+    echo "happy now"
+    echo "done" >&$SNAP_REPAIR_STATUS_FD
+    exit 0
+fi
+
+echo "unhappy output"
+touch zzz-ran-once
+exit 1
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	rpr := s.testScriptRun(c, script)
+	s.verifyRundir(c, []string{
+		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9]+\.retry`,
+		`^script.r0$`,
+		`^zzz-ran-once$`,
+	})
+	s.verifyLastOutput(c, "unhappy output\n")
+	verifyRepairStatus(c, repair.RetryStatus)
+
+	// run again, it will be happy this time
+	err := rpr.Run()
+	c.Assert(err, IsNil)
+
+	s.verifyRundir(c, []string{
+		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9]+\.retry`,
+		`^r0\.[0-9]+\.done`,
+		`^r0\.[0-9]+\.output`,
+		`^script.r0$`,
+		`^zzz-ran-once$`,
+	})
+	s.verifyLastOutput(c, "happy now\n")
+	verifyRepairStatus(c, repair.DoneStatus)
 }
