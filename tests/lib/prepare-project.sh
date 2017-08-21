@@ -229,6 +229,14 @@ case "$SPREAD_SYSTEM" in
         ;;
 esac
 
+case "$SPREAD_SYSTEM" in
+    debian-*|ubuntu-*)
+        apt-get install mtr-tiny
+        mtr -rw github.com
+    ;;
+esac
+
+
 # update vendoring
 if [ -z "$(which govendor)" ]; then
     rm -rf "$GOPATH/src/github.com/kardianos/govendor"
