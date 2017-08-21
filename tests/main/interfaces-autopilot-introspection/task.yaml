@@ -54,10 +54,10 @@ execute: |
             break
         fi
     done
-    $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.consumer GetVersion | MATCH "my-ap-version"
+    $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetVersion | MATCH "my-ap-version"
 
     echo "And the snap app state can be intrsopected"
-    $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.consumer GetState | MATCH "my-ap-state"
+    $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetState | MATCH "my-ap-state"
 
     if [ "$(snap debug confinement)" = none ]; then
         exit 0
@@ -71,14 +71,14 @@ execute: |
         snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
         echo "Then the snap version is not introspectable"
-        if $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then
+        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then
             echo "Expected permission error trying to introspect version with disconnected plug"
             exit 1
         fi
         MATCH "Permission denied" < getversion.error
 
         echo "And the snap state is not introspectable"
-        if $SNAPMOUNTDIR/bin/test-snapd-autopilot-consumer.consumer GetState 2>${PWD}/getstate.error; then
+        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetState 2>${PWD}/getstate.error; then
             echo "Expected permission error trying to introspect state with disconnected plug"
             exit 1
         fi
