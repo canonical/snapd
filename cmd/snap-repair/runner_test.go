@@ -918,7 +918,7 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 func (s *runScriptSuite) verifyRundir(c *C, names []string) {
 	dirents, err := ioutil.ReadDir(s.runDir)
 	c.Assert(err, IsNil)
-	c.Check(dirents, HasLen, len(names))
+	c.Assert(dirents, HasLen, len(names))
 	for i := range dirents {
 		c.Check(dirents[i].Name(), Matches, names[i])
 	}
@@ -933,6 +933,9 @@ func (s *runScriptSuite) verifyLastOutput(c *C, expectedOutput string) {
 			output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
 			c.Assert(err, IsNil)
 			c.Check(string(output), Equals, expectedOutput)
+
+			// ensure correct permissions
+			c.Check(dirents[i].Mode(), Equals, os.FileMode(0600))
 			return
 		}
 	}
@@ -949,8 +952,8 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9]+\.done`,
-		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9T.-]+\.done`,
+		`^r0\.[0-9T.-]+\.output`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "happy output\n")
@@ -966,8 +969,8 @@ exit 1
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9]+\.output`,
-		`^r0\.[0-9]+\.retry`,
+		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.[0-9T.-]+\.retry`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "unhappy output\n")
@@ -984,8 +987,8 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9]+\.output`,
-		`^r0\.[0-9]+\.skip`,
+		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.[0-9T.-]+\.skip`,
 		`^script.r0$`,
 	})
 	s.verifyLastOutput(c, "other output\n")
@@ -1007,8 +1010,8 @@ exit 1
 	s.seqRepairs = []string{makeMockRepair(script)}
 	rpr := s.testScriptRun(c, script)
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9]+\.output`,
-		`^r0\.[0-9]+\.retry`,
+		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.[0-9T.-]+\.retry`,
 		`^script.r0$`,
 		`^zzz-ran-once$`,
 	})
@@ -1020,10 +1023,10 @@ exit 1
 	c.Assert(err, IsNil)
 
 	s.verifyRundir(c, []string{
-		`^r0\.[0-9]+\.output`,
-		`^r0\.[0-9]+\.retry`,
-		`^r0\.[0-9]+\.done`,
-		`^r0\.[0-9]+\.output`,
+		`^r0\.[0-9T.-]+\.output`,
+		`^r0\.[0-9T.-]+\.retry`,
+		`^r0\.[0-9T.-]+\.done`,
+		`^r0\.[0-9T.-]+\.output`,
 		`^script.r0$`,
 		`^zzz-ran-once$`,
 	})
