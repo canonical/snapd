@@ -43,9 +43,7 @@ var _ = Suite(&piCfgSuite{})
 var mockConfigTxt = `
 # For more options and information see
 # http://www.raspberrypi.org/documentation/configuration/config-txt.md
-# Some settings may impact device functionality. See link above for details
-# uncomment if you get no picture on HDMI for a default "safe" mode
-#hdmi_safe=1
+#hdmi_group=1
 # uncomment this if your display has a black border of unused pixels visible
 # and your display can output without overscan
 #disable_overscan=1
@@ -109,29 +107,25 @@ func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
-	st1, err := os.Stat(s.mockConfigPath)
+	// ensure we cannot write to the dir to test that we really
+	// do not update the file
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
 	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
-	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_safe": ""})
+	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""})
 	c.Assert(err, IsNil)
-
-	st2, err := os.Stat(s.mockConfigPath)
-	c.Assert(err, IsNil)
-
-	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
-	st1, err := os.Stat(s.mockConfigPath)
+	// ensure we cannot write to the dir to test that we really
+	// do not update the file
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
 	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
-	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "are-kept"})
-	c.Assert(err, IsNil)
-
-	st2, err := os.Stat(s.mockConfigPath)
-	c.Assert(err, IsNil)
-
-	c.Check(st1.ModTime(), DeepEquals, st2.ModTime())
+	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"})
+	c.Assert(err, ErrorMatches, `cannot set unsupported configuration value "unrelated_options"`)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {

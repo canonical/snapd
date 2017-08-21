@@ -92,9 +92,6 @@ var (
 )
 
 var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 
 	develPrivKey, _ = assertstest.GenerateKey(752)
@@ -134,7 +131,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
 	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
-	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -1698,7 +1695,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
