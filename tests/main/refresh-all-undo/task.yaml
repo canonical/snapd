@@ -31,12 +31,16 @@ restore: |
 
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
+    rm -rf $BLOB_DIR
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    echo "Sanity check for the fake store"
+    snap refresh 2>&1 | MATCH "All snaps up to date"
 
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/files.sh

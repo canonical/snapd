@@ -60,9 +60,9 @@ func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), sa
 }
 
 func (f *fetcher) chase(ref *Ref, a Assertion) error {
-	// check if ref points to a trusted assertion, in which case
+	// check if ref points to predefined assertion, in which case
 	// there is nothing to do
-	_, err := ref.Resolve(f.db.FindTrusted)
+	_, err := ref.Resolve(f.db.FindPredefined)
 	if err == nil {
 		return nil
 	}
