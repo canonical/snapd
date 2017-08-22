@@ -20,9 +20,17 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"text/tabwriter"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 func init() {
@@ -37,7 +45,48 @@ func init() {
 
 }
 
-type cmdList struct{}
+type cmdList struct {
+	Verbose bool `long:"verbose"`
+}
+
+func outputIndented(w io.Writer, path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		fmt.Fprintf(w, "  error: %s\n", err)
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fmt.Fprintf(w, "  %s\n", scanner.Text())
+	}
+	if scanner.Err() != nil {
+		fmt.Fprintf(w, "  error: %s\n", scanner.Err())
+	}
+
+}
+
+func showRepairOutput(w io.Writer, issuer string, seq, rev int) error {
+	basedir := filepath.Join(dirs.SnapRepairRunDir, issuer, strconv.Itoa(seq))
+	dirents, err := ioutil.ReadDir(basedir)
+	if err != nil {
+		return err
+	}
+	for _, dent := range dirents {
+		name := dent.Name()
+		if strings.HasSuffix(name, ".output") {
+			fmt.Fprintf(w, " output:\n")
+			outputIndented(w, filepath.Join(basedir, name))
+		}
+		if strings.HasPrefix(name, "script.") {
+			fmt.Fprintf(w, " script:\n")
+			outputIndented(w, filepath.Join(basedir, name))
+		}
+	}
+
+	return nil
+}
 
 func (c *cmdList) Execute(args []string) error {
 	runner := NewRunner()
@@ -57,6 +106,12 @@ func (c *cmdList) Execute(args []string) error {
 	for issuer, repairs := range runner.state.Sequences {
 		for _, repairState := range repairs {
 			fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", issuer, repairState.Sequence, repairState.Revision, repairState.Status)
+			if c.Verbose {
+				if err := showRepairOutput(w, issuer, repairState.Sequence, repairState.Revision); err != nil {
+					fmt.Fprintf(w, " no details: %s\n", err)
+				}
+			}
+
 		}
 	}
 

@@ -22,6 +22,7 @@ package main_test
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -35,7 +36,7 @@ func (r *repairSuite) TestListNoRepairsYet(c *C) {
 	c.Check(r.Stdout(), Equals, "no repairs yet\n")
 }
 
-func (r *repairSuite) TestListRepairsSimple(c *C) {
+func makeMockRepairState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`
@@ -57,12 +58,75 @@ func (r *repairSuite) TestListRepairsSimple(c *C) {
 `), 0600)
 	c.Assert(err, IsNil)
 
-	err = repair.ParseArgs([]string{"list"})
+	// the canonical script dir content
+	basedir := filepath.Join(dirs.SnapRepairRunDir, "canonical/1")
+	err = os.MkdirAll(basedir, 0700)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r3.000001.2017-08-22T101401.output"), []byte("foo"), 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r3.000001.2017-08-22T101401.retry"), nil, 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r3"), []byte("#!/bin/sh\necho foo"), 0700)
+	c.Assert(err, IsNil)
+
+	// my-brand
+	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/1")
+	err = os.MkdirAll(basedir, 0700)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.000001.2017-08-21T101401.output"), []byte("bar"), 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.000001.2017-08-21T101401.done"), nil, 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho bar"), 0700)
+	c.Assert(err, IsNil)
+
+	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/2")
+	err = os.MkdirAll(basedir, 0700)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r2.000001.2017-08-23T101401.output"), []byte("baz"), 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r2.000001.2017-08-23T101401.skip"), nil, 0600)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho baz"), 0700)
+	c.Assert(err, IsNil)
+}
+
+func (r *repairSuite) TestListRepairsSimple(c *C) {
+	makeMockRepairState(c)
+
+	err := repair.ParseArgs([]string{"list"})
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `Issuer     Seq  Rev  Status
 canonical  1    3    retry
 my-brand   1    1    done
 my-brand   2    2    skip
+`)
+}
+
+func (r *repairSuite) TestListRepairsVerbose(c *C) {
+	makeMockRepairState(c)
+
+	err := repair.ParseArgs([]string{"list", "--verbose"})
+	c.Check(err, IsNil)
+	c.Check(r.Stdout(), Equals, `Issuer     Seq  Rev  Status
+canonical  1    3    retry
+ output:
+  foo
+ script:
+  #!/bin/sh
+  echo foo
+my-brand  1    1    done
+ output:
+  bar
+ script:
+  #!/bin/sh
+  echo bar
+my-brand  2    2    skip
+ output:
+  baz
+ script:
+  #!/bin/sh
+  echo baz
 `)
 
 }
