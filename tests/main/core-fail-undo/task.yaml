@@ -1,0 +1,49 @@
+summary: Ensure that core undo restarts into the right daemon
+
+systems: [ubuntu-16.04-*]
+
+environment:
+    FORCE_FAIL_FILE: /var/lib/snapd/core.force-fail
+
+restore: |
+    rm -f ${FORCE_FAIL_FILE}
+    rm -f core.snap
+    . $TESTSLIB/dirs.sh
+    dpkg -i /home/gopath/snapd_*.deb
+
+execute: |
+    echo "Saving the current core revision"
+    . $TESTSLIB/dirs.sh
+    curRev=$(readlink ${SNAP_MOUNT_DIR}/core/current)
+    cp /var/lib/snapd/snaps/core_${curRev}.snap core.snap
+
+    echo "Use stable deb to get re-exec into core"
+    dpkg --purge snapd
+    apt install -y snapd/xenial
+
+    echo "Create force-fail file"
+    touch ${FORCE_FAIL_FILE}
+
+    echo "Refresh core and see if restarting happens correctly"
+    if snap install --dangerous core.snap; then
+        echo "This should fail, but it did not - test broken"
+        exit 1
+    fi
+    snap version
+
+    echo "Ensure the version of snapd and snap matches" 
+    snapVer=$(snap version|grep "snap "|tr -s ' '|cut -f2 -d' ')
+    snapdVer=$(snap version|grep "snapd "|tr -s ' '|cut -f2 -d' ')
+    if [ "$snapVer" != "$snapdVer" ]; then
+        echo "snapd did not restart back into stable on undo as it should"
+        exit 1
+    fi
+
+    snap changes
+    failed_task_id=$(snap changes|grep Error|cut -f1 -d' ')
+    snap change $failed_task_id
+    daemon_restarts=$(snap change $failed_task_id|grep -c 'Requested daemon restart')
+    if [ "$daemon_restarts" != "2" ]; then
+        echo "Expected two daemon restarts, got $daemon_restarts"
+        exit 1
+    fi

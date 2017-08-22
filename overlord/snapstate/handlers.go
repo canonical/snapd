@@ -715,6 +715,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+
+	// If we are on classic and have no previous version of core
+	// we may have restarted from a distro package into the core
+	// snap. We need to undo that restart here. Instead of in
+	// doUnlinkCurrentSnap() like we usually do when going from
+	// core snap -> next core snap
+	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
+		t.Logf("Requested daemon restart (undo classic)")
+		st.RequestRestart(state.RestartDaemon)
+	}
 	return nil
 }
 
