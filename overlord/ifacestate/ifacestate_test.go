@@ -183,10 +183,20 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	var attrs map[string]interface{}
 	err = task.Get("plug-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr1"], Equals, "value1")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr1": "value1",
+		},
+		"dynamic": map[string]interface{}{},
+	})
 	err = task.Get("slot-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr2"], Equals, "value2")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr2": "value2",
+		},
+		"dynamic": map[string]interface{}{},
+	})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -360,14 +370,14 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 		},
 	})
 	// inject some extra attributes not present in the yamls (that would normally be set via snapctl)
-	var plugAttrs map[string]interface{}
-	var slotAttrs map[string]interface{}
+	var plugAttrs map[string]map[string]interface{}
+	var slotAttrs map[string]map[string]interface{}
 	err = task.Get("plug-attrs", &plugAttrs)
 	c.Assert(err, IsNil)
 	err = task.Get("slot-attrs", &slotAttrs)
 	c.Assert(err, IsNil)
-	plugAttrs["attr3"] = "value3"
-	slotAttrs["attr4"] = "value4"
+	plugAttrs["dynamic"]["attr3"] = "value3"
+	slotAttrs["dynamic"]["attr4"] = "value4"
 	task.Set("slot-attrs", slotAttrs)
 	task.Set("plug-attrs", plugAttrs)
 
@@ -384,14 +394,25 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 	// Ensure that the backend received extra attributes
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(repoAttrs, NotNil)
-	c.Assert(repoAttrs.PlugAttrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
-	c.Assert(repoAttrs.SlotAttrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
+	c.Assert(repoAttrs.PlugAttrs, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(repoAttrs.SlotAttrs, DeepEquals, map[string]interface{}{"attr4": "value4"})
 	c.Assert(validatePlugCalled, Equals, true)
 	c.Assert(validatePlugAttrs, NotNil)
 	c.Assert(validateSlotCalled, Equals, true)
 	c.Assert(validateSlotAttrs, NotNil)
-	c.Assert(validatePlugAttrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
-	c.Assert(validateSlotAttrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
+	c.Assert(validatePlugAttrs, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(validateSlotAttrs, DeepEquals, map[string]interface{}{"attr4": "value4"})
+
+	// Ensure that dynamic attributes are stored in the state
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":  "test",
+			"plug-attrs": map[string]interface{}{"attr3": "value3"},
+			"slot-attrs": map[string]interface{}{"attr4": "value4"}}})
+
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
@@ -1562,45 +1583,6 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
-}
-
-func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	_ = s.manager(c)
-
-	s.state.Lock()
-	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 5)
-
-	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change := s.state.NewChange("connect", "")
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Assert(change.Err(), IsNil)
-	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
-	err = s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface":  "test",
-			"plug-attrs": map[string]interface{}{"attr1": "value1"},
-			"slot-attrs": map[string]interface{}{"attr2": "value2"}}})
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {

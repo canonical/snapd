@@ -159,10 +159,13 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
 	attrs := map[string]interface{}{
-		"lorem": "ipsum",
-		"nested": map[string]interface{}{
-			"x": "y",
+		"static": map[string]interface{}{
+			"lorem": "ipsum",
+			"nested": map[string]interface{}{
+				"x": "y",
+			},
 		},
+		"dynamic": map[string]interface{}{},
 	}
 	attrsTask.Set("plug-attrs", attrs)
 	attrsTask.Set("slot-attrs", attrs)
@@ -217,7 +220,8 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 	attrs := make(map[string]interface{})
 	err = attrsTask.Get("plug-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Check(attrs["foo"], Equals, "bar")
+	dynattrs := attrs["dynamic"].(map[string]interface{})
+	c.Check(dynattrs["foo"], Equals, "bar")
 }
 
 func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
@@ -234,7 +238,8 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 	attrs := make(map[string]interface{})
 	err = attrsTask.Get("plug-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Check(attrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
+	dynattrs := attrs["dynamic"].(map[string]interface{})
+	c.Check(dynattrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
 }
 
 func (s *setAttrSuite) TestSetProtectedAttributesCannotBeSet(c *C) {
@@ -251,25 +256,9 @@ func (s *setAttrSuite) TestSetProtectedAttributesCannotBeSet(c *C) {
 	c.Check(err, ErrorMatches, `cannot set attribute: attribute "nested.x" cannot be overwritten`)
 }
 
-func (s *setAttrSuite) TestSetNewAttributeInProtectedMapCanBeSet(c *C) {
+func (s *setAttrSuite) TestSetNewAttributeInProtectedMapCannotBeSet(c *C) {
 	_, _, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested.new=w"})
-	c.Assert(err, IsNil)
-
-	// doing it again should work too
-	_, _, err = ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "nested.new=w"})
-	c.Assert(err, IsNil)
-
-	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
-	c.Assert(err, IsNil)
-
-	st := s.mockPlugHookContext.State()
-	st.Lock()
-	defer st.Unlock()
-
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-attrs", &attrs)
-	c.Assert(err, IsNil)
-	c.Check(attrs["nested"], DeepEquals, map[string]interface{}{"x": "y", "new": "w"})
+	c.Assert(err, NotNil)
 }
 
 func (s *setAttrSuite) TestSetSlotAttributesInSlotHook(c *C) {
@@ -286,7 +275,8 @@ func (s *setAttrSuite) TestSetSlotAttributesInSlotHook(c *C) {
 	attrs := make(map[string]interface{})
 	err = attrsTask.Get("slot-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Check(attrs["foo"], Equals, "bar")
+	dynattrs := attrs["dynamic"].(map[string]interface{})
+	c.Check(dynattrs["foo"], Equals, "bar")
 }
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {

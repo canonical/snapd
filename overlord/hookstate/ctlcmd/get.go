@@ -291,6 +291,15 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	st.Lock()
 	defer st.Unlock()
 
+	var slotRef interfaces.SlotRef
+	var plugRef interfaces.PlugRef
+	if err = attrsTask.Get("slot", &slotRef); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get slot reference from appropriate task"))
+	}
+	if err = attrsTask.Get("plug", &plugRef); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get plug reference from appropriate task"))
+	}
+
 	attributes := make(map[string]interface{})
 	if err = attrsTask.Get(which, &attributes); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
@@ -303,11 +312,15 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		err = config.GetFromChange(context.SnapName(), subkeys, 0, attributes, &value)
+		err = config.GetFromChange(context.SnapName(), subkeys, 0, attributes["static"].(map[string]interface{}), &value)
 		if err == nil {
 			return value, true, nil
 		}
 		if config.IsNoOption(err) {
+			err = config.GetFromChange(context.SnapName(), subkeys, 0, attributes["dynamic"].(map[string]interface{}), &value)
+			if err == nil {
+				return value, true, nil
+			}
 			return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
 		}
 		return nil, false, err

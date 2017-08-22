@@ -333,15 +333,22 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 }
 
 func getTaskHookAttributes(task *state.Task) (attrs interfaces.ConnectionAttrs, err error) {
-	attrs.PlugAttrs = make(map[string]interface{})
-	attrs.SlotAttrs = make(map[string]interface{})
-	if err = task.Get("plug-attrs", &attrs.PlugAttrs); err == nil {
-		err = task.Get("slot-attrs", &attrs.SlotAttrs)
+	var plugAttrs map[string]map[string]interface{}
+	var slotAttrs map[string]map[string]interface{}
+
+	if err = task.Get("plug-attrs", &plugAttrs); err == nil {
+		err = task.Get("slot-attrs", &slotAttrs)
 	}
 	if err != nil && err != state.ErrNoState {
 		return attrs, err
 	}
-	return attrs, err
+	if err != nil {
+		return attrs, err
+	}
+
+	attrs.SlotAttrs = slotAttrs["dynamic"]
+	attrs.PlugAttrs = plugAttrs["dynamic"]
+	return attrs, nil
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
