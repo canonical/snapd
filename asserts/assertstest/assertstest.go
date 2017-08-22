@@ -238,6 +238,12 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 
 func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
 	if _, ok := headers["authority-id"]; !ok {
+		// copy before modifying
+		headers2 := make(map[string]interface{}, len(headers)+1)
+		for h, v := range headers {
+			headers2[h] = v
+		}
+		headers = headers2
 		headers["authority-id"] = db.AuthorityID
 	}
 	if keyID == "" {
@@ -272,21 +278,33 @@ type StoreStack struct {
 	*SigningDB
 }
 
-// NewStoreStack creates a new store assertion stack. It panics on error.
-// optional privKeys can be in order: root, store, generic
-func NewStoreStack(authorityID string, privKeys ...asserts.PrivateKey) *StoreStack {
-	if len(privKeys) > 3 {
-		panic("too many private keys specified, expected at most: root, store, generic")
-	}
-	for len(privKeys) < 3 {
-		privKey, _ := GenerateKey(752)
-		privKeys = append(privKeys, privKey)
-	}
-	rootPrivKey := privKeys[0]
-	storePrivKey := privKeys[1]
-	genericPrivKey := privKeys[2]
+// StoreKeys holds a set of store private keys.
+type StoreKeys struct {
+	Root    asserts.PrivateKey
+	Store   asserts.PrivateKey
+	Generic asserts.PrivateKey
+}
 
-	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+var (
+	rootPrivKey, _    = GenerateKey(1024)
+	storePrivKey, _   = GenerateKey(752)
+	genericPrivKey, _ = GenerateKey(752)
+
+	pregenKeys = StoreKeys{
+		Root:    rootPrivKey,
+		Store:   storePrivKey,
+		Generic: genericPrivKey,
+	}
+)
+
+// NewStoreStack creates a new store assertion stack. It panics on error.
+// Optional keys specify private keys to use for the various roles.
+func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
+	if keys == nil {
+		keys = &pregenKeys
+	}
+
+	rootSigning := NewSigningDB(authorityID, keys.Root)
 	ts := time.Now().Format(time.RFC3339)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
@@ -296,7 +314,7 @@ func NewStoreStack(authorityID string, privKeys ...asserts.PrivateKey) *StoreSta
 	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name":  "root",
 		"since": ts,
-	}, rootPrivKey.PublicKey(), "")
+	}, keys.Root.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	genericAcct := NewAccount(rootSigning, "generic", map[string]interface{}{
@@ -314,26 +332,26 @@ func NewStoreStack(authorityID string, privKeys ...asserts.PrivateKey) *StoreSta
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(storePrivKey)
+	err = db.ImportKey(keys.Store)
 	if err != nil {
 		panic(err)
 	}
 	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name": "store",
-	}, storePrivKey.PublicKey(), "")
+	}, keys.Store.PublicKey(), "")
 	err = db.Add(storeKey)
 	if err != nil {
 		panic(err)
 	}
 
-	err = db.ImportKey(genericPrivKey)
+	err = db.ImportKey(keys.Generic)
 	if err != nil {
 		panic(err)
 	}
 	genericKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
 		"name":  "serials",
 		"since": ts,
-	}, genericPrivKey.PublicKey(), "")
+	}, keys.Generic.PublicKey(), "")
 	err = db.Add(genericKey)
 	if err != nil {
 		panic(err)
