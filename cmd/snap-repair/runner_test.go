@@ -876,7 +876,7 @@ func verifyRepairStatus(c *C, status repair.RepairStatus) {
 func (s *runnerSuite) TestRepairSetStatus(c *C) {
 	seqRepairs := []string{makeMockRepair("scriptB")}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -912,7 +912,7 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 
-	s.mockServer = makeMockServer(c, &s.seqRepairs)
+	s.mockServer = makeMockServer(c, &s.seqRepairs, false)
 
 	s.runner = repair.NewRunner()
 	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
