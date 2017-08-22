@@ -42,10 +42,10 @@ func (r *Repair) BrandID() string {
 	return r.HeaderString("brand-id")
 }
 
-// RepairID returns the "id" of the repair. It should be a short string
-// that follows a convention like "REPAIR-123". Similar to a CVE there
-// should be a public place to look up details about the repair-id
-// (e.g. the snapcraft forum).
+// RepairID returns the "id" of the repair. It should be a short
+// string ID like "123". Similar to a CVE there should be a public
+// place to look up details about the repair-id (e.g. the snapcraft
+// forum).
 func (r *Repair) RepairID() string {
 	return r.HeaderString("repair-id")
 }
