@@ -49,7 +49,7 @@ import (
 )
 
 var (
-	// TODO: move inside the repairs themselfs?
+	// TODO: move inside the repairs themselves?
 	defaultRepairTimeout = 30 * time.Minute
 )
 
