@@ -75,19 +75,24 @@ find_argv0(char* buf, size_t num_read)
 const char*
 find_snap_name(char* buf, size_t num_read)
 {
-    // cmdline is an array of NUL ('\0') separated strings. We can skip over
-    // the first entry (program name) and look at the second entry, in our case
-    // it should be the snap name.
-    size_t argv0_len = strnlen(buf, num_read);
-    if (argv0_len + 1 >= num_read) {
-        return NULL;
-    }
-    // Skip the --from-snap-confine option if we see one.
-    size_t pos = argv0_len + 1;
-    if (buf[pos] == '-') {
-        pos += strlen(&buf[pos]) + 1;
-    }
-    char *snap_name = &buf[pos];
+    // cmdline is an array of NUL ('\0') separated strings.
+    //
+    // We can skip over the first entry (program name) and look at the second
+    // entry, in our case it should be the snap name. We also want to skip any
+    // arguments starting with "-" as those are command line options we are not
+    // interested in them.
+
+    // Skip the zeroth argument as well as any options.
+    do {
+        size_t arg_len = strnlen(buf, num_read);
+        if (arg_len + 1 >= num_read) {
+            return NULL;
+        }
+        num_read -= arg_len + 1;
+        buf += arg_len + 1;
+    } while (buf[0] == '-');
+
+    char *snap_name = buf;
     if (*snap_name == '\0') {
         return NULL;
     }
