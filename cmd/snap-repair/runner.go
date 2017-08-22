@@ -610,7 +610,9 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 		var err error
 		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
 		if err != nil {
-			logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+			if err != ErrRepairNotModified {
+				logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+			}
 			// try to use what we have already on disk
 			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
 			if err != nil {
