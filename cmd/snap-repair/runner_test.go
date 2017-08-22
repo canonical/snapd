@@ -568,10 +568,24 @@ AXNpZw==
 `
 )
 
-func makeMockServer(c *C, seqRepairs *[]string) *httptest.Server {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(strings.HasPrefix(r.URL.Path, "/repairs/canonical/"), Equals, true)
-		seq, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/repairs/canonical/"))
+func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Server {
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		urlPath := r.URL.Path
+		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {
+			if !strings.HasPrefix(urlPath, "/final/") {
+				// redirect
+				finalURL := mockServer.URL + "/final" + r.URL.Path
+				w.Header().Set("Location", finalURL)
+				w.WriteHeader(302)
+				return
+			}
+			urlPath = strings.TrimPrefix(urlPath, "/final")
+		}
+
+		c.Check(strings.HasPrefix(urlPath, "/repairs/canonical/"), Equals, true)
+
+		seq, err := strconv.Atoi(strings.TrimPrefix(urlPath, "/repairs/canonical/"))
 		c.Assert(err, IsNil)
 
 		if seq > len(*seqRepairs) {
@@ -604,10 +618,10 @@ func makeMockServer(c *C, seqRepairs *[]string) *httptest.Server {
 	return mockServer
 }
 
-func (s *runnerSuite) TestNext(c *C) {
+func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	seqRepairs := append([]string(nil), nextRepairs...)
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, redirectFirst)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -677,6 +691,16 @@ func (s *runnerSuite) TestNext(c *C) {
 	})
 }
 
+func (s *runnerSuite) TestNext(c *C) {
+	redirectFirst := false
+	s.testNext(c, redirectFirst)
+}
+
+func (s *runnerSuite) TestNextRedirect(c *C) {
+	redirectFirst := true
+	s.testNext(c, redirectFirst)
+}
+
 func (s *runnerSuite) TestNextImmediateSkip(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
@@ -693,7 +717,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -728,7 +752,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -811,7 +835,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
