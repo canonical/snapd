@@ -43,12 +43,6 @@
 			"revisionTime": "2017-06-14T13:46:31Z"
 		},
 		{
-			"checksumSHA1": "4ZkAtTGnZIVrA5hUBCN/5+XdHYU=",
-			"path": "github.com/mvo5/net/bpf",
-			"revision": "0c0cd2628b36f2b053b7cc1ec04b76aab4c5189c",
-			"revisionTime": "2017-05-27T09:53:06Z"
-		},
-		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
 			"path": "github.com/ojii/gettext.go",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
@@ -138,7 +132,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "tyXdQ4OdVQelQdsil6fXUtKKIRw=",
+			"checksumSHA1": "K3C9lD5XgLfXd25MtZe3Uw5BRoA=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "35ef4487ce0a1ea5d4b616ffe71e34febe723695",
 			"revisionTime": "2017-07-27T13:28:57Z"
