@@ -678,10 +678,24 @@ AXNpZw==
 `
 )
 
-func makeMockServer(c *C, seqRepairs *[]string) *httptest.Server {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(strings.HasPrefix(r.URL.Path, "/repairs/canonical/"), Equals, true)
-		seq, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/repairs/canonical/"))
+func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Server {
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		urlPath := r.URL.Path
+		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {
+			if !strings.HasPrefix(urlPath, "/final/") {
+				// redirect
+				finalURL := mockServer.URL + "/final" + r.URL.Path
+				w.Header().Set("Location", finalURL)
+				w.WriteHeader(302)
+				return
+			}
+			urlPath = strings.TrimPrefix(urlPath, "/final")
+		}
+
+		c.Check(strings.HasPrefix(urlPath, "/repairs/canonical/"), Equals, true)
+
+		seq, err := strconv.Atoi(strings.TrimPrefix(urlPath, "/repairs/canonical/"))
 		c.Assert(err, IsNil)
 
 		if seq > len(*seqRepairs) {
@@ -714,10 +728,10 @@ func makeMockServer(c *C, seqRepairs *[]string) *httptest.Server {
 	return mockServer
 }
 
-func (s *runnerSuite) TestNext(c *C) {
+func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	seqRepairs := append([]string(nil), nextRepairs...)
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, redirectFirst)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -787,6 +801,16 @@ func (s *runnerSuite) TestNext(c *C) {
 	})
 }
 
+func (s *runnerSuite) TestNext(c *C) {
+	redirectFirst := false
+	s.testNext(c, redirectFirst)
+}
+
+func (s *runnerSuite) TestNextRedirect(c *C) {
+	redirectFirst := true
+	s.testNext(c, redirectFirst)
+}
+
 func (s *runnerSuite) TestNextImmediateSkip(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
@@ -803,7 +827,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -838,7 +862,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -921,7 +945,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -935,4 +959,73 @@ AXNpZw==`}
 
 	_, err = runner.Next("canonical")
 	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
+}
+
+func (s *runnerSuite) TestRepairSetStatus(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 16
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	rpr.SetStatus(repair.DoneStatus)
+
+	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+		{Sequence: 1, Status: repair.DoneStatus},
+	})
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":2}]}}`)
+}
+
+func (s *runnerSuite) TestRepairBasicRun(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 16
+timestamp: 2017-07-02T12:00:00Z
+body-length: 7
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+exit 0
+
+
+AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	rpr.Run()
+	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
+	c.Assert(err, IsNil)
+	c.Check(string(scrpt), Equals, "exit 0\n")
+
 }
