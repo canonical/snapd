@@ -37,6 +37,7 @@ func (r *repairSuite) TestListNoRepairsYet(c *C) {
 }
 
 func makeMockRepairState(c *C) {
+	// FIXME: we don't use the state
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`
