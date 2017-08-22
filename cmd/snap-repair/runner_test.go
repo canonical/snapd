@@ -867,7 +867,7 @@ scriptB
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
@@ -903,7 +903,7 @@ exit 0
 
 AXNpZw==`}
 
-	mockServer := makeMockServer(c, &seqRepairs)
+	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
 	runner := repair.NewRunner()
