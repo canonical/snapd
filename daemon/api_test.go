@@ -201,11 +201,6 @@ func (s *apiBaseSuite) journalctl(svcs []string, n string, follow bool) (rc io.R
 	return rc, err
 }
 
-var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-)
-
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.sysctlArgses = nil
 	s.sysctlBufs = nil
@@ -235,7 +230,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.buyOptions = nil
 	s.buyResult = nil
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	assertstateRefreshSnapDeclarations = nil
