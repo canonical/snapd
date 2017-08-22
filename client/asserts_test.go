@@ -45,6 +45,20 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	c.Check(cs.req.URL.Path, Equals, "/v2/assertions")
 }
 
+func (cs *clientSuite) TestClientAssertsTypes(c *C) {
+	cs.rsp = `{
+    "result": {
+        "types": ["one", "two"]
+    },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+	typs, err := cs.cli.AssertionTypes()
+	c.Assert(err, IsNil)
+	c.Check(typs, DeepEquals, []string{"one", "two"})
+}
+
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")

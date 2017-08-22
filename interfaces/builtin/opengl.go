@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,8 +40,6 @@ const openglConnectedPlugAppArmor = `
   # nvidia
   @{PROC}/driver/nvidia/params r,
   @{PROC}/modules r,
-  /dev/nvidiactl rw,
-  /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
   unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 

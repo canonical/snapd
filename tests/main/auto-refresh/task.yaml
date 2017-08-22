@@ -5,7 +5,7 @@ prepare: |
 
 restore: |
     . "$TESTSLIB/dirs.sh"
-    if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
+    if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
         snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
         snap set core refresh.disabled=true
     fi
@@ -22,7 +22,7 @@ execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
-    if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
+    if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
         snap set core refresh.schedule="0:00-23:59"
         snap set core refresh.disabled=false
     fi

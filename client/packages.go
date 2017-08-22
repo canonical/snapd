@@ -66,34 +66,6 @@ type Snap struct {
 	Tracks []string
 }
 
-type AppInfo struct {
-	Name         string `json:"name"`
-	DesktopFile  string `json:"desktop-file,omitempty"`
-	*ServiceInfo `json:",omitempty"`
-}
-
-// IsService returns true if the application is a background daemon.
-func (a *AppInfo) IsService() bool {
-	if a == nil {
-		return false
-	}
-	if a.ServiceInfo == nil {
-		return false
-	}
-	if a.ServiceInfo.Daemon == "" {
-		return false
-	}
-
-	return true
-}
-
-type ServiceInfo struct {
-	Daemon          string `json:"daemon"`
-	ServiceFileName string `json:"service-file-name"`
-	Enabled         bool   `json:"enabled"`
-	Active          bool   `json:"active"`
-}
-
 type Screenshot struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width,omitempty"`

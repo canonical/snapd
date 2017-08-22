@@ -6788,6 +6788,45 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
+func (s *snapmgrTestSuite) TestConflictMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, snapName := range []string{"a-snap", "b-snap"} {
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{
+				{RealName: snapName, Revision: snap.R(11)},
+			},
+			Current: snap.R(11),
+			Active:  false,
+		})
+
+		ts, err := snapstate.Enable(s.state, snapName)
+		c.Assert(err, IsNil)
+		// need a change to make the tasks visible
+		s.state.NewChange("enable", "...").AddAll(ts)
+	}
+
+	// things that should be ok:
+	for _, m := range [][]string{
+		{}, //nothing
+		{"c-snap"},
+		{"c-snap", "d-snap", "e-snap", "f-snap"},
+	} {
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), IsNil)
+	}
+
+	// things that should not be ok:
+	for _, m := range [][]string{
+		{"a-snap"},
+		{"a-snap", "b-snap"},
+		{"a-snap", "c-snap"},
+		{"b-snap", "c-snap"},
+	} {
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has changes in progress`)
+	}
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})
