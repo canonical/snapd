@@ -310,6 +310,8 @@ set_thread_area
 		c.Logf("cannot use non-native in runBpfInKernel")
 		return
 	}
+	// Skip prctl(PR_SET_ENDIAN) that causes havoc when run.
+	//
 	// Note that we will need to also skip: fadvise64_64,
 	//   ftruncate64, posix_fadvise, pread64, pwrite64, readahead,
 	//   sync_file_range, and truncate64.
@@ -662,7 +664,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
 		s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 		// bad input
-		for _, bad := range []string{"quotactl;native;99999", "setpriority;native;"} {
+		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
 			s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 		}
 	}
