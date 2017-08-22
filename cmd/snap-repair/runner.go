@@ -372,20 +372,20 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 		}
 		seen[u] = true
 		signKey := []string{a.SignKeyID()}
-		key, err := workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+		key, err := trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
 		if err != nil && err != asserts.ErrNotFound {
 			return err
 		}
-		if err == asserts.ErrNotFound {
-			key, err = trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+		if err == nil {
+			bottom = true
+		} else {
+			key, err = workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
 			if err != nil && err != asserts.ErrNotFound {
 				return err
 			}
 			if err == asserts.ErrNotFound {
 				return fmt.Errorf("cannot find public key %q", signKey[0])
 			}
-			bottom = true
-		} else {
 			if err := checkAuthorityID(key, trusted); err != nil {
 				return err
 			}
