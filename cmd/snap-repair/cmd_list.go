@@ -31,6 +31,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
@@ -67,8 +68,8 @@ func outputIndented(w io.Writer, path string) {
 
 }
 
-func showRepairOutput(w io.Writer, issuer string, seq, rev int) error {
-	basedir := filepath.Join(dirs.SnapRepairRunDir, issuer, strconv.Itoa(seq))
+func showRepairOutput(w io.Writer, issuer, seq, rev string) error {
+	basedir := filepath.Join(dirs.SnapRepairRunDir, issuer, seq)
 	dirents, err := ioutil.ReadDir(basedir)
 	if err != nil {
 		return err
@@ -88,9 +89,36 @@ func showRepairOutput(w io.Writer, issuer string, seq, rev int) error {
 	return nil
 }
 
+type repairTrace struct {
+	issuer string
+	seq    string
+	rev    string
+	status string
+}
+
 func (c *cmdList) Execute(args []string) error {
-	runner := NewRunner()
-	err := runner.readState()
+
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+	defer w.Flush()
+
+	// FIXME: this will not currently list the repairs that are
+	//        skipped because of e.g. wrong architecture
+
+	// directory structure is:
+	//  canonical/
+	//    1/
+	//      r0.000001.2017-08-22T102401.output
+	//      r0.000001.2017-08-22T102401.retry
+	//      script.r0
+	//      r1.000001.2017-08-23T102401.output
+	//      r1.000001.2017-08-23T102401.done
+	//      script.r0
+	//    2/
+	//      r3.000001.2017-08-24T102401.output
+	//      r3.000001.2017-08-24T102401.done
+	//      script.r3
+	var repairTraces []repairTrace
+	issuersContent, err := ioutil.ReadDir(dirs.SnapRepairRunDir)
 	if os.IsNotExist(err) {
 		fmt.Fprintf(Stdout, "no repairs yet\n")
 		return nil
@@ -98,21 +126,65 @@ func (c *cmdList) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	for _, issuer := range issuersContent {
+		if !issuer.IsDir() {
+			continue
+		}
+		issuerName := issuer.Name()
 
-	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
-	defer w.Flush()
+		seqDir := filepath.Join(dirs.SnapRepairRunDir, issuerName)
+		sequences, err := ioutil.ReadDir(seqDir)
+		if err != nil {
+			continue
+		}
+		for _, seq := range sequences {
+			seqName := seq.Name()
 
-	fmt.Fprintf(w, "Issuer\tSeq\tRev\tStatus\n")
-	for issuer, repairs := range runner.state.Sequences {
-		for _, repairState := range repairs {
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", issuer, repairState.Sequence, repairState.Revision, repairState.Status)
-			if c.Verbose {
-				if err := showRepairOutput(w, issuer, repairState.Sequence, repairState.Revision); err != nil {
-					fmt.Fprintf(w, " no details: %s\n", err)
+			artifactsDir := filepath.Join(dirs.SnapRepairRunDir, issuerName, seqName)
+			artifacts, err := ioutil.ReadDir(artifactsDir)
+			if err != nil {
+				continue
+			}
+			for _, artifact := range artifacts {
+				artifactName := artifact.Name()
+				if strings.HasSuffix(artifactName, ".output") {
+					t := repairTrace{
+						issuer: issuerName,
+						seq:    seqName,
+						rev:    "?",
+						status: "unknown",
+					}
+
+					base := filepath.Join(artifactsDir, artifactName[:len(artifactName)-len(".output")])
+					switch {
+					case osutil.FileExists(base + ".retry"):
+						t.status = "retry"
+					case osutil.FileExists(base + ".done"):
+						t.status = "done"
+					case osutil.FileExists(base + ".skip"):
+						t.status = "skip"
+					}
+
+					var rev int
+					if _, err := fmt.Sscanf(artifactName, "r%d.", &rev); err == nil {
+						t.rev = strconv.Itoa(rev)
+					}
+
+					repairTraces = append(repairTraces, t)
 				}
 			}
-
 		}
+	}
+
+	fmt.Fprintf(w, "Issuer\tSeq\tRev\tStatus\n")
+	for _, t := range repairTraces {
+		fmt.Fprintf(w, "%s\t%v\t%v\t%s\n", t.issuer, t.seq, t.rev, t.status)
+		if c.Verbose {
+			if err := showRepairOutput(w, t.issuer, t.seq, t.rev); err != nil {
+				fmt.Fprintf(w, " no details: %s\n", err)
+			}
+		}
+
 	}
 
 	return nil
