@@ -43,6 +43,43 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// Repair is a runnable repair.
+type Repair struct {
+	*asserts.Repair
+
+	run      *Runner
+	sequence int
+}
+
+// SetStatus sets the status of the repair in the state and saves the latter.
+func (r *Repair) SetStatus(status RepairStatus) {
+	brandID := r.BrandID()
+	cur := *r.run.state.Sequences[brandID][r.sequence-1]
+	cur.Status = status
+	r.run.setRepairState(brandID, cur)
+	r.run.SaveState()
+}
+
+// Run executes the repair script leaving execution trail files on disk.
+func (r *Repair) Run() error {
+	// XXX initial skeleton...
+	// write the script to disk
+	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	err := os.MkdirAll(rundir, 0775)
+	if err != nil {
+		return err
+	}
+	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
+	err = osutil.AtomicWriteFile(script, r.Body(), 0600, 0)
+	if err != nil {
+		return err
+	}
+
+	// XXX actually run things and captures output etc
+
+	return nil
+}
+
 // Runner implements fetching, tracking and running repairs.
 type Runner struct {
 	BaseURL *url.URL
@@ -84,14 +121,20 @@ var (
 	))
 )
 
-var ErrRepairNotFound = errors.New("repair not found")
+var (
+	ErrRepairNotFound    = errors.New("repair not found")
+	ErrRepairNotModified = errors.New("repair was not modified")
+)
 
 var (
 	maxRepairScriptSize = 24 * 1024 * 1024
 )
 
-// Fetch retrieves a stream with the repair with the given ids and any auxiliary assertions.
-func (run *Runner) Fetch(brandID, repairID string) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+// Fetch retrieves a stream with the repair with the given ids and any
+// auxiliary assertions. If revision>=0 the request will include an
+// If-None-Match header with an ETag for the revision, and
+// ErrRepairNotModified is returned if the revision is still current.
+func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
@@ -104,6 +147,9 @@ func (run *Runner) Fetch(brandID, repairID string) (repair *asserts.Repair, aux 
 			return nil, err
 		}
 		req.Header.Set("Accept", "application/x.ubuntu.assertion")
+		if revision >= 0 {
+			req.Header.Set("If-None-Match", fmt.Sprintf(`"%d"`, revision))
+		}
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
@@ -135,6 +181,9 @@ func (run *Runner) Fetch(brandID, repairID string) (repair *asserts.Repair, aux 
 	switch resp.StatusCode {
 	case 200:
 		// ok
+	case 304:
+		// not modified
+		return nil, nil, ErrRepairNotModified
 	case 404:
 		return nil, nil, ErrRepairNotFound
 	default:
@@ -352,27 +401,12 @@ func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux [
 	if !run.Applicable(headers) {
 		return nil, nil, errSkip
 	}
-	return run.Fetch(brandID, repairID)
+	return run.Fetch(brandID, repairID, -1)
 }
 
-var errReuse = errors.New("reuse repair on disk")
-
 func (run *Runner) refetch(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	// TODO: the endpoint should support revision based E-Tags and then we
-	// can use them here instead of two requests
 	repairID := strconv.Itoa(seq)
-	headers, err := run.Peek(brandID, repairID)
-	if err != nil {
-		return nil, nil, err
-	}
-	refetchRevision, ok := headers["revision"]
-	if !ok {
-		refetchRevision = "0"
-	}
-	if refetchRevision == strconv.Itoa(revision) {
-		return nil, nil, errReuse
-	}
-	return run.Fetch(brandID, repairID)
+	return run.Fetch(brandID, repairID, revision)
 }
 
 func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, aux []asserts.Assertion) error {
@@ -432,7 +466,9 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 		var err error
 		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
 		if err != nil {
-			logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+			if err != ErrRepairNotModified {
+				logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+			}
 			// try to use what we have already on disk
 			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
 			if err != nil {
@@ -473,7 +509,7 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 }
 
 // Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
-func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
+func (run *Runner) Next(brandID string) (*Repair, error) {
 	sequenceNext := run.sequenceNext[brandID]
 	if sequenceNext == 0 {
 		sequenceNext = 1
@@ -501,6 +537,11 @@ func (run *Runner) Next(brandID string) (*asserts.Repair, error) {
 		if err == errSkip {
 			continue
 		}
-		return repair, nil
+
+		return &Repair{
+			Repair:   repair,
+			run:      run,
+			sequence: sequenceNext - 1,
+		}, nil
 	}
 }
