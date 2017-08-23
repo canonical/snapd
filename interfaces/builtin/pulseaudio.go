@@ -45,6 +45,9 @@ owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+
+/run/udev/data/c116:[0-9]* r,
+/run/udev/data/+sound:card[0-9]* r,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `

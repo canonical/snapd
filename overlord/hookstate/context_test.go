@@ -22,6 +22,8 @@ package hookstate
 import (
 	. "gopkg.in/check.v1"
 
+	"encoding/json"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -65,6 +67,17 @@ func (s *contextSuite) TestSetAndGet(c *C) {
 
 	// Test another non-existing key, but after the context data was created.
 	c.Check(s.context.Get("baz", &output), NotNil)
+}
+
+func (s *contextSuite) TestSetAndGetNumber(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	s.context.Set("num", 1234567890)
+
+	var output interface{}
+	c.Check(s.context.Get("num", &output), IsNil)
+	c.Assert(output, Equals, json.Number("1234567890"))
 }
 
 func (s *contextSuite) TestSetPersistence(c *C) {

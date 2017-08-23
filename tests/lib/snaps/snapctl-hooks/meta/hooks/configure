@@ -30,6 +30,28 @@ test_snapctl_get_foo() {
 	fi
 }
 
+test_get_int_number() {
+  echo "Getting int number"
+  if ! output="$(snapctl get intnumber)"; then
+		echo "Expected snapctl get to be able to retrieve value just set"
+		exit 1
+	fi
+	expected_output="1234567890"
+	if [ "$output" != "$expected_output" ]; then
+		  echo "Expected output to be '$expected_output', but it was '$output'"
+		  exit 1
+	fi
+  if ! output="$(snapctl get intnumber2)"; then
+		  echo "Expected snapctl get to be able to retrieve value just set"
+		  exit 1
+	fi
+	expected_output="\"a\": 9876543210"
+	if ! echo "$output" | grep -q -e "$expected_output"; then
+		  echo "Expected output to be '$expected_output', but it was '$output'"
+		  exit 1
+	fi
+}
+
 test_snapctl_get_foo_null() {
 	  echo "Getting foo"
 	  if ! output="$(snapctl get foo)"; then
@@ -68,6 +90,9 @@ case $command in
 	"test-exit-one")
 		test_exit_one
 		;;
+  "test-get-int")
+    test_get_int_number
+    ;;
 	*)
 		echo "Invalid command: '$command'"
 		exit 1

@@ -205,8 +205,8 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 		{"foo", "bar", "baz"},
 	} {
 		for _, opts := range []client.StartOptions{
-			{true},
-			{false},
+			{Enable: true},
+			{Enable: false},
 		} {
 			scenarios = append(scenarios, scenario{
 				names:   names,
@@ -266,8 +266,8 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 		{"foo", "bar", "baz"},
 	} {
 		for _, opts := range []client.StopOptions{
-			{true},
-			{false},
+			{Disable: true},
+			{Disable: false},
 		} {
 			scs = append(scs, tT{
 				names:   names,
@@ -327,8 +327,8 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 		{"foo", "bar", "baz"},
 	} {
 		for _, opts := range []client.RestartOptions{
-			{true},
-			{false},
+			{Reload: true},
+			{Reload: false},
 		} {
 			scs = append(scs, tT{
 				names:   names,
