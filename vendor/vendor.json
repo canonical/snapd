@@ -13,6 +13,12 @@
 			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
+			"checksumSHA1": "LIpi0bDVAl3e0Xza8gohpKkH0+I=",
+			"path": "github.com/godbus/dbus",
+			"revision": "bd29ed602e2cf4207ebcabcd530259169e4289ba",
+			"revisionTime": "2017-07-07T17:46:28Z"
+		},
+		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
 			"path": "github.com/gorilla/context",
 			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
