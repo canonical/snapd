@@ -31,10 +31,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
@@ -517,7 +519,33 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if len(series) != 0 && !strutil.ListContains(series, release.Series) {
 		return false
 	}
-	// TODO: architecture, model filtering
+	archs, err := stringList(headers, "architectures")
+	if err != nil {
+		return false
+	}
+	if len(archs) != 0 && !strutil.ListContains(archs, arch.UbuntuArchitecture()) {
+		return false
+	}
+	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)
+	models, err := stringList(headers, "models")
+	if err != nil {
+		return false
+	}
+	if len(models) != 0 && !strutil.ListContains(models, brandModel) {
+		// model prefix matching: brand/prefix*
+		hit := false
+		for _, patt := range models {
+			if strings.HasSuffix(patt, "*") && strings.ContainsRune(patt, '/') {
+				if strings.HasPrefix(brandModel, strings.TrimSuffix(patt, "*")) {
+					hit = true
+					break
+				}
+			}
+		}
+		if !hit {
+			return false
+		}
+	}
 	return true
 }
 
