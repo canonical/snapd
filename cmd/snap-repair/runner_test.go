@@ -36,6 +36,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -600,6 +601,39 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]}}`)
+}
+
+func (s *runnerSuite) TestApplicable(c *C) {
+	s.freshState(c)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+
+	scenarios := []struct {
+		headers    map[string]interface{}
+		applicable bool
+	}{
+		{nil, true},
+		{map[string]interface{}{"series": []interface{}{"18"}}, false},
+		{map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
+		{map[string]interface{}{"architectures": []interface{}{arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch", arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
+		// model prefix matches
+		{map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
+	}
+
+	for _, scen := range scenarios {
+		ok := runner.Applicable(scen.headers)
+		c.Check(ok, Equals, scen.applicable, Commentf("%v", scen))
+	}
 }
 
 var (
