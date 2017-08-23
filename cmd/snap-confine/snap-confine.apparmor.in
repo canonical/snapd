@@ -57,6 +57,8 @@
     @{PROC}/[0-9]*/attr/exec w,
     # Reading current profile
     @{PROC}/[0-9]*/attr/current r,
+    # Reading available filesystems
+    @{PROC}/filesystems r,
 
     # To find where apparmor is mounted
     @{PROC}/[0-9]*/mounts r,
