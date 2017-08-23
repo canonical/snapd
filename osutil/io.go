@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/strutil"
 )
@@ -34,6 +35,11 @@ const (
 	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
 	AtomicWriteFollow AtomicWriteFlags = 1 << iota
 )
+
+// Allow disabling sync for testing. This brings massive improvements on
+// certain filesystems (like btrfs) and very much noticeable improvements in
+// all unit tests in genreal.
+var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO")
 
 // AtomicWriteFile updates the filename atomically and works otherwise
 // like io/ioutil.WriteFile()
@@ -91,13 +97,18 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		return errors.New("internal error: AtomicWriteFileChown needs none or both of uid and gid set")
 	}
 
-	if err := fd.Sync(); err != nil {
-		return err
+	if !snapdUnsafeIO {
+		if err := fd.Sync(); err != nil {
+			return err
+		}
 	}
 
 	if err := os.Rename(tmp, filename); err != nil {
 		return err
 	}
 
-	return dir.Sync()
+	if !snapdUnsafeIO {
+		return dir.Sync()
+	}
+	return nil
 }
