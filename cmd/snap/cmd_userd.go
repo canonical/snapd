@@ -31,7 +31,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/tomb.v2"
 
-	ifaces "github.com/snapcore/snapd/dbus"
+	dbusifaces "github.com/snapcore/snapd/dbus"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 )
@@ -85,7 +85,7 @@ func init() {
 }
 
 func (x *cmdUserd) createAndExportInterfaces() {
-	x.dbusIfaces = []registeredDBusInterface{&ifaces.SafeLauncher{}}
+	x.dbusIfaces = []registeredDBusInterface{&dbusifaces.SafeLauncher{}}
 
 	var buffer bytes.Buffer
 	buffer.WriteString("<node>")
