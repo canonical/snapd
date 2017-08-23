@@ -20,10 +20,9 @@
 package dbus
 
 import (
+	"fmt"
 	"net/url"
 	"os/exec"
-
-	"fmt"
 
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/strutil"

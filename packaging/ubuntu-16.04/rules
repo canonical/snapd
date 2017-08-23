@@ -119,7 +119,7 @@ override_dh_auto_build:
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
-	# Generate the real systemd/upstart config files
+	# Generate the real systemd/dbus config files
 	$(MAKE) -C data all
 
 override_dh_auto_test:
