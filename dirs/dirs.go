@@ -197,6 +197,8 @@ func SetRootDir(rootdir string) {
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel":
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
+	case "solus":
+		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib64/snapd")
 	default:
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
