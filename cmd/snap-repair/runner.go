@@ -198,6 +198,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
+
+	if repair.Revision() <= revision {
+		// this shouldn't happen but if it does we behave like
+		// all the rest of assertion infrastructure and ignore
+		// the now superseded revision
+		return nil, nil, ErrRepairNotModified
+	}
+
 	return
 }
 
