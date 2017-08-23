@@ -31,45 +31,6 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestConnectionsHelp(c *C) {
-	msg := `Usage:
-  snap.test [OPTIONS] interfaces [interfaces-OPTIONS] [<snap>:<slot or plug>]
-
-The interfaces command lists interfaces available in the system.
-
-By default all slots and plugs, used and offered by all snaps, are displayed.
-
-$ snap interfaces <snap>:<slot or plug>
-
-Lists only the specified slot or plug.
-
-$ snap interfaces <snap>
-
-Lists the slots offered and plugs used by the specified snap.
-
-$ snap interfaces -i=<interface> [<snap>]
-
-Filters the complete output so only plugs and/or slots matching the provided
-details are listed.
-
-Application Options:
-      --version                    Print the version and exit
-
-Help Options:
-  -h, --help                       Show this help message
-
-[interfaces command options]
-      -i=                          Constrain listing to specific interfaces
-
-[interfaces command arguments]
-  <snap>:<slot or plug>:           Constrain listing to a specific snap or
-                                   snap:name
-`
-	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
 func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
