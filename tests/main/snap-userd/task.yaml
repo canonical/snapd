@@ -31,6 +31,18 @@ execute: |
     dbus-launch > dbus.env
     export $(cat dbus.env | xargs)
 
+    # helper that returns true when io.snapcraft.SafeLauncher.OpenURL
+    # responds
+    ping_safe_launcher() {
+        dbus-send --session                                            \
+            --dest=io.snapcraft.SafeLauncher                           \
+            --type=method_call                                         \
+            --print-reply                                              \
+            /io/snapcraft/SafeLauncher                                 \
+            io.snapcraft.SafeLauncher.OpenURL string:"ping-ping-ping:" \
+            2>&1 | grep -q ping-ping-ping
+    }
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         cat << EOF > /etc/init/test-snap-userd.conf
     env DISPLAY="$DISPLAY"
@@ -39,20 +51,9 @@ execute: |
     kill timeout 5
     exec /usr/bin/snap userd
     EOF
-
         initctl reload-configuration
         start test-snap-userd
-        # This is a bit nasty but the best we can do at the moment as we don't
-        # have something like `busctl status io.snapcraft.SafeLauncher` on 14.04
-        list_dbus_names() {
-            dbus-send --session            \
-                --dest=org.freedesktop.DBus \
-                --type=method_call          \
-                --print-reply               \
-                /org/freedesktop/DBus       \
-                org.freedesktop.DBus.ListNames
-        }
-        while ! list_dbus_names | MATCH io.snapcraft.SafeLauncher ; do
+        while ! ping_safe_launcher ; do
             sleep .1
         done
     else
@@ -64,9 +65,7 @@ execute: |
             --setenv=DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
             --setenv=DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID" \
             /bin/sh -c '/usr/bin/snap userd &'
-
-        # Wait until the service is up and running
-        while ! systemctl is-active test-snap-userd.scope ; do
+        while ! ping_safe_launcher ; do
             sleep .1
         done
     fi
@@ -110,10 +109,4 @@ execute: |
     test ! -e /tmp/xdg-open-output
     ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output
-
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        stop test-snap-userd
-    else
-        systemctl stop --signal=KILL test-snap-userd.scope
-    fi
 
