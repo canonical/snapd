@@ -301,6 +301,21 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	c.Assert(n, Equals, 1)
 }
 
+func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, testRepair)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	_, _, err := runner.Fetch("canonical", "2", 2)
+	c.Assert(err, Equals, repair.ErrRepairNotModified)
+}
+
 func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
