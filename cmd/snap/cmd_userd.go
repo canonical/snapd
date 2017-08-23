@@ -41,31 +41,15 @@ const (
 	basePath = "/io/snapcraft/SafeLauncher"
 )
 
-func connectSessionBusImpl() (DBusConnection, error) {
-	return dbus.SessionBus()
-}
-
-var connectSessionBus = connectSessionBusImpl
-
 type registeredDBusInterface interface {
 	Name() string
 	IntrospectionData() string
 }
 
-// DBusConnection describes the interface used for a connection to
-// a specific bus.
-type DBusConnection interface {
-	Export(v interface{}, path dbus.ObjectPath, iface string) error
-	RequestName(name string, flags dbus.RequestNameFlags) (dbus.RequestNameReply, error)
-	Signal(ch chan<- *dbus.Signal)
-	Close() error
-}
-
 type cmdUserd struct {
 	tomb       tomb.Tomb
-	conn       DBusConnection
+	conn       *dbus.Conn
 	dbusIfaces []registeredDBusInterface
-	ready      chan<- error
 }
 
 var shortUserdHelp = i18n.G("Start the snap userd service")
@@ -108,29 +92,22 @@ func (x *cmdUserd) Execute(args []string) error {
 
 	x.tomb.Go(func() error {
 		var err error
-		x.conn, err = connectSessionBus()
+		x.conn, err = dbus.SessionBus()
 		if err != nil {
-			x.ready <- err
 			return err
 		}
 
 		reply, err := x.conn.RequestName(busName, dbus.NameFlagDoNotQueue)
 		if err != nil {
-			x.ready <- err
 			return err
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
 			err = fmt.Errorf("Failed to request bus name '%s'", busName)
-			x.ready <- err
 			return err
 		}
 
 		x.createAndExportInterfaces()
-
-		// Notify our listener that we're ready; necessary for
-		// our unit tests.
-		x.ready <- nil
 
 		// Listen to keep our thread up and running. All DBus bits
 		// are running in the background
