@@ -11,6 +11,9 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv-[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -20,6 +23,7 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -336,6 +340,9 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv-[0-9]*.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -345,6 +352,7 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 
