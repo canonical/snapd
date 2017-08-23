@@ -103,7 +103,7 @@ func (x *cmdUserd) Execute(args []string) error {
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
-			err = fmt.Errorf("Failed to request bus name '%s'", busName)
+			err = fmt.Errorf("cannot obtain bus name '%s'", busName)
 			return err
 		}
 
