@@ -7183,6 +7183,116 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	}
 }
 
+type behindYourBackStore struct {
+	*fakeStore
+	state *state.State
+
+	coreInstallRequested bool
+	coreInstalled        bool
+	chg                  *state.Change
+}
+
+func (s behindYourBackStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	if spec.Name == "core" {
+		s.state.Lock()
+		if !s.coreInstallRequested {
+			s.coreInstallRequested = true
+			snapsup := &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "core",
+				},
+			}
+			t := s.state.NewTask("prepare", "prepare core")
+			t.Set("snap-setup", snapsup)
+			s.chg = s.state.NewChange("install", "install core")
+			s.chg.AddAll(state.NewTaskSet(t))
+		}
+		if s.chg != nil && !s.coreInstalled {
+			s.chg.SetStatus(state.DoneStatus)
+			snapstate.Set(s.state, "core", &snapstate.SnapState{
+				Active: true,
+				Sequence: []*snap.SideInfo{
+					{RealName: "core", Revision: snap.R(1)},
+				},
+				Current:  snap.R(1),
+				SnapType: "os",
+			})
+			s.coreInstalled = true
+		}
+		s.state.Unlock()
+	}
+
+	return s.fakeStore.SnapInfo(spec, user)
+}
+
+// this test the scenario that some-snap gets installed and during the
+// install (when unlocking for the store info call for core) an
+// explicit "snap install core" happens. In this case the snapstate
+// will return a change conflict. we handle this via a retry, ensure
+// this is actually what happens.
+func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	defer restore()
+
+	snapstate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
+
+	// pretend we don't have core
+	snapstate.Set(s.state, "core", nil)
+
+	// now install a snap that will pull in core
+	chg := s.state.NewChange("install", "install a snap on a system without core")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+
+	// run changes, this will trigger the prerequisites task, which
+	// will trigger the install of core and also call our mock store
+	// which will generate a parallel change
+	s.settle()
+	// change is not ready yet, because the prerequists triggered
+	// a state.Retry{} because of the conflicting change
+	c.Assert(chg.IsReady(), Equals, false)
+
+	// retry interval is 10ms so 20ms should be plenty of time
+	time.Sleep(20 * time.Millisecond)
+	s.settle()
+	// chg got retried, core is now installed, things are good
+	c.Assert(chg.IsReady(), Equals, true)
+
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// verify core in the system state
+	var snaps map[string]*snapstate.SnapState
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+
+	snapst := snaps["core"]
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+
+	snapst = snaps["some-snap"]
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Channel:  "some-channel",
+		Revision: snap.R(42),
+	})
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})

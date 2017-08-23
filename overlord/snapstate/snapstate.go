@@ -372,6 +372,14 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 	return nil
 }
 
+type changeDuringInstallError struct {
+	snapName string
+}
+
+func (c changeDuringInstallError) Error() string {
+	return fmt.Sprintf("snap %q state changed during install preparations", c.snapName)
+}
+
 // CheckChangeConflict ensures that for the given snapName no other
 // changes that alters the snap (like remove, install, refresh) are in
 // progress. It also ensures that snapst (if not nil) did not get
@@ -395,7 +403,7 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
-			return fmt.Errorf("snap %q state changed during install preparations", snapName)
+			return changeDuringInstallError{snapName: snapName}
 		}
 	}
 
