@@ -23,22 +23,22 @@ package polkit
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strconv"
 	"strings"
 )
 
 // getStartTimeForPid determines the start time for a given process ID
+func getStartTimeForPid(pid uint32) (uint64, error) {
+	filename := fmt.Sprintf("/proc/%d/stat", pid)
+	return getStartTimeForProcStatFile(filename)
+}
+
+// getStartTimeForProcStatFile determines the start time from a process stat file
 //
 // The implementation is intended to be compatible with polkit:
 //    https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
-func getStartTimeForPid(pid uint32) (uint64, error) {
-	filename := fmt.Sprintf("/proc/%d/stat", pid)
-	file, err := os.Open(filename)
-	if err != nil {
-		return 0, err
-	}
-	data, err := ioutil.ReadAll(file)
+func getStartTimeForProcStatFile(filename string) (uint64, error) {
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return 0, err
 	}
@@ -48,6 +48,10 @@ func getStartTimeForPid(pid uint32) (uint64, error) {
 	// name)' entry - since only this field can contain the ')'
 	// character, search backwards for this to avoid malicious
 	// processes trying to fool us
+	//
+	// See proc(5) man page for a description of the
+	// /proc/[pid]/stat file format and the meaning of the
+	// starttime field.
 	idx := strings.IndexByte(contents, ')')
 	if idx < 0 {
 		return 0, fmt.Errorf("cannot parse %s", filename)

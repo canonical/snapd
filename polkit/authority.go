@@ -67,11 +67,11 @@ func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]st
 		Details: make(map[string]dbus.Variant),
 	}
 	subject.Details["pid"] = dbus.MakeVariant(pid)
-	if startTime, err := getStartTimeForPid(pid); err == nil {
-		subject.Details["start-time"] = dbus.MakeVariant(startTime)
-	} else {
+	startTime, err := getStartTimeForPid(pid)
+	if err != nil {
 		return false, err
 	}
+	subject.Details["start-time"] = dbus.MakeVariant(startTime)
 	return checkAuthorization(subject, actionId, details, flags)
 }
 
