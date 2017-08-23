@@ -247,6 +247,22 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}, nil
 }
 
+// WithStackedBackstore returns new database that adds to backstore
+// and finds in backstore and then the base database backstore.
+func (db *Database) WithStackedBackstore(backstore Backstore) *Database {
+	backstores := []Backstore{db.trusted, db.predefined}
+	backstores = append(backstores, backstore)
+	backstores = append(backstores, db.backstores[2:]...)
+	return &Database{
+		bs:         backstore,
+		keypairMgr: db.keypairMgr,
+		trusted:    db.trusted,
+		predefined: db.predefined,
+		backstores: backstores,
+		checkers:   db.checkers,
+	}
+}
+
 // ImportKey stores the given private/public key pair.
 func (db *Database) ImportKey(privKey PrivateKey) error {
 	return db.keypairMgr.Put(privKey)
