@@ -87,6 +87,12 @@
     # deny change_profile unsafe /** -> {unconfined,/**},
     # change_profile unsafe /** -> **,
 
+    # Allow executing snap-exec without confinement.
+    # The rule is spelled twice because snap-exec is typically called after
+    # pivot_root when the desired base snap is the root filesystem but may not
+    # be the case if classic confinement is used.
+    /{@LIBEXECDIR@/,usr/lib/snapd/}snap-exec rux,
+
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
