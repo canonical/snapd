@@ -54,9 +54,9 @@ func useStaging() bool {
 
 func deviceAPIBaseURL() string {
 	if useStaging() {
-		return "https://api.staging.snapcraft.io/api/v1/snaps/auth/"
+		return "https://myapps.developer.staging.ubuntu.com/identity/api/v1/"
 	}
-	return "https://api.snapcraft.io/api/v1/snaps/auth/"
+	return "https://myapps.developer.ubuntu.com/identity/api/v1/"
 }
 
 var (
