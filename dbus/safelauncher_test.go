@@ -38,6 +38,8 @@ type safeLauncherSuite struct {
 	errors   []error
 	outs     [][]byte
 	launcher *dbus.SafeLauncher
+
+	restoreXdgOpen func()
 }
 
 var _ = Suite(&safeLauncherSuite{})
@@ -52,12 +54,16 @@ func (s *safeLauncherSuite) myXdgOpen(args ...string) (err error) {
 }
 
 func (s *safeLauncherSuite) SetUpTest(c *C) {
-	dbus.MockXdgOpenCommand(s.myXdgOpen)
+	s.restoreXdgOpen = dbus.MockXdgOpenCommand(s.myXdgOpen)
 	s.errCnt = 0
 	s.args = nil
 	s.errors = nil
 	s.outs = nil
 	s.launcher = &dbus.SafeLauncher{}
+}
+
+func (s *safeLauncherSuite) TearDownTest(c *C) {
+	s.restoreXdgOpen()
 }
 
 func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {

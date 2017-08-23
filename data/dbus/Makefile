@@ -20,7 +20,7 @@ SERVICES_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in)
 SERVICES := ${SERVICES_GENERATED}
 
 %.service: %.service.in
-	cat $< | sed s:@bindir@:${BINDIR}:g | cat > $@
+	cat $< | sed 's:@bindir@:${BINDIR}:g' | cat > $@
 
 all: ${SERVICES}
 

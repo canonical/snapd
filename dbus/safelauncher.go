@@ -40,7 +40,7 @@ var (
 	allowedURLSchemes = []string{"http", "https", "mailto"}
 )
 
-// SafeLauncher implements the 'io.snapcraft.SafeLauncher' DBus interface
+// SafeLauncher implements the 'io.snapcraft.SafeLauncher' DBus interface.
 type SafeLauncher struct{}
 
 // Name returns the name of the interface this object implements
@@ -49,7 +49,7 @@ func (s *SafeLauncher) Name() string {
 }
 
 // IntrospectionData gives the XML formatted introspection description
-// of the DBus service
+// of the DBus service.
 func (s *SafeLauncher) IntrospectionData() string {
 	return safeLauncherIntrospectionXML
 }

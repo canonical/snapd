@@ -26,16 +26,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/introspect"
 	"github.com/jessevdk/go-flags"
+	"gopkg.in/tomb.v2"
 
 	ifaces "github.com/snapcore/snapd/dbus"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-
-	"github.com/godbus/dbus"
-	"github.com/godbus/dbus/introspect"
-
-	"gopkg.in/tomb.v2"
 )
 
 const (
@@ -150,7 +148,6 @@ func (x *cmdUserd) Execute(args []string) error {
 	x.tomb.Kill(nil)
 	if x.conn != nil {
 		x.conn.Close()
-
 	}
 	return x.tomb.Wait()
 }

@@ -19,6 +19,10 @@
 
 package dbus
 
-func MockXdgOpenCommand(cmd func(args ...string) error) {
+func MockXdgOpenCommand(cmd func(args ...string) error) func() {
+	orig := xdgOpenCommand
 	xdgOpenCommand = cmd
+	return func() {
+		xdgOpenCommand = orig
+	}
 }
