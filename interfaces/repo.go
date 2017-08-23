@@ -641,14 +641,14 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return nil
 }
 
-func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *ConnectionAttrs) error {
-	if slot.Interface != plug.Interface {
+func (r *Repository) ValidateConnection(plug *PlugData, slot *SlotData) error {
+	if slot.Interface() != plug.Interface() {
 		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
-			plug.Snap.Name(), plug.Name, plug.Interface, slot.Snap.Name(), slot.Name, slot.Interface)
+			plug.Snap().Name(), plug.Name(), plug.Interface(), slot.Snap().Name(), slot.Name(), slot.Interface())
 	}
-	iface := r.Interface(slot.Interface)
+	iface := r.Interface(slot.Interface())
 	if iface == nil {
-		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
+		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface())
 	}
 	type afterPreparePlug interface {
 		AfterPreparePlug(plug *PlugData) error
@@ -657,14 +657,12 @@ func (r *Repository) ValidateConnection(plug *Plug, slot *Slot, attributes *Conn
 		AfterPrepareSlot(slot *SlotData) error
 	}
 	if validate, ok := iface.(afterPreparePlug); ok {
-		attrData := NewPlugData(plug, attributes.PlugAttrs)
-		if err := validate.AfterPreparePlug(attrData); err != nil {
+		if err := validate.AfterPreparePlug(plug); err != nil {
 			return err
 		}
 	}
 	if validate, ok := iface.(afterPrepareSlot); ok {
-		attrData := NewSlotData(slot, attributes.SlotAttrs)
-		if err := validate.AfterPrepareSlot(attrData); err != nil {
+		if err := validate.AfterPrepareSlot(slot); err != nil {
 			return err
 		}
 	}

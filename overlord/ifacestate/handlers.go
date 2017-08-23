@@ -400,11 +400,15 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var attributes interfaces.ConnectionAttrs
-	// get attributes set by interface hooks and validate plug/slot
-	if attributes, err = getTaskHookAttributes(task); err == nil {
-		err = m.repo.ValidateConnection(plug, slot, &attributes)
+	if attributes, err = getTaskHookAttributes(task); err != nil {
+		return err
 	}
-	if err != nil {
+
+	plugData := interfaces.NewPlugData(plug, attributes.PlugAttrs)
+	slotData := interfaces.NewSlotData(slot, attributes.SlotAttrs)
+
+	// get attributes set by interface hooks and validate plug/slot
+	if err = m.repo.ValidateConnection(plugData, slotData); err != nil {
 		return err
 	}
 
