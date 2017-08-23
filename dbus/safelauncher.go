@@ -54,6 +54,13 @@ func (s *SafeLauncher) IntrospectionData() string {
 	return safeLauncherIntrospectionXML
 }
 
+func makeAccessDeniedError(err error) *dbus.Error {
+	return &dbus.Error{
+		Name: "org.freedesktop.DBus.Error.AccessDenied",
+		Body: []interface{}{err.Error()},
+	}
+}
+
 // OpenURL implements the 'OpenURL' method of the 'com.canonical.SafeLauncher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
@@ -64,10 +71,7 @@ func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 	}
 
 	if !strutil.ListContains(allowedURLSchemes, u.Scheme) {
-		return &dbus.Error{
-			Name: "org.freedesktop.DBus.Error.AccessDenied",
-			Body: []interface{}{fmt.Sprintf("Supplied URL scheme %q is not allowed", u.Scheme)},
-		}
+		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
 	if err = exec.Command("xdg-open", addr).Run(); err != nil {
