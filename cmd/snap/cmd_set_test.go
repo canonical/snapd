@@ -73,10 +73,6 @@ func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 }
 
 func (s *SnapSuite) TestSnapSetIntegrationBigInt(c *check.C) {
-	// mock installed snap
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("/") }()
-
 	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
