@@ -54,14 +54,6 @@ func (s *SafeLauncher) IntrospectionData() string {
 	return safeLauncherIntrospectionXML
 }
 
-func runXdgOpen(args ...string) error {
-	return exec.Command("xdg-open", args...).Run()
-}
-
-// XdgOpenCommand is called from within the SafeLauncher. It's exported
-// so it can be overridden by testing.
-var xdgOpenCommand = runXdgOpen
-
 // OpenURL implements the 'OpenURL' method of the 'com.canonical.SafeLauncher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
@@ -78,8 +70,8 @@ func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
 		}
 	}
 
-	if err = xdgOpenCommand(addr); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("Can not open supplied URL"))
+	if err = exec.Command("xdg-open", addr).Run(); err != nil {
+		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 
 	return nil
