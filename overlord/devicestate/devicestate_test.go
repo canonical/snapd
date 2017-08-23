@@ -200,16 +200,8 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			model := serialReq.Model()
 			authID := "canonical"
 			keyID := ""
-			switch model {
-			case "pc":
-				c.Check(brandID, Equals, "canonical")
-			case "my-model":
-				c.Check(brandID, Equals, "my-brand")
-				authID = "generic"
-				keyID = s.storeSigning.GenericKey.PublicKeyID()
-			default:
-				c.Fatal("unknown model")
-			}
+			c.Check(serialReq.BrandID(), Equals, "canonical")
+			c.Check(serialReq.Model(), Equals, "pc")
 			reqID := serialReq.RequestID()
 			if reqID == "REQID-BADREQ" {
 				w.Header().Set("Content-Type", "application/json")
@@ -351,6 +343,7 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
+	c.Skip("not yet supported")
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
