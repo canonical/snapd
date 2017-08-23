@@ -114,5 +114,5 @@ execute: |
         stop test-snap-userd
     else
         systemctl list-units --type=scope  # debug
-        systemctl stop --signal=KILL test-snap-userd.scope
+        systemctl stop --signal=KILL test-snap-userd.scope || true
     fi
