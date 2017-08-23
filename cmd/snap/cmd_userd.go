@@ -111,7 +111,10 @@ func (x *cmdUserd) Execute(args []string) error {
 
 		// Listen to keep our thread up and running. All DBus bits
 		// are running in the background
-		select {}
+		select {
+		case <-x.tomb.Dying():
+			return nil
+		}
 	})
 
 	ch := make(chan os.Signal)
