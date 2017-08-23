@@ -110,3 +110,9 @@ execute: |
     ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        stop test-snap-userd
+    else
+        systemctl list-units --type=scope  # debug
+        systemctl stop --signal=KILL test-snap-userd.scope
+    fi
