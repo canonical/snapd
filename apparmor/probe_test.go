@@ -34,10 +34,26 @@ type probeSuite struct{}
 
 var _ = Suite(&probeSuite{})
 
-func (s *probeSuite) TestProbe(c *C) {
-	for _, l := range []apparmor.FeatureLevel{apparmor.None, apparmor.Partial, apparmor.Full} {
-		restore := apparmor.MockFeatureLevel(l)
-		defer restore()
-		c.Assert(apparmor.Probe(), Equals, l, Commentf("was hoping for %q", l))
-	}
+func (s *probeSuite) TestMockProbeNone(c *C) {
+	restore := apparmor.MockFeatureLevel(apparmor.None)
+	defer restore()
+	probed, err := apparmor.Probe()
+	c.Assert(probed, Equals, apparmor.None)
+	c.Assert(err, ErrorMatches, `apparmor feature directory not found: stat .*/apparmor: no such file or directory`)
+}
+
+func (s *probeSuite) TestMockProbePartial(c *C) {
+	restore := apparmor.MockFeatureLevel(apparmor.Partial)
+	defer restore()
+	probed, err := apparmor.Probe()
+	c.Assert(probed, Equals, apparmor.Partial)
+	c.Assert(err, ErrorMatches, `apparmor feature "caps" not found: stat .*/apparmor/caps: no such file or directory`)
+}
+
+func (s *probeSuite) TestMockProbeFull(c *C) {
+	restore := apparmor.MockFeatureLevel(apparmor.Full)
+	defer restore()
+	probed, err := apparmor.Probe()
+	c.Assert(probed, Equals, apparmor.Full)
+	c.Assert(err, IsNil)
 }
