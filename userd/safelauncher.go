@@ -17,7 +17,7 @@
  *
  */
 
-package dbus
+package userd
 
 import (
 	"fmt"

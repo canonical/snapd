@@ -17,24 +17,24 @@
  *
  */
 
-package dbus_test
+package userd_test
 
 import (
 	"testing"
 
-	godbus "github.com/godbus/dbus"
+	"github.com/godbus/dbus"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dbus"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/userd"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type safeLauncherSuite struct {
-	launcher *dbus.SafeLauncher
+	launcher *userd.SafeLauncher
 
 	mockXdgOpen *testutil.MockCmd
 }
@@ -42,7 +42,7 @@ type safeLauncherSuite struct {
 var _ = Suite(&safeLauncherSuite{})
 
 func (s *safeLauncherSuite) SetUpTest(c *C) {
-	s.launcher = &dbus.SafeLauncher{}
+	s.launcher = &userd.SafeLauncher{}
 	s.mockXdgOpen = testutil.MockCommand(c, "xdg-open", "")
 }
 
@@ -57,7 +57,7 @@ func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	}{
 		{"tel://049112233445566", "Supplied URL scheme \"tel\" is not allowed"},
 		{"aabbccdd0011", "Supplied URL scheme \"\" is not allowed"},
-		{"invälid:%url", godbus.ErrMsgInvalidArg.Error()},
+		{"invälid:%url", dbus.ErrMsgInvalidArg.Error()},
 	} {
 		err := s.launcher.OpenURL(t.url)
 		c.Assert(err, ErrorMatches, t.errMatcher)
