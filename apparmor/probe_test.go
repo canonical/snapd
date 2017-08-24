@@ -21,9 +21,14 @@ package apparmor_test
 
 import (
 	. "gopkg.in/check.v1"
+	"testing"
 
-	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/apparmor"
 )
+
+func Test(t *testing.T) {
+	TestingT(t)
+}
 
 type probeSuite struct{}
 
