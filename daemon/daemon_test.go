@@ -36,6 +36,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -49,11 +50,13 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct {
 	authorized bool
 	err        error
+	lastFlags  polkit.CheckFlags
 }
 
 var _ = check.Suite(&daemonSuite{})
 
 func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	s.lastFlags = flags
 	return s.authorized, s.err
 }
 
@@ -232,6 +235,19 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	// an error occurs communicating with polkit
 	s.err = errors.New("error")
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+}
+
+func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;", Header: make(http.Header)}
+	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
+	s.authorized = true
+
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(s.lastFlags, check.Equals, polkit.CheckNone)
+
+	put.Header.Set(client.AllowInteractionHeader, "1")
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(s.lastFlags, check.Equals, polkit.CheckAllowInteraction)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
