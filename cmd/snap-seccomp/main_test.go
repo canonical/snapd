@@ -318,6 +318,9 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_termios
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
+
+		// u:root g:shadow
+		{"fchown u:root g:shadow", "fchown;native;0,42", main.SeccompRetAllow},
 	} {
 		// skip socket tests if the system uses socketcall instead
 		// of socket
