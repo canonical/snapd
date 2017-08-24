@@ -67,7 +67,12 @@ func handlePowerButtonConfiguration() error {
 	if err != nil {
 		return err
 	}
-	if output != "" {
+	if output == "" {
+		if err := os.Remove(powerBtnCfg()); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+
+	} else {
 		if err := switchHandlePowerKey(output); err != nil {
 			return err
 		}
