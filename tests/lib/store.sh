@@ -53,7 +53,7 @@ setup_fake_store(){
     _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "Wait until fake store is ready"
-    for i in $(seq 10); do
+    for _ in $(seq 10); do
         if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
             return 0
         fi
