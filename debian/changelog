@@ -1,6 +1,7 @@
 snapd (2.27.4-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Enable seccomp.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Thu, 24 Aug 2017 21:19:11 +1200
 
