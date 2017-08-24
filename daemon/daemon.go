@@ -35,6 +35,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
@@ -101,7 +102,11 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		if c.PolkitOK != "" {
-			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, polkit.CheckAllowInteraction); err == nil {
+			var flags polkit.CheckFlags
+			if r.Header.Get(client.AllowInteractionHeader) == "1" {
+				flags |= polkit.CheckAllowInteraction
+			}
+			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
 				if authorized {
 					// polkit says user is authorised
 					return true
