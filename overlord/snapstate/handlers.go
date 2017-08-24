@@ -148,8 +148,27 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	// check if core is installed already
-	_, err := CoreInfo(st)
+	// check if we need to inject tasks to install core
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// core/ubuntu-core can not have prerequisites
+	snapName := snapsup.Name()
+	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+		return nil
+	}
+
+	// check prereqs
+	prereqName := defaultCoreSnapName
+	if snapsup.Base != "" {
+		prereqName = snapsup.Base
+	}
+
+	var prereqState SnapState
+	err = Get(st, prereqName, &prereqState)
+	// we have the prereq already
 	if err == nil {
 		return nil
 	}
@@ -157,29 +176,19 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// check if we need to inject tasks to install core
-	snapsup, _, err := snapSetupAndState(t)
+	// check that there is no task that installs the prereq already
+	prereqPending, err := inFlight(st, prereqName)
 	if err != nil {
 		return err
 	}
-	snapName := snapsup.Name()
-	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
-		return nil
-	}
-
-	// check that there is no task that installs core already
-	corePending, err := inFlight(st, defaultCoreSnapName)
-	if err != nil {
-		return err
-	}
-	if corePending {
+	if prereqPending {
 		// if something else installs core already we need to
 		// wait for that to either finish successfully or fail
 		return &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, defaultCoreSnapName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
 	// something might have triggered an explicit install of core while
 	// the state was unlocked -> deal with that here
 	if _, ok := err.(changeDuringInstallError); ok {
