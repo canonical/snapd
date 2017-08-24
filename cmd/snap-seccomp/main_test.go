@@ -322,6 +322,8 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// u:root g:shadow
 		{"fchown - u:root g:shadow", "fchown;native;-,0,42", main.SeccompRetAllow},
 		{"fchown - u:root g:shadow", "fchown;native;-,99,42", main.SeccompRetKill},
+		{"chown - u:root g:shadow", "chown;native;-,0,42", main.SeccompRetAllow},
+		{"chown - u:root g:shadow", "chown;native;-,99,42", main.SeccompRetKill},
 	} {
 		// skip socket tests if the system uses socketcall instead
 		// of socket
