@@ -81,7 +81,7 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 	if err != nil {
 		panic(err)
 	}
-	fakeFeaturesSysPath := filepath.Join(temp, "apparmor")
+	fakeFeaturesSysPath := filepath.Join(temp, "features")
 
 	switch level {
 	case None:
