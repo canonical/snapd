@@ -404,8 +404,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	plugData := interfaces.NewPlugData(plug, attributes.PlugAttrs)
-	slotData := interfaces.NewSlotData(slot, attributes.SlotAttrs)
+	plugData := interfaces.NewPlugData(plug.PlugInfo, attributes.PlugAttrs)
+	slotData := interfaces.NewSlotData(slot.SlotInfo, attributes.SlotAttrs)
 
 	// get attributes set by interface hooks and validate plug/slot
 	if err = m.repo.ValidateConnection(plugData, slotData); err != nil {
@@ -414,12 +414,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plugData,
 		PlugSnapDeclaration: plugDecl,
-		PlugHookAttrs:       attributes.PlugAttrs,
-		Slot:                slot.SlotInfo,
+		Slot:                slotData,
 		SlotSnapDeclaration: slotDecl,
-		SlotHookAttrs:       attributes.SlotAttrs,
 		BaseDeclaration:     baseDecl,
 	}
 

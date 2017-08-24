@@ -26,12 +26,12 @@ import (
 )
 
 type PlugData struct {
-	plug         *Plug
+	plug         *snap.PlugInfo
 	dynamicAttrs map[string]interface{}
 }
 
 type SlotData struct {
-	slot         *Slot
+	slot         *snap.SlotInfo
 	dynamicAttrs map[string]interface{}
 }
 
@@ -44,14 +44,14 @@ type Attributes interface {
 	SetAttr(key string, value interface{}) error
 }
 
-func NewSlotData(slot *Slot, dynamicAttrs map[string]interface{}) *SlotData {
+func NewSlotData(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *SlotData {
 	return &SlotData{
 		slot:         slot,
 		dynamicAttrs: dynamicAttrs,
 	}
 }
 
-func NewPlugData(plug *Plug, dynamicAttrs map[string]interface{}) *PlugData {
+func NewPlugData(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) *PlugData {
 	return &PlugData{
 		plug:         plug,
 		dynamicAttrs: dynamicAttrs,
@@ -67,7 +67,7 @@ func (attrs *PlugData) Name() string {
 }
 
 func (attrs *PlugData) Ref() PlugRef {
-	return attrs.plug.Ref()
+	return PlugRef{Snap: attrs.plug.Snap.Name(), Name: attrs.plug.Name}
 }
 
 func (attrs *PlugData) Snap() *snap.Info {
@@ -133,7 +133,7 @@ func (attrs *SlotData) Name() string {
 }
 
 func (attrs *SlotData) Ref() SlotRef {
-	return attrs.slot.Ref()
+	return SlotRef{Snap: attrs.slot.Snap.Name(), Name: attrs.slot.Name}
 }
 
 func (attrs *SlotData) Snap() *snap.Info {

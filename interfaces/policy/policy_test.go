@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -703,8 +704,8 @@ AXNpZw==`))
 
 func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["random"],
-		Slot:            s.slotSnap.Slots["random"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["random"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["random"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 
@@ -714,8 +715,8 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 
 func (s *policySuite) TestInterfaceMismatch(c *C) {
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["mismatchy"],
-		Slot:            s.slotSnap.Slots["mismatchy"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["mismatchy"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["mismatchy"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 
@@ -747,8 +748,8 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 
 	for _, t := range tests {
 		cand := policy.ConnectCandidate{
-			Plug:            s.plugSnap.Plugs[t.iface],
-			Slot:            s.slotSnap.Slots[t.iface],
+			Plug:            interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:            interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			BaseDeclaration: s.baseDecl,
 		}
 
@@ -786,8 +787,8 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 
 	for _, t := range tests {
 		cand := policy.ConnectCandidate{
-			Plug:            s.plugSnap.Plugs[t.iface],
-			Slot:            s.slotSnap.Slots[t.iface],
+			Plug:            interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:            interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			BaseDeclaration: s.baseDecl,
 		}
 
@@ -820,8 +821,8 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 
 	for _, t := range tests {
 		cand := policy.ConnectCandidate{
-			Plug:                s.plugSnap.Plugs[t.iface],
-			Slot:                s.slotSnap.Slots[t.iface],
+			Plug:                interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:                interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			PlugSnapDeclaration: s.plugDecl,
 			SlotSnapDeclaration: s.slotDecl,
 			BaseDeclaration:     s.baseDecl,
@@ -856,8 +857,8 @@ func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
 
 	for _, t := range tests {
 		cand := policy.ConnectCandidate{
-			Plug:                s.plugSnap.Plugs[t.iface],
-			Slot:                s.slotSnap.Slots[t.iface],
+			Plug:                interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:                interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			PlugSnapDeclaration: s.plugDecl,
 			SlotSnapDeclaration: s.slotDecl,
 			BaseDeclaration:     s.baseDecl,
@@ -891,33 +892,33 @@ slots:
 `, nil)
 
 	cand := policy.ConnectCandidate{
-		Plug:            gadgetSnap.Plugs["gadgethelp"],
-		Slot:            coreSnap.Slots["gadgethelp"],
+		Plug:            interfaces.NewPlugData(gadgetSnap.Plugs["gadgethelp"], nil),
+		Slot:            interfaces.NewSlotData(coreSnap.Slots["gadgethelp"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
 
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["gadgethelp"],
-		Slot:            coreSnap.Slots["gadgethelp"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["gadgethelp"], nil),
+		Slot:            interfaces.NewSlotData(coreSnap.Slots["gadgethelp"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	for _, trustedSide := range []*snap.Info{coreSnap, gadgetSnap} {
 		cand = policy.ConnectCandidate{
-			Plug:                s.plugSnap.Plugs["trustedhelp"],
+			Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["trustedhelp"], nil),
 			PlugSnapDeclaration: s.plugDecl,
-			Slot:                trustedSide.Slots["trustedhelp"],
+			Slot:                interfaces.NewSlotData(trustedSide.Slots["trustedhelp"], nil),
 			BaseDeclaration:     s.baseDecl,
 		}
 		c.Check(cand.Check(), IsNil)
 	}
 
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["trustedhelp"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["trustedhelp"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.slotSnap.Slots["trustedhelp"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["trustedhelp"], nil),
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
@@ -926,8 +927,8 @@ slots:
 func (s *policySuite) TestPlugSnapIDCheckConnection(c *C) {
 	// no plug-side declaration
 	cand := policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["precise-plug-snap-id"],
-		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["precise-plug-snap-id"], nil),
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["precise-plug-snap-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -935,9 +936,9 @@ func (s *policySuite) TestPlugSnapIDCheckConnection(c *C) {
 
 	// plug-side declaration, wrong snap-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["precise-plug-snap-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["precise-plug-snap-id"], nil),
 		PlugSnapDeclaration: s.randomDecl,
-		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["precise-plug-snap-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -945,9 +946,9 @@ func (s *policySuite) TestPlugSnapIDCheckConnection(c *C) {
 
 	// right snap-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["precise-plug-snap-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["precise-plug-snap-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["precise-plug-snap-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -957,18 +958,18 @@ func (s *policySuite) TestPlugSnapIDCheckConnection(c *C) {
 func (s *policySuite) TestSlotSnapIDCheckConnection(c *C) {
 	// no slot-side declaration
 	cand := policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["precise-slot-snap-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["precise-slot-snap-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["precise-slot-snap-id"], nil),
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// slot-side declaration, wrong snap-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["precise-slot-snap-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["precise-slot-snap-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["precise-slot-snap-id"], nil),
 		SlotSnapDeclaration: s.randomDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -976,9 +977,9 @@ func (s *policySuite) TestSlotSnapIDCheckConnection(c *C) {
 
 	// right snap-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["precise-slot-snap-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.slotSnap.Slots["precise-slot-snap-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["precise-slot-snap-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -988,8 +989,8 @@ func (s *policySuite) TestSlotSnapIDCheckConnection(c *C) {
 func (s *policySuite) TestPlugPublisherIDCheckConnection(c *C) {
 	// no plug-side declaration
 	cand := policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["checked-plug-publisher-id"],
-		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["checked-plug-publisher-id"], nil),
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["checked-plug-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -997,9 +998,9 @@ func (s *policySuite) TestPlugPublisherIDCheckConnection(c *C) {
 
 	// plug-side declaration, wrong publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["checked-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["checked-plug-publisher-id"], nil),
 		PlugSnapDeclaration: s.randomDecl,
-		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["checked-plug-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1007,9 +1008,9 @@ func (s *policySuite) TestPlugPublisherIDCheckConnection(c *C) {
 
 	// right publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["checked-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["checked-plug-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["checked-plug-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1019,18 +1020,18 @@ func (s *policySuite) TestPlugPublisherIDCheckConnection(c *C) {
 func (s *policySuite) TestSlotPublisherIDCheckConnection(c *C) {
 	// no slot-side declaration
 	cand := policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["checked-slot-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["checked-slot-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["checked-slot-publisher-id"], nil),
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// slot-side declaration, wrong publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["checked-slot-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["checked-slot-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["checked-slot-publisher-id"], nil),
 		SlotSnapDeclaration: s.randomDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1038,9 +1039,9 @@ func (s *policySuite) TestSlotPublisherIDCheckConnection(c *C) {
 
 	// right publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["checked-slot-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.slotSnap.Slots["checked-slot-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["checked-slot-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1050,26 +1051,26 @@ func (s *policySuite) TestSlotPublisherIDCheckConnection(c *C) {
 func (s *policySuite) TestDollarPlugPublisherIDCheckConnection(c *C) {
 	// no known publishers
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["same-plug-publisher-id"],
-		Slot:            s.randomSnap.Slots["same-plug-publisher-id"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["same-plug-publisher-id"], nil),
+		Slot:            interfaces.NewSlotData(s.randomSnap.Slots["same-plug-publisher-id"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// no slot-side declaration
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["same-plug-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["same-plug-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["same-plug-publisher-id"], nil),
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// slot-side declaration, wrong publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["same-plug-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                s.randomSnap.Slots["same-plug-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.randomSnap.Slots["same-plug-publisher-id"], nil),
 		SlotSnapDeclaration: s.randomDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1096,9 +1097,9 @@ AXNpZw==`))
 	samePubSlotDecl := a.(*asserts.SnapDeclaration)
 
 	cand = policy.ConnectCandidate{
-		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.plugSnap.Plugs["same-plug-publisher-id"], nil),
 		PlugSnapDeclaration: s.plugDecl,
-		Slot:                samePubSlotSnap.Slots["same-plug-publisher-id"],
+		Slot:                interfaces.NewSlotData(samePubSlotSnap.Slots["same-plug-publisher-id"], nil),
 		SlotSnapDeclaration: samePubSlotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1108,16 +1109,16 @@ AXNpZw==`))
 func (s *policySuite) TestDollarSlotPublisherIDCheckConnection(c *C) {
 	// no known publishers
 	cand := policy.ConnectCandidate{
-		Plug:            s.randomSnap.Plugs["same-slot-publisher-id"],
-		Slot:            s.slotSnap.Slots["same-slot-publisher-id"],
+		Plug:            interfaces.NewPlugData(s.randomSnap.Plugs["same-slot-publisher-id"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["same-slot-publisher-id"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// no plug-side declaration
 	cand = policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["same-slot-publisher-id"],
-		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["same-slot-publisher-id"], nil),
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["same-slot-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1125,9 +1126,9 @@ func (s *policySuite) TestDollarSlotPublisherIDCheckConnection(c *C) {
 
 	// plug-side declaration, wrong publisher-id
 	cand = policy.ConnectCandidate{
-		Plug:                s.randomSnap.Plugs["same-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(s.randomSnap.Plugs["same-slot-publisher-id"], nil),
 		PlugSnapDeclaration: s.randomDecl,
-		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["same-slot-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1154,9 +1155,9 @@ AXNpZw==`))
 	samePubPlugDecl := a.(*asserts.SnapDeclaration)
 
 	cand = policy.ConnectCandidate{
-		Plug:                samePubPlugSnap.Plugs["same-slot-publisher-id"],
+		Plug:                interfaces.NewPlugData(samePubPlugSnap.Plugs["same-slot-publisher-id"], nil),
 		PlugSnapDeclaration: samePubPlugDecl,
-		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		Slot:                interfaces.NewSlotData(s.slotSnap.Slots["same-slot-publisher-id"], nil),
 		SlotSnapDeclaration: s.slotDecl,
 		BaseDeclaration:     s.baseDecl,
 	}
@@ -1395,8 +1396,8 @@ func (s *policySuite) TestPlugOnClassicCheckConnection(c *C) {
 			}
 		}
 		cand := policy.ConnectCandidate{
-			Plug:            s.plugSnap.Plugs[t.iface],
-			Slot:            s.slotSnap.Slots[t.iface],
+			Plug:            interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:            interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			BaseDeclaration: s.baseDecl,
 		}
 		err := cand.Check()
@@ -1439,8 +1440,8 @@ func (s *policySuite) TestSlotOnClassicCheckConnection(c *C) {
 			}
 		}
 		cand := policy.ConnectCandidate{
-			Plug:            s.plugSnap.Plugs[t.iface],
-			Slot:            s.slotSnap.Slots[t.iface],
+			Plug:            interfaces.NewPlugData(s.plugSnap.Plugs[t.iface], nil),
+			Slot:            interfaces.NewSlotData(s.slotSnap.Slots[t.iface], nil),
 			BaseDeclaration: s.baseDecl,
 		}
 		err := cand.Check()
@@ -1505,24 +1506,24 @@ plugs:
 func (s *policySuite) TestSlotDollarSlotAttrConnection(c *C) {
 	// no corresponding attr
 	cand := policy.ConnectCandidate{
-		Plug:            s.randomSnap.Plugs["slot-slot-attr"],
-		Slot:            s.slotSnap.Slots["slot-slot-attr"],
+		Plug:            interfaces.NewPlugData(s.randomSnap.Plugs["slot-slot-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// different attr values
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-slot-attr-mismatch"],
-		Slot:            s.slotSnap.Slots["slot-slot-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-mismatch"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// plug attr == slot attr
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-slot-attr-match"],
-		Slot:            s.slotSnap.Slots["slot-slot-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
@@ -1531,16 +1532,16 @@ func (s *policySuite) TestSlotDollarSlotAttrConnection(c *C) {
 func (s *policySuite) TestSlotDollarPlugAttrConnection(c *C) {
 	// different attr values
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-plug-attr-mismatch"],
-		Slot:            s.slotSnap.Slots["slot-plug-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-plug-attr-mismatch"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-plug-attr"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// plug attr == slot attr
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-plug-attr-match"],
-		Slot:            s.slotSnap.Slots["slot-plug-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-plug-attr-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-plug-attr"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
@@ -1549,16 +1550,16 @@ func (s *policySuite) TestSlotDollarPlugAttrConnection(c *C) {
 func (s *policySuite) TestPlugDollarPlugAttrConnection(c *C) {
 	// different attr values
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
-		Slot:            s.slotSnap.Slots["plug-plug-attr-mismatch"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-mismatch"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// plug attr == slot attr
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
-		Slot:            s.slotSnap.Slots["plug-plug-attr-match"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-match"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
@@ -1567,16 +1568,16 @@ func (s *policySuite) TestPlugDollarPlugAttrConnection(c *C) {
 func (s *policySuite) TestPlugDollarSlotAttrConnection(c *C) {
 	// different attr values
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-slot-attr"],
-		Slot:            s.slotSnap.Slots["plug-slot-attr-mismatch"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-slot-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-slot-attr-mismatch"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// plug attr == slot attr
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-slot-attr"],
-		Slot:            s.slotSnap.Slots["plug-slot-attr-match"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-slot-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-slot-attr-match"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
@@ -1585,16 +1586,16 @@ func (s *policySuite) TestPlugDollarSlotAttrConnection(c *C) {
 func (s *policySuite) TestDollarMissingConnection(c *C) {
 	// not missing
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-plug-missing-mismatch"],
-		Slot:            s.slotSnap.Slots["slot-plug-missing"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-plug-missing-mismatch"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-plug-missing"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	// missing
 	cand = policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-plug-missing-match"],
-		Slot:            s.slotSnap.Slots["slot-plug-missing"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-plug-missing-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-plug-missing"], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
@@ -1602,56 +1603,56 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 
 func (s *policySuite) TestSlotHookAttrs(c *C) {
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
-		Slot:            s.slotSnap.Slots["plug-plug-attr-match"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-match"], nil),
 		BaseDeclaration: s.baseDecl,
-		PlugHookAttrs:   map[string]interface{}{},
-		SlotHookAttrs:   map[string]interface{}{"c": "C"},
+		//		PlugHookAttrs:   map[string]interface{}{},
+		//		SlotHookAttrs:   map[string]interface{}{"c": "C"},
 	}
 	c.Check(cand.Check(), IsNil)
 }
 
 func (s *policySuite) TestSlotHookAttrsMismatch(c *C) {
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["plug-plug-attr"],
-		Slot:            s.slotSnap.Slots["plug-plug-attr-match"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-match"], nil),
 		BaseDeclaration: s.baseDecl,
-		PlugHookAttrs:   map[string]interface{}{"c": "C"},
-		SlotHookAttrs:   map[string]interface{}{"c": "D"},
+		//PlugHookAttrs:   map[string]interface{}{"c": "C"},
+		//SlotHookAttrs:   map[string]interface{}{"c": "D"},
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 }
 
 func (s *policySuite) TestPlugHookAttrs(c *C) {
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-slot-attr-match"],
-		Slot:            s.slotSnap.Slots["slot-slot-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
 		BaseDeclaration: s.baseDecl,
-		PlugHookAttrs: map[string]interface{}{
-			"a": map[string]interface{}{
-				"b": []interface{}{"x", "y"},
-			},
-		},
-		SlotHookAttrs: map[string]interface{}{},
+		/*		PlugHookAttrs: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": []interface{}{"x", "y"},
+					},
+				},
+				SlotHookAttrs: map[string]interface{}{},*/
 	}
 	c.Check(cand.Check(), IsNil)
 }
 
 func (s *policySuite) TestPlugHookAttrsMismatch(c *C) {
+	hookPlugAttrs := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": []interface{}{"x", ""},
+		},
+	}
+	hookSlotAttrs := map[string]interface{}{
+		"q": map[string]interface{}{
+			"Z": []interface{}{"x", "y"},
+		},
+	}
 	cand := policy.ConnectCandidate{
-		Plug:            s.plugSnap.Plugs["slot-slot-attr-match"],
-		Slot:            s.slotSnap.Slots["slot-slot-attr"],
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-match"], hookPlugAttrs),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], hookSlotAttrs),
 		BaseDeclaration: s.baseDecl,
-		PlugHookAttrs: map[string]interface{}{
-			"a": map[string]interface{}{
-				"b": []interface{}{"x", ""},
-			},
-		},
-		SlotHookAttrs: map[string]interface{}{
-			"q": map[string]interface{}{
-				"Z": []interface{}{"x", "y"},
-			},
-		},
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 }

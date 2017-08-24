@@ -299,11 +299,14 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 		}
 	}
 
+	plugData := interfaces.NewPlugData(plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(slot.SlotInfo, nil)
+
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plugData,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slotData,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
 	}

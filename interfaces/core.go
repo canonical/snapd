@@ -46,7 +46,7 @@ func (plug *Plug) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.BeforePreparePlug(NewPlugData(plug, nil))
+		err = iface.BeforePreparePlug(NewPlugData(plug.PlugInfo, nil))
 	}
 	return err
 }
@@ -81,7 +81,7 @@ func (slot *Slot) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.BeforePrepareSlot(NewSlotData(slot, nil))
+		err = iface.BeforePrepareSlot(NewSlotData(slot.SlotInfo, nil))
 	}
 	return err
 }
