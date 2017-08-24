@@ -50,6 +50,7 @@ var (
 		"namespaces",
 		"network",
 		"ptrace",
+		"rlimit",
 		"signal",
 	}
 )
