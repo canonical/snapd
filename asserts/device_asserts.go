@@ -276,13 +276,12 @@ func (ser *Serial) Timestamp() time.Time {
 // TODO: implement further consistency checks for Serial but first review approach
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
-	authorityID := assert.AuthorityID()
-	brand := assert.HeaderString("brand-id")
-	if brand != authorityID && authorityID != "generic" {
-		return nil, fmt.Errorf(`authority-id and brand-id must match, serial assertions are expected to be signed by the brand or the "generic" authority: %q != %q`, authorityID, brand)
+	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
 	}
 
-	_, err := checkModel(assert.headers)
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}

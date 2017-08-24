@@ -32,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
@@ -51,11 +50,11 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -80,6 +79,8 @@ var _ = Suite(&deviceMgrSuite{})
 var testKeyLength = 1024
 
 type fakeStore struct {
+	storetest.Store
+
 	state *state.State
 	db    asserts.RODatabase
 }
@@ -101,51 +102,13 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.SnapInfo not expected")
-}
-
-func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.Find not expected")
-}
-
-func (sto *fakeStore) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.LookupRefresh not expected")
-}
-
-func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.ListRefresh not expected")
-}
-
-func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
-	panic("fakeStore.Download not expected")
-}
-
-func (sto *fakeStore) SuggestedCurrency() string {
-	panic("fakeStore.SuggestedCurrency not expected")
-}
-
-func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
-	panic("fakeStore.Buy not expected")
-}
-
-func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
-	panic("fakeStore.ReadyToBuy not expected")
-}
-
-func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
-	panic("fakeStore.Sections not expected")
-}
-
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
-	rootPrivKey, _ := assertstest.GenerateKey(testKeyLength)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.state = state.New(nil)
 
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
@@ -202,6 +165,13 @@ func (s *deviceMgrSuite) settle() {
 	}
 }
 
+const (
+	// will become "/api/v1/snaps/auth/request-id"
+	requestIDURLPath = "/identity/api/v1/request-id"
+	// will become "/api/v1/snaps/auth/serial"
+	serialURLPath = "/identity/api/v1/devices"
+)
+
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
 func (s *deviceMgrSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
@@ -215,15 +185,15 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/snaps/auth/request-id":
+		case requestIDURLPath, "/svc/request-id":
 			w.WriteHeader(200)
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, s.reqID))
 
-		case "/api/v1/snaps/auth/serial":
+		case "/svc/serial":
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
-		case "/api/v1/snaps/auth/devices":
+		case serialURLPath:
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 
 			mu.Lock()
@@ -251,10 +221,11 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 				c.Check(brandID, Equals, "generic")
 				authID = "generic"
 				keyID = s.storeSigning.GenericKey.PublicKeyID()
-			case "my-model":
-				c.Check(brandID, Equals, "my-brand")
-				authID = "generic"
-				keyID = s.storeSigning.GenericKey.PublicKeyID()
+			/*case "my-model":
+			c.Check(brandID, Equals, "my-brand")
+			authID = "generic"
+			keyID = s.storeSigning.GenericKey.PublicKeyID()
+			*/
 			default:
 				c.Fatal("unknown model")
 			}
@@ -343,11 +314,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -426,11 +397,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -494,11 +465,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -569,6 +540,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
+	c.Skip("not yet supported")
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
@@ -576,11 +548,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -646,11 +618,11 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer restore()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
@@ -715,11 +687,11 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer restore()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
@@ -785,11 +757,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -865,7 +837,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/api/v1/snaps/auth/")})
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
@@ -964,11 +936,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
@@ -1069,11 +1041,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
 	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	mockSerialRequestURL := mockServer.URL + serialURLPath
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 

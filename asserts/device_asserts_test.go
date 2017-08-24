@@ -210,10 +210,9 @@ func (mods *modelSuite) TestModelCheck(c *C) {
 	c.Assert(err, IsNil)
 
 	storeDB, db := makeStoreAndCheckDB(c)
-	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
 
 	headers := ex.Headers()
-	delete(headers, "authority-id")
 	headers["brand-id"] = brandDB.AuthorityID
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
@@ -228,10 +227,9 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	storeDB, db := makeStoreAndCheckDB(c)
-	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
 
 	headers := ex.Headers()
-	delete(headers, "authority-id")
 	headers["brand-id"] = brandDB.AuthorityID
 	headers["timestamp"] = "2011-01-01T14:00:00Z"
 	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
@@ -350,7 +348,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand or the "generic" authority: "random" != "brand-id1"`},
+		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand: "random" != "brand-id1"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: _what\n", `"model" header contains invalid characters: "_what"`},
@@ -400,7 +398,6 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 		keyID   string
 	}{
 		{brandDB, brandDB.AuthorityID, "", brandDB.KeyID},
-		{storeDB, brandDB.AuthorityID, "generic", storeDB.GenericKey.PublicKeyID()},
 	}
 
 	for _, test := range tests {

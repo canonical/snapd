@@ -75,10 +75,7 @@ func (s *helperSuite) TestReadPrivKeyUnarmored(c *C) {
 }
 
 func (s *helperSuite) TestStoreStack(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-
-	store := assertstest.NewStoreStack("super", rootPrivKey, storePrivKey)
+	store := assertstest.NewStoreStack("super", nil)
 
 	c.Check(store.TrustedAccount.AccountID(), Equals, "super")
 	c.Check(store.TrustedAccount.IsCertified(), Equals, true)

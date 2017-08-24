@@ -79,40 +79,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Description: Can access opengl.
-
-  # specific gl libs
-  /var/lib/snapd/lib/gl/ r,
-  /var/lib/snapd/lib/gl/** rm,
-
-  /dev/dri/ r,
-  /dev/dri/card0 rw,
-  # nvidia
-  @{PROC}/driver/nvidia/params r,
-  @{PROC}/modules r,
-  /dev/nvidia* rw,
-  unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
-
-  # eglfs
-  /dev/vchiq rw,
-  /sys/devices/pci[0-9]*/**/config r,
-  /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
-  /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
-
-  # FIXME: this is an information leak and snapd should instead query udev for
-  # the specific accesses associated with the above devices.
-  /sys/bus/pci/devices/** r,
-  /run/udev/data/+drm:card* r,
-  /run/udev/data/+pci:[0-9]* r,
-
-  # FIXME: for each device in /dev that this policy references, lookup the
-  # device type, major and minor and create rules of this form:
-  # /run/udev/data/<type><major>:<minor> r,
-  # For now, allow 'c'haracter devices and 'b'lock devices based on
-  # https://www.kernel.org/doc/Documentation/devices.txt
-  /run/udev/data/c226:[0-9]* r,  # 226 drm
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/nvidia* rw,`)
 }
 
 func (s *OpenglInterfaceSuite) TestStaticInfo(c *C) {
