@@ -32,7 +32,7 @@ update_core_snap_for_classic_reexec() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f "$SNAPMOUNTDIR/core/current" || readlink -f "$SNAPMOUNTDIR/ubuntu-core/current")"
+    core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
@@ -91,6 +91,11 @@ prepare_each_classic() {
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
     fi
+    # the re-exec setting may have changed in the service so we need
+    # to ensure snapd is reloaded
+    systemctl daemon-reload
+    systemctl restart snapd
+
     if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
         echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
         exit 1
@@ -152,6 +157,26 @@ EOF
 
     # Snapshot the state including core.
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
+        # Pre-cache a few heavy snaps so that they can be installed by tests
+        # quickly. This relies on a behavior of snapd where .partial files are
+        # used for resuming downloads.
+        (
+            set -x
+            cd /tmp
+            for snap_name in ${PRE_CACHE_SNAPS:-}; do
+                snap download "$snap_name"
+            done
+            for snap_file in *.snap; do
+                mv "$snap_file" "$snap_file.partial"
+                # There is a bug in snapd where partial file must be a proper
+                # prefix of the full file or we make a wrong request to the
+                # store.
+                truncate --size=-1 "$snap_file.partial"
+                mv "$snap_file.partial" /var/lib/snapd/snaps/
+            done
+            set +x
+        )
+
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -186,15 +211,16 @@ EOF
 
         systemctl stop snapd.{service,socket}
         systemctl daemon-reload
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
+        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
         for unit in $units; do
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAPMOUNTDIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        # shellcheck disable=SC2086
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core="$(readlink -f "$SNAPMOUNTDIR/core/current")"
+        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
@@ -208,13 +234,11 @@ EOF
 
     if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            quiet apt install -y -q pollinate
             pollinate
         fi
 
         # Improve entropy for the whole system quite a lot to get fast
         # key generation during our test cycles
-        apt-get install -y -q rng-tools
         echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
         /etc/init.d/rng-tools restart
 

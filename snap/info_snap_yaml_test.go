@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -1344,7 +1343,7 @@ apps:
 			Name:            "svc",
 			Command:         "svc1",
 			Daemon:          "forking",
-			RestartCond:     systemd.RestartOnAbnormal,
+			RestartCond:     snap.RestartOnAbnormal,
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",

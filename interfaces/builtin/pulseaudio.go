@@ -132,8 +132,8 @@ func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              pulseaudioSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
@@ -160,14 +160,6 @@ func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 
 func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
