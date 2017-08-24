@@ -7,9 +7,6 @@ prepare: |
     . $TESTSLIB/pkgdb.sh
     snap install --edge test-wayland
 
-restore: |
-    . $TESTSLIB/pkgdb.sh
-
 execute: |
     CONNECTED_PATTERN=":wayland +test-wayland"
     DISCONNECTED_PATTERN="\- +test-wayland:wayland"
