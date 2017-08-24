@@ -20,6 +20,7 @@
 package apparmor
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -56,18 +57,20 @@ var (
 )
 
 // Probe checks which apparmor features are available.
-func Probe() FeatureLevel {
+//
+// The error
+func Probe() (FeatureLevel, error) {
 	_, err := os.Stat(featuresSysPath)
 	if err != nil {
-		return None
+		return None, fmt.Errorf("apparmor feature directory not found: %s", err)
 	}
 	for _, feature := range requiredFeatures {
 		p := filepath.Join(featuresSysPath, feature)
 		if _, err := os.Stat(p); err != nil {
-			return Partial
+			return Partial, fmt.Errorf("apparmor feature %q not found: %s", feature, err)
 		}
 	}
-	return Full
+	return Full, nil
 }
 
 // MockFeatureLevel fakes the desired apparmor feature level.
