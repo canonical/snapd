@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.3
+Version:        2.27.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -636,6 +636,10 @@ fi
 
 
 %changelog
+* Thu Aug 24 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.4
+  - snap-seccomp: add secondary arch for unrestricted snaps as well
+
 * Fri Aug 18 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.3
   - systemd: disable `Nice=-5` to fix error when running inside lxdSee
