@@ -60,8 +60,8 @@ capability fsetid,
 const accountControlConnectedPlugSecComp = `
 # useradd requires chowning to 'shadow'
 # TODO: dynamically determine the shadow gid to support alternate cores
-fchown - 0 42
-fchown32 - 0 42
+fchown - root shadow
+fchown32 - root shadow
 
 # from libaudit1
 bind
