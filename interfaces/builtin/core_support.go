@@ -93,6 +93,12 @@ const coreSupportConnectedPlugAppArmor = `
 owner /boot/uboot/           r,
 owner /boot/uboot/config.txt rwk,
 owner /boot/uboot/config.txt.* rwk,
+
+# Allow read/write /etc/environment so that proxy configuration can
+# be written
+owner /etc/              r,
+owner /etc/environment   rwk,
+owner /etc/environment.* rwk,
 `
 
 func init() {
