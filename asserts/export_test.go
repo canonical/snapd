@@ -79,7 +79,7 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 }
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
-	return makeAccountKeyForTest(authorityID, pubKey, 9999)
+	return makeAccountKeyForTest(authorityID, pubKey, 2999)
 }
 
 func ExpiredAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {

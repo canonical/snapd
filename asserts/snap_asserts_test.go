@@ -621,7 +621,10 @@ func setup3rdPartySigning(c *C, username string, storeDB assertstest.SignerDB, c
 	acct := assertstest.NewAccount(storeDB, username, map[string]interface{}{
 		"account-id": username,
 	}, "")
-	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
+	accKey := assertstest.NewAccountKey(storeDB, acct, map[string]interface{}{
+		"since": time.Now().UTC().Format(time.RFC3339),
+		"until": time.Now().AddDate(10, 0, 0).UTC().Format(time.RFC3339),
+	}, privKey.PublicKey(), "")
 
 	err := checkDB.Add(acct)
 	c.Assert(err, IsNil)

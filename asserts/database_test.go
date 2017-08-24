@@ -238,6 +238,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore: chks.bs,
 		Trusted:   []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Checkers:  []asserts.Checker{asserts.CheckSigningKeyIsNotExpired},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -743,6 +744,8 @@ func (safs *signAddFindSuite) TestFindFindsPredefined(c *C) {
 
 	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
 		"authority-id": "canonical",
+		"since":        time.Now().UTC().Format(time.RFC3339),
+		"until":        time.Now().AddDate(5, 0, 0).UTC().Format(time.RFC3339),
 	}, pk1.PublicKey(), safs.signingKeyID)
 
 	err := safs.db.Add(acct1)
@@ -786,6 +789,8 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 
 	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
 		"authority-id": "canonical",
+		"since":        time.Now().UTC().Format(time.RFC3339),
+		"until":        time.Now().AddDate(5, 0, 0).UTC().Format(time.RFC3339),
 	}, pk1.PublicKey(), safs.signingKeyID)
 
 	err := safs.db.Add(acct1)
@@ -916,6 +921,8 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 
 	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
 		"authority-id": "canonical",
+		"since":        time.Now().UTC().Format(time.RFC3339),
+		"until":        time.Now().AddDate(5, 0, 0).UTC().Format(time.RFC3339),
 	}, pk1.PublicKey(), safs.signingKeyID)
 
 	err = db.Add(acct1)

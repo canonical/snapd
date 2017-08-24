@@ -233,6 +233,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	assertstateAutoRefreshAssertions = nil
 	assertstateRefreshSnapDeclarations = nil
 	snapstateCoreInfo = nil
 	snapstateInstall = nil
@@ -255,6 +256,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 
+	assertstateAutoRefreshAssertions = assertstate.AutoRefreshAssertions
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstall = snapstate.Install
@@ -634,6 +636,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateRevert",
 		"snapstateRevertToRevision",
 		"assertstateRefreshSnapDeclarations",
+		"assertstateAutoRefreshAssertions",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
 		"setupLocalUser",
@@ -2911,7 +2914,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
-	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
+	assertstateAutoRefreshAssertions = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -2942,10 +2945,10 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 }
 
 func (s *apiSuite) TestRefreshAll(c *check.C) {
-	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID)
+	autoRefreshAssertions := false
+	assertstateAutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertions = true
+		return assertstate.AutoRefreshAssertions(st, userID)
 	}
 	d := s.daemon(c)
 
@@ -2957,7 +2960,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		{[]string{"fake"}, `Refresh snap "fake"`},
 		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
 	} {
-		refreshSnapDecls = false
+		autoRefreshAssertions = false
 
 		snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
@@ -2972,15 +2975,15 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		c.Check(summary, check.Equals, tst.msg)
-		c.Check(refreshSnapDecls, check.Equals, true)
+		c.Check(autoRefreshAssertions, check.Equals, true)
 	}
 }
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
-	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID)
+	autoRefreshAssertions := false
+	assertstateAutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertions = true
+		return assertstate.AutoRefreshAssertions(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
@@ -2996,14 +2999,14 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh all snaps: no updates`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+	c.Check(autoRefreshAssertions, check.Equals, true)
 }
 
 func (s *apiSuite) TestRefreshMany(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+	assertstateRefreshSnapDeclarations = func(st *state.State, userID int) error {
 		refreshSnapDecls = true
-		return nil
+		return assertstate.RefreshSnapDeclarations(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
@@ -3026,9 +3029,9 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 
 func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+	assertstateRefreshSnapDeclarations = func(st *state.State, userID int) error {
 		refreshSnapDecls = true
-		return nil
+		return assertstate.RefreshSnapDeclarations(st, userID)
 	}
 
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
@@ -4912,7 +4915,13 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	assertAdd(st, model)
 
 	for _, suMap := range systemUsers {
-		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
+		headers := make(map[string]interface{})
+		for k, v := range suMap {
+			headers[k] = v
+		}
+		headers["since"] = time.Now().Format(time.RFC3339)
+		headers["until"] = time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339)
+		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, headers, nil, "")
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
@@ -4937,8 +4946,6 @@ var goodUser = map[string]interface{}{
 	"name":         "Boring Guy",
 	"username":     "guy",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var partnerUser = map[string]interface{}{
@@ -4950,8 +4957,6 @@ var partnerUser = map[string]interface{}{
 	"name":         "Partner Guy",
 	"username":     "partnerguy",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var badUser = map[string]interface{}{
@@ -4964,8 +4969,6 @@ var badUser = map[string]interface{}{
 	"name":         "Random Gal",
 	"username":     "gal",
 	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 var unknownUser = map[string]interface{}{

@@ -845,6 +845,7 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
+	assertstateAutoRefreshAssertions   = assertstate.AutoRefreshAssertions
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -917,7 +918,13 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	// for refresh all we go a step further and refresh all assertions
+	// as scheduled auto refreshes do
+	refreshAssertions := assertstateRefreshSnapDeclarations
+	if len(inst.Snaps) == 0 {
+		refreshAssertions = assertstateAutoRefreshAssertions
+	}
+	if err := refreshAssertions(st, inst.userID); err != nil {
 		return "", nil, nil, err
 	}
 

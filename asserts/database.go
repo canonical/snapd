@@ -558,7 +558,11 @@ type timestamped interface {
 	Timestamp() time.Time
 }
 
-// CheckTimestampVsSigningKeyValidity verifies that the timestamp of
+type sincestamped interface {
+	Since() time.Time
+}
+
+// CheckTimestampVsSigningKeyValidity verifies that the timestamp or since of
 // the assertion is within the signing key validity.
 func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
 	if signingKey == nil {
@@ -568,9 +572,20 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 		// (e.g. account-key-request)
 		return nil
 	}
+	// TODO: when to stop accepting/using keys that are expired since long?
+	// should there be a point at which obsolete === revoked?
+
+	var timestamp time.Time
+	check := false
 	if tstamped, ok := assert.(timestamped); ok {
-		checkTime := tstamped.Timestamp()
-		if !signingKey.isKeyValidAt(checkTime) {
+		check = true
+		timestamp = tstamped.Timestamp()
+	} else if tstamped, ok := assert.(sincestamped); ok {
+		check = true
+		timestamp = tstamped.Since()
+	}
+	if check {
+		if !signingKey.isKeyValidAt(timestamp) {
 			until := ""
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
@@ -602,7 +617,6 @@ func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB ROData
 // checkers used by Database if none are specified in the
 // DatabaseConfig.Checkers.
 var DefaultCheckers = []Checker{
-	CheckSigningKeyIsNotExpired,
 	CheckSignature,
 	CheckTimestampVsSigningKeyValidity,
 	CheckCrossConsistency,

@@ -54,6 +54,7 @@ type assertMgrSuite struct {
 
 	storeSigning *assertstest.StoreStack
 	dev1Acct     *asserts.Account
+	dev1AcctKey  *asserts.AccountKey
 	dev1Signing  *assertstest.SigningDB
 
 	restore func()
@@ -96,8 +97,8 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// developer signing
-	dev1AcctKey := assertstest.NewAccountKey(s.storeSigning, s.dev1Acct, nil, dev1PrivKey.PublicKey(), "")
-	err = s.storeSigning.Add(dev1AcctKey)
+	s.dev1AcctKey = assertstest.NewAccountKey(s.storeSigning, s.dev1Acct, nil, dev1PrivKey.PublicKey(), "")
+	err = s.storeSigning.Add(s.dev1AcctKey)
 	c.Assert(err, IsNil)
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
@@ -1103,4 +1104,61 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+
+	// previous state
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	// also another account-key
+	err = assertstate.Add(s.state, s.dev1AcctKey)
+	c.Assert(err, IsNil)
+
+	// one changed snap-decl
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+	// changed key
+	headers = s.dev1AcctKey.Headers()
+	headers["revision"] = "1"
+	headers["until"] = s.dev1AcctKey.Since().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	dev1AcctKeyRev1, err := s.storeSigning.Sign(asserts.AccountKeyType, headers, s.dev1AcctKey.Body(), "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(dev1AcctKeyRev1)
+	c.Assert(err, IsNil)
+
+	err = assertstate.AutoRefreshAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+
+	a, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": s.dev1AcctKey.PublicKeyID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.AccountKey).Until(), Not(Equals), time.Time{})
 }
