@@ -48,15 +48,15 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
-	authorized bool
-	err        error
-	lastFlags  polkit.CheckFlags
+	authorized      bool
+	err             error
+	lastPolkitFlags polkit.CheckFlags
 }
 
 var _ = check.Suite(&daemonSuite{})
 
 func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-	s.lastFlags = flags
+	s.lastPolkitFlags = flags
 	return s.authorized, s.err
 }
 
@@ -243,11 +243,11 @@ func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
 	s.authorized = true
 
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
-	c.Check(s.lastFlags, check.Equals, polkit.CheckNone)
+	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
 
 	put.Header.Set(client.AllowInteractionHeader, "1")
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
-	c.Check(s.lastFlags, check.Equals, polkit.CheckAllowInteraction)
+	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
