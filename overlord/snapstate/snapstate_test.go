@@ -350,7 +350,7 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, DeepEquals, fmt.Errorf("classic confinement requires snaps under /snap or symlink from /snap to %s"))
+	c.Assert(err, DeepEquals, fmt.Errorf("classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"))
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
