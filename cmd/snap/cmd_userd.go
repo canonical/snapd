@@ -52,7 +52,7 @@ type cmdUserd struct {
 	dbusIfaces []registeredDBusInterface
 }
 
-var shortUserdHelp = i18n.G("Start the snap userd service")
+var shortUserdHelp = i18n.G("Start the userd service")
 var longUserdHelp = i18n.G("The userd command starts the snap user session service.")
 
 func init() {
