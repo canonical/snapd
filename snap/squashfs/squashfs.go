@@ -90,6 +90,14 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 
 var runCommandWithOutput = func(args ...string) ([]byte, error) {
 	cmd := exec.Command(args[0], args[1:]...)
+	env := os.Environ()
+	for i, e := range env {
+		pair := strings.SplitN(e, "=", 2)
+		if len(pair) == 2 && pair[0] == "LANG" {
+			env[i] = fmt.Sprintf("LANG=C.UTF-8")
+		}
+	}
+	cmd.Env = env
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
