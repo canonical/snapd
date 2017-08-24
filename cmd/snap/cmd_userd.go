@@ -37,8 +37,8 @@ import (
 )
 
 const (
-	busName  = "io.snapcraft.SafeLauncher"
-	basePath = "/io/snapcraft/SafeLauncher"
+	busName  = "io.snapcraft.Launcher"
+	basePath = "/io/snapcraft/Launcher"
 )
 
 type registeredDBusInterface interface {
@@ -69,7 +69,7 @@ func init() {
 }
 
 func (x *cmdUserd) createAndExportInterfaces() {
-	x.dbusIfaces = []registeredDBusInterface{&userd.SafeLauncher{}}
+	x.dbusIfaces = []registeredDBusInterface{&userd.Launcher{}}
 
 	var buffer bytes.Buffer
 	buffer.WriteString("<node>")

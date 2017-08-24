@@ -28,8 +28,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-const safeLauncherIntrospectionXML = `
-<interface name='io.snapcraft.SafeLauncher'>
+const launcherIntrospectionXML = `
+<interface name='io.snapcraft.Launcher'>
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
@@ -39,18 +39,18 @@ var (
 	allowedURLSchemes = []string{"http", "https", "mailto"}
 )
 
-// SafeLauncher implements the 'io.snapcraft.SafeLauncher' DBus interface.
-type SafeLauncher struct{}
+// Launcher implements the 'io.snapcraft.Launcher' DBus interface.
+type Launcher struct{}
 
 // Name returns the name of the interface this object implements
-func (s *SafeLauncher) Name() string {
-	return "io.snapcraft.SafeLauncher"
+func (s *Launcher) Name() string {
+	return "io.snapcraft.Launcher"
 }
 
 // IntrospectionData gives the XML formatted introspection description
 // of the DBus service.
-func (s *SafeLauncher) IntrospectionData() string {
-	return safeLauncherIntrospectionXML
+func (s *Launcher) IntrospectionData() string {
+	return launcherIntrospectionXML
 }
 
 func makeAccessDeniedError(err error) *dbus.Error {
@@ -60,10 +60,10 @@ func makeAccessDeniedError(err error) *dbus.Error {
 	}
 }
 
-// OpenURL implements the 'OpenURL' method of the 'com.canonical.SafeLauncher'
+// OpenURL implements the 'OpenURL' method of the 'com.canonical.Launcher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
-func (s *SafeLauncher) OpenURL(addr string) *dbus.Error {
+func (s *Launcher) OpenURL(addr string) *dbus.Error {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return &dbus.ErrMsgInvalidArg

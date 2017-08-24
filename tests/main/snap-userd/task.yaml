@@ -31,15 +31,15 @@ execute: |
     dbus-launch > dbus.env
     export $(cat dbus.env | xargs)
 
-    # helper that returns true when io.snapcraft.SafeLauncher.OpenURL
+    # helper that returns true when io.snapcraft.Launcher.OpenURL
     # responds
     ping_safe_launcher() {
-        dbus-send --session                                            \
-            --dest=io.snapcraft.SafeLauncher                           \
-            --type=method_call                                         \
-            --print-reply                                              \
-            /io/snapcraft/SafeLauncher                                 \
-            io.snapcraft.SafeLauncher.OpenURL string:"ping-ping-ping:" \
+        dbus-send --session                                        \
+            --dest=io.snapcraft.Launcher                           \
+            --type=method_call                                     \
+            --print-reply                                          \
+            /io/snapcraft/Launcher                                 \
+            io.snapcraft.Launcher.OpenURL string:"ping-ping-ping:" \
             2>&1 | grep -q ping-ping-ping
     }
 
@@ -81,11 +81,11 @@ execute: |
 
     # Until necessary changes landed in the core snap we need
     # to create a custom one which points to the new service
-    # name io.snapcraft.SafeLauncher where the current core
-    # snap still uses com.canonical.SafeLauncher.
+    # name io.snapcraft.Launcher where the current core
+    # snap still uses com.canonical.Launcher.
     cat << 'EOF' > /tmp/xdg-open-core
     #!/bin/sh
-    dbus-send --print-reply --session --dest=io.snapcraft.SafeLauncher /io/snapcraft/SafeLauncher io.snapcraft.SafeLauncher.OpenURL string:"$1"
+    dbus-send --print-reply --session --dest=io.snapcraft.Launcher /io/snapcraft/Launcher io.snapcraft.Launcher.OpenURL string:"$1"
     EOF
     chmod +x /tmp/xdg-open-core
     mount --bind /tmp/xdg-open-core /snap/core/current/usr/bin/xdg-open

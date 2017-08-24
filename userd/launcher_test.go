@@ -33,24 +33,24 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type safeLauncherSuite struct {
-	launcher *userd.SafeLauncher
+type launcherSuite struct {
+	launcher *userd.Launcher
 
 	mockXdgOpen *testutil.MockCmd
 }
 
-var _ = Suite(&safeLauncherSuite{})
+var _ = Suite(&launcherSuite{})
 
-func (s *safeLauncherSuite) SetUpTest(c *C) {
-	s.launcher = &userd.SafeLauncher{}
+func (s *launcherSuite) SetUpTest(c *C) {
+	s.launcher = &userd.Launcher{}
 	s.mockXdgOpen = testutil.MockCommand(c, "xdg-open", "")
 }
 
-func (s *safeLauncherSuite) TearDownTest(c *C) {
+func (s *launcherSuite) TearDownTest(c *C) {
 	s.mockXdgOpen.Restore()
 }
 
-func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
+func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	for _, t := range []struct {
 		url        string
 		errMatcher string
@@ -65,7 +65,7 @@ func (s *safeLauncherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 	}
 }
 
-func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
+func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
 	for _, schema := range []string{"http", "https", "mailto"} {
 		err := s.launcher.OpenURL(schema + "://snapcraft.io")
 		c.Assert(err, IsNil)
@@ -76,7 +76,7 @@ func (s *safeLauncherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
 	}
 }
 
-func (s *safeLauncherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
+func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 	cmd := testutil.MockCommand(c, "xdg-open", "false")
 	defer cmd.Restore()
 

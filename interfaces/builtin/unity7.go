@@ -99,8 +99,8 @@ dbus (send)
 # is now part of snapd itself.
 dbus (send)
     bus=session
-    path=/io/snapcraft/SafeLauncher
-    interface=io.snapcraft.SafeLauncher
+    path=/io/snapcraft/Launcher
+    interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
 
@@ -313,6 +313,11 @@ dbus (send)
 dbus (send)
     bus=session
     interface=com.canonical.SafeLauncher.OpenURL
+    peer=(label=unconfined),
+# new url helper (part of snap userd)
+dbus (send)
+    bus=session
+    interface=io.snapcraft.Launcher.OpenURL
     peer=(label=unconfined),
 
 # dbusmenu
