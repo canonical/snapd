@@ -28,6 +28,7 @@ import (
 
 func init() {
 	snapstate.SetupInstallHook = SetupInstallHook
+	snapstate.SetupRefreshHook = SetupRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
 }
 
@@ -39,6 +40,19 @@ func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run install hook of %q snap if present"), hooksup.Snap)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupRefreshHook(st *state.State, snapName string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:     snapName,
+		Hook:     "refresh",
+		Optional: true,
+	}
+
+	summary := fmt.Sprintf(i18n.G("Run refresh hook of %q snap if present"), hooksup.Snap)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task
@@ -79,5 +93,6 @@ func setupHooks(hookMgr *HookManager) {
 	}
 
 	hookMgr.Register(regexp.MustCompile("^install$"), handlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
 }

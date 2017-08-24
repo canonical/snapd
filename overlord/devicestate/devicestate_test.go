@@ -105,9 +105,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
-	rootPrivKey, _ := assertstest.GenerateKey(testKeyLength)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.state = state.New(nil)
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)

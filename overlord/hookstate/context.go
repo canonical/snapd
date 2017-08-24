@@ -20,12 +20,14 @@
 package hookstate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -180,7 +182,7 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	err := json.Unmarshal([]byte(*raw), &value)
+	err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &value)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}

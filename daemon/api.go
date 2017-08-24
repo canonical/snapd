@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -107,8 +108,9 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path: "/v2/login",
-		POST: loginUser,
+		Path:     "/v2/login",
+		POST:     loginUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	logoutCmd = &Command{
@@ -1522,8 +1524,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	var patchValues map[string]interface{}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&patchValues); err != nil {
+	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
@@ -1953,9 +1954,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGetUID = ucrednetGetUID
-	storeUserInfo                = store.UserInfo
-	osutilAddUser                = osutil.AddUser
+	postCreateUserUcrednetGet = ucrednetGet
+	storeUserInfo             = store.UserInfo
+	osutilAddUser             = osutil.AddUser
 )
 
 func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
@@ -2131,7 +2132,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2313,8 +2314,7 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapctlOptions client.SnapCtlOptions
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&snapctlOptions); err != nil {
+	if err := jsonutil.DecodeWithNumber(r.Body, &snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
@@ -2354,7 +2354,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
