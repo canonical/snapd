@@ -100,7 +100,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 			return true
 		}
 
-		if c.PolkitOK != "" {
+		if r.Method != "GET" && c.PolkitOK != "" {
 			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, polkit.CheckAllowInteraction); err == nil {
 				if authorized {
 					// polkit says user is authorised
