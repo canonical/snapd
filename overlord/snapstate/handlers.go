@@ -121,6 +121,28 @@ const defaultBaseSnapsChannel = "stable"
 // timeout for tasks to check if the prerequisites are ready
 var prerequisitesRetryTimeout = 1 * time.Minute
 
+func inFlight(st *state.State, name string) (bool, error) {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, tc := range chg.Tasks() {
+			if tc.Kind() == "link-snap" {
+				snapsup, err := TaskSnapSetup(tc)
+				if err != nil {
+					return false, err
+				}
+				// some other change aleady inflight
+				if snapsup.Name() == name {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -146,24 +168,14 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// check that there is no task that installs core already
-	for _, chg := range st.Changes() {
-		if chg.Status().Ready() || chg.ID() == t.Change().ID() {
-			continue
-		}
-		for _, tc := range chg.Tasks() {
-			if tc.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(tc)
-				if err != nil {
-					return err
-				}
-				// some other change aleady installs core
-				if snapsup.Name() == defaultCoreSnapName {
-					// if something else installs core
-					// already we need to wait
-					return &state.Retry{After: prerequisitesRetryTimeout}
-				}
-			}
-		}
+	corePending, err := inFlight(st, defaultCoreSnapName)
+	if err != nil {
+		return err
+	}
+	if corePending {
+		// if something else installs core already we need to
+		// wait for that to either finish successfully or fail
+		return &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
 	// not installed, nor queued for install -> install it
