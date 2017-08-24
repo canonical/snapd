@@ -119,7 +119,7 @@ const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
 // timeout for tasks to check if the prerequisites are ready
-var prerequisitesRetryTimeout = 1 * time.Minute
+var prerequisitesRetryTimeout = 30 * time.Second
 
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -184,6 +184,8 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		t.WaitAll(ts)
 	}
 	chg.AddAll(ts)
+	// ensure this is not rerun again
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
