@@ -60,6 +60,7 @@ const (
 		"gadget: brand-gadget\n" +
 		"kernel: baz-linux\n" +
 		"store: brand-store\n" +
+		"generic-serials: true\n" +
 		sysUserAuths +
 		reqSnaps +
 		"TSLINE" +
@@ -102,6 +103,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.GenericSerials(), Equals, true)
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
@@ -119,6 +121,16 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeGenericSerialsIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+
+	encoded := strings.Replace(withTimestamp, "generic-serials: true\n", "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.GenericSerials(), Equals, false)
 }
 
 func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
@@ -189,6 +201,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
+		{"generic-serials: true\n", "generic-serials: foo\n", `"generic-serials" header must be 'true' or 'false'`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -391,17 +404,41 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
 
+	const genericSerialsErr = "generic serial without model assertion with generic-serials set to true to allow for them"
+
 	tests := []struct {
-		signDB  assertstest.SignerDB
-		brandID string
-		authID  string
-		keyID   string
+		model       string // no, generic-serials, na == no model
+		signDB      assertstest.SignerDB
+		brandID     string
+		authID      string
+		keyID       string
+		expectedErr string
 	}{
-		{brandDB, brandDB.AuthorityID, "", brandDB.KeyID},
-		{storeDB, brandDB.AuthorityID, "generic", storeDB.GenericKey.PublicKeyID()},
+		{"no", brandDB, brandDB.AuthorityID, "", brandDB.KeyID, ""},
+		{"generic-serials", brandDB, brandDB.AuthorityID, "", brandDB.KeyID, ""},
+		{"na", brandDB, brandDB.AuthorityID, "", brandDB.KeyID, ""},
+		{"no", storeDB, brandDB.AuthorityID, "generic", storeDB.GenericKey.PublicKeyID(), genericSerialsErr},
+		{"generic-serials", storeDB, brandDB.AuthorityID, "generic", storeDB.GenericKey.PublicKeyID(), ""},
+		{"na", storeDB, brandDB.AuthorityID, "generic", storeDB.GenericKey.PublicKeyID(), genericSerialsErr},
 	}
 
 	for _, test := range tests {
+		ts := time.Now().Format(time.RFC3339)
+		modHeaders := map[string]interface{}{
+			"series":       "16",
+			"brand-id":     brandDB.AuthorityID,
+			"architecture": "amd64",
+			"model":        "baz-3000",
+			"gadget":       "gadget",
+			"kernel":       "kernel",
+			"timestamp":    ts,
+		}
+		if test.model == "generic-serials" {
+			modHeaders["generic-serials"] = "true"
+		}
+		model, err := brandDB.Sign(asserts.ModelType, modHeaders, nil, "")
+		c.Assert(err, IsNil)
+
 		headers := ex.Headers()
 		headers["brand-id"] = test.brandID
 		if test.authID != "" {
@@ -409,12 +446,22 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 		} else {
 			headers["authority-id"] = test.brandID
 		}
-		headers["timestamp"] = time.Now().Format(time.RFC3339)
+		headers["timestamp"] = ts
 		serial, err := test.signDB.Sign(asserts.SerialType, headers, nil, test.keyID)
 		c.Assert(err, IsNil)
 
-		err = db.Check(serial)
-		c.Check(err, IsNil)
+		checkDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+		if test.model != "na" {
+			err = checkDB.Add(model)
+			c.Assert(err, IsNil)
+		}
+
+		err = checkDB.Check(serial)
+		if test.expectedErr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, test.expectedErr)
+		}
 	}
 }
 

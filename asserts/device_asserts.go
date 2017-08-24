@@ -24,6 +24,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/release"
 )
 
 // Model holds a model assertion, which is a statement by a brand
@@ -31,6 +33,7 @@ import (
 type Model struct {
 	assertionBase
 	classic          bool
+	genericSerials   bool
 	requiredSnaps    []string
 	sysUserAuthority []string
 	timestamp        time.Time
@@ -94,6 +97,11 @@ func (mod *Model) RequiredSnaps() []string {
 // SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
 func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
+}
+
+// GenerialSerials returns whether the model allows for 'generic'-authority signed serial assertions beside brand signed ones.
+func (mod *Model) GenericSerials() bool {
+	return mod.genericSerials
 }
 
 // Timestamp returns the time when the model assertion was issued.
@@ -217,6 +225,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	genericSerials, err := checkOptionalBool(assert.headers, "generic-serials")
+	if err != nil {
+		return nil, err
+	}
+
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -233,6 +246,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	return &Model{
 		assertionBase:    assert,
 		classic:          classic,
+		genericSerials:   genericSerials,
 		requiredSnaps:    reqSnaps,
 		sysUserAuthority: sysUserAuthority,
 		timestamp:        timestamp,
@@ -273,7 +287,23 @@ func (ser *Serial) Timestamp() time.Time {
 	return ser.timestamp
 }
 
-// TODO: implement further consistency checks for Serial but first review approach
+func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
+	if ser.AuthorityID() == "generic" && ser.AuthorityID() != ser.BrandID() {
+		// generic serial, check the model
+		a, err := db.Find(ModelType, map[string]string{
+			"series":   release.Series,
+			"brand-id": ser.BrandID(),
+			"model":    ser.Model(),
+		})
+		if err != nil && err != ErrNotFound {
+			return err
+		}
+		if err == ErrNotFound || !a.(*Model).GenericSerials() {
+			return fmt.Errorf("generic serial without model assertion with generic-serials set to true to allow for them")
+		}
+	}
+	return nil
+}
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()

@@ -196,21 +196,27 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			c.Assert(ok, Equals, true)
 			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
 			c.Assert(err, IsNil)
+			reqID := serialReq.RequestID()
 			brandID := serialReq.BrandID()
 			model := serialReq.Model()
 			authID := "canonical"
 			keyID := ""
+			var signing assertstest.SignerDB = s.storeSigning
 			switch model {
 			case "pc":
 				c.Check(brandID, Equals, "canonical")
 			case "my-model":
 				c.Check(brandID, Equals, "my-brand")
-				authID = "generic"
-				keyID = s.storeSigning.GenericKey.PublicKeyID()
+				if reqID == "REQID-BRAND" {
+					authID = "my-brand"
+					signing = s.brandSigning
+				} else {
+					authID = "generic"
+					keyID = s.storeSigning.GenericKey.PublicKeyID()
+				}
 			default:
 				c.Fatal("unknown model")
 			}
-			reqID := serialReq.RequestID()
 			if reqID == "REQID-BADREQ" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(400)
@@ -228,7 +234,7 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 				// use proposed serial
 				serialStr = serialReq.Serial()
 			}
-			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+			serial, err := signing.Sign(asserts.SerialType, map[string]interface{}{
 				"authority-id":        authID,
 				"brand-id":            brandID,
 				"model":               model,
@@ -370,6 +376,22 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.setupBrands(c)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":          "16",
+		"brand-id":        "my-brand",
+		"model":           "my-model",
+		"generic-serials": "true",
+		"gadget":          "gadget",
+		"kernel":          "krnl",
+		"architecture":    "amd64",
+		"timestamp":       time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+
 	s.setupGadget(c, `
 name: gadget
 type: gadget
@@ -411,6 +433,113 @@ version: gadget
 		"brand-id": "my-brand",
 		"model":    "my-model",
 		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandNoGenericSerials(c *C) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	s.reqID = "REQID-1"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + "/api/v1/snaps/auth/request-id"
+	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer r2()
+
+	mockSerialRequestURL := mockServer.URL + "/api/v1/snaps/auth/devices"
+	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer r3()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupBrands(c)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+	firstTryID := becomeOperational.ID()
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*generic serial without model assertion with generic-serials set to true to allow for them.*`)
+
+	// new try, getting brand serial
+	s.reqID = "REQID-BRAND"
+	s.mgr.SetLastBecomeOperationalAttempt(time.Now().Add(-15 * time.Minute))
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	becomeOperational = nil
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" && chg.ID() != firstTryID {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "my-model")
+	c.Check(device.Serial, Equals, "10000")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "my-brand",
+		"model":    "my-model",
+		"serial":   "10000",
 	})
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
