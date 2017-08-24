@@ -440,7 +440,17 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		instFlags |= skipConfigure
 	}
 
+	snapf, err := snap.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
+		Base:     info.Base,
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
@@ -485,6 +495,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 
 	snapsup := &SnapSetup{
 		Channel:      channel,
+		Base:         info.Base,
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
