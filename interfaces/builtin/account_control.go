@@ -59,9 +59,8 @@ capability fsetid,
 // Needed because useradd uses a netlink socket
 const accountControlConnectedPlugSecComp = `
 # useradd requires chowning to 'shadow'
-# TODO: dynamically determine the shadow gid to support alternate cores
-fchown - root shadow
-fchown32 - root shadow
+fchown - u:root g:shadow
+fchown32 - u:root g:shadow
 
 # from libaudit1
 bind
