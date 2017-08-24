@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -114,6 +115,27 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "device-service.url", &value), IsNil)
 	c.Check(value, Equals, "192.168.0.1:5555")
+}
+
+func (s *setSuite) TestSetNumbers(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Check(value, Equals, json.Number("1234567890"))
+
+	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Check(value, Equals, json.Number("123456.7890"))
 }
 
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {

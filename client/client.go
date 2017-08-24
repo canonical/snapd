@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
@@ -256,7 +257,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	}
 
 	if v != nil {
-		if err := json.Unmarshal(rsp.Result, v); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v); err != nil {
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
 		}
 	}
