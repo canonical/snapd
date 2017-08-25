@@ -59,7 +59,9 @@ func (s *DBusTest) SetUpSuite(c *C) {
 
 func (s *DBusTest) TearDownSuite(c *C) {
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", s.oldSessionBusEnv)
-	err := s.dbusDaemon.Process.Kill()
-	c.Assert(err, IsNil)
+	if s.dbusDaemon != nil && s.dbusDaemon.Process != nil {
+		err := s.dbusDaemon.Process.Kill()
+		c.Assert(err, IsNil)
+	}
 
 }
