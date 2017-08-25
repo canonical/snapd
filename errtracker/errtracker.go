@@ -21,6 +21,7 @@ package errtracker
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
@@ -53,6 +54,8 @@ var (
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
 
+	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
+
 	timeNow = time.Now
 )
 
@@ -77,6 +80,22 @@ func readMachineID() ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("cannot report: no suitable machine id file found")
+}
+
+func snapConfineProfileDigest(suffix string) string {
+	profileText, err := ioutil.ReadFile(snapConfineProfile + suffix)
+	if err != nil {
+		return ""
+	}
+	// NOTE: uses md5sum for easier comparison against dpkg meta-data
+	return fmt.Sprintf("%x", md5.Sum(profileText))
+}
+
+func didSnapdReExec() string {
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+		return "yes"
+	}
+	return "no"
 }
 
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
@@ -122,12 +141,32 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
+
+		"DidSnapdReExec": didSnapdReExec(),
 	}
 	for k, v := range extra {
 		// only set if empty
 		if _, ok := report[k]; !ok {
 			report[k] = v
 		}
+	}
+
+	// include md5 hashes of the apparmor conffile for easier debbuging
+	// of not-updated snap-confine apparmor profiles
+	for _, sp := range []struct {
+		suffix string
+		key    string
+	}{
+		{"", "MD5SumSnapConfineAppArmorProfile"},
+		{".dpkg-new", "MD5SumSnapConfineAppArmorProfileDpkgNew"},
+		{".real", "MD5SumSnapConfineAppArmorProfileReal"},
+		{".real.dpkg-new", "MD5SumSnapConfineAppArmorProfileRealDpkgNew"},
+	} {
+		digest := snapConfineProfileDigest(sp.suffix)
+		if digest != "" {
+			report[sp.key] = digest
+		}
+
 	}
 
 	// see if we run in testing mode

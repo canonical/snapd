@@ -56,6 +56,7 @@ type FirstBootTestSuite struct {
 	aa          *testutil.MockCmd
 	systemctl   *testutil.MockCmd
 	mockUdevAdm *testutil.MockCmd
+	snapSeccomp *testutil.MockCmd
 
 	storeSigning *assertstest.StoreStack
 	restore      func()
@@ -88,12 +89,15 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
 	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
 
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
@@ -109,6 +113,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	s.aa.Restore()
 	s.systemctl.Restore()
 	s.mockUdevAdm.Restore()
+	s.snapSeccomp.Restore()
 
 	s.restore()
 	s.restoreOnClassic()
@@ -270,17 +275,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
-	// XXX: without this we abort, and further explode that abort
-	// debug!
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
-
+func (s *FirstBootTestSuite) makeBecomeOpertionalChange(c *C) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -369,6 +364,25 @@ snaps:
 	st.Unlock()
 	s.overlord.Settle()
 	st.Lock()
+	// unlocked by defer
+
+	return chg
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	chg := s.makeBecomeOpertionalChange(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	c.Assert(chg.Err(), IsNil)
 
 	// and check the snap got correctly installed
@@ -424,6 +438,15 @@ snaps:
 	err = state.Get("seeded", &seeded)
 	c.Assert(err, IsNil)
 	c.Check(seeded, Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
+	chg := s.makeBecomeOpertionalChange(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).* cannot determine bootloader.*`)
 }
 
 func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {

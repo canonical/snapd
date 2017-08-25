@@ -1,4 +1,4 @@
-summary: Check that `snap connect` runs interface hooks
+summary: Check that `snap connect` runs interface hook
 
 prepare: |
     echo "Build test hooks package"

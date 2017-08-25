@@ -20,15 +20,19 @@
 package daemon
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // ResponseType is the response type
@@ -95,11 +99,11 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
-		status = http.StatusInternalServerError
+		status = 500
 	}
 
 	hdr := w.Header()
-	if r.Status == http.StatusAccepted || r.Status == http.StatusCreated {
+	if r.Status == 202 || r.Status == 201 {
 		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
@@ -128,6 +132,9 @@ const (
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
+	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
@@ -157,7 +164,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 		Result: result,
 		Meta:   meta,
 	}
@@ -167,7 +174,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,
-		Status: http.StatusAccepted,
+		Status: 202,
 		Result: result,
 		Meta:   meta,
 	}
@@ -179,7 +186,7 @@ func makeErrorResponder(status int) errorResponder {
 		res := &errorResult{
 			Message: fmt.Sprintf(format, v...),
 		}
-		if status == http.StatusUnauthorized {
+		if status == 401 {
 			res.Kind = errorKindLoginRequired
 		}
 		return &resp{
@@ -198,6 +205,68 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
 	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))
+}
+
+// A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to
+// be, each one on its own, a JSON dump of a systemd.Log, as output by
+// journalctl -o json) from an io.ReadCloser, loads that into a client.Log, and
+// outputs the json dump of that, padded with RS and LF to make it a valid
+// json-seq response.
+//
+// The reader is always closed when done (this is important for
+// osutil.WatingStdoutPipe).
+//
+// Tip: “jq” knows how to read this; “jq --seq” both reads and writes this.
+type journalLineReaderSeqResponse struct {
+	io.ReadCloser
+	follow bool
+}
+
+func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	flusher, hasFlusher := w.(http.Flusher)
+
+	var err error
+	dec := json.NewDecoder(rr)
+	writer := bufio.NewWriter(w)
+	enc := json.NewEncoder(writer)
+	for {
+		var log systemd.Log
+		if err = dec.Decode(&log); err != nil {
+			break
+		}
+
+		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+
+		// ignore the error...
+		t, _ := log.Time()
+		if err = enc.Encode(client.Log{
+			Timestamp: t,
+			Message:   log.Message(),
+			SID:       log.SID(),
+			PID:       log.PID(),
+		}); err != nil {
+			break
+		}
+
+		if rr.follow {
+			if e := writer.Flush(); e != nil {
+				break
+			}
+			if hasFlusher {
+				flusher.Flush()
+			}
+		}
+	}
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		logger.Noticef("cannot stream response; problem writing: %v", err)
+	}
+	rr.Close()
 }
 
 type assertResponse struct {
@@ -220,7 +289,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", t)
 	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(200)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
@@ -238,12 +307,40 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	Unauthorized   = makeErrorResponder(http.StatusUnauthorized)
-	NotFound       = makeErrorResponder(http.StatusNotFound)
-	BadRequest     = makeErrorResponder(http.StatusBadRequest)
-	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)
-	InternalError  = makeErrorResponder(http.StatusInternalServerError)
-	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
-	Forbidden      = makeErrorResponder(http.StatusForbidden)
-	Conflict       = makeErrorResponder(http.StatusConflict)
+	Unauthorized     = makeErrorResponder(401)
+	NotFound         = makeErrorResponder(404)
+	BadRequest       = makeErrorResponder(400)
+	MethodNotAllowed = makeErrorResponder(405)
+	InternalError    = makeErrorResponder(500)
+	NotImplemented   = makeErrorResponder(501)
+	Forbidden        = makeErrorResponder(403)
+	Conflict         = makeErrorResponder(409)
 )
+
+// SnapNotFound is an error responder used when an operation is
+// requested on a snap that doesn't exist.
+func SnapNotFound(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// AppNotFound is an error responder used when an operation is
+// requested on a app that doesn't exist.
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 404,
+	}
+}

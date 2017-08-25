@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -41,10 +40,10 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
@@ -63,6 +62,7 @@ type assertMgrSuite struct {
 var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
+	storetest.Store
 	state *state.State
 	db    asserts.RODatabase
 }
@@ -84,44 +84,10 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.SnapInfo not expected")
-}
-
-func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.Find not expected")
-}
-
-func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.ListRefresh not expected")
-}
-
-func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
-	panic("fakeStore.Download not expected")
-}
-
-func (sto *fakeStore) SuggestedCurrency() string {
-	panic("fakeStore.SuggestedCurrency not expected")
-}
-
-func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
-	panic("fakeStore.Buy not expected")
-}
-
-func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
-	panic("fakeStore.ReadyToBuy not expected")
-}
-
-func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
-	panic("fakeStore.Sections not expected")
-}
-
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	dev1PrivKey, _ := assertstest.GenerateKey(752)
@@ -270,6 +236,48 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	aKey, _ := assertstest.GenerateKey(752)
+	aSignDB := assertstest.NewSigningDB("can0nical", aKey)
+
+	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id":        "can0nical",
+		"account-id":          "can0nical",
+		"public-key-sha3-384": aKey.PublicKey().ID(),
+		"name":                "default",
+		"since":               time.Now().UTC().Format(time.RFC3339),
+	}
+	acctKey, err := aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, "")
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "can0nical",
+		"brand-id":     "can0nical",
+		"repair-id":    "2",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}
+	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	err = batch.Add(repair)
+	c.Assert(err, IsNil)
+
+	err = batch.Add(acctKey)
+	c.Assert(err, IsNil)
+
+	// this must fail
+	err = batch.Commit(s.state)
+	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
 }
 
 func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {

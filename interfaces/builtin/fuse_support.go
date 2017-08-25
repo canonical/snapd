@@ -19,6 +19,20 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/release"
+)
+
+const fuseSupportSummary = `allows access to the FUSE file system`
+
+const fuseSupportBaseDeclarationSlots = `
+  fuse-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const fuseSupportConnectedPlugSecComp = `
 # Description: Can run a FUSE filesystem. Unprivileged fuse mounts are
 # not supported at this time.
@@ -70,10 +84,15 @@ deny /etc/fuse.conf r,
 `
 
 func init() {
+	// Ubuntu 14.04 does not support the fuse-support interface.
 	registerIface(&commonInterface{
-		name: "fuse-support",
+		name:                  "fuse-support",
+		summary:               fuseSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
+		reservedForOS:         true,
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

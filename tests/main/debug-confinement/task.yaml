@@ -1,7 +1,7 @@
 summary: Verify confinement is correctly reported
 
 execute: |
-    expected=none
+    expected=partial
     case "$SPREAD_SYSTEM" in
     ubuntu-*)
         expected=strict

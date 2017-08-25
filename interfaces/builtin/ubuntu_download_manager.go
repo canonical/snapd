@@ -20,12 +20,21 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
+
+const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
+
+const ubuntuDownloadManagerBaseDeclarationSlots = `
+  ubuntu-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
 
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
    are deliberately left out of this profile due to their privileged nature. */
@@ -191,6 +200,13 @@ func (iface *ubuntuDownloadManagerInterface) Name() string {
 	return "ubuntu-download-manager"
 }
 
+func (iface *ubuntuDownloadManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              ubuntuDownloadManagerSummary,
+		BaseDeclarationSlots: ubuntuDownloadManagerBaseDeclarationSlots,
+	}
+}
+
 func (iface *ubuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
@@ -216,20 +232,6 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	new = plug.Snap.Name()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *ubuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *ubuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	return nil
 }
 

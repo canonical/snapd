@@ -6,7 +6,7 @@ execute: |
         exit
     fi
     echo "Ack the test store key in case"
-    snap ack $TESTSLIB/assertions/testrootorg-store.account-key
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     ALICE_ID=BGLTY1rcRKQQMbt9B407lDH38lbCW3wg
 

@@ -1,5 +1,4 @@
-#!/bin/bash
-# bash because of the codecov integration
+#!/bin/sh
 
 if [ "$TRAVIS_BUILD_NUMBER" ]; then
     echo travis_fold:start:env
@@ -16,6 +15,9 @@ if which goctest >/dev/null; then
 else
     goctest="go test"
 fi
+COVERMODE=${COVERMODE:-atomic}
+export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
+export PATH="$PATH:${GOPATH%%:*}/bin"
 
 STATIC=
 UNIT=
@@ -52,6 +54,7 @@ exit_with_exit_code() {
 }
 addtrap() {
     CURRENTTRAP="$CURRENTTRAP ; $1"
+    # shellcheck disable=SC2064
     trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
 }
 
@@ -64,7 +67,7 @@ endmsg() {
         m="Crushing failure and despair."
     fi
     echo
-    if [ -t 1 -a -z "$STATIC" ]; then
+    if [ -t 1 ] && [ -z "$STATIC" ]; then
         cat "data/$p"
     else
         echo "$m"
@@ -76,7 +79,7 @@ addtrap endmsg
 append_coverage() (
     profile="$1"
     if [ -f "$profile" ]; then
-        grep -v "mode: set" -- "$profile" >> .coverage/coverage.out
+        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out
         rm "$profile"
     fi
 )
@@ -86,12 +89,12 @@ if [ "$STATIC" = 1 ]; then
 
     # Run static tests.
     echo Checking docs
-    ./mdlint.py docs/*.md
+    ./mdlint.py ./*.md docs/*.md
 
     echo Checking formatting
     fmt=""
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -s -l $GOPATH/src/$pkg)"
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        s="$(gofmt -s -l "$dir")"
         if [ -n "$s" ]; then
             fmt="$s\n$fmt"
         fi
@@ -105,26 +108,56 @@ if [ "$STATIC" = 1 ]; then
 
     # go vet
     echo Running vet
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        go vet $pkg
+    go list ./... | grep -v '/vendor/' | xargs go vet
+
+    echo 'Check for usages of http.Status*'
+    got=""
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
+        if [ -n "$s" ]; then
+            got="$s\n$got"
+        fi
     done
 
-    if which shellcheck 2>/dev/null; then
+    if [ -n "$got" ]; then
+        echo 'Usages of http.Status*, we prefer the numeric values directly:'
+        echo "$got"
+        exit 1
+    fi
+
+    if which shellcheck >/dev/null; then
         echo Checking shell scripts...
-        shellcheck -s bash data/completion/*.sh
+        ( git ls-files -z 2>/dev/null ||
+                find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
+            xargs -0 file -N |
+            awk -F": " '$2~/shell.script/{print $1}' |
+            xargs shellcheck
+        regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
+        if grep -qPr --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"; then
+            echo "Using GOPATH as if it were a single entry and not a list:"
+            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"
+            exit 1
+        fi
+        unset regexp
     fi
 
     echo Checking spelling errors
-    go get -u github.com/client9/misspell/cmd/misspell
-    for file in $(ls . | grep -v 'vendor\|po'); do
-        ${GOBIN:-$GOPATH/bin}/misspell -error -i auther $file
+    if ! which misspell >/dev/null; then
+        go get -u github.com/client9/misspell/cmd/misspell
+    fi
+    for file in *; do
+        if [ "$file" = "vendor" ] || [ "$file" = "po" ]; then
+            continue
+        fi
+        misspell -error -i auther,PROCES,PROCESSS,proces,processs "$file"
     done
 
     echo Checking for ineffective assignments
-    go get -u github.com/gordonklaus/ineffassign
-    for file in $(ls . | grep -v 'vendor\|po'); do
-        ${GOBIN:-$GOPATH/bin}/ineffassign $file
-    done
+    if ! which ineffassign >/dev/null; then
+        go get -u github.com/gordonklaus/ineffassign
+    fi
+    # ineffassign knows about ignoring vendor/ \o/
+    ineffassign .
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -133,22 +166,22 @@ if [ "$UNIT" = 1 ]; then
     # Prepare the coverage output profile.
     rm -rf .coverage
     mkdir .coverage
-    echo "mode: set" > .coverage/coverage.out
+    echo "mode: $COVERMODE" > .coverage/coverage.out
 
     echo Building
     go build -v github.com/snapcore/snapd/...
 
     # tests
-    echo Running tests from $(pwd)
+    echo Running tests from "$PWD"
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        go test -i $pkg
-        $goctest -v -coverprofile=.coverage/profile.out -covermode=atomic $pkg
+        go test -i "$pkg"
+        $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
         append_coverage .coverage/profile.out
     done
 
     # upload to codecov.io if on travis
     if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
-        bash <(curl -s https://codecov.io/bash) -f .coverage/coverage.out
+        curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
     fi
 fi
 
@@ -157,7 +190,7 @@ if [ "$SPREAD" = 1 ]; then
     addtrap "rm -rf \"$TMP_SPREAD\""
 
     export PATH=$TMP_SPREAD:$PATH
-    ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+    ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     spread -v linode:
 
@@ -170,7 +203,7 @@ if [ "$DEPRECATED" = 1 ]; then
 
 fi
 
-UNCLEAN="$(git status -s|grep ^??)" || true
+UNCLEAN="$(git status -s|grep '^??')" || true
 if [ -n "$UNCLEAN" ]; then
     cat <<EOF
 

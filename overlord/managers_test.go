@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -71,6 +71,7 @@ type mgrsSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
+	restore        func()
 
 	devAcct *asserts.Account
 
@@ -81,6 +82,8 @@ type mgrsSuite struct {
 	serveRevision map[string]string
 
 	hijackServeSnap func(http.ResponseWriter)
+
+	snapSeccomp *testutil.MockCmd
 }
 
 var (
@@ -89,9 +92,6 @@ var (
 )
 
 var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 
 	develPrivKey, _ = assertstest.GenerateKey(752)
@@ -104,6 +104,16 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(ms.tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+
+	ms.restore = func() {
+		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SetupInstallHook = oldSetupInstallHook
+	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	snapstate.CanAutoRefresh = nil
@@ -121,7 +131,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
 	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
-	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -141,17 +151,24 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+
+	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
+	c.Assert(err, IsNil)
+	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	ms.restoreTrusted()
+	ms.restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
 	ms.snapDiscardNs.Restore()
+	ms.snapSeccomp.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -200,10 +217,10 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/x1")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
+	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
 
 }
@@ -242,7 +259,7 @@ apps:
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
-	mup := systemd.MountUnitPath("/snap/foo/x1")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
@@ -371,7 +388,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write(asserts.Encode(a))
 			return
 		case "details":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			io.WriteString(w, fillHit(comps[2]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
@@ -393,7 +410,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				hits = append(hits, json.RawMessage(fillHit(name)))
 			}
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(200)
 			output, err := json.Marshal(map[string]interface{}{
 				"_embedded": map[string]interface{}{
 					"clickindex:package": hits,
@@ -634,10 +651,10 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/55")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/55"))
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
+	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/55", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
 }
 
@@ -1678,7 +1695,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
@@ -1767,17 +1784,19 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
 
-func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
+func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	_, _, err := s.ac.DeviceSessionRequest("NONCE")
+	_, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
-	// setup serial and key in system state
+	// setup model, serial and key in system state
+	err = assertstate.Add(st, s.model)
+	c.Assert(err, IsNil)
 	err = assertstate.Add(st, s.serial)
 	c.Assert(err, IsNil)
 	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -1792,9 +1811,11 @@ func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
 	})
 
 	st.Unlock()
-	req, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
+	params, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
-	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
+	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)
+	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
+	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
+
 }

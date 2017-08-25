@@ -27,7 +27,6 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 )
 
 type fakeOp struct {
@@ -90,6 +90,8 @@ type fakeDownload struct {
 }
 
 type fakeStore struct {
+	storetest.Store
+
 	downloads           []fakeDownload
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
@@ -147,8 +149,77 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	return info, nil
 }
 
-func (f *fakeStore) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
-	panic("Find called")
+func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
+	f.pokeStateLock()
+
+	if cand == nil {
+		panic("LookupRefresh called with no candidate")
+	}
+
+	var name string
+
+	switch cand.SnapID {
+	case "":
+		return nil, store.ErrLocalSnap
+	case "other-snap-id":
+		return nil, store.ErrNoUpdateAvailable
+	case "fakestore-please-error-on-refresh":
+		return nil, fmt.Errorf("failing as requested")
+	case "services-snap-id":
+		name = "services-snap"
+	case "some-snap-id":
+		name = "some-snap"
+	case "core-snap-id":
+		name = "core"
+	default:
+		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
+	}
+
+	revno := snap.R(11)
+	confinement := snap.StrictConfinement
+	switch cand.Channel {
+	case "channel-for-7":
+		revno = snap.R(7)
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
+	}
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: name,
+			Channel:  cand.Channel,
+			SnapID:   cand.SnapID,
+			Revision: revno,
+		},
+		Version: name,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
+		Confinement:   confinement,
+		Architectures: []string{"all"},
+	}
+
+	var hit snap.Revision
+	if cand.Revision != revno {
+		hit = revno
+	}
+	for _, blocked := range cand.Block {
+		if blocked == revno {
+			hit = snap.Revision{}
+			break
+		}
+	}
+
+	// TODO: move this back to ListRefresh
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
+
+	if !hit.Unset() {
+		return info, nil
+	}
+
+	return nil, store.ErrNoUpdateAvailable
 }
 
 func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
@@ -163,70 +234,11 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 
 	var res []*snap.Info
 	for _, cand := range cands {
-		snapID := cand.SnapID
-
-		if snapID == "" || snapID == "other-snap-id" {
+		info, err := f.LookupRefresh(cand, nil)
+		if err == store.ErrLocalSnap || err == store.ErrNoUpdateAvailable {
 			continue
 		}
-
-		if snapID == "fakestore-please-error-on-refresh" {
-			return nil, fmt.Errorf("failing as requested")
-		}
-
-		var name string
-		switch snapID {
-		case "services-snap-id":
-			name = "services-snap"
-		case "some-snap-id":
-			name = "some-snap"
-		case "core-snap-id":
-			name = "core"
-		default:
-			panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
-		}
-
-		revno := snap.R(11)
-		confinement := snap.StrictConfinement
-		switch cand.Channel {
-		case "channel-for-7":
-			revno = snap.R(7)
-		case "channel-for-classic":
-			confinement = snap.ClassicConfinement
-		case "channel-for-devmode":
-			confinement = snap.DevModeConfinement
-		}
-
-		info := &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: name,
-				Channel:  cand.Channel,
-				SnapID:   cand.SnapID,
-				Revision: revno,
-			},
-			Version: name,
-			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "https://some-server.com/some/path.snap",
-			},
-			Confinement:   confinement,
-			Architectures: []string{"all"},
-		}
-
-		var hit snap.Revision
-		if cand.Revision != revno {
-			hit = revno
-		}
-		for _, blocked := range cand.Block {
-			if blocked == revno {
-				hit = snap.Revision{}
-				break
-			}
-		}
-
-		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
-
-		if !hit.Unset() {
-			res = append(res, info)
-		}
+		res = append(res, info)
 	}
 
 	return res, nil
@@ -255,22 +267,6 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	pb.Set(float64(f.fakeCurrentProgress))
 
 	return nil
-}
-
-func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
-	panic("Never expected fakeStore.Buy to be called")
-}
-
-func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
-	panic("Never expected fakeStore.ReadyToBuy to be called")
-}
-
-func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
-	panic("Never expected fakeStore.Assertion to be called")
-}
-
-func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
-	panic("Sections called")
 }
 
 type fakeSnappyBackend struct {

@@ -1,2 +1,2 @@
 #!/bin/sh
-echo $1 > /dev/iio:device0
+echo "$1" > /dev/iio:device0

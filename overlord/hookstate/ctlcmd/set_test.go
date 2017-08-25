@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -58,7 +59,7 @@ func (s *setSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
+	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 }
 
@@ -116,6 +117,27 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 	c.Check(value, Equals, "192.168.0.1:5555")
 }
 
+func (s *setSuite) TestSetNumbers(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Check(value, Equals, json.Number("1234567890"))
+
+	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Check(value, Equals, json.Number("123456.7890"))
+}
+
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	// Setup an initial configuration
 	s.mockContext.State().Lock()
@@ -171,7 +193,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
-	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugTaskSetup, s.mockHandler)
+	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	s.mockPlugHookContext.Lock()
@@ -186,7 +208,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-slot-aplug"}
-	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotTaskSetup, s.mockHandler)
+	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	s.mockSlotHookContext.Lock()
@@ -249,7 +271,7 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "not-a-connect-hook"}
-	mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
+	mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"})

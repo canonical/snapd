@@ -29,6 +29,19 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+const networkManagerSummary = `allows operating as the NetworkManager service`
+
+const networkManagerBaseDeclarationSlots = `
+  network-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
+
 const networkManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
@@ -101,8 +114,31 @@ network packet,
 
 #include <abstractions/nameservice>
 
+# Explicitly deny plugging snaps from ptracing the slot to silence noisy
+# denials. Neither the NetworkManager service nor nmcli require ptrace
+# trace for full functionality.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
+
 # DBus accesses
 #include <abstractions/dbus-strict>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
    bus=system
@@ -377,6 +413,14 @@ func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              networkManagerSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
+	}
+}
+
 func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
@@ -412,14 +456,6 @@ func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification
 
 func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

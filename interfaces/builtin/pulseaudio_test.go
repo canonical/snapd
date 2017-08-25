@@ -82,12 +82,12 @@ func (s *PulseAudioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.iface.SanitizeSlot(s.coreSlot), IsNil)
-	c.Assert(s.iface.SanitizeSlot(s.classicSlot), IsNil)
+	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	c.Assert(s.classicSlot.Sanitize(s.iface), IsNil)
 }
 
 func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.iface.SanitizePlug(s.plug), IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {

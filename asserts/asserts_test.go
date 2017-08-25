@@ -46,6 +46,31 @@ func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
 	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
 }
 
+func (as *assertsSuite) TestTypeNames(c *C) {
+	c.Check(asserts.TypeNames(), DeepEquals, []string{
+		"account",
+		"account-key",
+		"account-key-request",
+		"base-declaration",
+		"device-session-request",
+		"model",
+		"repair",
+		"serial",
+		"serial-request",
+		"snap-build",
+		"snap-declaration",
+		"snap-developer",
+		"snap-revision",
+		"store",
+		"system-user",
+		"test-only",
+		"test-only-2",
+		"test-only-no-authority",
+		"test-only-no-authority-pk",
+		"validation",
+	})
+}
+
 func (as *assertsSuite) TestSuggestFormat(c *C) {
 	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
 	c.Assert(err, IsNil)
@@ -312,9 +337,9 @@ func checkContent(c *C, a asserts.Assertion, encoded string) {
 func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 	stream := new(bytes.Buffer)
 	enc := asserts.NewEncoder(stream)
-	asserts.EncoderAppend(enc, []byte(exampleEmptyBody2NlNl))
-	asserts.EncoderAppend(enc, []byte(exampleBodyAndExtraHeaders))
-	asserts.EncoderAppend(enc, []byte(exampleEmptyBodyAllDefaults))
+	enc.WriteEncoded([]byte(exampleEmptyBody2NlNl))
+	enc.WriteEncoded([]byte(exampleBodyAndExtraHeaders))
+	enc.WriteEncoded([]byte(exampleEmptyBodyAllDefaults))
 
 	decoder := asserts.NewDecoder(stream)
 	a, err := decoder.Decode()
@@ -442,6 +467,58 @@ func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
 	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 1024, 1024, 7)
 	_, err := decoder.Decode()
 	c.Assert(err, ErrorMatches, `error reading assertion signature: maximum size exceeded while looking for delimiter "\\n\\n"`)
+}
+
+func (as *assertsSuite) TestDecoderDefaultMaxBodySize(c *C) {
+	enc := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097153", 1)
+	decoder := asserts.NewDecoder(bytes.NewBufferString(enc))
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
+}
+
+func (as *assertsSuite) TestDecoderWithTypeMaxBodySize(c *C) {
+	ex1 := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097152", 1)
+	ex1 = strings.Replace(ex1, "THE-BODY", strings.Repeat("B", 2*1024*1024), 1)
+	ex1toobig := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097153", 1)
+	ex1toobig = strings.Replace(ex1toobig, "THE-BODY", strings.Repeat("B", 2*1024*1024+1), 1)
+	const ex2 = `type: test-only-2
+authority-id: auth-id1
+pk1: foo
+pk2: bar
+body-length: 3
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+XYZ
+
+AXNpZw==`
+
+	decoder := asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 3,
+	})
+	a1, err := decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a1.Body(), HasLen, 2*1024*1024)
+	a2, err := decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
+
+	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 2,
+	})
+	a1, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a1.Body(), HasLen, 2*1024*1024)
+	_, err = decoder.Decode()
+	c.Assert(err, ErrorMatches, `assertion body length 3 exceeds maximum body size 2 for "test-only-2" assertions`)
+
+	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex2+"\n\n"+ex1toobig), map[*asserts.AssertionType]int{
+		asserts.TestOnly2Type: 3,
+	})
+	a2, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
+	_, err = decoder.Decode()
+	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
 }
 
 func (as *assertsSuite) TestEncode(c *C) {
@@ -768,6 +845,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"account",
 		"account-key",
 		"base-declaration",
+		"store",
 		"snap-declaration",
 		"snap-build",
 		"snap-revision",

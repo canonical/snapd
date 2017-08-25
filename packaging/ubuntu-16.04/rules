@@ -21,7 +21,14 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
-BUILDFLAGS:=-buildmode=pie -pkgdir=$(CURDIR)/_build/std
+# Disable -buildmode=pie mode on i386 as can panics in spectacular
+# ways (LP: #1711052).
+# See also https://forum.snapcraft.io/t/artful-i386-panics/
+BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
+ifneq ($(shell dpkg-architecture -qDEB_TARGET_ARCH),i386)
+BUILDFLAGS+= -buildmode=pie
+endif
+
 GCCGOFLAGS=
 ifeq ($(GCCGO),yes)
 GOARCH := $(shell go env GOARCH)
@@ -88,16 +95,17 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
 	# this will be set by the GITHUB webhook to trigger a autopkgtest
 	# we only need to run "govendor sync" here and then its ready
 	(export GOPATH="/tmp/go"; \
-	  mkdir -p $$GOPATH/src/github.com/snapcore/; \
-          cp -ar . $$GOPATH/src/github.com/snapcore/snapd; \
+	  mkdir -p /tmp/go/src/github.com/snapcore/; \
+          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
 	  go get -u github.com/kardianos/govendor; \
-	  (cd $$GOPATH/src/github.com/snapcore/snapd ; $$GOPATH/bin/govendor sync); \
-	  cp -ar $$GOPATH/src/github.com/snapcore/snapd/vendor/ .; \
+	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
+	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
         )
 endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/systemd clean
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -141,6 +149,15 @@ override_dh_systemd_enable:
 		--no-enable \
 		-psnapd \
 		data/systemd/snapd.refresh.service
+	# we want the repair timer enabled by default
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snap-repair.timer
+	# but the repair service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-psnapd \
+		data/systemd/snap-repair.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
@@ -151,6 +168,9 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.system-shutdown.service
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_systemd_start:
 	# we want to start the auto-update timer
@@ -173,12 +193,13 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
+	dh_systemd_start \
+		-psnapd \
+		data/systemd/snapd.core-fixup.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
-	# uboot-go is not shippable
-	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
 	# toolbelt is not shippable
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore

@@ -20,7 +20,11 @@
 package osutil
 
 import (
+	"io"
+	"os/exec"
 	"os/user"
+	"syscall"
+	"time"
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -49,4 +53,35 @@ func MockMountInfoPath(mockMountInfoPath string) func() {
 	mountInfoPath = mockMountInfoPath
 
 	return func() { mountInfoPath = realMountInfoPath }
+}
+
+func MockSyscallKill(f func(int, syscall.Signal) error) func() {
+	oldSyscallKill := syscallKill
+	syscallKill = f
+	return func() {
+		syscallKill = oldSyscallKill
+	}
+}
+
+func MockSyscallGetpgid(f func(int) (int, error)) func() {
+	oldSyscallGetpgid := syscallGetpgid
+	syscallGetpgid = f
+	return func() {
+		syscallGetpgid = oldSyscallGetpgid
+	}
+}
+
+func MockCmdWaitTimeout(timeout time.Duration) func() {
+	oldCmdWaitTimeout := cmdWaitTimeout
+	cmdWaitTimeout = timeout
+	return func() {
+		cmdWaitTimeout = oldCmdWaitTimeout
+	}
+}
+
+var KillProcessGroup = killProcessGroup
+
+func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
+	wr := r.(*waitingReader)
+	return wr.reader, wr.cmd
 }

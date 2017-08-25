@@ -44,11 +44,6 @@ import (
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
-var (
-	rootKey, _  = assertstest.GenerateKey(752)
-	storeKey, _ = assertstest.GenerateKey(752)
-)
-
 type interfaceManagerSuite struct {
 	state           *state.State
 	db              *asserts.Database
@@ -65,7 +60,7 @@ type interfaceManagerSuite struct {
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootKey, storeKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
@@ -231,6 +226,39 @@ func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer")
+}
+
+func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("other-connect", "...")
+	t := s.state.NewTask("connect", "other connect task")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	chg.AddTask(t)
+
+	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	// sanity check: verify that CheckChangeConflict would normally fail without extra-predicate passed by Connect/Disconnect internally.
+	reset := ifacestate.MockConflictPredicate(nil)
+	defer reset()
+
+	_, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+
+	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -691,8 +719,26 @@ plugs:
   interface: test2
 `
 
+var consumer2Yaml = `
+name: consumer2
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr1: value1
+`
+
 var producerYaml = `
 name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  attr2: value2
+`
+
+var producer2Yaml = `
+name: producer2
 version: 1
 slots:
  slot:
@@ -794,7 +840,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	c.Check(plug.Connections, HasLen, 1)
 }
 
-// The setup-profiles task will auto-connect plugs with viable candidates.
+// The setup-profiles task will auto-connect slots with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Mock the interface that will be used by the test
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -841,6 +887,102 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	slot := repo.Slot("producer", "slot")
 	c.Assert(slot, Not(IsNil))
 	c.Check(slot.Connections, HasLen, 1)
+}
+
+// The setup-profiles task will auto-connect slots with viable multiple candidates.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
+	// Mock the interface that will be used by the test
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	// Add an OS snap.
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	// Add a consumer snap with unconnect plug (interface "test")
+	s.mockSnap(c, consumerYaml)
+	// Add a 2nd consumer snap with unconnect plug (interface "test")
+	s.mockSnap(c, consumer2Yaml)
+
+	// Initialize the manager. This registers the OS snap.
+	mgr := s.manager(c)
+
+	// Add a producer snap with a "slot" slot of the "test" interface.
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "slot" is now saved in the state as auto-connected.
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test", "auto": true,
+		},
+		"consumer2:plug producer:slot": map[string]interface{}{
+			"interface": "test", "auto": true,
+		},
+	})
+
+	// Ensure that "slot" is really connected.
+	repo := mgr.Repository()
+	slot := repo.Slot("producer", "slot")
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Connections, HasLen, 2)
+}
+
+// The setup-profiles task will not auto-connect slots if viable alternative slots are present.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlternative(c *C) {
+	// Mock the interface that will be used by the test
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	// Add an OS snap.
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	// Add a consumer snap with unconnect plug (interface "test")
+	s.mockSnap(c, consumerYaml)
+
+	// alternative conflicting producer
+	s.mockSnap(c, producer2Yaml)
+
+	// Initialize the manager. This registers the OS snap.
+	mgr := s.manager(c)
+
+	// Add a producer snap with a "slot" slot of the "test" interface.
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that no connections were made
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
 }
 
 // The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.

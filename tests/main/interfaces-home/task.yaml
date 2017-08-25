@@ -119,7 +119,7 @@ execute: |
 
     echo "============================================"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

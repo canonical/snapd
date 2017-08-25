@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
@@ -256,7 +257,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	}
 
 	if v != nil {
-		if err := json.Unmarshal(rsp.Result, v); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v); err != nil {
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
 		}
 	}
@@ -276,7 +277,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	if rsp.Type != "async" {
 		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
-	if rsp.StatusCode != http.StatusAccepted {
+	if rsp.StatusCode != 202 {
 		return "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
@@ -349,6 +350,8 @@ const (
 
 	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
 	ErrorKindSnapNotInstalled       = "snap-not-installed"
+	ErrorKindSnapNotFound           = "snap-not-found"
+	ErrorKindSnapLocal              = "snap-local"
 	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
@@ -376,8 +379,8 @@ type OSRelease struct {
 
 type RefreshInfo struct {
 	Schedule string `json:"schedule"`
-	Last     string `json:"last"`
-	Next     string `json:"next"`
+	Last     string `json:"last,omitempty"`
+	Next     string `json:"next,omitempty"`
 }
 
 // SysInfo holds system information
@@ -390,7 +393,8 @@ type SysInfo struct {
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh RefreshInfo `json:"refresh,omitempty"`
+	Refresh     RefreshInfo `json:"refresh,omitempty"`
+	Confinement string      `json:"confinement"`
 }
 
 func (rsp *response) err() error {

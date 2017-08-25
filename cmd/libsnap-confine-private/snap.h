@@ -43,6 +43,19 @@ enum {
  **/
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
 
-bool verify_security_tag(const char *security_tag);
+/**
+ * Validate security tag against strict naming requirements and snap name.
+ *
+ *  The executable name is of form:
+ *   snap.<name>.(<appname>|hook.<hookname>)
+ *  - <name> must start with lowercase letter, then may contain
+ *   lowercase alphanumerics and '-'; it must match snap_name
+ *  - <appname> may contain alphanumerics and '-'
+ *  - <hookname must start with a lowercase letter, then may
+ *   contain lowercase letters and '-'
+ **/
+bool verify_security_tag(const char *security_tag, const char *snap_name);
+
+bool sc_is_hook_security_tag(const char *security_tag);
 
 #endif

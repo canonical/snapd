@@ -50,7 +50,7 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, handler)
+	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, handler, "")
 	c.Assert(err, IsNil)
 }
 

@@ -59,7 +59,7 @@ func (s *getSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
+	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	// Initialize configuration
@@ -124,7 +124,7 @@ func (s *getSuite) TestGetTests(c *C) {
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 		var err error
-		mockContext, err := hookstate.NewContext(task, setup, mockHandler)
+		mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
 		c.Check(err, IsNil)
 
 		// Initialize configuration
@@ -178,7 +178,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-plug-aplug"}
-	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugTaskSetup, s.mockHandler)
+	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	s.mockPlugHookContext.Lock()
@@ -193,7 +193,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-slot-aplug"}
-	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotTaskSetup, s.mockHandler)
+	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	s.mockSlotHookContext.Lock()
@@ -295,4 +295,25 @@ func (s *getAttrSuite) TestPlugOrSlotEmpty(c *C) {
 	c.Check(err.Error(), Equals, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *setSuite) TestNull(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
+	c.Check(err, IsNil)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
+	c.Check(err, IsNil)
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify config value
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Assert(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Assert(value, IsNil)
+	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Assert(value, DeepEquals, []interface{}{nil})
 }

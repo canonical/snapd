@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -106,6 +107,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		"type": "sync",
 		"result": [{
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
@@ -126,6 +128,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:            "funky-snap-id",
+		Title:         "Title",
 		Summary:       "salutation snap",
 		Description:   "hello-world",
 		DownloadSize:  22212,
@@ -171,6 +174,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		"type": "sync",
 		"result": {
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
 			"download-size": 6930947,
@@ -200,6 +204,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
+		Title:         "Title",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
@@ -219,4 +224,56 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{URL: "http://example.com/shot2.png"},
 		},
 	})
+}
+
+func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"name": "hello"
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{
+		Snap:    "foo",
+		Name:    "hello",
+		Daemon:  "daemon",
+		Enabled: true,
+		Active:  false,
+	}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"snap": "foo",
+		"name": "hello",
+		"daemon": "daemon",
+		"enabled": true
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoNilNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoNoDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoEmptyDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": ""}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
+	var app *client.AppInfo
+
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, true)
 }

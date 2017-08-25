@@ -20,12 +20,15 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -299,6 +302,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
+	}
+
+	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 
 	// this handler does nothing
@@ -622,6 +629,35 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
+// GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
+// before the feature of running snapctl outside of hooks was introduced, leading to a warning
+// from snap-confine).
+// It is the caller's responsibility to lock state before calling this function.
+func (m *SnapManager) GenerateCookies(st *state.State) error {
+	var snapNames map[string]*json.RawMessage
+	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	var contexts map[string]string
+	if err := st.Get("snap-cookies", &contexts); err != nil {
+		if err != state.ErrNoState {
+			return fmt.Errorf("cannot get snap cookies: %v", err)
+		}
+		contexts = make(map[string]string)
+	}
+
+	for snap := range snapNames {
+		if _, ok := contexts[snap]; !ok {
+			if err := m.createSnapCookie(st, snap); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

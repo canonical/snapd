@@ -27,6 +27,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -121,7 +123,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
 	fmt.Fprintf(w, "name:\t%s\n", info.Name())
-	fmt.Fprintf(w, "summary:\t%q\n", info.Summary())
+	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
 
 	var notes *Notes
 	if verbose {
@@ -158,12 +160,13 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
+// - trim whitespace
 // - word wrap at "max" chars
 // - keep \n intact and break here
 // - ignore \r
 func formatDescr(descr string, max int) string {
 	out := bytes.NewBuffer(nil)
-	for _, line := range strings.Split(descr, "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(descr), "\n") {
 		if len(line) > max {
 			for _, chunk := range strutil.WordWrap(line, max) {
 				fmt.Fprintf(out, "  %s\n", chunk)
@@ -183,7 +186,7 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 
 	commands := make([]string, 0, len(allApps))
 	for _, app := range allApps {
-		if app.Daemon != "" {
+		if app.IsService() {
 			continue
 		}
 
@@ -200,13 +203,47 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
+	if len(allApps) == 0 {
+		return
+	}
+
+	services := make([]string, 0, len(allApps))
+	for _, app := range allApps {
+		if !app.IsService() {
+			continue
+		}
+
+		var active, enabled string
+		if app.Active {
+			active = "active"
+		} else {
+			active = "inactive"
+		}
+		if app.Enabled {
+			enabled = "enabled"
+		} else {
+			enabled = "disabled"
+		}
+		services = append(services, fmt.Sprintf("  %s:\t%s, %s, %s", snap.JoinSnapApp(snapName, app.Name), app.Daemon, enabled, active))
+	}
+	if len(services) == 0 {
+		return
+	}
+
+	fmt.Fprintf(w, "services:\n")
+	for _, svc := range services {
+		fmt.Fprintln(w, svc)
+	}
+}
+
 // displayChannels displays channels and tracks in the right order
 func displayChannels(w io.Writer, remote *client.Snap) {
 	// \t\t\t so we get "installed" lined up with "channels"
 	fmt.Fprintf(w, "channels:\t\t\t\n")
 
 	// order by tracks
-	for i, tr := range remote.Tracks {
+	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
 		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
@@ -230,11 +267,15 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 			}
 			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
 		}
-		// add separator between tracks
-		if i < len(remote.Tracks)-1 {
-			fmt.Fprintf(w, "  \t\t\t\t\n")
-		}
 	}
+}
+
+func formatSummary(raw string) string {
+	s, err := yaml.Marshal(raw)
+	if err != nil {
+		return fmt.Sprintf("cannot marshal summary: %s", err)
+	}
+	return strings.TrimSpace(string(s))
 }
 
 func (x *infoCmd) Execute([]string) error {
@@ -265,7 +306,7 @@ func (x *infoCmd) Execute([]string) error {
 		noneOK = false
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
+		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
@@ -279,6 +320,7 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
+		maybePrintServices(w, snapName, both.Apps, termWidth)
 
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")

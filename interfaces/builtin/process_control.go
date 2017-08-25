@@ -19,6 +19,16 @@
 
 package builtin
 
+const processControlSummary = `allows controlling other processes`
+
+const processControlBaseDeclarationSlots = `
+  process-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
@@ -48,7 +58,11 @@ sched_setscheduler
 
 func init() {
 	registerIface(&commonInterface{
-		name: "process-control",
+		name:                  "process-control",
+		summary:               processControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  processControlBaseDeclarationSlots,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,

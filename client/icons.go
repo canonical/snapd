@@ -22,7 +22,6 @@ package client
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"regexp"
 )
 
@@ -42,7 +41,7 @@ func (c *Client) Icon(pkgID string) (*Icon, error) {
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != 200 {
 		return nil, fmt.Errorf("%s: Not Found", errPrefix)
 	}
 

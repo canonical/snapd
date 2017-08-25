@@ -20,8 +20,6 @@
 package snapstate
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -46,7 +44,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) 
 	}
 
 	if curInfo.SnapID == "" { // covers also trymode
-		return nil, fmt.Errorf("cannot refresh local snap %q", curInfo.Name())
+		return nil, store.ErrLocalSnap
 	}
 
 	refreshCand := &store.RefreshCandidate{
@@ -59,16 +57,9 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) 
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
+	res, err := theStore.LookupRefresh(refreshCand, user)
 	st.Lock()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
-	}
-	if len(res) == 0 {
-		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
-	}
-
-	return res[0], nil
+	return res, err
 }
 
 func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {

@@ -26,8 +26,6 @@ import (
 	"net/url"
 	"time"
 
-	"gopkg.in/retry.v1"
-
 	"github.com/snapcore/snapd/httputil"
 )
 
@@ -51,47 +49,38 @@ type User struct {
 }
 
 func UserInfo(email string) (userinfo *User, err error) {
+	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		var resp *http.Response
-		resp, err = httpClient.Get(ssourl)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
+
+	resp, err := httputil.RetryRequest(ssourl, func() (*http.Response, error) {
+		return httpClient.Get(ssourl)
+	}, func(resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			// we recheck the status
+			return nil
 		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		}
-
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case 200: // good
-		case 404:
-			return nil, fmt.Errorf("cannot find user %q", email)
-		default:
-			return nil, respToError(resp, fmt.Sprintf("look up user %q", email))
-		}
-
-		var v keysReply
 		dec := json.NewDecoder(resp.Body)
-		if err = dec.Decode(&v); err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			return nil, fmt.Errorf("cannot unmarshal: %s", err)
+		if err := dec.Decode(&v); err != nil {
+			return fmt.Errorf("cannot unmarshal: %v", err)
 		}
+		return nil
+	}, defaultRetryStrategy)
 
-		return &User{
-			Username:         v.Username,
-			SSHKeys:          v.SSHKeys,
-			OpenIDIdentifier: v.OpenIDIdentifier,
-		}, nil
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	switch resp.StatusCode {
+	case 200: // good
+	case 404:
+		return nil, fmt.Errorf("cannot find user %q", email)
+	default:
+		return nil, respToError(resp, fmt.Sprintf("look up user %q", email))
+	}
+
+	return &User{
+		Username:         v.Username,
+		SSHKeys:          v.SSHKeys,
+		OpenIDIdentifier: v.OpenIDIdentifier,
+	}, nil
 }

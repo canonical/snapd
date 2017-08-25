@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -134,6 +133,7 @@ type SideInfo struct {
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Contact           string   `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -147,6 +147,7 @@ type Info struct {
 	Architectures []string
 	Assumes       []string
 
+	OriginalTitle       string
 	OriginalSummary     string
 	OriginalDescription string
 
@@ -155,6 +156,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	Epoch            string
+	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
 	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
@@ -185,6 +187,21 @@ type Info struct {
 
 	// The ordered list of tracks that contain channels
 	Tracks []string
+
+	Layout map[string]*Layout
+}
+
+// Layout describes a single element of the layout section.
+type Layout struct {
+	Snap *Info
+
+	Path    string      `json:"path"`
+	Bind    string      `json:"bind,omitempty"`
+	Type    string      `json:"type,omitempty"`
+	User    string      `json:"user,omitempty"`
+	Group   string      `json:"group,omitempty"`
+	Mode    os.FileMode `json:"mode,omitempty"`
+	Symlink string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -204,6 +221,14 @@ func (s *Info) Name() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// Title returns the blessed title for the snap.
+func (s *Info) Title() string {
+	if s.EditedTitle != "" {
+		return s.EditedTitle
+	}
+	return s.OriginalTitle
 }
 
 // Summary returns the blessed summary for the snap.
@@ -396,7 +421,7 @@ type AppInfo struct {
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
-	RestartCond     systemd.RestartCondition
+	RestartCond     RestartCondition
 	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change
@@ -447,6 +472,18 @@ func (app *AppInfo) WrapperPath() string {
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
+}
+
+// CompleterPath returns the path to the completer snippet for the app binary.
+func (app *AppInfo) CompleterPath() string {
+	var binName string
+	if app.Name == app.Snap.Name() {
+		binName = filepath.Base(app.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
+	}
+
+	return filepath.Join(dirs.CompletersDir, binName)
 }
 
 func (app *AppInfo) launcherCommand(command string) string {

@@ -25,11 +25,30 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
+
+const contentSummary = `allows sharing code and data with other snaps`
+
+const contentBaseDeclarationSlots = `
+  content:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
+`
 
 // contentInterface allows sharing content between snaps
 type contentInterface struct{}
@@ -38,16 +57,23 @@ func (iface *contentInterface) Name() string {
 	return "content"
 }
 
+func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              contentSummary,
+		BaseDeclarationSlots: contentBaseDeclarationSlots,
+	}
+}
+
 func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
 func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
+		if slot.Attrs == nil {
+			slot.Attrs = make(map[string]interface{})
+		}
 		// content defaults to "slot" name if unspecified
 		slot.Attrs["content"] = slot.Name
 	}
@@ -72,9 +98,6 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {
@@ -122,7 +145,11 @@ func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
-		return strings.Replace(path, "$SNAP", snapInfo.MountDir(), 1)
+		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+		// inside the mount namespace snap-confine creates and there we will
+		// always have a /snap directory available regardless if the system
+		// we're running on supports this or not.
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
 	}
 	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
 		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
@@ -131,7 +158,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.MountDir(), path)
+	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
@@ -199,14 +226,6 @@ func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plu
 			return err
 		}
 	}
-	return nil
-}
-
-func (iface *contentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *contentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

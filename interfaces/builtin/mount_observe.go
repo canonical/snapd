@@ -19,6 +19,16 @@
 
 package builtin
 
+const mountObserveSummary = `allows reading mount table and quota information`
+
+const mountObserveBaseDeclarationSlots = `
+  mount-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
 const mountObserveConnectedPlugAppArmor = `
 # Description: Can query system mount and disk quota information. This is
@@ -32,6 +42,7 @@ const mountObserveConnectedPlugAppArmor = `
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
+/sys/devices/*/block/{,**} r,
 
 @{PROC}/swaps r,
 
@@ -54,7 +65,11 @@ quotactl Q_XGETQSTAT - - -
 
 func init() {
 	registerIface(&commonInterface{
-		name: "mount-observe",
+		name:                  "mount-observe",
+		summary:               mountObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  mountObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,

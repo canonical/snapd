@@ -1,0 +1,52 @@
+summary: check that avahi-observe interface works
+
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
+
+prepare: |
+    echo "Given a snap with an avahi-observe interface plug is installed"
+    . $TESTSLIB/snaps.sh
+    install_generic_consumer avahi-observe,unity7
+
+    echo "And avahi-daemon is installed and configured"
+    . $TESTSLIB/pkgdb.sh
+    distro_install_package avahi-daemon
+    sed -i 's/^#enable-dbus=yes/enable-dbus=yes/' /etc/avahi/avahi-daemon.conf
+    if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
+        initctl reload-configuration
+        restart avahi-daemon
+    else
+        systemctl daemon-reload
+        systemctl restart avahi-daemon.{socket,service}
+    fi
+
+restore: |
+    rm -f *.error
+    . $TESTSLIB/pkgdb.sh
+    distro_purge_package avahi-daemon
+    distro_auto_remove_packages
+
+execute: |
+    CONNECTED_PATTERN=":avahi-observe +generic-consumer"
+    DISCONNECTED_PATTERN="^\- +generic-consumer:avahi-observe"
+
+    avahi_dbus_call="dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName"
+
+    echo "Then the plug is disconnected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the snap is not able to access avahi provided info"
+        if generic-consumer.cmd $avahi_dbus_call 2>avahi.error; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        MATCH "org.freedesktop.DBus.Error.AccessDenied" < avahi.error
+    fi
+
+    echo "When the plug is connected"
+    snap connect generic-consumer:avahi-observe
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to access avahi provided info"
+    hostname=$(cat /etc/hostname)
+    generic-consumer.cmd $avahi_dbus_call | MATCH "$hostname"

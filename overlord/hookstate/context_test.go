@@ -22,6 +22,8 @@ package hookstate
 import (
 	. "gopkg.in/check.v1"
 
+	"encoding/json"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -29,20 +31,21 @@ import (
 type contextSuite struct {
 	context *Context
 	task    *state.Task
+	state   *state.State
 	setup   *HookSetup
 }
 
 var _ = Suite(&contextSuite{})
 
 func (s *contextSuite) SetUpTest(c *C) {
-	state := state.New(nil)
-	state.Lock()
-	defer state.Unlock()
+	s.state = state.New(nil)
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	s.task = state.NewTask("test-task", "my test task")
+	s.task = s.state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 	var err error
-	s.context, err = NewContext(s.task, s.setup, nil)
+	s.context, err = NewContext(s.task, s.task.State(), s.setup, nil, "")
 	c.Check(err, IsNil)
 }
 
@@ -66,6 +69,17 @@ func (s *contextSuite) TestSetAndGet(c *C) {
 	c.Check(s.context.Get("baz", &output), NotNil)
 }
 
+func (s *contextSuite) TestSetAndGetNumber(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	s.context.Set("num", 1234567890)
+
+	var output interface{}
+	c.Check(s.context.Get("num", &output), IsNil)
+	c.Assert(output, Equals, json.Number("1234567890"))
+}
+
 func (s *contextSuite) TestSetPersistence(c *C) {
 	s.context.Lock()
 	s.context.Set("foo", "bar")
@@ -73,7 +87,7 @@ func (s *contextSuite) TestSetPersistence(c *C) {
 
 	// Verify that "foo" is still "bar" within another context of the same hook
 	// on the same task.
-	anotherContext := &Context{task: s.task, setup: s.setup}
+	anotherContext := &Context{task: s.task, state: s.task.State(), setup: s.setup}
 	anotherContext.Lock()
 	defer anotherContext.Unlock()
 
@@ -132,4 +146,21 @@ func (s *contextSuite) TestDone(c *C) {
 
 	s.context.Done()
 	c.Check(called, Equals, true, Commentf("Expected finalizer to be called"))
+}
+
+func (s *contextSuite) TestEphemeralContextGetSet(c *C) {
+	context, err := NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, IsNil)
+	context.Lock()
+	defer context.Unlock()
+
+	var output string
+	c.Check(context.Get("foo", &output), NotNil)
+
+	context.Set("foo", "bar")
+	c.Check(context.Get("foo", &output), IsNil, Commentf("Expected context to contain 'foo'"))
+	c.Check(output, Equals, "bar")
+
+	// Test another non-existing key, but after the context data was created.
+	c.Check(context.Get("baz", &output), NotNil)
 }

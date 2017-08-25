@@ -51,7 +51,7 @@ execute: |
     echo "Then the snap is able to access the system logs"
     log-observe-consumer | grep -Pqz "ok\n"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

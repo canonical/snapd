@@ -19,7 +19,7 @@ execute: |
         exit 1
     fi
 
-    if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         echo "Checking successful login"
         expect -d -f successful_login.exp
 

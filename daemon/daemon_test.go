@@ -22,6 +22,7 @@ package daemon
 import (
 	"fmt"
 
+	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -39,17 +40,26 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-type daemonSuite struct{}
+type daemonSuite struct {
+	authorized bool
+	err        error
+}
 
 var _ = check.Suite(&daemonSuite{})
 
+func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	return s.authorized, s.err
+}
+
 func (s *daemonSuite) SetUpSuite(c *check.C) {
 	snapstate.CanAutoRefresh = nil
+	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
@@ -60,6 +70,12 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
+	s.authorized = false
+	s.err = nil
+}
+
+func (s *daemonSuite) TearDownSuite(c *check.C) {
+	polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -103,23 +119,23 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, http.StatusUnauthorized, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		req.RemoteAddr = "uid=0;" + req.RemoteAddr
+		req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
-		c.Check(rec.Code, check.Equals, http.StatusOK)
+		c.Check(rec.Code, check.Equals, 200)
 	}
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, http.StatusMethodNotAllowed)
+	c.Check(rec.Code, check.Equals, 405)
 }
 
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
@@ -157,8 +173,8 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get, nil), check.Equals, false)
@@ -181,8 +197,8 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
@@ -199,6 +215,23 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+}
+
+func (s *daemonSuite) TestPolkitAccess(c *check.C) {
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
+	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
+
+	// polkit says user is not authorised
+	s.authorized = false
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+
+	// polkit grants authorisation
+	s.authorized = true
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+
+	// an error occurs communicating with polkit
+	s.err = errors.New("error")
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {

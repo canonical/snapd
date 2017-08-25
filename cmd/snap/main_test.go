@@ -128,6 +128,7 @@ var _ = Suite(&SnapSuite{})
 func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
 	var body map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
 	err := decoder.Decode(&body)
 	c.Assert(err, IsNil)
 	return body
@@ -152,9 +153,9 @@ func mockVersion(v string) (restore func()) {
 	return func() { cmd.Version = old }
 }
 
-func mockSnapConfine() func() {
-	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
-	if err := os.MkdirAll(dirs.DistroLibExecDir, 0755); err != nil {
+func mockSnapConfine(libExecDir string) func() {
+	snapConfine := filepath.Join(libExecDir, "snap-confine")
+	if err := os.MkdirAll(libExecDir, 0755); err != nil {
 		panic(err)
 	}
 	if err := ioutil.WriteFile(snapConfine, nil, 0644); err != nil {

@@ -29,6 +29,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
+const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
+
+const udisks2BaseDeclarationSlots = `
+  udisks2:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. This gives privileged access to
 # the system.
@@ -91,6 +102,8 @@ umount /{,run/}media/**,
 # give raw read access to the system disks and therefore the entire system.
 /dev/sd* r,
 /dev/mmcblk* r,
+/dev/vd* r,
+
 
 # Needed for probing raw devices
 capability sys_rawio,
@@ -104,7 +117,6 @@ dbus (send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive, send)
@@ -348,6 +360,13 @@ func (iface *udisks2Interface) Name() string {
 	return "udisks2"
 }
 
+func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              udisks2Summary,
+		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
+	}
+}
+
 func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(udisks2ConnectedPlugDBus)
 	return nil
@@ -386,14 +405,6 @@ func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 
 func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

@@ -20,5 +20,6 @@
 package policy
 
 var (
-	NestedGet = nestedGet
+	NestedGet              = nestedGet
+	ComposeBaseDeclaration = composeBaseDeclaration
 )

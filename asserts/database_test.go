@@ -101,7 +101,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
 	}
 
 	_, err = asserts.OpenDatabase(cfg)
-	c.Assert(err, ErrorMatches, "cannot load trusted assertions that are not account-key or account: test-only")
+	c.Assert(err, ErrorMatches, "cannot predefine trusted assertions that are not account-key or account: test-only")
 }
 
 type databaseSuite struct {
@@ -335,12 +335,26 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "predefined",
+		"validation":   "certified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	predefAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
 	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
 		Backstore: bs,
 		Trusted: []asserts.Assertion{
 			asserts.BootstrapAccountForTest("canonical"),
 			asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey()),
+		},
+		OtherPredefined: []asserts.Assertion{
+			predefAcct,
 		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -501,6 +515,28 @@ func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `cannot sign "test-only" assertion with format set to 0 lower than min format 1 covering included features`)
 	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {
+	aKey := testPrivKey2
+
+	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": aKey.PublicKey().ID(),
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+	}
+	acctKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, aKeyEncoded, aKey)
+	c.Assert(err, IsNil)
+
+	// this must fail
+	err = safs.db.Add(acctKey)
+	c.Check(err, ErrorMatches, `no matching public key.*`)
 }
 
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
@@ -698,7 +734,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	c.Check(err, Equals, asserts.ErrNotFound)
 }
 
-func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
+func (safs *signAddFindSuite) TestFindFindsPredefined(c *C) {
 	pk1 := testPrivKey1
 
 	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]interface{}{
@@ -723,10 +759,22 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
 	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
 
+	// find predefined account as well
+	predefAcct, err := safs.db.Find(asserts.AccountType, map[string]string{
+		"account-id": "predefined",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(predefAcct.(*asserts.Account).AccountID(), Equals, "predefined")
+	c.Assert(predefAcct.(*asserts.Account).DisplayName(), Equals, "Predef")
+
 	// find trusted and indirectly trusted
 	accKeys, err := safs.db.FindMany(asserts.AccountKeyType, nil)
 	c.Assert(err, IsNil)
 	c.Check(accKeys, HasLen, 2)
+
+	accts, err := safs.db.FindMany(asserts.AccountType, nil)
+	c.Assert(err, IsNil)
+	c.Check(accts, HasLen, 3)
 }
 
 func (safs *signAddFindSuite) TestFindTrusted(c *C) {
@@ -772,6 +820,152 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
 	c.Check(err, Equals, asserts.ErrNotFound)
+
+	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
+		"account-id": "predefined",
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+}
+
+func (safs *signAddFindSuite) TestFindPredefined(c *C) {
+	pk1 := testPrivKey1
+
+	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]interface{}{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
+
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
+		"authority-id": "canonical",
+	}, pk1.PublicKey(), safs.signingKeyID)
+
+	err := safs.db.Add(acct1)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(acct1Key)
+	c.Assert(err, IsNil)
+
+	// find the trusted account
+	tAcct, err := safs.db.FindPredefined(asserts.AccountType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tAcct.(*asserts.Account).AccountID(), Equals, "canonical")
+
+	// find the trusted key
+	tKey, err := safs.db.FindPredefined(asserts.AccountKeyType, map[string]string{
+		"account-id":          "canonical",
+		"public-key-sha3-384": safs.signingKeyID,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
+	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
+
+	// find predefined account as well
+	predefAcct, err := safs.db.FindPredefined(asserts.AccountType, map[string]string{
+		"account-id": "predefined",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(predefAcct.(*asserts.Account).AccountID(), Equals, "predefined")
+	c.Assert(predefAcct.(*asserts.Account).DisplayName(), Equals, "Predef")
+
+	// doesn't find not trusted or predefined assertions
+	_, err = safs.db.FindPredefined(asserts.AccountType, map[string]string{
+		"account-id": acct1.AccountID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	_, err = safs.db.FindPredefined(asserts.AccountKeyType, map[string]string{
+		"account-id":          acct1.AccountID(),
+		"public-key-sha3-384": acct1Key.PublicKeyID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+}
+
+func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "predefined",
+		"validation":   "certified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	predefAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	trustedKey0 := testPrivKey0
+	trustedKey1 := testPrivKey1
+	cfg := &asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("canonical"),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey0.PublicKey()),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey1.PublicKey()),
+		},
+		OtherPredefined: []asserts.Assertion{
+			predefAcct,
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	pk1 := testPrivKey2
+
+	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]interface{}{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
+
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]interface{}{
+		"authority-id": "canonical",
+	}, pk1.PublicKey(), safs.signingKeyID)
+
+	err = db.Add(acct1)
+	c.Assert(err, IsNil)
+	err = db.Add(acct1Key)
+	c.Assert(err, IsNil)
+
+	// find the trusted account
+	tAccts, err := db.FindManyPredefined(asserts.AccountType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tAccts, HasLen, 1)
+	c.Assert(tAccts[0].(*asserts.Account).AccountID(), Equals, "canonical")
+
+	// find the predefined account
+	pAccts, err := db.FindManyPredefined(asserts.AccountType, map[string]string{
+		"account-id": "predefined",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(pAccts, HasLen, 1)
+	c.Assert(pAccts[0].(*asserts.Account).AccountID(), Equals, "predefined")
+
+	// find the multiple trusted keys
+	tKeys, err := db.FindManyPredefined(asserts.AccountKeyType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tKeys, HasLen, 2)
+	got := make(map[string]string)
+	for _, a := range tKeys {
+		acctKey := a.(*asserts.AccountKey)
+		got[acctKey.PublicKeyID()] = acctKey.AccountID()
+	}
+	c.Check(got, DeepEquals, map[string]string{
+		trustedKey0.PublicKey().ID(): "canonical",
+		trustedKey1.PublicKey().ID(): "canonical",
+	})
+
+	// doesn't find not predefined assertions
+	_, err = db.FindManyPredefined(asserts.AccountType, map[string]string{
+		"account-id": acct1.AccountID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	_, err = db.FindManyPredefined(asserts.AccountKeyType, map[string]string{
+		"account-id":          acct1.AccountID(),
+		"public-key-sha3-384": acct1Key.PublicKeyID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
 }
 
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
@@ -795,6 +989,22 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 
 	err = safs.db.Add(tKey)
 	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
+}
+
+func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithPredefinedOnes(c *C) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "predefined",
+		"validation":   "certified",
+		"display-name": "Predef",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	predefAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(predefAcct)
+	c.Check(err, ErrorMatches, `cannot add "account" assertion with primary key clashing with a predefined assertion: .*`)
 }
 
 func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {

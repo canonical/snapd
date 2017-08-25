@@ -19,11 +19,14 @@
 
 package builtin
 
-const accountControlDescription = `
-The account-control interface allows connected plugs to create, modify and
-delete non-system users as well as to change account passwords.
+const accountControlSummary = `allows managing non-system user accounts`
 
-The core snap provides the slot that is shared by all the snaps.
+const accountControlBaseDeclarationSlots = `
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
 `
 
 const accountControlConnectedPlugAppArmor = `
@@ -68,7 +71,10 @@ socket AF_NETLINK - NETLINK_AUDIT
 func init() {
 	registerIface(&commonInterface{
 		name:                  "account-control",
-		description:           accountControlDescription,
+		summary:               accountControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,

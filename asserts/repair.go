@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"regexp"
+	"time"
 )
 
 // Repair holds an repair assertion which allows running repair
@@ -31,6 +32,9 @@ type Repair struct {
 	series        []string
 	architectures []string
 	models        []string
+
+	disabled  bool
+	timestamp time.Time
 }
 
 // BrandID returns the brand identifier that signed this assertion.
@@ -60,6 +64,16 @@ func (r *Repair) Series() []string {
 // It is a list of "brand-id/model-name" strings.
 func (r *Repair) Models() []string {
 	return r.models
+}
+
+// Disabled returns true if the repair has been disabled.
+func (r *Repair) Disabled() bool {
+	return r.disabled
+}
+
+// Timestamp returns the time when the repair was issued.
+func (r *Repair) Timestamp() time.Time {
+	return r.timestamp
 }
 
 // Implement further consistency checks.
@@ -99,10 +113,22 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	disabled, err := checkOptionalBool(assert.headers, "disabled")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
 	return &Repair{
 		assertionBase: assert,
 		series:        series,
 		architectures: architectures,
 		models:        models,
+		disabled:      disabled,
+		timestamp:     timestamp,
 	}, nil
 }

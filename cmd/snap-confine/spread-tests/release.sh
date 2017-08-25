@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script creates a new release tarball
 set -xue
 

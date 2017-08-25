@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -77,8 +78,13 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
+	// can polkit grant access? set to polkit action ID if so
+	PolkitOK string
+
 	d *Daemon
 }
+
+var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if user != nil {
@@ -87,15 +93,26 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	isUser := false
-	uid, err := ucrednetGetUID(r.RemoteAddr)
+	pid, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
 		if uid == 0 {
 			// Superuser does anything.
 			return true
 		}
 
+		if c.PolkitOK != "" {
+			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, polkit.CheckAllowInteraction); err == nil {
+				if authorized {
+					// polkit says user is authorised
+					return true
+				}
+			} else if err != polkit.ErrDismissed {
+				logger.Noticef("polkit error: %s", err)
+			}
+		}
+
 		isUser = true
-	} else if err != errNoUID {
+	} else if err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return false
 	} else if c.SnapOK {
@@ -130,7 +147,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rspf ResponseFunc
-	var rsp = BadMethod("method %q not allowed", r.Method)
+	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -166,6 +183,12 @@ func (w *wrappedWriter) Write(bs []byte) (int, error) {
 func (w *wrappedWriter) WriteHeader(s int) {
 	w.w.WriteHeader(s)
 	w.s = s
+}
+
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func logit(handler http.Handler) http.Handler {
@@ -219,7 +242,6 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -250,7 +272,6 @@ func (d *Daemon) Init() error {
 
 	d.addRoutes()
 
-	logger.Debugf("init done in %s", time.Now().Sub(t0))
 	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
