@@ -66,10 +66,6 @@ func (attrs *PlugData) Name() string {
 	return attrs.plug.Name
 }
 
-func (attrs *PlugData) Ref() PlugRef {
-	return PlugRef{Snap: attrs.plug.Snap.Name(), Name: attrs.plug.Name}
-}
-
 func (attrs *PlugData) Snap() *snap.Info {
 	return attrs.plug.Snap
 }
@@ -133,10 +129,6 @@ func (attrs *SlotData) Interface() string {
 
 func (attrs *SlotData) Name() string {
 	return attrs.slot.Name
-}
-
-func (attrs *SlotData) Ref() SlotRef {
-	return SlotRef{Snap: attrs.slot.Snap.Name(), Name: attrs.slot.Name}
 }
 
 func (attrs *SlotData) Snap() *snap.Info {
