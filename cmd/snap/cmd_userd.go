@@ -20,36 +20,19 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/godbus/dbus"
-	"github.com/godbus/dbus/introspect"
 	"github.com/jessevdk/go-flags"
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/userd"
 )
 
-const (
-	busName  = "io.snapcraft.Launcher"
-	basePath = "/io/snapcraft/Launcher"
-)
-
-// FIXME: move to userd
-type registeredDBusInterface interface {
-	Name() string
-	IntrospectionData() string
-}
-
 type cmdUserd struct {
-	tomb       tomb.Tomb
-	conn       *dbus.Conn
-	dbusIfaces []registeredDBusInterface
+	userd *userd.Userd
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
@@ -68,66 +51,25 @@ func init() {
 	cmd.hidden = true
 }
 
-func (x *cmdUserd) createAndExportInterfaces() {
-	x.dbusIfaces = []registeredDBusInterface{&userd.Launcher{}}
-
-	var buffer bytes.Buffer
-	buffer.WriteString("<node>")
-
-	for _, iface := range x.dbusIfaces {
-		x.conn.Export(iface, basePath, iface.Name())
-		buffer.WriteString(iface.IntrospectionData())
-	}
-
-	buffer.WriteString(introspect.IntrospectDataString)
-	buffer.WriteString("</node>")
-
-	x.conn.Export(introspect.Introspectable(buffer.String()), basePath, "org.freedesktop.DBus.Introspectable")
-}
-
 func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	x.tomb.Go(func() error {
-		var err error
-		x.conn, err = dbus.SessionBus()
-		if err != nil {
-			return err
-		}
-
-		reply, err := x.conn.RequestName(busName, dbus.NameFlagDoNotQueue)
-		if err != nil {
-			return err
-		}
-
-		if reply != dbus.RequestNameReplyPrimaryOwner {
-			err = fmt.Errorf("cannot obtain bus name '%s'", busName)
-			return err
-		}
-
-		x.createAndExportInterfaces()
-
-		// Listen to keep our thread up and running. All DBus bits
-		// are running in the background
-		select {
-		case <-x.tomb.Dying():
-			return nil
-		}
-	})
+	ud, err := userd.NewUserd()
+	if err != nil {
+		return err
+	}
+	ud.Start()
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
-	case <-x.tomb.Dying():
+	case <-ud.Dying():
+		// something called Stop()
 	}
 
-	x.tomb.Kill(nil)
-	if x.conn != nil {
-		x.conn.Close()
-	}
-	return x.tomb.Wait()
+	return ud.Stop()
 }
