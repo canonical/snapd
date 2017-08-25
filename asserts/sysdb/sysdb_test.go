@@ -38,6 +38,7 @@ func TestSysDB(t *testing.T) { TestingT(t) }
 
 type sysDBSuite struct {
 	extraTrusted []asserts.Assertion
+	extraGeneric []asserts.Assertion
 	probeAssert  asserts.Assertion
 }
 
@@ -64,7 +65,16 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	sdbs.extraTrusted = []asserts.Assertion{trustedAcct, trustedAccKey}
 
+	otherAcct := assertstest.NewAccount(signingDB, "gener1c", map[string]interface{}{
+		"account-id": "gener1c",
+		"validation": "certified",
+		"timestamp":  "2015-11-20T15:04:00Z",
+	}, "")
+
+	sdbs.extraGeneric = []asserts.Assertion{otherAcct}
+
 	fakeRoot := filepath.Join(tmpdir, "root")
+
 	err := os.Mkdir(fakeRoot, os.ModePerm)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
@@ -87,6 +97,17 @@ func (sdbs *sysDBSuite) TestTrusted(c *C) {
 	c.Check(trustedEx, HasLen, 4)
 }
 
+func (sdbs *sysDBSuite) TestGeneric(c *C) {
+	generic := sysdb.Generic()
+	c.Check(generic, HasLen, 1)
+
+	restore := sysdb.InjectGeneric(sdbs.extraGeneric)
+	defer restore()
+
+	genericEx := sysdb.Generic()
+	c.Check(genericEx, HasLen, 2)
+}
+
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	db, err := sysdb.Open()
 	c.Assert(err, IsNil)
@@ -105,6 +126,15 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(trustedAcc)
+	c.Check(err, IsNil)
+
+	// check generic
+	genericAcc, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": "generic",
+	})
+	c.Assert(err, IsNil)
+
+	err = db.Check(genericAcc)
 	c.Check(err, IsNil)
 
 	// extraneous

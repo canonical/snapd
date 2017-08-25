@@ -38,6 +38,8 @@ const cameraConnectedPlugAppArmor = `
 /sys/devices/pci**/usb*/**/idVendor r,
 /sys/devices/pci**/usb*/**/idProduct r,
 /run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
+/sys/class/video4linux/ r,
+/sys/devices/pci**/usb*/**/video4linux/** r,
 `
 
 func init() {

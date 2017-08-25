@@ -45,6 +45,8 @@ const coreSupportConnectedPlugAppArmor = `
 
 /bin/systemctl Uxr,
 
+/usr/bin/snapctl ixr,
+
 # Allow modifying rsyslog configuration for such things as remote logging. For
 # now, only allow modifying NN-snap*.conf and snap*.conf files.
 /etc/rsyslog.d/{,*}                     r,
@@ -69,10 +71,10 @@ const coreSupportConnectedPlugAppArmor = `
 # in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d
 # directory as it may not be there for existing installs (wirtable-path
 # magic oddness).
-/etc/systemd/logind.conf                            r,
-/etc/systemd/logind.conf.d/                         rw,
-/etc/systemd/logind.conf.d/{,*}                     r,
-/etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
+/etc/systemd/logind.conf                             r,
+/etc/systemd/logind.conf.d/                          rw,
+/etc/systemd/logind.conf.d/{,*}                      r,
+/etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf* w,
 
 # Allow managing the hostname with a core config option
 /etc/hostname                         rw,
@@ -85,10 +87,18 @@ const coreSupportConnectedPlugAppArmor = `
 # the core snap, general mgmt of the service is handled via systemctl
 /etc/default/swapfile rw,
 
-# Allow read/write access to the pi2 boot config.txt. WARNING: improperly
-# editing this file may render the system unbootable.
+# Allow read/write access to the pi2 boot config.txt and the directory
+# so that it can dirsync it. 
+# WARNING: improperly editing this file may render the system unbootable.
+owner /boot/uboot/           r,
 owner /boot/uboot/config.txt rwk,
-owner /boot/uboot/config.txt.tmp rwk,
+owner /boot/uboot/config.txt.* rwk,
+
+# Allow read/write /etc/environment so that proxy configuration can
+# be written
+owner /etc/              r,
+owner /etc/environment   rwk,
+owner /etc/environment.* rwk,
 `
 
 func init() {
