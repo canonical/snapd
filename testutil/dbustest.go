@@ -46,6 +46,10 @@ func (s *DBusTest) SetUpSuite(c *C) {
 		c.Skip("cannot run test without dbus-daemon")
 		return
 	}
+	if !osutil.ExecutableExists("dbus-launch") {
+		c.Skip("cannot run test without dbus-launch")
+		return
+	}
 
 	s.tmpdir = c.MkDir()
 	s.dbusDaemon = exec.Command("dbus-daemon", "--session", fmt.Sprintf("--address=unix:%s/user_bus_socket", s.tmpdir))
