@@ -19,22 +19,99 @@
 
 package builtin
 
-const desktopInputSummary = `allows privileged access to desktop input methods`
+const desktopLegacySummary = `allows privileged access to desktop legacy methods`
 
-// While this gives privileged access to input methods we should auto-connect
+// While this gives privileged access to legacy methods we should auto-connect
 // this transitional interface since most desktop applications will need it.
-// When safe input methods are added to the desktop interface by default, we
-// can consider making this manually connected.
-const desktopInputBaseDeclarationSlots = `
-  desktop-input:
+// When safe alternative methods are added to the desktop interface by default,
+// we can consider making this manually connected.
+const desktopLegacyBaseDeclarationSlots = `
+  desktop-legacy:
     allow-installation:
       slot-snap-type:
         - core
 `
 
-const desktopInputConnectedPlugAppArmor = `
-# Description: Can access common desktop input methods. This gives privileged
+const desktopLegacyConnectedPlugAppArmor = `
+# Description: Can access common desktop legacy methods. This gives privileged
 # access to the user's input.
+
+# accessibility (a11y)
+#include <abstractions/dbus-session-strict>
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.a11y.Bus
+    member=GetAddress
+    peer=(label=unconfined),
+
+#include <abstractions/dbus-accessibility-strict>
+
+# Allow the accessibility services in the user session to send us any events
+dbus (receive)
+    bus=accessibility
+    peer=(label=unconfined),
+
+# Allow querying for capabilities and registering
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/root"
+    interface="org.a11y.atspi.Socket"
+    member="Embed"
+    peer=(name=org.a11y.atspi.Registry, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/registry"
+    interface="org.a11y.atspi.Registry"
+    member="GetRegisteredEvents"
+    peer=(name=org.a11y.atspi.Registry, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/registry/deviceeventcontroller"
+    interface="org.a11y.atspi.DeviceEventController"
+    member="Get{DeviceEvent,Keystroke}Listeners"
+    peer=(name=org.a11y.atspi.Registry, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/registry/deviceeventcontroller"
+    interface="org.a11y.atspi.DeviceEventController"
+    member="NotifyListenersSync"
+    peer=(name=org.a11y.atspi.Registry, label=unconfined),
+
+# org.a11y.atspi is not designed for application isolation and these rules
+# can be used to send change events for other processes.
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/root"
+    interface="org.a11y.atspi.Event.Object"
+    member="ChildrenChanged"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/root"
+    interface="org.a11y.atspi.Accessible"
+    member="Get*"
+    peer=(label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/[0-9]*"
+    interface="org.a11y.atspi.Event.Object"
+    member="{ChildrenChanged,PropertyChange,StateChanged,TextCaretMoved}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/accessible/[0-9]*"
+    interface="org.freedesktop.DBus.Properties"
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=accessibility
+    path="/org/a11y/atspi/cache"
+    interface="org.a11y.atspi.Cache"
+    member="{Add,Remove}Accessible"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
 
 # ibus
 # subset of ibus abstraction
@@ -137,13 +214,23 @@ dbus send
     peer=(label=unconfined),
 `
 
+const desktopLegacyConnectedPlugSecComp = `
+# Description: Can access common desktop legacy methods. This gives privileged
+# access to the user's input.
+
+listen
+accept
+accept4
+`
+
 func init() {
 	registerIface(&commonInterface{
-		name:                  "desktop-input",
-		summary:               desktopInputSummary,
+		name:                  "desktop-legacy",
+		summary:               desktopLegacySummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  desktopInputBaseDeclarationSlots,
-		connectedPlugAppArmor: desktopInputConnectedPlugAppArmor,
+		baseDeclarationSlots:  desktopLegacyBaseDeclarationSlots,
+		connectedPlugAppArmor: desktopLegacyConnectedPlugAppArmor,
+		connectedPlugSecComp:  desktopLegacyConnectedPlugSecComp,
 		reservedForOS:         true,
 	})
 }
