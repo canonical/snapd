@@ -32,7 +32,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/userd"
 )
 
@@ -41,6 +40,7 @@ const (
 	basePath = "/io/snapcraft/Launcher"
 )
 
+// FIXME: move to userd
 type registeredDBusInterface interface {
 	Name() string
 	IntrospectionData() string
@@ -118,10 +118,10 @@ func (x *cmdUserd) Execute(args []string) error {
 	})
 
 	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:
-		logger.Noticef("Exiting on %s signal.\n", sig)
+		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
 	case <-x.tomb.Dying():
 	}
 
