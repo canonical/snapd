@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27
+Version:        2.27.4
 Release:        1
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -121,7 +121,7 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --libexecdir=/usr/lib/snapd
+%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd
 
 %build
 # Build golang executables
@@ -164,15 +164,15 @@ make %{?_smp_mflags} -C cmd check
 # Install all the go stuff
 %goinstall
 # TODO: instead of removing it move this to a dedicated golang package
-rm -rf %{buildroot}/usr/lib64/go
-rm -rf %{buildroot}/usr/lib/go
+rm -rf %{buildroot}%{_libexecdir}64/go
+rm -rf %{buildroot}%{_libexecdir}/go
 find %{buildroot}
-# Move snapd, snap-exec, snap-seccomp and snap-update-ns into /usr/lib/snapd
-install -m 755 -d %{buildroot}/usr/lib/snapd
-mv %{buildroot}/usr/bin/snapd %{buildroot}/usr/lib/snapd/snapd
-mv %{buildroot}/usr/bin/snap-exec %{buildroot}/usr/lib/snapd/snap-exec
-mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}/usr/lib/snapd/snap-update-ns
-mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}/usr/lib/snapd/snap-seccomp
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into %{_libexecdir}/snapd
+install -m 755 -d %{buildroot}%{_libexecdir}/snapd
+mv %{buildroot}/usr/bin/snapd %{buildroot}%{_libexecdir}/snapd/snapd
+mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
+mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
+mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
 install -m 755 -d %{buildroot}/etc/profile.d/
 install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
@@ -195,7 +195,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 # NOTE: we don't want to ship system-shutdown helper, it is just a helper on
 # ubuntu-core systems that exclusively use snaps. It is used during the
 # shutdown process and thus can be left out of the distribution package.
-rm -f %{?buildroot}/usr/lib/snapd/system-shutdown
+rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 install -d %buildroot/snap/bin
@@ -211,25 +211,27 @@ for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.time
     rm -f %buildroot/%{_unitdir}/$s
 done
 # Remove snappy core specific scripts
-rm -f %buildroot/usr/lib/snapd/snapd.core-fixup.sh
+rm -f %buildroot%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}/usr/sbin
 ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd
 ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd.refresh
 # Install the "info" data file with snapd version
-install -m 644 -D data/info %{buildroot}/usr/lib/snapd/info
+install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
 install -m 644 -D data/completion/snap %{buildroot}/usr/share/bash-completion/completions/snap
+install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 %verifyscript
-%verify_permissions -e /usr/lib/snapd/snap-confine
+%verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
 %pre
 %service_add_pre %{systemd_services_list}
 
 %post
-%set_permissions /usr/lib/snapd/snap-confine
+%set_permissions %{_libexecdir}/snapd/snap-confine
 %service_add_post %{systemd_services_list}
 case ":$PATH:" in
     *:/snap/bin:*)
@@ -253,7 +255,7 @@ esac
 %dir %attr(0000,root,root) /var/lib/snapd/void
 %dir /snap
 %dir /snap/bin
-%dir /usr/lib/snapd
+%dir %{_libexecdir}/snapd
 %dir /var/lib/snapd
 %dir /var/lib/snapd/apparmor
 %dir /var/lib/snapd/apparmor/profiles
@@ -266,7 +268,7 @@ esac
 %dir /var/lib/snapd/seccomp
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
-%verify(not user group mode) %attr(04755,root,root) /usr/lib/snapd/snap-confine
+%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man5/snap-confine.5.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_udevrulesdir}/80-snappy-assign.rules
@@ -278,14 +280,16 @@ esac
 /usr/bin/snapctl
 /usr/sbin/rcsnapd
 /usr/sbin/rcsnapd.refresh
-/usr/lib/snapd/info
-/usr/lib/snapd/snap-discard-ns
-/usr/lib/snapd/snap-update-ns
-/usr/lib/snapd/snap-exec
-/usr/lib/snapd/snap-seccomp
-/usr/lib/snapd/snapd
-/usr/lib/udev/snappy-app-dev
+%{_libexecdir}/snapd/info
+%{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-update-ns
+%{_libexecdir}/snapd/snap-exec
+%{_libexecdir}/snapd/snap-seccomp
+%{_libexecdir}/snapd/snapd
+%{_libexecdir}/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
+%{_libexecdir}/snapd/complete.sh
+%{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
 
 %changelog
