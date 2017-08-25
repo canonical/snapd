@@ -362,7 +362,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	s.overlord.Settle(5 * time.Second)
 	st.Lock()
 	// unlocked by defer
 
@@ -534,7 +534,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	s.overlord.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 
@@ -717,7 +717,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	s.overlord.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 

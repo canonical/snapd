@@ -201,7 +201,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -251,7 +251,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -517,7 +517,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -566,7 +566,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -632,7 +632,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -702,7 +702,7 @@ slots:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -739,7 +739,7 @@ version: @VERSION@
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -817,7 +817,7 @@ version: @VERSION@
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -857,7 +857,7 @@ type: os
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -877,7 +877,7 @@ type: os
 	bootloader.BootVars["snap_core"] = "core_x1.snap"
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -949,7 +949,7 @@ type: kernel`
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -981,7 +981,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1000,7 +1000,7 @@ func (ms *mgrsSuite) removeSnap(c *C, name string) {
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1045,7 +1045,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1084,7 +1084,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1130,7 +1130,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1150,7 +1150,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1203,7 +1203,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1263,7 +1263,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1308,7 +1308,7 @@ apps:
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1368,7 +1368,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1409,7 +1409,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1481,7 +1481,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1495,7 +1495,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1557,7 +1557,7 @@ apps:
 	chg.AddAll(tss[2])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(err, IsNil)
 

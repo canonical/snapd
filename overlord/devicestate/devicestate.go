@@ -188,7 +188,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	return nil
 }
 
-func init() {
+func crossInit() {
 	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	snapstate.CanAutoRefresh = canAutoRefresh
 }

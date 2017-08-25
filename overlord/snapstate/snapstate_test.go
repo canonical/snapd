@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -58,6 +59,7 @@ import (
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
+	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
 
@@ -70,11 +72,7 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle() {
-	// FIXME: use the real settle here
-	for i := 0; i < 50; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 var _ = Suite(&snapmgrTestSuite{})
@@ -83,7 +81,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -98,12 +95,17 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetupRefreshHook = hookstate.SetupRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
+
+	s.o.AddManager(s.snapmgr)
 
 	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
 	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
