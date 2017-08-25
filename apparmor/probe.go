@@ -90,13 +90,11 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 	switch level {
 	case None:
 		// create no directory at all (apparmor not available).
-		break
 	case Partial:
 		// create just the empty directory with no features.
 		if err := os.MkdirAll(featuresSysPath, 0755); err != nil {
 			panic(err)
 		}
-		break
 	case Full:
 		// create all the feature directories.
 		for _, feature := range requiredFeatures {
@@ -104,7 +102,6 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 				panic(err)
 			}
 		}
-		break
 	}
 
 	return func() {
