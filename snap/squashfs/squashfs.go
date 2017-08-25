@@ -27,7 +27,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -88,23 +87,8 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
-var runCommandWithOutput = func(args ...string) ([]byte, error) {
-	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
-	}
-
-	return output, nil
-}
-
-var runCommand = func(args ...string) error {
-	_, err := runCommandWithOutput(args...)
-	return err
-}
-
 func (s *Snap) Unpack(src, dstDir string) error {
-	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
+	return exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src).Run()
 }
 
 // Size returns the size of a squashfs snap.
@@ -126,7 +110,7 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, filePath); err != nil {
+	if err := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
 		return nil, err
 	}
 
@@ -135,10 +119,10 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := runCommandWithOutput(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
+	output, err := exec.Command(
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
 	if err != nil {
-		return nil, err
+		return nil, osutil.OutputErr(output, err)
 	}
 
 	prefixPath := path.Join("_", dirPath)
@@ -165,12 +149,12 @@ func (s *Snap) Build(buildDir string) error {
 	}
 
 	return osutil.ChDir(buildDir, func() error {
-		return runCommand(
+		return exec.Command(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
 			"-comp", "xz",
 			"-no-xattrs",
-		)
+		).Run()
 	})
 }
