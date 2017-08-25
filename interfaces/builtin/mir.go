@@ -97,8 +97,8 @@ func (iface *mirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *mirInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mirSummary,
 		BaseDeclarationSlots: mirBaseDeclarationSlots,
 	}
@@ -127,14 +127,6 @@ func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, s
 
 func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

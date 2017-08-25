@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,9 +29,11 @@ const opticalDriveBaseDeclarationSlots = `
 `
 
 const opticalDriveConnectedPlugAppArmor = `
+# Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
 @{PROC}/sys/dev/cdrom/info r,
+/run/udev/data/b11:[0-9]* r,
 `
 
 func init() {

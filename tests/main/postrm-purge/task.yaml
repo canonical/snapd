@@ -17,7 +17,7 @@ execute: |
     echo "And snapd is purged"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
         sh ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
-            --snap-mount-dir=$SNAPMOUNTDIR \
+            --snap-mount-dir=$SNAP_MOUNT_DIR \
             --purge
     else
         # only available on trusty
@@ -28,7 +28,7 @@ execute: |
     fi
 
     echo "Nothing is left"
-    for d in $SNAPMOUNTDIR /var/snap; do
+    for d in $SNAP_MOUNT_DIR /var/snap; do
         if [ -d "$d" ]; then
             echo "$d is not removed"
             ls -lR $d

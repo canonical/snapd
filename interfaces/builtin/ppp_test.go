@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/kmod"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,64 +40,68 @@ var _ = Suite(&PppInterfaceSuite{
 	iface: builtin.MustInterface("ppp"),
 })
 
-func (s *PppInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfo = `name: other
-version: 1.0
+const pppConsumerYaml = `name: consumer
 apps:
  app:
-  command: foo
   plugs: [ppp]
 `
 
-	const mockSlotSnapInfo = `name: ppp
-version: 1.0
-apps:
- app:
-  command: foo
-  slots: [ppp]
+const pppCoreYaml = `name: core
+type: os
+slots:
+  ppp:
 `
-	slotSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["ppp"]}
 
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["ppp"]}
+func (s *PppInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, pppConsumerYaml, nil, "ppp")
+	s.slot = MockSlot(c, pppCoreYaml, nil, "ppp")
 }
 
 func (s *PppInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "ppp")
 }
 
-func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/usr/sbin/pppd ix,`)
+func (s *PppInterfaceSuite) TestSanitizeSlot(c *C) {
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "ppp",
+		Interface: "ppp",
+	}}
 
-	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"ppp slots are reserved for the core snap")
+}
 
-	dbusSpec := &dbus.Specification{}
-	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
-	dbusSpec = &dbus.Specification{}
-	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+}
 
-	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 0)
+func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/ppp rw,`)
+}
 
+func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 	spec := &kmod.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,
 	})
+}
+
+func (s *PppInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows operating as the ppp service`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ppp")
+}
+
+func (s *PppInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *PppInterfaceSuite) TestInterfaces(c *C) {

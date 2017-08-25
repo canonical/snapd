@@ -76,6 +76,7 @@ build_rpm() {
     mkdir -p "/tmp/pkg/snapd-$version"
     cp -rav -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
+    # shellcheck disable=SC2086
     (cd /tmp/pkg && tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
@@ -158,11 +159,11 @@ if [ "$SPREAD_BACKEND" = external ]; then
    if [ ! -f "$GOHOME/bin/snapbuild" ]; then
        mkdir -p "$GOHOME/bin"
        snap install --edge test-snapd-snapbuild
-       cp "$SNAPMOUNTDIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
+       cp "$SNAP_MOUNT_DIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   if [ -e "$SNAPMOUNTDIR/core/current/meta/hooks/configure" ]; then
+   if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
        systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi

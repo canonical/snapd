@@ -20,15 +20,17 @@
 package config_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"strings"
 )
 
 func TestT(t *testing.T) { TestingT(t) }
@@ -62,8 +64,7 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		err := json.Unmarshal([]byte(kv[1]), &v)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v); err != nil {
 			v = kv[1]
 		}
 		m[kv[0]] = v
@@ -85,14 +86,15 @@ func (op setGetOp) fails() bool {
 var setGetTests = [][]setGetOp{{
 	// Basics.
 	`set one=1 two=2`,
-	`setunder three=3`,
-	`get one=1 two=2 three=-`,
-	`getunder one=- two=- three=3`,
+	`set big=1234567890`,
+	`setunder three=3 big=9876543210`,
+	`get one=1 big=1234567890 two=2 three=-`,
+	`getunder one=- two=- three=3 big=9876543210`,
 	`commit`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
-	`set two=22 four=4`,
-	`get one=1 two=22 three=3 four=4`,
+	`set two=22 four=4 big=1234567890`,
+	`get one=1 two=22 three=3 four=4 big=1234567890`,
 	`getunder one=1 two=2 three=3 four=-`,
 	`commit`,
 	`getunder one=1 two=22 three=3 four=4`,
@@ -232,7 +234,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				s.state.Set("config", config)
 
 			case "getunder":
-				var config map[string]map[string]interface{}
+				var config map[string]map[string]*json.RawMessage
 				s.state.Get("config", &config)
 				for k, expected := range op.args() {
 					obtained, ok := config[snap][k]
@@ -242,7 +244,9 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						}
 						continue
 					}
-					c.Assert(obtained, DeepEquals, expected)
+					var cfg interface{}
+					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(cfg, DeepEquals, expected)
 				}
 
 			default:

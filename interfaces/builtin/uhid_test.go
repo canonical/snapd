@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,27 +40,21 @@ var _ = Suite(&UhidInterfaceSuite{
 	iface: builtin.MustInterface("uhid"),
 })
 
-func (s *UhidInterfaceSuite) SetUpTest(c *C) {
-	// Mocking
-	osSnapInfo := snaptest.MockInfo(c, `
-name: ubuntu-core
+const uhidConsumerYaml = `name: consumer
+apps:
+ app:
+  plugs: [uhid]
+`
+
+const uhidCoreYaml = `name: core
 type: os
 slots:
-  test-slot-1:
-    interface: uhid
-    path: /dev/uhid
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-slot-1"]}
+  uhid:
+`
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-apps:
-  app-accessing-slot-1:
-    command: foo
-    plugs: [uhid]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["uhid"]}
+func (s *UhidInterfaceSuite) SetUpTest(c *C) {
+	s.plug = MockPlug(c, uhidConsumerYaml, nil, "uhid")
+	s.slot = MockSlot(c, uhidCoreYaml, nil, "uhid")
 }
 
 func (s *UhidInterfaceSuite) TestName(c *C) {
@@ -68,32 +62,41 @@ func (s *UhidInterfaceSuite) TestName(c *C) {
 }
 
 func (s *UhidInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "uhid",
+		Interface: "uhid",
+	}}
+
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"uhid slots are reserved for the core snap")
 }
 
 func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-slot-1"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-slot-1"), testutil.Contains, "/dev/uhid rw,\n")
+func (s *UhidInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/uhid rw,\n")
 }
 
-func (s *UhidInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
-	expectedSnippet1 := `KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"`
+func (s *UhidInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	snippet := spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet1)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="uhid", TAG+="snap_consumer_app"`)
+}
+
+func (s *UhidInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows control over UHID devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "uhid")
 }
 
 func (s *UhidInterfaceSuite) TestAutoConnect(c *C) {
