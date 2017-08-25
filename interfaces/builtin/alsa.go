@@ -36,6 +36,7 @@ const alsaConnectedPlugAppArmor = `
 /dev/snd/* rw,
 
 /run/udev/data/c116:[0-9]* r, # alsa
+/run/udev/data/+sound:card[0-9]* r,
 
 # Allow access to the alsa state dir
 /var/lib/alsa/{,*}         r,
