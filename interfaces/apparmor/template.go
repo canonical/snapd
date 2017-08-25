@@ -412,6 +412,21 @@ var defaultTemplate = `
 }
 `
 
+// encryptedHomeTrySnippet contains apparmor snippet that allows for "snap try"
+// operations to work even if the home directory is encrypted.
+var encryptedHomeTrySnippet = `
+  # Workaround policy added by 'snap try' to support ecryptfs and
+  # /var/lib/snapd/snaps/<name>_xN.snap pointing inside user's directory
+  capability dac_override,
+  capability dac_read_search,
+  # encrypted ~/.Private and old-style encrypted $HOME
+  @{HOME}/.Private/ r,
+  @{HOME}/.Private/** mrixwlk,
+  # new-style encrypted $HOME
+  @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+  @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+`
+
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
 // https://github.com/snapcore/snapd/pull/2366#discussion_r90101320

@@ -55,6 +55,9 @@ import (
 //
 // The Classic flag switches the layout of the mount namespace so that there's
 // no "chroot" to the core snap.
+//
+// The TryMode flag indicates that the snap is in try mode and may need extra
+// confinement permissions.
 type ConfinementOptions struct {
 	// DevMode flag switches confinement to non-enforcing mode.
 	DevMode bool
@@ -62,6 +65,8 @@ type ConfinementOptions struct {
 	JailMode bool
 	// Classic flag switches the core snap "chroot" off.
 	Classic bool
+	// TryMode means the snap is running from an unpacked directory.
+	TryMode bool
 }
 
 // SecurityBackend abstracts interactions between the interface system and the

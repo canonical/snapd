@@ -42,6 +42,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 		DevMode:  flags.DevMode,
 		JailMode: flags.JailMode,
 		Classic:  flags.Classic,
+		TryMode:  flags.TryMode,
 	}
 }
 

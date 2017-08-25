@@ -23,6 +23,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	AnyEncryptedDirectory = anyEncryptedDirectory
+)
+
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	profilesPath = profiles
@@ -46,4 +50,11 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 	orig := classicTemplate
 	classicTemplate = fakeTemplate
 	return func() { classicTemplate = orig }
+}
+
+// MockProcSelfMountInfo replaces the location of /proc/self/mountinfo.
+func MockProcSelfMountInfo(fakePath string) (restore func()) {
+	orig := procSelfMountInfo
+	procSelfMountInfo = fakePath
+	return func() { procSelfMountInfo = orig }
 }
