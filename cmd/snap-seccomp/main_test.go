@@ -219,6 +219,10 @@ func systemUsesSocketcall() bool {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
+	// The 'shadow' group is different in different distributions
+	shadowGid, err := main.FindGid("shadow")
+	c.Assert(err, IsNil)
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
@@ -320,10 +324,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
 		// u:root g:shadow
-		{"fchown - u:root g:shadow", "fchown;native;-,0,42", main.SeccompRetAllow},
-		{"fchown - u:root g:shadow", "fchown;native;-,99,42", main.SeccompRetKill},
-		{"chown - u:root g:shadow", "chown;native;-,0,42", main.SeccompRetAllow},
-		{"chown - u:root g:shadow", "chown;native;-,99,42", main.SeccompRetKill},
+		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
 	} {
 		// skip socket tests if the system uses socketcall instead
 		// of socket
