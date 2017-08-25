@@ -197,9 +197,7 @@ func (m *DeviceManager) ensureOperational() error {
 		gadget = model.Gadget()
 		storeID = model.Store()
 	} else {
-		if !release.OnClassic {
-			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-		}
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
 	}
 
 	if gadget == "" && storeID == "" {
