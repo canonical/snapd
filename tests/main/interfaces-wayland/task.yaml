@@ -5,18 +5,18 @@ systems: [ ubuntu-1*-*64 ]
 
 prepare: |
     . $TESTSLIB/pkgdb.sh
-    snap install --edge test-wayland
+    snap install --edge test-snapd-wayland
 
 restore: |
     echo "Stop weston compositor"
     /usr/bin/killall -9 /usr/bin/weston || true
 
 execute: |
-    CONNECTED_PATTERN=":wayland +test-wayland"
-    DISCONNECTED_PATTERN="\- +test-wayland:wayland"
+    CONNECTED_PATTERN=":wayland +test-snapd-wayland"
+    DISCONNECTED_PATTERN="\- +test-snapd-wayland:wayland"
 
     echo "When the plug is connected"
-    snap connect test-wayland:wayland
+    snap connect test-snapd-wayland:wayland
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
@@ -45,16 +45,16 @@ execute: |
     done
 
     echo "Then the snap command under the test user is able connect to the wayland socket"
-    XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-wayland test | MATCH wl_compositor
+    XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test | MATCH wl_compositor
 
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-wayland:wayland
+    snap disconnect test-snapd-wayland:wayland
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to connect to the wayland socket"
-    if XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-wayland test; then
+    if XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
