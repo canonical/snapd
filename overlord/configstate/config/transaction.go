@@ -149,7 +149,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 			return fmt.Errorf("snap %q has no configuration", snapName)
 		}
 		raw := jsonRaw(config)
-		if err := json.Unmarshal([]byte(*raw), result); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
 		}
 		return nil
