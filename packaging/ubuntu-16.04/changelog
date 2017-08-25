@@ -1,3 +1,32 @@
+snapd (2.27.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - snap-seccomp: add secondary arch for unrestricted snaps as well
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 24 Aug 2017 08:51:22 +0200
+
+snapd (2.27.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - systemd: disable `Nice=-5` to fix error when running inside lxdSee
+      https://bugs.launchpad.net/snapd/+bug/1709536
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 18 Aug 2017 15:49:56 +0200
+
+snapd (2.27.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - tests: remove TestInterfacesHelp as it breaks when go-flags
+      changes
+    - interfaces: don't crash if content slot has no attributes
+    - debian: do not build with -buildmode=pie on i386
+    - interfaces: backport broadcom-asic-control interface
+    - interfaces: allow /usr/bin/xdg-open in unity7
+    - store: do not resume a download when we already have the whole
+      thing
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 16 Aug 2017 12:14:51 +0200
+
 snapd (2.27.1) xenial; urgency=medium
 
   * New upstream release, LP: #1703798:
