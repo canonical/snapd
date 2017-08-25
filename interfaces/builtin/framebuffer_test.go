@@ -80,7 +80,7 @@ func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil)), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
@@ -93,7 +93,7 @@ func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug, nil), interfaces.NewSlotData(s.slot, nil)), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 
 	// UDev tagging is disabled and will be enabled with a separate patch.
 	// Remove this comment when enabling udev tagging.

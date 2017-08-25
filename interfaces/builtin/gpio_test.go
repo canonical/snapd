@@ -126,7 +126,7 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	spec := &systemd.Specification{}
-	err := spec.AddConnectedSlot(s.iface, interfaces.NewPlugData(s.gadgetPlug, nil), interfaces.NewSlotData(s.gadgetGpioSlot, nil))
+	err := spec.AddConnectedSlot(s.iface, interfaces.NewPlugData(s.gadgetPlug.PlugInfo, nil), interfaces.NewSlotData(s.gadgetGpioSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"snap.my-device.interface.gpio-100.service": {

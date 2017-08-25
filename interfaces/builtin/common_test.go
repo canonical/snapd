@@ -54,8 +54,8 @@ slots:
 	}
 	spec := &udev.Specification{}
 
-	plugData := interfaces.NewPlugData(plug, nil)
-	slotData := interfaces.NewSlotData(slot, nil)
+	plugData := interfaces.NewPlugData(plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(slot.SlotInfo, nil)
 
 	c.Assert(spec.AddConnectedPlug(iface, plugData, slotData), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
