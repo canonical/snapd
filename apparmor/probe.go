@@ -58,7 +58,7 @@ var (
 
 // Probe checks which apparmor features are available.
 //
-// The error
+// The error is returned whenever less-than-full support is detected.
 func Probe() (FeatureLevel, error) {
 	_, err := os.Stat(featuresSysPath)
 	if err != nil {
