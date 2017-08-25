@@ -362,6 +362,9 @@ plugs:
      a:
        b: ["x", "y"]
 
+   slot-slot-attr-no-a:
+     interface: slot-slot-attr
+
    slot-plug-attr-mismatch:
      interface: slot-plug-attr
      c: "Z"
@@ -515,6 +518,9 @@ slots:
      a:
        b: ["x", "y"]
 
+   slot-slot-attr-no-a:
+     interface: slot-slot-attr
+
    slot-plug-attr:
      c: "C"
 
@@ -527,6 +533,9 @@ slots:
    plug-plug-attr-match:
      interface: plug-plug-attr
      c: "C"
+
+   plug-plug-attr-no-c:
+     interface: plug-plug-attr
 
    plug-slot-attr-mismatch:
      interface: plug-slot-attr
@@ -1602,38 +1611,38 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 }
 
 func (s *policySuite) TestSlotHookAttrs(c *C) {
+	// the slot doesn't have 'c' attribute, but it's provided by the hooks.
+	hookSlotAttrs := map[string]interface{}{"c": "C"}
 	cand := policy.ConnectCandidate{
 		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
-		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-no-c"], hookSlotAttrs),
 		BaseDeclaration: s.baseDecl,
-		//		PlugHookAttrs:   map[string]interface{}{},
-		//		SlotHookAttrs:   map[string]interface{}{"c": "C"},
 	}
 	c.Check(cand.Check(), IsNil)
 }
 
 func (s *policySuite) TestSlotHookAttrsMismatch(c *C) {
+	// the slot doesn't have 'c' attribute, but it's provided by the hooks but its value doesn't match plug.
+	hookSlotAttrs := map[string]interface{}{"c": "not matching"}
 	cand := policy.ConnectCandidate{
 		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["plug-plug-attr"], nil),
-		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-match"], nil),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["plug-plug-attr-no-c"], hookSlotAttrs),
 		BaseDeclaration: s.baseDecl,
-		//PlugHookAttrs:   map[string]interface{}{"c": "C"},
-		//SlotHookAttrs:   map[string]interface{}{"c": "D"},
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 }
 
 func (s *policySuite) TestPlugHookAttrs(c *C) {
+	hookPlugAttrs := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": []interface{}{"x", "y"},
+		},
+	}
+
 	cand := policy.ConnectCandidate{
-		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-match"], nil),
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-no-a"], hookPlugAttrs),
 		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
 		BaseDeclaration: s.baseDecl,
-		/*		PlugHookAttrs: map[string]interface{}{
-					"a": map[string]interface{}{
-						"b": []interface{}{"x", "y"},
-					},
-				},
-				SlotHookAttrs: map[string]interface{}{},*/
 	}
 	c.Check(cand.Check(), IsNil)
 }
@@ -1641,17 +1650,51 @@ func (s *policySuite) TestPlugHookAttrs(c *C) {
 func (s *policySuite) TestPlugHookAttrsMismatch(c *C) {
 	hookPlugAttrs := map[string]interface{}{
 		"a": map[string]interface{}{
-			"b": []interface{}{"x", ""},
+			"b": []interface{}{"not matching"},
+		},
+	}
+
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-no-a"], hookPlugAttrs),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+}
+
+func (s *policySuite) TestPlugSlotHookAttrs(c *C) {
+	hookPlugAttrs := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": []interface{}{"x", "y"},
 		},
 	}
 	hookSlotAttrs := map[string]interface{}{
-		"q": map[string]interface{}{
-			"Z": []interface{}{"x", "y"},
+		"a": map[string]interface{}{
+			"b": []interface{}{"x", "y"},
 		},
 	}
 	cand := policy.ConnectCandidate{
-		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-match"], hookPlugAttrs),
-		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr"], hookSlotAttrs),
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-no-a"], hookPlugAttrs),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr-no-a"], hookSlotAttrs),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugSlotHookAttrsMismatch(c *C) {
+	hookPlugAttrs := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": []interface{}{"x", "y"},
+		},
+	}
+	hookSlotAttrs := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": []interface{}{"not matching"},
+		},
+	}
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewPlugData(s.plugSnap.Plugs["slot-slot-attr-no-a"], hookPlugAttrs),
+		Slot:            interfaces.NewSlotData(s.slotSnap.Slots["slot-slot-attr-no-a"], hookSlotAttrs),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")

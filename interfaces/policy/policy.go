@@ -126,21 +126,40 @@ type ConnectCandidate struct {
 	BaseDeclaration *asserts.BaseDeclaration
 }
 
+func (connc *ConnectCandidate) combinedAttributes(attrData interfaces.Attributes) map[string]interface{} {
+	combined := make(map[string]interface{})
+	for k, v := range attrData.StaticAttrs() {
+		combined[k] = v
+	}
+	if dynamic, err := attrData.Attrs(); err == nil {
+		for k, v := range dynamic {
+			if _, exists := combined[k]; exists {
+				// this will never happen (if it does, it's a bug in snapctl)
+				panic("internal error: dynamic attribute overwrites static attribute")
+			}
+			combined[k] = v
+		}
+	}
+	return combined
+}
+
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	attrs := connc.Plug.StaticAttrs() // FIXME
-	return attrs
+	return connc.combinedAttributes(connc.Plug)
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	attrs := connc.Slot.StaticAttrs() // FIXME
-	return attrs
+	return connc.combinedAttributes(connc.Slot)
 }
 
-func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
+func nestedGet(which string, attrs interfaces.Attributes, path string) (interface{}, error) {
 	notFound := fmt.Errorf("%s attribute %q not found", which, path)
 	comps := strings.Split(path, ".")
-	var v interface{} = attrs
-	for _, comp := range comps {
+	attr, err := attrs.Attr(comps[0])
+	if err != nil {
+		return nil, notFound
+	}
+	var v interface{} = attr
+	for _, comp := range comps[1:] {
 		m, ok := v.(map[string]interface{})
 		if !ok {
 			return nil, notFound
@@ -154,11 +173,11 @@ func nestedGet(which string, attrs map[string]interface{}, path string) (interfa
 }
 
 func (connc *ConnectCandidate) PlugAttr(arg string) (interface{}, error) {
-	return nestedGet("plug", connc.plugAttrs(), arg)
+	return nestedGet("plug", connc.Plug, arg)
 }
 
 func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
-	return nestedGet("slot", connc.slotAttrs(), arg)
+	return nestedGet("slot", connc.Slot, arg)
 }
 
 func (connc *ConnectCandidate) plugSnapType() snap.Type {

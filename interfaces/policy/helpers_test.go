@@ -20,6 +20,8 @@
 package policy_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -29,26 +31,63 @@ type helpersSuite struct{}
 
 var _ = Suite(&helpersSuite{})
 
+type AttributesData struct {
+	attrs map[string]interface{}
+}
+
+func newAttributesData(input map[string]interface{}) *AttributesData {
+	return &AttributesData{
+		attrs: input,
+	}
+}
+
+func (attrs *AttributesData) SetStaticAttr(key string, value interface{}) {
+	panic("not implemented")
+}
+
+func (attrs *AttributesData) StaticAttr(key string) (interface{}, error) {
+	panic("not implemented")
+}
+
+func (attrs *AttributesData) StaticAttrs() map[string]interface{} {
+	panic("not implemented")
+}
+
+func (attrs *AttributesData) Attr(key string) (interface{}, error) {
+	if val, ok := attrs.attrs[key]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("attribute %q not found", key)
+}
+
+func (attrs *AttributesData) Attrs() (map[string]interface{}, error) {
+	panic("not implemented")
+}
+
+func (attrs *AttributesData) SetAttr(key string, value interface{}) error {
+	panic("not implemented")
+}
+
 func (s *helpersSuite) TestNestedGet(c *C) {
-	_, err := policy.NestedGet("slot", nil, "a")
+	_, err := policy.NestedGet("slot", newAttributesData(nil), "a")
 	c.Check(err, ErrorMatches, `slot attribute "a" not found`)
 
-	_, err = policy.NestedGet("plug", map[string]interface{}{
+	_, err = policy.NestedGet("plug", newAttributesData(map[string]interface{}{
 		"a": "123",
-	}, "a.b")
+	}), "a.b")
 	c.Check(err, ErrorMatches, `plug attribute "a\.b" not found`)
 
-	v, err := policy.NestedGet("slot", map[string]interface{}{
+	v, err := policy.NestedGet("slot", newAttributesData(map[string]interface{}{
 		"a": "123",
-	}, "a")
+	}), "a")
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
-	v, err = policy.NestedGet("slot", map[string]interface{}{
+	v, err = policy.NestedGet("slot", newAttributesData(map[string]interface{}{
 		"a": map[string]interface{}{
 			"b": []interface{}{"1", "2", "3"},
 		},
-	}, "a.b")
+	}), "a.b")
 	c.Check(err, IsNil)
 	c.Check(v, DeepEquals, []interface{}{"1", "2", "3"})
 }
