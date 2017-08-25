@@ -56,7 +56,7 @@ slots:
 }
 
 func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
-	attrData := NewSlotData(s.slot, nil)
+	attrData := NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
@@ -70,7 +70,7 @@ func (s *AttrsSuite) TestStaticSlotAttrs(c *C) {
 }
 
 func (s *AttrsSuite) TestStaticPlugAttrs(c *C) {
-	attrData := NewPlugData(s.plug, nil)
+	attrData := NewPlugData(s.plug.PlugInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
@@ -87,7 +87,7 @@ func (s *AttrsSuite) TestDynamicSlotAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData := NewSlotData(s.slot, attrs)
+	attrData := NewSlotData(s.slot.SlotInfo, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -113,7 +113,7 @@ func (s *AttrsSuite) TestDynamicPlugAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData := NewPlugData(s.plug, attrs)
+	attrData := NewPlugData(s.plug.PlugInfo, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -136,7 +136,7 @@ func (s *AttrsSuite) TestDynamicPlugAttrs(c *C) {
 }
 
 func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
-	attrData := NewSlotData(s.slot, nil)
+	attrData := NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.Attr("foo")
@@ -149,7 +149,7 @@ func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 }
 
 func (s *AttrsSuite) TestSetStaticSlotAttr(c *C) {
-	attrData := NewSlotData(s.slot, nil)
+	attrData := NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")
@@ -162,7 +162,7 @@ func (s *AttrsSuite) TestSetStaticSlotAttr(c *C) {
 }
 
 func (s *AttrsSuite) TestSetStaticPlugAttr(c *C) {
-	attrData := NewPlugData(s.plug, nil)
+	attrData := NewPlugData(s.plug.PlugInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")

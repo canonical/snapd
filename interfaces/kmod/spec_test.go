@@ -104,8 +104,8 @@ func (s *specSuite) TestDeduplication(c *C) {
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{"module1": true})
 
 	var r interfaces.Specification = s.spec
-	plugData := interfaces.NewPlugData(s.plug, nil)
-	slotData := interfaces.NewSlotData(s.slot, nil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(r.AddConnectedPlug(s.iface1, plugData, slotData), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface1, plugData, slotData), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface1, plugData), IsNil)
@@ -122,8 +122,8 @@ func (s *specSuite) TestDeduplication(c *C) {
 // The kmod.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	plugData := interfaces.NewPlugData(s.plug, nil)
-	slotData := interfaces.NewSlotData(s.slot, nil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(r.AddConnectedPlug(s.iface1, plugData, slotData), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface1, plugData, slotData), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface1, plugData), IsNil)

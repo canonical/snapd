@@ -80,7 +80,7 @@ func (s *TestInterfaceSuite) TestValidatePlugError(c *C) {
 			return fmt.Errorf("validate plug failed")
 		},
 	}
-	err := iface.AfterPreparePlug(interfaces.NewPlugData(s.plug, nil))
+	err := iface.AfterPreparePlug(interfaces.NewPlugData(s.plug.PlugInfo, nil))
 	c.Assert(err, ErrorMatches, "validate plug failed")
 }
 
@@ -91,7 +91,7 @@ func (s *TestInterfaceSuite) TestValidateSlotError(c *C) {
 			return fmt.Errorf("validate slot failed")
 		},
 	}
-	err := iface.AfterPrepareSlot(interfaces.NewSlotData(s.slot, nil))
+	err := iface.AfterPrepareSlot(interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, ErrorMatches, "validate slot failed")
 }
 
@@ -131,8 +131,8 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
-	plugData := interfaces.NewPlugData(s.plug, nil)
-	slotData := interfaces.NewSlotData(s.slot, nil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, plugData, slotData), IsNil)
@@ -151,8 +151,8 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
-	plugData := interfaces.NewPlugData(s.plug, nil)
-	slotData := interfaces.NewSlotData(s.slot, nil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, plugData, slotData), IsNil)

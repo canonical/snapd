@@ -83,8 +83,8 @@ func (s *specSuite) TestAddSnippte(c *C) {
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	plugData := interfaces.NewPlugData(s.plug, nil)
-	slotData := interfaces.NewSlotData(s.slot, nil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(r.AddConnectedPlug(s.iface, plugData, slotData), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, plugData, slotData), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, plugData), IsNil)
