@@ -107,7 +107,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
 		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
-		context, err := hookstate.NewContext(task, &hooksup, nil)
+		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 		c.Check(err, IsNil)
 		c.Check(context.SnapName(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})

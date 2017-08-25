@@ -1460,6 +1460,65 @@ slots:
 	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
 
+func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlotsSymmetry(c *C) {
+	repo := s.emptyRepo
+	// Add a "auto" interface
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
+	c.Assert(err, IsNil)
+
+	policyCheck := func(plug *Plug, slot *Slot) bool {
+		return slot.Interface == "auto"
+	}
+
+	// Add a producer snap for "auto"
+	producer := snaptest.MockInfo(c, `
+name: producer
+type: os
+slots:
+    auto:
+`, nil)
+	err = repo.AddSnap(producer)
+	c.Assert(err, IsNil)
+
+	// Add two consumers snaps for "auto"
+	consumer1 := snaptest.MockInfo(c, `
+name: consumer1
+plugs:
+    auto:
+`, nil)
+
+	err = repo.AddSnap(consumer1)
+	c.Assert(err, IsNil)
+
+	// Add two consumers snaps for "auto"
+	consumer2 := snaptest.MockInfo(c, `
+name: consumer2
+plugs:
+    auto:
+`, nil)
+
+	err = repo.AddSnap(consumer2)
+	c.Assert(err, IsNil)
+
+	// Both can auto-connect
+	candidateSlots := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
+	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(candidateSlots[0].Name, Equals, "auto")
+
+	candidateSlots = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
+	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(candidateSlots[0].Name, Equals, "auto")
+
+	// Plugs candidates seen from the producer (for example if
+	// it's installed after) should be the same
+	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
+	c.Assert(candidatePlugs, HasLen, 2)
+}
+
 // Tests for AddSnap and RemoveSnap
 
 type AddRemoveSuite struct {
@@ -1785,4 +1844,84 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	c.Check(candidateSlots, HasLen, 0)
 	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
 	c.Assert(candidatePlugs, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestInfo(c *C) {
+	r := s.emptyRepo
+
+	// Add some test interfaces.
+	i1 := &ifacetest.TestInterface{InterfaceName: "i1", InterfaceStaticInfo: StaticInfo{Summary: "i1 summary", DocURL: "http://example.com/i1"}}
+	i2 := &ifacetest.TestInterface{InterfaceName: "i2", InterfaceStaticInfo: StaticInfo{Summary: "i2 summary", DocURL: "http://example.com/i2"}}
+	i3 := &ifacetest.TestInterface{InterfaceName: "i3", InterfaceStaticInfo: StaticInfo{Summary: "i3 summary", DocURL: "http://example.com/i3"}}
+	c.Assert(r.AddInterface(i1), IsNil)
+	c.Assert(r.AddInterface(i2), IsNil)
+	c.Assert(r.AddInterface(i3), IsNil)
+
+	// Add some test snaps.
+	s1 := snaptest.MockInfo(c, fmt.Sprintf(`
+name: s1
+apps:
+  s1:
+    plugs: [i1, i2]
+`), nil)
+	c.Assert(r.AddSnap(s1), IsNil)
+
+	s2 := snaptest.MockInfo(c, fmt.Sprintf(`
+name: s2
+apps:
+  s2:
+    slots: [i1, i3]
+`), nil)
+	c.Assert(r.AddSnap(s2), IsNil)
+
+	s3 := snaptest.MockInfo(c, fmt.Sprintf(`
+name: s3
+type: os
+slots:
+  i2:
+`), nil)
+	c.Assert(r.AddSnap(s3), IsNil)
+
+	// Connect a few things for the tests below.
+	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}), IsNil)
+	c.Assert(r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}), IsNil)
+
+	// Without any names or options we get the summary of all the interfaces.
+	infos := r.Info(nil)
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i1", Summary: "i1 summary"},
+		{Name: "i2", Summary: "i2 summary"},
+		{Name: "i3", Summary: "i3 summary"},
+	})
+
+	// We can choose specific interfaces, unknown names are just skipped.
+	infos = r.Info(&InfoOptions{Names: []string{"i2", "i4"}})
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i2", Summary: "i2 summary"},
+	})
+
+	// We can ask for documentation.
+	infos = r.Info(&InfoOptions{Names: []string{"i2"}, Doc: true})
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i2", Summary: "i2 summary", DocURL: "http://example.com/i2"},
+	})
+
+	// We can ask for a list of plugs.
+	infos = r.Info(&InfoOptions{Names: []string{"i2"}, Plugs: true})
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i2", Summary: "i2 summary", Plugs: []*snap.PlugInfo{s1.Plugs["i2"]}},
+	})
+
+	// We can ask for a list of slots too.
+	infos = r.Info(&InfoOptions{Names: []string{"i2"}, Slots: true})
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i2", Summary: "i2 summary", Slots: []*snap.SlotInfo{s3.Slots["i2"]}},
+	})
+
+	// We can also ask for only those interfaces that have connected plugs or slots.
+	infos = r.Info(&InfoOptions{Connected: true})
+	c.Assert(infos, DeepEquals, []*Info{
+		{Name: "i1", Summary: "i1 summary"},
+		{Name: "i2", Summary: "i2 summary"},
+	})
 }

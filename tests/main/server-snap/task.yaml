@@ -1,4 +1,7 @@
 summary: Check snap web servers
+
+systems: [-fedora-*, -opensuse-*]
+
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
     IP_VERSION/pythonServer: 4
@@ -26,7 +29,7 @@ restore: |
     rm -f request.txt
 
 execute: |
-    response=$(nc -q 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
+    response=$(nc -w 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 
     statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
     echo "$response" | grep -Pzq "$statusPattern"

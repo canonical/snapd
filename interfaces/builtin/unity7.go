@@ -20,14 +20,21 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 )
+
+const unity7Summary = `allows interacting with Unity 7 services`
+
+const unity7BaseDeclarationSlots = `
+  unity7:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
 
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
@@ -76,8 +83,8 @@ const unity7ConnectedPlugAppArmor = `
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
-/usr/local/bin/xdg-open ixr,
-/usr/local/share/applications/{,*} r,
+/usr/bin/xdg-open ixr,
+/usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
@@ -186,11 +193,23 @@ dbus send
     member=GetAll
     peer=(label=unconfined),
 
+# Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
+# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# filtering.
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:* r,
 
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
 owner @{HOME}/.local/share/mime/**   r,
 owner @{HOME}/.config/user-dirs.dirs r,
+
+# gtk settings (subset of gnome abstraction)
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+# Note: this leaks directory names that wouldn't otherwise be known to the snap
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
@@ -199,6 +218,12 @@ dbus (send)
     path=/org/a11y/bus
     interface=org.a11y.Bus
     member=GetAddress
+    peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
     peer=(label=unconfined),
 
 # unfortunate, but org.a11y.atspi is not designed for separation
@@ -299,6 +324,13 @@ dbus (receive)
     path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=unconfined),
 
 # app-indicators
@@ -483,8 +515,8 @@ dbus (receive)
 
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
-# interested in are pressed.
-dbus (send)
+# interested in are pressed, and allows us to receive those events.
+dbus (receive, send)
   bus=session
   interface=org.gnome.SettingsDaemon.MediaKeys
   path=/org/gnome/SettingsDaemon/MediaKeys
@@ -508,12 +540,24 @@ const unity7ConnectedPlugSeccomp = `
 
 # X
 shutdown
+
+# Needed by QtSystems on X to detect mouse and keyboard
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 type unity7Interface struct{}
 
 func (iface *unity7Interface) Name() string {
 	return "unity7"
+}
+
+func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              unity7Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: unity7BaseDeclarationSlots,
+	}
 }
 
 func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
@@ -533,25 +577,8 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
-	return nil
-}
-
 func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

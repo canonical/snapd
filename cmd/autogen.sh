@@ -16,6 +16,7 @@ autoreconf -i -f
 
 # Configure the build
 extra_opts=
+# shellcheck disable=SC1091
 . /etc/os-release
 case "$ID" in
 	arch)
@@ -47,4 +48,5 @@ case "$ID" in
 esac
 
 echo "Configuring with: $extra_opts"
+# shellcheck disable=SC2086
 ./configure --enable-maintainer-mode --prefix=/usr $extra_opts

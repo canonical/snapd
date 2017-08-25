@@ -143,32 +143,14 @@ func (s *IioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-
-	err := s.iface.SanitizeSlot(s.testUDevBadValue1)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue2)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue3)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue4)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue5)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue6)
-	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue7)
-	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
-
-	err = s.iface.SanitizeSlot(s.testUDevBadValue8)
-	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
-
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUDevBadInterface1) }, PanicMatches, `slot is not of interface "iio"`)
+	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue6.Sanitize(s.iface), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(s.testUDevBadValue7.Sanitize(s.iface), ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(s.testUDevBadValue8.Sanitize(s.iface), ErrorMatches, "iio slot must have a path attribute")
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {

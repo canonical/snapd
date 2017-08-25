@@ -203,16 +203,17 @@ type cmdRemove struct {
 }
 
 func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
-	name := x.Positional.Snaps[0]
+	name := string(x.Positional.Snaps[0])
 
 	cli := Client()
-	changeID, err := cli.Remove(string(name), opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
-		fmt.Fprintf(Stderr, e.Message+"\n")
-		return nil
-	}
+	changeID, err := cli.Remove(name, opts)
 	if err != nil {
-		return err
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	_, err = x.wait(cli, changeID)
@@ -453,17 +454,13 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
-	if e, ok := err.(*client.Error); ok {
-		msg, err := clientErrorToCmdMessage(name, e)
+	if err != nil {
+		msg, err := errorToCmdMessage(name, err, opts)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintln(Stderr, msg)
 		return nil
-	}
-
-	if err != nil {
-		return err
 	}
 
 	setupAbortHandler(changeID)
@@ -620,12 +617,13 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.Refresh(name, opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNoUpdateAvailable {
-		fmt.Fprintf(Stderr, e.Message+"\n")
-		return nil
-	}
 	if err != nil {
-		return err
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	_, err = x.wait(cli, changeID)
@@ -647,8 +645,16 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	}
 
 	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
-	fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
-	fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	if sysinfo.Refresh.Last != "" {
+		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
+	} else {
+		fmt.Fprintf(Stdout, "last: n/a\n")
+	}
+	if sysinfo.Refresh.Next != "" {
+		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+	} else {
+		fmt.Fprintf(Stdout, "next: n/a\n")
+	}
 	return nil
 }
 

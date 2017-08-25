@@ -27,6 +27,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
+const locationObserveSummary = `allows access to the current physical location`
+
+const locationObserveBaseDeclarationSlots = `
+  location-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
+
 const locationObservePermanentSlotAppArmor = `
 # Description: Allow operating as the location service. This gives privileged
 # access to the system.
@@ -250,6 +261,13 @@ func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
 }
 
+func (iface *locationObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              locationObserveSummary,
+		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
+	}
+}
+
 func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(locationObserveConnectedPlugDBus)
 	return nil
@@ -278,14 +296,6 @@ func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *locationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *locationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

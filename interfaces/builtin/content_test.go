@@ -20,8 +20,12 @@
 package builtin_test
 
 import (
+	"fmt"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -55,8 +59,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
@@ -70,8 +73,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
@@ -85,8 +87,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "read or write path must be set")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
@@ -101,8 +102,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "read or write path must be set")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotHasRelativePath(c *C) {
@@ -116,8 +116,7 @@ slots:
 	for _, rw := range []string{"read: [../foo]", "write: [../bar]"} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
 		slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "content interface path is not clean:.*")
+		c.Assert(slot.Sanitize(s.iface), ErrorMatches, "content interface path is not clean:.*")
 	}
 }
 
@@ -132,8 +131,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
@@ -146,8 +144,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 	c.Assert(plug.Attrs["content"], Equals, plug.Name)
 }
 
@@ -161,8 +158,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content plug must contain target path")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleTargetRelative(c *C) {
@@ -176,8 +172,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content interface target path is not clean:.*")
 }
 
 func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
@@ -190,17 +185,29 @@ apps:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content"]}
-	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "content plug must contain target path")
+	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
+}
+
+func (s *ContentSuite) TestSanitizeSlotNilAttrMap(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+apps:
+  foo:
+    command: foo
+    slots: [content]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: info.Slots["content"]}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, "/snap/name/42/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, "/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, "/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
 }
@@ -226,8 +233,8 @@ slots:
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
 	expectedMnt := []mount.Entry{{
-		Name:    "/snap/producer/5/export",
-		Dir:     "/snap/consumer/7/import",
+		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
+		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
@@ -257,8 +264,8 @@ slots:
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
 	expectedMnt := []mount.Entry{{
-		Name:    "/snap/producer/5/export",
-		Dir:     "/snap/consumer/7/import",
+		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
+		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
@@ -267,12 +274,12 @@ slots:
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	expected := `
+	expected := fmt.Sprintf(`
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/snap/producer/5/export/** mrkix,
-`
+%s/producer/5/export/** mrkix,
+`, dirs.CoreSnapMountDir)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 

@@ -46,7 +46,7 @@ type snapctlSuite struct {
 var _ = Suite(&snapctlSuite{})
 
 func (s *snapctlSuite) SetUpTest(c *C) {
-	os.Setenv("SNAP_CONTEXT", "snap-context-test")
+	os.Setenv("SNAP_COOKIE", "snap-context-test")
 	n := 0
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -81,7 +81,7 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 }
 
 func (s *snapctlSuite) TearDownTest(c *C) {
-	os.Unsetenv("SNAP_CONTEXT")
+	os.Unsetenv("SNAP_COOKIE")
 	os.Unsetenv("SNAPD_AUTH_DATA_FILENAME")
 	clientConfig.BaseURL = ""
 	s.server.Close()
@@ -106,7 +106,7 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 }
 
 func (s *snapctlSuite) TestSnapctlHelp(c *C) {
-	os.Unsetenv("SNAP_CONTEXT")
+	os.Unsetenv("SNAP_COOKIE")
 	s.expectedContextID = ""
 
 	os.Args = []string{"snapctl", "-h"}

@@ -34,13 +34,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var noConflictOnConnectTasks = func(kind string) bool {
+	return kind != "connect" && kind != "disconnect"
+}
+
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +145,7 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
-	snap.AddImplicitSlots(snapInfo)
+	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
 		ts.Set("slot-attrs", slot.Attrs)
 	} else {
@@ -153,10 +157,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
 
@@ -170,8 +174,8 @@ func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) 
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
-	// XXX: AddImplicitSlots is really a brittle interface
-	snap.AddImplicitSlots(snapInfo)
+	// XXX: addImplicitSlots is really a brittle interface
+	addImplicitSlots(snapInfo)
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, so skip interface checks

@@ -11,12 +11,15 @@ prepare: |
     touch bar.snap
     snap install core
     snap install test-snapd-tools
-    . "$TESTSLIB/mkpinentry.sh"
+    "$TESTSLIB"/mkpinentry.sh
     expect -d -f key.exp0
 
 restore: |
     rm testdir/foo.snap bar.snap
     rmdir testdir
+
+debug: |
+    sysctl kernel.random.entropy_avail || true
 
 execute: |
     for i in *.exp; do

@@ -3,68 +3,23 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 systems: [ubuntu-16.04-64]
 
 prepare: |
-    # determine arch related vars
-    case "$NESTED_ARCH" in
-    amd64)
-        QEMU="$(which qemu-system-x86_64)"
-        ;;
-    i386)
-        QEMU="$(which qemu-system-i386)"
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
-
-    . $TESTSLIB/dirs.sh
-
-    # create ubuntu-core image
-    mkdir -p /tmp/work-dir
-    snap install --devmode --beta ubuntu-image
-    $SNAPMOUNTDIR/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
-    mv ubuntu-core.img /tmp/work-dir
-
-    # create assertion block device
-    genisoimage -volid cidata -joliet -rock -o assertions.disk $TESTSLIB/assertions/auto-import.assert
-
-    . $TESTSLIB/systemd.sh
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
+    . "$TESTSLIB/nested.sh"
+    create_nested_core_vm
 
 restore: |
-    snap remove ubuntu-image
-    . $TESTSLIB/systemd.sh
-    systemd_stop_and_destroy_unit nested-vm
-    rm -rf /tmp/work-dir
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_core_vm
 
 execute: |
-    execute_remote(){
-        sshpass -p ubuntu ssh -p 8022 -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
-    }
+    cd "$SPREAD_PATH"
 
-    # wait_for_ssh
-    retry=300
-    while ! execute_remote true; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
-            exit 1
-        fi
-        sleep 1
-    done
-
-    # prepare_ssh
-    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
-    execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
-
-    cd $SPREAD_PATH
-
-    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread /tmp/work-dir
+    tmp=$(mktemp -d)
+    trap 'rm -rf $tmp' EXIT
+    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread "$tmp"
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    /tmp/work-dir/spread -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
+    "$tmp/spread" -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
                             external:ubuntu-core-16-64:tests/main/install-store \
                             external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
-                            external:ubuntu-core-16-64:tests/main/op-remove-retry | while read line; do echo "> $line"; done
+                            external:ubuntu-core-16-64:tests/main/op-remove-retry | while read -r line; do echo "> $line"; done

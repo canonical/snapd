@@ -21,7 +21,6 @@ package main
 
 import (
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/release"
 
 	"fmt"
 
@@ -45,16 +44,11 @@ func (cmd cmdConfinement) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	// NOTE: Right now we don't have a good way to differentiate if we
-	// only have partial confinement (ala AppArmor disabled and Seccomp
-	// enabled) or no confinement at all. Once we have a better system
-	// in place how we can dynamically retrieve these information from
-	// snapd we will use this here.
-	if !release.ReleaseInfo.ForceDevMode() {
-		fmt.Printf("strict\n")
-	} else {
-		fmt.Printf("none\n")
+	cli := Client()
+	sysInfo, err := cli.SysInfo()
+	if err != nil {
+		return err
 	}
-
+	fmt.Fprintf(Stdout, "%s\n", sysInfo.Confinement)
 	return nil
 }

@@ -1,5 +1,7 @@
 summary: Ensure that the firewall-control interface works.
 
+systems: [-fedora-*, -opensuse-*]
+
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
@@ -26,7 +28,7 @@ prepare: |
     snap install --dangerous firewall-control-consumer_1.0_all.snap
 
     echo "And a service is listening"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -w 1; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     . "$TESTSLIB/systemd.sh"
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
@@ -69,7 +71,7 @@ execute: |
     echo "Then the service listening on localhost is no longer accessible through the destination IP in the rule"
     ! nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 

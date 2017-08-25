@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 
@@ -43,6 +42,19 @@ func (client *Client) Ack(b []byte) error {
 	return nil
 }
 
+// AssertionTypes returns a list of assertion type names.
+func (client *Client) AssertionTypes() ([]string, error) {
+	var types struct {
+		Types []string `json:"types"`
+	}
+	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get assertion type names: %v", err)
+	}
+
+	return types.Types, nil
+}
+
 // Known queries assertions with type assertTypeName and matching assertion headers.
 func (client *Client) Known(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	path := fmt.Sprintf("/v2/assertions/%s", assertTypeName)
@@ -59,7 +71,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != 200 {
 		return nil, parseError(response)
 	}
 

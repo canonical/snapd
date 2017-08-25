@@ -28,3 +28,11 @@ func MockTemplate(fakeTemplate []byte) (restore func()) {
 	defaultTemplate = fakeTemplate
 	return func() { defaultTemplate = orig }
 }
+
+func MockOsReadlink(f func(string) (string, error)) (restore func()) {
+	realOsReadlink := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = realOsReadlink
+	}
+}

@@ -27,6 +27,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mirSummary = `allows operating as the Mir server`
+
+const mirBaseDeclarationSlots = `
+  mir:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
+
 const mirPermanentSlotAppArmor = `
 # Description: Allow operating as the Mir server. This gives privileged access
 # to the system.
@@ -75,12 +85,23 @@ const mirConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 type mirInterface struct{}
 
 func (iface *mirInterface) Name() string {
 	return "mir"
+}
+
+func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              mirSummary,
+		BaseDeclarationSlots: mirBaseDeclarationSlots,
+	}
 }
 
 func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
@@ -106,14 +127,6 @@ func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, s
 
 func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *mirInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

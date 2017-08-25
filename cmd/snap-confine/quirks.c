@@ -116,6 +116,19 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	debug("creating writable mimic directory %s based on %s", mimic_dir,
 	      ref_dir);
 	sc_quirk_setup_tmpfs(mimic_dir);
+
+	// Now copy the ownership and permissions of the mimicked directory
+	struct stat stat_buf;
+	if (stat(ref_dir, &stat_buf) < 0) {
+		die("cannot stat %s", ref_dir);
+	}
+	if (chown(mimic_dir, stat_buf.st_uid, stat_buf.st_gid) < 0) {
+		die("cannot chown for %s", mimic_dir);
+	}
+	if (chmod(mimic_dir, stat_buf.st_mode) < 0) {
+		die("cannot chmod for %s", mimic_dir);
+	}
+
 	debug("bind-mounting all the files from the reference directory");
 	DIR *dirp __attribute__ ((cleanup(sc_cleanup_closedir))) = NULL;
 	dirp = opendir(ref_dir);

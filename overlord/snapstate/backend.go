@@ -34,6 +34,7 @@ import (
 type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
+	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error

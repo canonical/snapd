@@ -2,6 +2,6 @@ NAME="Ubuntu Core"
 VERSION="16"
 ID=ubuntu-core
 PRETTY_NAME="Ubuntu Core 16"
-VERSION_ID="16""
+VERSION_ID="16"
 HOME_URL="http://www.snapcraft.io/"
 BUG_REPORT_URL="http://bugs.launchpad.net/snappy/"

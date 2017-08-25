@@ -74,6 +74,7 @@ type cmdInfo struct {
 	hidden                    bool
 	optDescs                  map[string]string
 	argDescs                  []argDesc
+	alias                     string
 }
 
 // commands holds information about all non-debug commands.
@@ -169,6 +170,9 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+		if c.alias != "" {
+			cmd.Aliases = append(cmd.Aliases, c.alias)
+		}
 
 		opts := cmd.Options()
 		if c.optDescs != nil && len(opts) != len(c.optDescs) {
@@ -313,16 +317,14 @@ func run() error {
 				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
 			}
 		}
-		if e, ok := err.(*client.Error); ok {
-			msg, err := clientErrorToCmdMessage("", e)
-			if err != nil {
-				return err
-			}
 
-			fmt.Fprintf(Stderr, msg)
-			return nil
+		msg, err := errorToCmdMessage("", err, nil)
+		if err != nil {
+			return err
 		}
+
+		fmt.Fprintf(Stderr, msg)
 	}
 
-	return err
+	return nil
 }

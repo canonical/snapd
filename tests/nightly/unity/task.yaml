@@ -11,11 +11,11 @@ prepare: |
     # and doesn't install cleanly if that file is in place
     mv /etc/init/tty1.conf /etc/init/tty1.conf.back
 
-    apt install -y --no-install-recommends x11-utils xvfb unity
+    apt install -y --no-install-recommends unity
 
 disabled_restore: |
     systemctl stop unity-app
-    apt autoremove -y --purge x11-utils xvfb unity
+    apt autoremove -y --purge unity
 
     mv /etc/init/tty1.conf.back /etc/init/tty1.conf
 
@@ -24,7 +24,7 @@ execute: |
     snap install ubuntu-clock-app
 
     echo "When the app is started"
-    systemd-run --unit unity-app --setenv=DISPLAY=$DISPLAY --uid $(id -u test) $(which xvfb-run) --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" $(which ubuntu-clock-app.clock)
+    systemd-run --unit unity-app --setenv=DISPLAY="$DISPLAY" --uid "$(id -u test)" "$(which xvfb-run)" --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" "$(which ubuntu-clock-app.clock)"
 
     echo "Then the app window is created"
     expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"

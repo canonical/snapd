@@ -19,6 +19,16 @@
 
 package builtin
 
+const timeserverControlSummary = `allows setting system time synchronization servers`
+
+const timeserverControlBaseDeclarationSlots = `
+  timeserver-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
@@ -72,7 +82,11 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name: "timeserver-control",
+		name:                  "timeserver-control",
+		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

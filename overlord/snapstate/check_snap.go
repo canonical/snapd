@@ -99,27 +99,27 @@ func checkVersion(version string) bool {
 	return true
 }
 
-type ErrSnapNeedsDevMode struct {
+type SnapNeedsDevModeError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsDevMode) Error() string {
+func (e *SnapNeedsDevModeError) Error() string {
 	return fmt.Sprintf("snap %q requires devmode or confinement override", e.Snap)
 }
 
-type ErrSnapNeedsClassic struct {
+type SnapNeedsClassicError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsClassic) Error() string {
+func (e *SnapNeedsClassicError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement", e.Snap)
 }
 
-type ErrSnapNeedsClassicSystem struct {
+type SnapNeedsClassicSystemError struct {
 	Snap string
 }
 
-func (e *ErrSnapNeedsClassicSystem) Error() string {
+func (e *SnapNeedsClassicSystemError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
@@ -135,12 +135,12 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		if flags.DevModeAllowed() {
 			return nil
 		}
-		return &ErrSnapNeedsDevMode{
+		return &SnapNeedsDevModeError{
 			Snap: info.Name(),
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return &ErrSnapNeedsClassicSystem{Snap: info.Name()}
+			return &SnapNeedsClassicSystemError{Snap: info.Name()}
 		}
 
 		if flags.Classic {
@@ -151,7 +151,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 
-		return &ErrSnapNeedsClassic{
+		return &SnapNeedsClassicError{
 			Snap: info.Name(),
 		}
 	default:
@@ -306,7 +306,34 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 	return nil
 }
 
+func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+	// check if this is relevant
+	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
+		return nil
+	}
+	if snapInfo.Base == "" {
+		return nil
+	}
+
+	snapStates, err := All(st)
+	if err != nil {
+		return err
+	}
+	for otherSnap, snapst := range snapStates {
+		typ, err := snapst.Type()
+		if err != nil {
+			return err
+		}
+		if typ == snap.TypeBase && otherSnap == snapInfo.Base {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
+	AddCheckSnapCallback(checkBases)
 }

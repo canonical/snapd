@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -104,4 +105,25 @@ func WordWrap(s string, max int) []string {
 	}
 
 	return out
+}
+
+// ListContains determines whether the given string is contained in the
+// given list of strings.
+func ListContains(list []string, str string) bool {
+	for _, k := range list {
+		if k == str {
+			return true
+		}
+	}
+	return false
+}
+
+// SortedListContains determines whether the given string is contained
+// in the given list of strings, which must be sorted.
+func SortedListContains(list []string, str string) bool {
+	i := sort.SearchStrings(list, str)
+	if i >= len(list) {
+		return false
+	}
+	return list[i] == str
 }

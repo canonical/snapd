@@ -180,7 +180,7 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": fortestingInterfaceList,
+				"result": fortestingConnectionList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

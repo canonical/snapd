@@ -22,6 +22,7 @@ package strutil_test
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -99,5 +100,30 @@ func (ts *strutilSuite) TestWordWrap(c *check.C) {
 		{"ab            cd", []string{"ab", "cd"}, 2},
 	} {
 		c.Check(strutil.WordWrap(t.in, t.n), check.DeepEquals, t.out)
+	}
+}
+
+func (ts *strutilSuite) TestListContains(c *check.C) {
+	for _, xs := range [][]string{
+		{},
+		nil,
+		{"foo"},
+		{"foo", "baz", "barbar"},
+	} {
+		c.Check(strutil.ListContains(xs, "bar"), check.Equals, false)
+		sort.Strings(xs)
+		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, false)
+	}
+
+	for _, xs := range [][]string{
+		{"bar"},
+		{"foo", "bar", "baz"},
+		{"bar", "foo", "baz"},
+		{"foo", "baz", "bar"},
+		{"bar", "bar", "bar", "bar", "bar", "bar"},
+	} {
+		c.Check(strutil.ListContains(xs, "bar"), check.Equals, true)
+		sort.Strings(xs)
+		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, true)
 	}
 }

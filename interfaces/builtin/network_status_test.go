@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -65,13 +64,6 @@ apps:
 
 func (s *NetworkStatusSuite) TestName(c *C) {
 	c.Check(s.iface.Name(), Equals, "network-status")
-}
-
-func (s *NetworkStatusSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network-status"`)
-	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network-status"`)
 }
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {

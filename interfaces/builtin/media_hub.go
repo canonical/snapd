@@ -27,6 +27,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
+const mediaHubSummary = `allows operating as the media-hub service`
+
+const mediaHubBaseDeclarationSlots = `
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+`
+
 const mediaHubPermanentSlotAppArmor = `
 # Description: Allow operating as the the media-hub service.
 
@@ -150,6 +162,13 @@ func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
 }
 
+func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              mediaHubSummary,
+		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
+	}
+}
+
 func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -171,14 +190,6 @@ func (iface *mediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specificati
 
 func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mediaHubPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *mediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

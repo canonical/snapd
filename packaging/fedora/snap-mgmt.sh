@@ -8,7 +8,21 @@
 set -e
 
 SNAP_MOUNT_DIR="/var/lib/snapd/snap"
-SNAP_UNIT_PREFIX="var-lib-snapd-snap"
+
+show_help() {
+    exec cat <<'EOF'
+Usage: snap-mgmt.sh [OPTIONS]
+
+A simple script to cleanup snap installations.
+
+optional arguments:
+  --help                           Show this help message and exit
+  --snap-mount-dir=<path>          Provide a path to be used as $SNAP_MOUNT_DIR
+  --purge                          Purge all data from $SNAP_MOUNT_DIR
+EOF
+}
+
+SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
@@ -18,10 +32,10 @@ systemctl_stop() {
     fi
 }
 
-if [ "$1" = "purge" ]; then
+purge() {
     # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
     if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-        umount -l ${SNAP_MOUNT_DIR} || true
+        umount -l "${SNAP_MOUNT_DIR}" || true
     fi
 
     mounts=$(systemctl list-unit-files --full | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
@@ -43,16 +57,16 @@ if [ "$1" = "purge" ]; then
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # aliases
-            if [ -d ${SNAP_MOUNT_DIR}/bin ]; then
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap" -delete
-                find ${SNAP_MOUNT_DIR}/bin -maxdepth 1 -lname "$snap.*" -delete
+            if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
             fi
             # generated binaries
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
             # snap mount dir
             umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR}/$snap/$rev"
+            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
             rm -f "${SNAP_MOUNT_DIR}/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
@@ -61,7 +75,7 @@ if [ "$1" = "purge" ]; then
             # opportunistic remove (may fail if there are still revisions left)
             for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
                 if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty $d
+                    rmdir --ignore-fail-on-non-empty "$d"
                 fi
             done
         fi
@@ -83,12 +97,34 @@ if [ "$1" = "purge" ]; then
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf ${SNAP_MOUNT_DIR}/*
-    rm -rf /var/snap/*
+    rm -rf "${SNAP_MOUNT_DIR}"
+    rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
-    rm -rf /var/lib/snapd/seccomp/profiles/*
+    rm -rf /var/lib/snapd/desktop/applications/*
+    rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+}
 
-fi
+while [ -n "$1" ]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --snap-mount-dir=*)
+            SNAP_MOUNT_DIR=${1#*=}
+            SNAP_UNIT_PREFIX=$(systemd-escape -p "$SNAP_MOUNT_DIR")
+            shift
+            ;;
+        --purge)
+            purge
+            shift
+            ;;
+        *)
+            echo "Unknown command: $1"
+            exit 1
+            ;;
+    esac
+done

@@ -20,15 +20,12 @@
 package hookstate
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -118,6 +115,8 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
+	setupHooks(manager)
+
 	return manager, nil
 }
 
@@ -143,14 +142,34 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-// Context obtains the context for the given context ID.
-func (m *HookManager) Context(contextID string) (*Context, error) {
+func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
+	var contexts map[string]string
+	m.state.Lock()
+	defer m.state.Unlock()
+	err = m.state.Get("snap-cookies", &contexts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
+	}
+	if snapName, ok := contexts[cookieID]; ok {
+		// create new ephemeral cookie
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
+		return context, err
+	}
+	return nil, fmt.Errorf("invalid snap cookie requested")
+}
+
+// Context obtains the context for the given cookie ID.
+func (m *HookManager) Context(cookieID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
-	context, ok := m.contexts[contextID]
+	var err error
+	context, ok := m.contexts[cookieID]
 	if !ok {
-		return nil, fmt.Errorf("no context for ID: %q", contextID)
+		context, err = m.ephemeralContext(cookieID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return context, nil
@@ -197,7 +216,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
-	context, err := NewContext(task, hooksup, nil)
+	context, err := NewContext(task, task.State(), hooksup, nil, "")
 	if err != nil {
 		return err
 	}
@@ -303,92 +322,25 @@ func snapCmd() string {
 	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
 }
 
-var syscallKill = syscall.Kill
-var cmdWaitTimeout = 5 * time.Second
 var defaultHookTimeout = 10 * time.Minute
 
-func killemAll(cmd *exec.Cmd) error {
-	pgid, err := syscall.Getpgid(cmd.Process.Pid)
-	if err != nil {
-		return err
-	}
-	if pgid == 1 {
-		return fmt.Errorf("cannot kill pgid 1")
-	}
-	return syscallKill(-pgid, syscall.SIGKILL)
-}
-
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
-
-	// setup a process group for the command so that we can kill parent
-	// and children on e.g. timeout
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	// Make sure the hook has its context defined so it can communicate via the
-	// REST API.
-	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
-
-	// Make sure we can obtain stdout and stderror. Same buffer so they're
-	// combined.
-	buffer := bytes.NewBuffer(nil)
-	command.Stdout = buffer
-	command.Stderr = buffer
-
-	// Actually run the hook.
-	if err := command.Start(); err != nil {
-		return nil, err
-	}
-
-	// add timeout handling
-	var killTimerCh <-chan time.Time
+	argv := []string{snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName}
 	if timeout == 0 {
 		timeout = defaultHookTimeout
 	}
-	if timeout > 0 {
-		killTimerCh = time.After(timeout)
+
+	env := []string{
+		// Make sure the hook has its context defined so it can
+		// communicate via the REST API.
+		fmt.Sprintf("SNAP_COOKIE=%s", hookContext),
+		// Set SNAP_CONTEXT too for compatibility with old snapctl
+		// binary when transitioning to a new core - otherwise configure
+		// hook would fail during transition.
+		fmt.Sprintf("SNAP_CONTEXT=%s", hookContext),
 	}
 
-	hookCompleted := make(chan struct{})
-	var hookError error
-	go func() {
-		// Wait for hook to complete
-		hookError = command.Wait()
-		close(hookCompleted)
-	}()
-
-	var abortOrTimeoutError error
-	select {
-	case <-hookCompleted:
-		// Hook completed; it may or may not have been successful.
-		return buffer.Bytes(), hookError
-	case <-tomb.Dying():
-		// Hook was aborted, process will get killed below
-		abortOrTimeoutError = fmt.Errorf("hook aborted")
-	case <-killTimerCh:
-		// Max timeout reached, process will get killed below
-		abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
-	}
-
-	// select above exited which means that aborted or killTimeout
-	// was reached. Kill the command and wait for command.Wait()
-	// to clean it up (but limit the wait with the cmdWaitTimer)
-	if err := killemAll(command); err != nil {
-		return nil, fmt.Errorf("cannot abort hook: %s", err)
-	}
-	select {
-	case <-time.After(cmdWaitTimeout):
-		// cmdWaitTimeout was reached, i.e. command.Wait() did not
-		// finish in a reasonable amount of time, we can not use
-		// buffer in this case so return without it.
-		return nil, fmt.Errorf("%v, but did not stop", abortOrTimeoutError)
-	case <-hookCompleted:
-		// cmd.Wait came back from waiting the killed process
-		break
-	}
-	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
-
-	return buffer.Bytes(), abortOrTimeoutError
+	return osutil.RunAndWait(argv, env, timeout, tomb)
 }
 
 var errtrackerReport = errtracker.Report

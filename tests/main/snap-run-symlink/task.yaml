@@ -15,14 +15,14 @@ environment:
 
 execute: |
     . $TESTSLIB/dirs.sh
-    SNAP=$SNAPMOUNTDIR/test-snapd-tools/current
+    SNAP=$SNAP_MOUNT_DIR/test-snapd-tools/current
 
     echo Testing that replacing the wrapper with a symlink works
     $APP $SNAP/bin/cat
     $APP $SNAP/bin/cat > orig.txt 2>&1
 
-    rm $SNAPMOUNTDIR/bin/$APP
-    ln -s /usr/bin/snap $SNAPMOUNTDIR/bin/$APP
+    rm $SNAP_MOUNT_DIR/bin/$APP
+    ln -s /usr/bin/snap $SNAP_MOUNT_DIR/bin/$APP
 
     $APP $SNAP/bin/cat
     $APP $SNAP/bin/cat > new.txt 2>&1

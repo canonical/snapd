@@ -6,7 +6,7 @@ details: |
     devmode snaps.
 prepare: |
     echo "Having installed a test snap in devmode"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
 execute: |
     echo "We can run unshare -U as a regular user and expect it to work"

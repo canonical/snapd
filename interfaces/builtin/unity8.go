@@ -20,13 +20,27 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
+
+const unity8Summary = `allows operating as or interacting with Unity 8`
+
+const unity8BaseDeclarationPlugs = `
+  unity8:
+    allow-installation: false
+`
+
+const unity8BaseDeclarationSlots = `
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
 
 const unity8ConnectedPlugAppArmor = `
 # Description: Can access unity8 desktop services
@@ -88,6 +102,14 @@ func (iface *unity8Interface) Name() string {
 	return "unity8"
 }
 
+func (iface *unity8Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              unity8Summary,
+		BaseDeclarationPlugs: unity8BaseDeclarationPlugs,
+		BaseDeclarationSlots: unity8BaseDeclarationSlots,
+	}
+}
+
 func (iface *unity8Interface) String() string {
 	return iface.Name()
 }
@@ -102,20 +124,6 @@ func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(unity8ConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
 	return nil
 }
 

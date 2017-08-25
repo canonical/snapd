@@ -8,10 +8,10 @@ environment:
   FLAG/devmode: devmode
   SNAP: test-snapd-devmode
 prepare: |
-  snap install --edge --$FLAG $SNAP
+  snap install --edge "--$FLAG" "$SNAP"
 execute: |
   # sanity check
-  snap list $SNAP | MATCH $FLAG$
-  snap disable $SNAP
-  snap enable $SNAP
-  snap list $SNAP | MATCH $FLAG$
+  snap list $SNAP | MATCH "$FLAG$"
+  snap disable "$SNAP"
+  snap enable "$SNAP"
+  snap list "$SNAP" | MATCH "$FLAG$"

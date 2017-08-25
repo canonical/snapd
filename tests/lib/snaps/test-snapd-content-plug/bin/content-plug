@@ -8,4 +8,4 @@ sudo snap connect content-plug:shared-content-plug content-slot:shared-content-s
 if you see an permission denied error
 EOF
 
-cat $SNAP/import/shared-content
+cat "$SNAP/import/shared-content"

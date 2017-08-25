@@ -94,11 +94,11 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/search", store.searchEndpoint)
-	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
-	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
+	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
+	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
+	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
-	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
+	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
 
 	return store
 }
@@ -176,25 +176,25 @@ var errInfo = errors.New("cannot get info")
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	snapFile, err := snap.Open(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
 	if err != nil && err != asserts.ErrNotFound {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
@@ -251,19 +251,19 @@ func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
-	pkg := strings.TrimPrefix(req.URL.Path, "/snaps/details/")
+	pkg := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/details/")
 	if pkg == req.URL.Path {
 		panic("how?")
 	}
 
 	bs, err := s.collectAssertions()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
 	snaps, err := s.collectSnaps()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
 	}
 
@@ -298,7 +298,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(details, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", details, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", details, err), 400)
 		return
 	}
 	w.Write(out)
@@ -368,13 +368,13 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&pkgs); err != nil {
-		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
 		return
 	}
 
 	bs, err := s.collectAssertions()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
 
@@ -386,13 +386,13 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
 		return
 	}
 
 	snaps, err := s.collectSnaps()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
 		return
 	}
 
@@ -401,7 +401,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		name := snapIDtoName[pkg.SnapID]
 		if name == "" {
-			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), 400)
 			return
 		}
 
@@ -433,7 +433,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(replyData, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), 400)
 		return
 	}
 	w.Write(out)
@@ -495,30 +495,30 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	assertPath := strings.TrimPrefix(req.URL.Path, "/assertions/")
+	assertPath := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/assertions/")
 
 	bs, err := s.collectAssertions()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
 		return
 	}
 
 	comps := strings.Split(assertPath, "/")
 
 	if len(comps) == 0 {
-		http.Error(w, "missing assertion type", http.StatusBadRequest)
+		http.Error(w, "missing assertion type", 400)
 		return
 
 	}
 
 	typ := asserts.Type(comps[0])
 	if typ == nil {
-		http.Error(w, fmt.Sprintf("unknown assertion type: %s", comps[0]), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("unknown assertion type: %s", comps[0]), 400)
 		return
 	}
 
 	if len(typ.PrimaryKey) != len(comps)-1 {
-		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), 400)
 		return
 	}
 
@@ -530,12 +530,12 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", comps, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", comps, err), 400)
 		return
 	}
 
 	w.Header().Set("Content-Type", asserts.MediaType)
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(200)
 	w.Write(asserts.Encode(a))
 }
 
