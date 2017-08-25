@@ -28,6 +28,17 @@ execute: |
     echo "Then the snap command under the test user is able connect to the wayland socket"
     XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-wayland test | MATCH wl_compositor
 
+    echo "Then wait for the socket to show up"
+    count=0
+    while sleep 1 && [ ! -S /run/user/12345/wayland-0 ]; do
+        echo $count
+        count=$((count+1))
+        if [ "$count" -gt 10 ]; then
+           echo "Could not find wayland socket"
+           exit 1
+        fi
+    done
+
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
     fi
