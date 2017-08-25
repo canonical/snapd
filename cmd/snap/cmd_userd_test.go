@@ -20,56 +20,29 @@
 package main_test
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"syscall"
 	"time"
-
-	"github.com/godbus/dbus"
 
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type UserdSuite struct {
+type userdSuite struct {
 	BaseSnapSuite
-
-	tmpdir           string
-	dbusDaemon       *exec.Cmd
-	oldSessionBusEnv string
+	testutil.DBusTest
 }
 
-var _ = Suite(&UserdSuite{})
+var _ = Suite(&userdSuite{})
 
-func (s *UserdSuite) SetUpSuite(c *C) {
-	if !osutil.ExecutableExists("dbus-daemon") {
-		c.Skip("cannot run test without dbus-launch")
-		return
-	}
-
-	s.tmpdir = c.MkDir()
-
-	s.dbusDaemon = exec.Command("dbus-daemon", "--session", fmt.Sprintf("--address=unix:%s/user_bus_socket", s.tmpdir))
-	err := s.dbusDaemon.Start()
-	c.Assert(err, IsNil)
-	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
-}
-
-func (s *UserdSuite) TearDownSuite(c *C) {
-	os.Setenv("DBUS_SESSION_BUS_ADDRESS", s.oldSessionBusEnv)
-	err := s.dbusDaemon.Process.Kill()
-	c.Assert(err, IsNil)
-}
-
-func (s *UserdSuite) TestUserdBadCommandline(c *C) {
+func (s *userdSuite) TestUserdBadCommandline(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"userd", "extra-arg"})
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
-func (s *UserdSuite) TestUserd(c *C) {
+func (s *userdSuite) TestUserd(c *C) {
 	go func() {
 		defer func() {
 			me, err := os.FindProcess(os.Getpid())
@@ -77,11 +50,9 @@ func (s *UserdSuite) TestUserd(c *C) {
 			me.Signal(syscall.SIGUSR1)
 		}()
 
-		session, err := dbus.SessionBus()
-		c.Assert(err, IsNil)
 		needle := "io.snapcraft.Launcher"
 		for i := 0; i < 10; i++ {
-			for _, objName := range session.Names() {
+			for _, objName := range s.SessionBus.Names() {
 				if objName == needle {
 					return
 				}

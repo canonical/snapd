@@ -20,8 +20,6 @@
 package userd_test
 
 import (
-	"testing"
-
 	"github.com/godbus/dbus"
 
 	. "gopkg.in/check.v1"
@@ -29,9 +27,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/userd"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
 
 type launcherSuite struct {
 	launcher *userd.Launcher

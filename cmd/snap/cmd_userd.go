@@ -32,7 +32,7 @@ import (
 )
 
 type cmdUserd struct {
-	userd *userd.Userd
+	userd userd.Userd
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
@@ -56,20 +56,19 @@ func (x *cmdUserd) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ud, err := userd.NewUserd()
-	if err != nil {
+	if err := x.userd.Init(); err != nil {
 		return err
 	}
-	ud.Start()
+	x.userd.Start()
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
-	case <-ud.Dying():
+	case <-x.userd.Dying():
 		// something called Stop()
 	}
 
-	return ud.Stop()
+	return x.userd.Stop()
 }
