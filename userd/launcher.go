@@ -29,6 +29,13 @@ import (
 )
 
 const launcherIntrospectionXML = `
+<interface name="org.freedesktop.DBus.Peer">
+	<method name='Ping'>
+	</method>
+	<method name='GetMachineId'>
+               <arg type='s' name='machine_uuid' direction='out'/>
+	</method>
+</interface>
 <interface name='io.snapcraft.Launcher'>
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
