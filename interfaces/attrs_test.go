@@ -135,6 +135,23 @@ func (s *AttrsSuite) TestDynamicPlugAttrs(c *C) {
 	})
 }
 
+func (s *AttrsSuite) TestOverwriteStaticAttrError(c *C) {
+	attrs := map[string]interface{}{}
+
+	plugAttrData := NewPlugData(s.plug.PlugInfo, attrs)
+	c.Assert(plugAttrData, NotNil)
+	slotAttrData := NewSlotData(s.slot.SlotInfo, attrs)
+	c.Assert(slotAttrData, NotNil)
+
+	err := plugAttrData.SetAttr("attr", "overwrite")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `plug attribute "attr" cannot be overwritten`)
+
+	err = slotAttrData.SetAttr("attr", "overwrite")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `slot attribute "attr" cannot be overwritten`)
+}
+
 func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 	attrData := NewSlotData(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)

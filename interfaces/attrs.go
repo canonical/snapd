@@ -120,6 +120,9 @@ func (attrs *PlugData) SetAttr(key string, value interface{}) error {
 	if attrs.dynamicAttrs == nil {
 		return fmt.Errorf("dynamic attributes not initialized")
 	}
+	if _, ok := attrs.plug.Attrs[key]; ok {
+		return fmt.Errorf("plug attribute %q cannot be overwritten", key)
+	}
 	attrs.dynamicAttrs[key] = value
 	return nil
 }
@@ -185,6 +188,9 @@ func (attrs *SlotData) Attrs() (map[string]interface{}, error) {
 func (attrs *SlotData) SetAttr(key string, value interface{}) error {
 	if attrs.dynamicAttrs == nil {
 		return fmt.Errorf("dynamic attributes not initialized")
+	}
+	if _, ok := attrs.slot.Attrs[key]; ok {
+		return fmt.Errorf("slot attribute %q cannot be overwritten", key)
 	}
 	attrs.dynamicAttrs[key] = value
 	return nil
