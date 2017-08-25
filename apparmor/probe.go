@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FeatureLevel encodes the kind of support for apparmor found on this system.
@@ -64,11 +65,15 @@ func Probe() (FeatureLevel, error) {
 	if err != nil {
 		return None, fmt.Errorf("apparmor feature directory not found: %s", err)
 	}
+	var missing []string
 	for _, feature := range requiredFeatures {
 		p := filepath.Join(featuresSysPath, feature)
 		if _, err := os.Stat(p); err != nil {
-			return Partial, fmt.Errorf("apparmor feature %q not found: %s", feature, err)
+			missing = append(missing, feature)
 		}
+	}
+	if len(missing) > 0 {
+		return Partial, fmt.Errorf("apparmor features missing: %s", strings.Join(missing, ", "))
 	}
 	return Full, nil
 }
