@@ -220,7 +220,7 @@ func systemUsesSocketcall() bool {
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	// The 'shadow' group is different in different distributions
-	shadowGid, err := main.FindGid("shadow")
+	shadowGid, err := main.MockFindGid("shadow")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
