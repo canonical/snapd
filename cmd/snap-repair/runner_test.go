@@ -47,7 +47,8 @@ import (
 type runnerSuite struct {
 	tmpdir string
 
-	t0 time.Time
+	seedTime time.Time
+	t0       time.Time
 
 	storeSigning *assertstest.StoreStack
 
@@ -98,11 +99,13 @@ func (s *runnerSuite) SetUpTest(c *C) {
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
 	c.Assert(err, IsNil)
-	t0, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
+	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
 	c.Assert(err, IsNil)
-	err = os.Chtimes(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), t0, t0)
+	err = os.Chtimes(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), seedTime, seedTime)
 	c.Assert(err, IsNil)
-	s.t0 = t0
+	s.seedTime = seedTime
+
+	s.t0 = time.Now().UTC().Truncate(time.Minute)
 }
 
 func (s *runnerSuite) TearDownTest(c *C) {
@@ -157,13 +160,17 @@ func mustParseURL(s string) *url.URL {
 	return u
 }
 
-func (s *runnerSuite) mockNow(c *C, runner *repair.Runner) (restore func()) {
+func (s *runnerSuite) mockBrokenTimeNowSetToEpoch(c *C, runner *repair.Runner) (restore func()) {
 	epoch := time.Unix(0, 0)
 	r := repair.MockTimeNow(func() time.Time {
 		return epoch
 	})
 	c.Check(runner.TLSTime().Equal(epoch), Equals, true)
 	return r
+}
+
+func (s *runnerSuite) checkBrokenTimeNowMitigated(c *C, runner *repair.Runner) {
+	c.Check(runner.TLSTime().Before(s.t0), Equals, false)
 }
 
 func (s *runnerSuite) TestFetchJustRepair(c *C) {
@@ -179,9 +186,8 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	r := s.mockNow(c, runner)
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
-	t0 := time.Now().UTC().Truncate(time.Minute)
 
 	repair, aux, err := runner.Fetch("canonical", "2", -1)
 	c.Assert(err, IsNil)
@@ -191,7 +197,7 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	c.Check(repair.RepairID(), Equals, "2")
 	c.Check(repair.Body(), DeepEquals, []byte("script\n"))
 
-	c.Check(runner.TLSTime().Before(t0), Equals, false)
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
@@ -306,15 +312,14 @@ func (s *runnerSuite) TestFetchNotFound(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	r := s.mockNow(c, runner)
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
-	t0 := time.Now().UTC().Truncate(time.Minute)
 
 	_, _, err := runner.Fetch("canonical", "2", -1)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
-	c.Check(runner.TLSTime().Before(t0), Equals, false)
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
@@ -334,15 +339,14 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	r := s.mockNow(c, runner)
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
-	t0 := time.Now().UTC().Truncate(time.Minute)
 
 	_, _, err := runner.Fetch("canonical", "2", 0)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 	c.Assert(n, Equals, 1)
 
-	c.Check(runner.TLSTime().Before(t0), Equals, false)
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchIdMismatch(c *C) {
@@ -414,9 +418,8 @@ func (s *runnerSuite) TestPeek(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	r := s.mockNow(c, runner)
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
-	t0 := time.Now().UTC().Truncate(time.Minute)
 
 	h, err := runner.Peek("canonical", "2")
 	c.Assert(err, IsNil)
@@ -424,7 +427,7 @@ func (s *runnerSuite) TestPeek(c *C) {
 	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
 	c.Check(h["models"], DeepEquals, []interface{}{"xyz/frobinator"})
 
-	c.Check(runner.TLSTime().Before(t0), Equals, false)
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestPeek500(c *C) {
@@ -483,15 +486,14 @@ func (s *runnerSuite) TestPeekNotFound(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	r := s.mockNow(c, runner)
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
-	t0 := time.Now().UTC().Truncate(time.Minute)
 
 	_, err := runner.Peek("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
-	c.Check(runner.TLSTime().Before(t0), Equals, false)
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestPeekIdMismatch(c *C) {
@@ -565,7 +567,7 @@ func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model-2")
 
-	c.Check(runner.TimeLowerBound().Equal(s.t0), Equals, true)
+	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
 }
 
 func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
@@ -618,7 +620,7 @@ func (s *runnerSuite) TestTLSTime(c *C) {
 		return epoch
 	})
 	defer r()
-	c.Check(runner.TLSTime().Equal(s.t0), Equals, true)
+	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
 }
 
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
