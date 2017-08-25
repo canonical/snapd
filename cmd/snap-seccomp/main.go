@@ -580,6 +580,7 @@ const maxBufferSize = 1 << 20
 func isSizeReasonable(sz int64) bool {
 	return sz > 0 && sz <= maxBufferSize
 }
+
 // end code from https://golang.org/src/os/user/lookup_unix.go
 
 func findGid(group string) (uint64, error) {
