@@ -583,7 +583,7 @@ func isSizeReasonable(sz int64) bool {
 
 // end code from https://golang.org/src/os/user/lookup_unix.go
 
-func FindGid(group string) (uint64, error) {
+func findGid(group string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(group) {
 		return 0, fmt.Errorf("\"%s\" must be a valid group name", group)
 	}
@@ -596,6 +596,10 @@ func FindGid(group string) (uint64, error) {
 
 	//return strconv.ParseUint(group.Gid, 10, 64)
 	return strconv.ParseUint(group, 10, 64)
+}
+
+func MockFindGid(group string) (uint64, error) {
+	return findGid(group)
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
@@ -656,7 +660,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			}
 		} else if strings.HasPrefix(arg, "g:") {
 			cmpOp = seccomp.CompareEqual
-			value, err = FindGid(arg[2:])
+			value, err = findGid(arg[2:])
 			if err != nil {
 				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
 			}
