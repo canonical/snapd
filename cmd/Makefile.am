@@ -288,9 +288,9 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 install-data-local:: snap-confine/snap-confine.apparmor
 if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
-	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 endif
+	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine.d/
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
