@@ -47,7 +47,8 @@ func (s *probeSuite) TestMockProbePartial(c *C) {
 	defer restore()
 	probed, err := apparmor.Probe()
 	c.Assert(probed, Equals, apparmor.Partial)
-	c.Assert(err, ErrorMatches, `apparmor feature "caps" not found: stat .*/features/caps: no such file or directory`)
+	c.Assert(err, ErrorMatches, `apparmor features missing: caps, dbus, domain, file, mount, namespaces, network, ptrace, rlimit, signal`)
+
 }
 
 func (s *probeSuite) TestMockProbeFull(c *C) {
