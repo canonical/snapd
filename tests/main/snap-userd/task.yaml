@@ -33,14 +33,13 @@ execute: |
 
     # helper that returns true when io.snapcraft.Launcher.OpenURL
     # responds
-    ping_safe_launcher() {
+    ping_launcher() {
         dbus-send --session                                        \
             --dest=io.snapcraft.Launcher                           \
             --type=method_call                                     \
             --print-reply                                          \
-            /io/snapcraft/Launcher                                 \
-            io.snapcraft.Launcher.OpenURL string:"ping-ping-ping:" \
-            2>&1 | grep -q ping-ping-ping
+            /                                                      \
+            org.freedesktop.DBus.Peer.Ping
     }
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -53,7 +52,7 @@ execute: |
     EOF
         initctl reload-configuration
         start test-snap-userd
-        while ! ping_safe_launcher ; do
+        while ! ping_launcher ; do
             sleep .1
         done
     else
@@ -65,7 +64,7 @@ execute: |
             --setenv=DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
             --setenv=DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID" \
             /bin/sh -c '/usr/bin/snap userd &'
-        while ! ping_safe_launcher ; do
+        while ! ping_launcher ; do
             sleep .1
         done
     fi
