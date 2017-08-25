@@ -78,14 +78,14 @@ func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "setns - CLONE_NEWNET\n")
 }

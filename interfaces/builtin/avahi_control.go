@@ -115,7 +115,7 @@ func (iface *avahiControlInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -133,7 +133,7 @@ func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	if !release.OnClassic {
 		// NOTE: this is using avahi-observe permanent slot as it contains
 		// base declarations for running as the avahi service.
@@ -142,7 +142,7 @@ func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
@@ -155,7 +155,7 @@ func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	if !release.OnClassic {
 		// NOTE: this is using avahi-observe permanent slot as it contains
 		// base declarations for running as the avahi service.

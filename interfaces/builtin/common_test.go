@@ -22,6 +22,7 @@ package builtin
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -52,7 +53,11 @@ slots:
 		connectedPlugUDev: `KERNEL="foo", TAG+="###SLOT_SECURITY_TAGS###"`,
 	}
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+
+	plugData := interfaces.NewPlugData(plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(slot.SlotInfo, nil)
+
+	c.Assert(spec.AddConnectedPlug(iface, plugData, slotData), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`KERNEL="foo", TAG+="snap_consumer_app-a"`,
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
@@ -64,7 +69,7 @@ slots:
 		name: "common",
 	}
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plugData, slotData), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

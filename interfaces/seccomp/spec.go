@@ -84,35 +84,35 @@ func (spec *Specification) SecurityTags() []string {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records seccomp-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		SecCompConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		SecCompConnectedPlug(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.SecCompConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records seccomp-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		SecCompConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		SecCompConnectedSlot(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.SecCompConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddPermanentPlug records seccomp-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.PlugData) error {
 	type definer interface {
-		SecCompPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		SecCompPermanentPlug(spec *Specification, plug *interfaces.PlugData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
@@ -123,9 +123,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records seccomp-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.SlotData) error {
 	type definer interface {
-		SecCompPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		SecCompPermanentSlot(spec *Specification, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()

@@ -84,12 +84,15 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Plu
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
+
 	if err := checkID("snap id", connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
 		return err
 	}
@@ -124,9 +127,11 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}

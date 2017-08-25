@@ -128,11 +128,11 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	fsEntry2 := mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
-	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.PlugData) error {
 		return spec.AddMountEntry(fsEntry1)
 	}
 	// Give the slot a permanent effect
-	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.Slot) error {
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.SlotData) error {
 		return spec.AddMountEntry(fsEntry2)
 	}
 
@@ -162,7 +162,7 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
-	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.PlugData) error {
 		return spec.AddMountEntry(mount.Entry{})
 	}
 

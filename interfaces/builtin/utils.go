@@ -62,12 +62,12 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) string {
-	return appLabelExpr(slot.Apps, slot.Snap)
+func slotAppLabelExpr(slot *interfaces.SlotData) string {
+	return appLabelExpr(slot.Apps(), slot.Snap())
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) string {
-	return appLabelExpr(plug.Apps, plug.Snap)
+func plugAppLabelExpr(plug *interfaces.PlugData) string {
+	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
 // Function to support creation of udev snippet
@@ -93,24 +93,24 @@ func udevSnapSecurityName(snapName string, appName string) string {
 }
 
 // sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot) error {
-	if slot.Snap.Type != snap.TypeOS {
+func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.SlotData) error {
+	if slot.Snap().Type != snap.TypeOS {
 		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
 	}
 	return nil
 }
 
 // sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfaces.Slot) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
+func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfaces.SlotData) error {
+	if slot.Snap().Type != snap.TypeOS && slot.Snap().Type != snap.TypeGadget {
 		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
 	}
 	return nil
 }
 
 // sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *interfaces.Slot) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
+func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *interfaces.SlotData) error {
+	if slot.Snap().Type != snap.TypeOS && slot.Snap().Type != snap.TypeApp {
 		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
 	}
 	return nil

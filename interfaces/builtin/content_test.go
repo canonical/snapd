@@ -231,7 +231,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil)), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
@@ -262,7 +262,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil)), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
@@ -271,7 +271,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := fmt.Sprintf(`
@@ -305,7 +305,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil)), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    "/var/snap/producer/5/export",
 		Dir:     "/var/snap/consumer/7/import",
@@ -314,7 +314,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
@@ -350,7 +350,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil)), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    "/var/snap/producer/common/export",
 		Dir:     "/var/snap/consumer/common/import",
@@ -359,7 +359,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `

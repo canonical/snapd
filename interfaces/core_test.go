@@ -193,8 +193,8 @@ plugs:
 		InterfaceName: "iface",
 	}), IsNil)
 	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("broken") },
+		InterfaceName:             "iface",
+		BeforePreparePlugCallback: func(plug *PlugData) error { return fmt.Errorf("broken") },
 	}), ErrorMatches, "broken")
 	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
 		InterfaceName: "other",
@@ -213,8 +213,8 @@ slots:
 		InterfaceName: "iface",
 	}), IsNil)
 	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("broken") },
+		InterfaceName:             "iface",
+		BeforePrepareSlotCallback: func(slot *SlotData) error { return fmt.Errorf("broken") },
 	}), ErrorMatches, "broken")
 	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
 		InterfaceName: "other",

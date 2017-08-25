@@ -75,35 +75,35 @@ func (spec *Specification) SecurityTags() []string {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		AppArmorConnectedPlug(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		AppArmorConnectedSlot(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddPermanentPlug records mount-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.PlugData) error {
 	type definer interface {
-		AppArmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		AppArmorPermanentPlug(spec *Specification, plug *interfaces.PlugData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
@@ -114,9 +114,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records mount-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.SlotData) error {
 	type definer interface {
-		AppArmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		AppArmorPermanentSlot(spec *Specification, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()

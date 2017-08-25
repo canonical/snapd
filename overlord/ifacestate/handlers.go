@@ -332,6 +332,25 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+func getTaskHookAttributes(task *state.Task) (attrs interfaces.ConnectionAttrs, err error) {
+	var plugAttrs map[string]map[string]interface{}
+	var slotAttrs map[string]map[string]interface{}
+
+	if err = task.Get("plug-attrs", &plugAttrs); err == nil {
+		err = task.Get("slot-attrs", &slotAttrs)
+	}
+	if err != nil && err != state.ErrNoState {
+		return attrs, err
+	}
+	if err != nil {
+		return attrs, err
+	}
+
+	attrs.SlotAttrs = slotAttrs["dynamic"]
+	attrs.PlugAttrs = plugAttrs["dynamic"]
+	return attrs, nil
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -380,11 +399,24 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
+	var attributes interfaces.ConnectionAttrs
+	if attributes, err = getTaskHookAttributes(task); err != nil {
+		return err
+	}
+
+	plugData := interfaces.NewPlugData(plug.PlugInfo, attributes.PlugAttrs)
+	slotData := interfaces.NewSlotData(slot.SlotInfo, attributes.SlotAttrs)
+
+	// get attributes set by interface hooks and validate plug/slot
+	if err = m.repo.ValidateConnection(plugData, slotData); err != nil {
+		return err
+	}
+
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plugData,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slotData,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     baseDecl,
 	}
@@ -399,7 +431,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.repo.Connect(connRef)
+	err = m.repo.Connect(connRef, attributes.PlugAttrs, attributes.SlotAttrs)
 	if err != nil {
 		return err
 	}
@@ -423,7 +455,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface, PlugAttrs: attributes.PlugAttrs, SlotAttrs: attributes.SlotAttrs}
 	setConns(st, conns)
 
 	return nil

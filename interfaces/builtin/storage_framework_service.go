@@ -124,7 +124,7 @@ func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInf
 	}
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	snippet := storageFrameworkServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -133,12 +133,12 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *appar
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
@@ -147,7 +147,7 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *appar
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotSecComp)
 	return nil
 }

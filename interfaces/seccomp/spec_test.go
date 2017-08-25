@@ -38,19 +38,19 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
+		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.PlugData) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -90,10 +90,12 @@ func (s *specSuite) SetUpTest(c *C) {
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
+	c.Assert(r.AddConnectedPlug(s.iface, plugData, slotData), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, plugData, slotData), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, plugData), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, slotData), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},

@@ -86,14 +86,14 @@ func (s *TimeControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *TimeControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "org/freedesktop/timedate1")
 }
 
 func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="/dev/rtc0", TAG+="snap_consumer_app"`)
 }

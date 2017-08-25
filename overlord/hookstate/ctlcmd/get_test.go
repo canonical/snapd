@@ -161,11 +161,20 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	plugAttrs := make(map[string]interface{})
-	slotAttrs := make(map[string]interface{})
-	plugAttrs["aattr"] = "foo"
-	plugAttrs["baz"] = []string{"a", "b"}
-	slotAttrs["battr"] = "bar"
+	plugAttrs := map[string]interface{}{
+		"static": map[string]interface{}{
+			"aattr":   "foo",
+			"baz":     []string{"a", "b"},
+			"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
+		},
+		"dynamic": map[string]interface{}{},
+	}
+	slotAttrs := map[string]interface{}{
+		"static": map[string]interface{}{
+			"battr": "bar",
+		},
+		"dynamic": map[string]interface{}{},
+	}
 	attrsTask.Set("plug-attrs", plugAttrs)
 	attrsTask.Set("slot-attrs", slotAttrs)
 	ch.AddTask(attrsTask)
@@ -214,6 +223,16 @@ func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
 	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "mapval1\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --plug parameter doesn't do anything if used on plug side

@@ -61,15 +61,15 @@ func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-// SanitizeSlot checks the slot definition is valid
-func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+// BeforePrepareSlot checks the slot definition is valid
+func (iface *gpioInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
 	// Must have a GPIO number
-	number, ok := slot.Attrs["number"]
-	if !ok {
+	number, err := slot.Attr("number")
+	if err != nil {
 		return fmt.Errorf("gpio slot must have a number attribute")
 	}
 
@@ -82,8 +82,12 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
+func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	num, err := slot.Attr("number")
+	if err != nil {
+		return err
+	}
+	path := fmt.Sprint(gpioSysfsGpioBase, num)
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the GPIO
@@ -97,12 +101,15 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 }
 
-func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	gpioNum, ok := slot.Attrs["number"].(int64)
-	if !ok {
-		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
+func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var gpioNum int64
+	if num, err := slot.Attr("number"); err == nil {
+		var ok bool
+		if gpioNum, ok = num.(int64); !ok {
+			return fmt.Errorf("gpio slot has invalid number attribute: %q", gpioNum)
+		}
 	}
-	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+	serviceName := interfaces.InterfaceServiceName(slot.Snap().Name(), fmt.Sprintf("gpio-%d", gpioNum))
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,

@@ -90,9 +90,12 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.appSlot.SlotInfo, nil)
+
 	// connected plug to app slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plugData, slotData), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
@@ -108,7 +111,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, plugData, slotData), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
@@ -122,7 +125,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, slotData), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
     bus=system
@@ -132,9 +135,11 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 
+	coreSlotData := interfaces.NewSlotData(s.coreSlot.SlotInfo, nil)
+
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plugData, coreSlotData), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")
@@ -149,12 +154,12 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, plugData, coreSlotData), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, coreSlotData), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -164,7 +169,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.appSlot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
 
@@ -173,7 +178,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.coreSlot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 

@@ -367,17 +367,17 @@ func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(udisks2ConnectedPlugDBus)
 	return nil
 }
 
-func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(udisks2PermanentSlotDBus)
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
@@ -385,17 +385,17 @@ func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(udisks2PermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(udisks2PermanentSlotUDev)
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
@@ -403,7 +403,7 @@ func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
 	return nil
 }

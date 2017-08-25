@@ -66,48 +66,60 @@ func (iface *i2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *i2cInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
+	var pathstr string
 	// Validate the path
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, _ = path.(string)
+	}
+	if pathstr == "" {
 		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
 	}
 
-	path = filepath.Clean(path)
+	pathstr = filepath.Clean(pathstr)
 
-	if !i2cControlDeviceNodePattern.MatchString(path) {
+	if !i2cControlDeviceNodePattern.MatchString(pathstr) {
 		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
 	}
 
 	return nil
 }
 
-func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
 
-	cleanedPath := filepath.Clean(path)
+	cleanedPath := filepath.Clean(pathstr)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(pathstr, "/dev/")))
 	return nil
 }
 
-func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
+
 	const pathPrefix = "/dev/"
 	const udevRule string = `KERNEL=="%s", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(pathstr, pathPrefix), tag))
 	}
 	return nil
 }

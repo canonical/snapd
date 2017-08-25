@@ -76,22 +76,22 @@ func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
 func (s *TestInterfaceSuite) TestValidatePlugError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		ValidatePlugCallback: func(plug *interfaces.Plug, attrs map[string]interface{}) error {
+		AfterPreparePlugCallback: func(plug *interfaces.PlugData) error {
 			return fmt.Errorf("validate plug failed")
 		},
 	}
-	err := iface.ValidatePlug(s.plug, nil)
+	err := iface.AfterPreparePlug(interfaces.NewPlugData(s.plug.PlugInfo, nil))
 	c.Assert(err, ErrorMatches, "validate plug failed")
 }
 
 func (s *TestInterfaceSuite) TestValidateSlotError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		ValidateSlotCallback: func(slot *interfaces.Slot, attrs map[string]interface{}) error {
+		AfterPrepareSlotCallback: func(slot *interfaces.SlotData) error {
 			return fmt.Errorf("validate slot failed")
 		},
 	}
-	err := iface.ValidateSlot(s.slot, nil)
+	err := iface.AfterPrepareSlot(interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, ErrorMatches, "validate slot failed")
 }
 
@@ -104,7 +104,7 @@ func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
 func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizePlugCallback: func(plug *interfaces.Plug) error {
+		BeforePreparePlugCallback: func(plug *interfaces.PlugData) error {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
@@ -120,7 +120,7 @@ func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
 func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizeSlotCallback: func(slot *interfaces.Slot) error {
+		BeforePrepareSlotCallback: func(slot *interfaces.SlotData) error {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
@@ -131,16 +131,19 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
+
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, plugData, slotData), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}
-	c.Assert(iface.SecCompConnectedPlug(seccompSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.SecCompConnectedPlug(seccompSpec, plugData, slotData), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	c.Assert(iface.DBusConnectedPlug(dbusSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.DBusConnectedPlug(dbusSpec, plugData, slotData), IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 
@@ -148,16 +151,19 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
+
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, plugData, slotData), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}
-	c.Assert(iface.SecCompConnectedSlot(seccompSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.SecCompConnectedSlot(seccompSpec, plugData, slotData), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	c.Assert(iface.DBusConnectedSlot(dbusSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.DBusConnectedSlot(dbusSpec, plugData, slotData), IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 

@@ -227,7 +227,7 @@ func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	if release.OnClassic {
@@ -239,22 +239,22 @@ func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 	return nil
 }
 
-func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(upowerObservePermanentSlotDBus)
 	return nil
 }
 
-func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
@@ -262,7 +262,7 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 

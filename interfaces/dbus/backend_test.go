@@ -67,7 +67,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -83,11 +83,11 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
-	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.PlugData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -104,7 +104,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -120,11 +120,11 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
-	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.PlugData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -141,7 +141,7 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -158,11 +158,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
-	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.PlugData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -180,7 +180,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -197,11 +197,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
-	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.PlugData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}
@@ -221,7 +221,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
 	restore := dbus.MockXMLEnvelope([]byte("<?xml>\n"), []byte("</xml>"))
 	defer restore()
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy>...</policy>")
 		return nil
 	}
@@ -261,7 +261,7 @@ apps:
 
 func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.SlotData) error {
 		spec.AddSnippet("<policy/>")
 		return nil
 	}

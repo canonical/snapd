@@ -164,15 +164,15 @@ func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	name, err := iface.getName(slot.Attrs)
+func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
+	name, err := iface.getName(slot.StaticAttrs())
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
@@ -220,8 +220,8 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	_, err := iface.getName(slot.Attrs)
+func (iface *mprisInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
+	_, err := iface.getName(slot.StaticAttrs())
 	return err
 }
 

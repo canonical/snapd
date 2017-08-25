@@ -101,7 +101,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c 
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.modem-manager.mmcli"), testutil.Contains, `peer=(label="snap.modem-manager-prod.*"),`)
@@ -129,7 +129,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.modem-manager.mmcli"), testutil.Contains, `peer=(label="snap.modem-manager.{app1,app2}"),`)
@@ -155,7 +155,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c 
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.modem-manager.mmcli"), testutil.Contains, `peer=(label="snap.modem-manager.app"),`)
@@ -167,7 +167,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabel
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	snippet := apparmorSpec.SnippetForTag("snap.modem-manager.mmcli")
@@ -181,7 +181,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabel
 	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.modem-manager.mmcli"), testutil.Contains, "peer=(label=unconfined),")
@@ -191,29 +191,29 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	dbusSpec := &dbus.Specification{}
-	err = dbusSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = dbusSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
 	dbusSpec = &dbus.Specification{}
-	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	err = dbusSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 }
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	err := dbusSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
 	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mm")
@@ -223,7 +223,7 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
 	c.Check(seccompSpec.SnippetForTag("snap.modem-manager.mm"), testutil.Contains, "listen\n")
@@ -234,7 +234,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
 	plug := &interfaces.Plug{PlugInfo: plugSnap.Plugs["modem-manager"]}
 
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := dbusSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
 	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mmcli")

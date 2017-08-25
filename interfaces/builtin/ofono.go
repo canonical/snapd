@@ -302,7 +302,7 @@ func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -314,29 +314,29 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(ofonoPermanentSlotUDev)
 	return nil
 }
 
-func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }

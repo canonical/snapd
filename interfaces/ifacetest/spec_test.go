@@ -37,19 +37,19 @@ type SpecificationSuite struct {
 var _ = Suite(&SpecificationSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.PlugData) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *interfaces.Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *interfaces.SlotData) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -84,10 +84,12 @@ func (s *SpecificationSuite) TestAddSnippet(c *C) {
 // The Specification can be used through the interfaces.Specification interface
 func (s *SpecificationSuite) SpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	plugData := interfaces.NewPlugData(s.plug.PlugInfo, nil)
+	slotData := interfaces.NewSlotData(s.slot.SlotInfo, nil)
+	c.Assert(r.AddConnectedPlug(s.iface, plugData, slotData), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, plugData, slotData), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, plugData), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, slotData), IsNil)
 	c.Assert(s.spec.Snippets, DeepEquals, []string{
 		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }

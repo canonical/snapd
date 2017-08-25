@@ -74,56 +74,65 @@ func (iface *iioInterface) String() string {
 var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *iioInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
 
+	var pathstr string
 	// Validate the path
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, _ = path.(string)
+	}
+	if pathstr == "" {
 		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
 	}
 
-	path = filepath.Clean(path)
+	pathstr = filepath.Clean(pathstr)
 
-	if !iioControlDeviceNodePattern.MatchString(path) {
+	if !iioControlDeviceNodePattern.MatchString(pathstr) {
 		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
 	}
 
 	return nil
 }
 
-func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, _ = path.(string)
+	} else {
 		return nil
 	}
 
-	cleanedPath := filepath.Clean(path)
+	cleanedPath := filepath.Clean(pathstr)
 	snippet := strings.Replace(iioConnectedPlugAppArmor, "###IIO_DEVICE_PATH###", cleanedPath, -1)
 
 	// The path is already verified against a regular expression
 	// in SanitizeSlot so we can rely on its structure here and
 	// safely strip the '/dev/' prefix to get the actual name of
 	// the IIO device.
-	deviceName := strings.TrimPrefix(path, "/dev/")
+	deviceName := strings.TrimPrefix(pathstr, "/dev/")
 	snippet = strings.Replace(snippet, "###IIO_DEVICE_NAME###", deviceName, -1)
 
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
+func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
+	var pathstr string
+	var pathOk bool
+	if path, err := slot.Attr("path"); err == nil {
+		pathstr, pathOk = path.(string)
+	}
 	if !pathOk {
 		return nil
 	}
 	const pathPrefix = "/dev/"
 	const udevRule = `KERNEL=="%s", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(pathstr, pathPrefix), tag))
 	}
 	return nil
 }

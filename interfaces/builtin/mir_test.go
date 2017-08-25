@@ -83,24 +83,24 @@ func (s *MirInterfaceSuite) TestName(c *C) {
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.coreSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "capability sys_tty_config")
 
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.classicSlot)
+	err = apparmorSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.classicSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil)
+	err = apparmorSpec.AddConnectedSlot(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.coreSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "unix (receive, send) type=seqpacket addr=none peer=(label=\"snap.other")
 
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.coreSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/run/mir_socket rw,")
@@ -120,7 +120,7 @@ apps:
 
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
+	err := seccompSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.coreSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Check(seccompSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "listen\n")
@@ -128,7 +128,7 @@ func (s *MirInterfaceSuite) TestSecComp(c *C) {
 
 func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlot)
+	err := seccompSpec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.classicSlot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	// no permanent seccomp snippet for the slot

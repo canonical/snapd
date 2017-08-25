@@ -178,10 +178,20 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	var attrs map[string]interface{}
 	err = task.Get("plug-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr1"], Equals, "value1")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr1": "value1",
+		},
+		"dynamic": map[string]interface{}{},
+	})
 	err = task.Get("slot-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr2"], Equals, "value2")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr2": "value2",
+		},
+		"dynamic": map[string]interface{}{},
+	})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -309,6 +319,95 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Assert(slot.Connections, HasLen, 1)
 	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+}
+
+func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
+	var repoAttrs *interfaces.ConnectionAttrs
+	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		repoAttrs, _ = repo.ConnectionAttributes(interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+		return nil
+	}
+
+	var validatePlugCalled bool
+	var validateSlotCalled bool
+	var validatePlugAttrs map[string]interface{}
+	var validateSlotAttrs map[string]interface{}
+	testIface1 := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		AfterPreparePlugCallback: func(plug *interfaces.PlugData) (err error) {
+			validatePlugCalled = true
+			validatePlugAttrs, err = plug.Attrs()
+			return err
+		},
+		AfterPrepareSlotCallback: func(plug *interfaces.SlotData) (err error) {
+			validateSlotCalled = true
+			validateSlotAttrs, err = plug.Attrs()
+			return err
+		},
+	}
+	s.mockIface(c, testIface1)
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	task := ts.Tasks()[2]
+	c.Assert(task.Kind(), Equals, "connect")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+	// inject some extra attributes not present in the yamls (that would normally be set via snapctl)
+	var plugAttrs map[string]map[string]interface{}
+	var slotAttrs map[string]map[string]interface{}
+	err = task.Get("plug-attrs", &plugAttrs)
+	c.Assert(err, IsNil)
+	err = task.Get("slot-attrs", &slotAttrs)
+	c.Assert(err, IsNil)
+	plugAttrs["dynamic"]["attr3"] = "value3"
+	slotAttrs["dynamic"]["attr4"] = "value4"
+	task.Set("slot-attrs", slotAttrs)
+	task.Set("plug-attrs", plugAttrs)
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	c.Check(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	defer s.state.Unlock()
+
+	// Ensure that the backend received extra attributes
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(repoAttrs, NotNil)
+	c.Assert(repoAttrs.PlugAttrs, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(repoAttrs.SlotAttrs, DeepEquals, map[string]interface{}{"attr4": "value4"})
+	c.Assert(validatePlugCalled, Equals, true)
+	c.Assert(validatePlugAttrs, NotNil)
+	c.Assert(validateSlotCalled, Equals, true)
+	c.Assert(validateSlotAttrs, NotNil)
+	c.Assert(validatePlugAttrs, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(validateSlotAttrs, DeepEquals, map[string]interface{}{"attr4": "value4"})
+
+	// Ensure that dynamic attributes are stored in the state
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":  "test",
+			"plug-attrs": map[string]interface{}{"attr3": "value3"},
+			"slot-attrs": map[string]interface{}{"attr4": "value4"}}})
+
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
@@ -1481,45 +1580,6 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	})
 }
 
-func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	_ = s.manager(c)
-
-	s.state.Lock()
-	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 5)
-
-	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change := s.state.NewChange("connect", "")
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Assert(change.Err(), IsNil)
-	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
-	err = s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-		},
-	})
-}
-
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
@@ -1695,7 +1755,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: siP.Name(), Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: siC.Name(), Name: "slot"},
 	}
-	err = repo.Connect(connRef)
+	err = repo.Connect(connRef, nil, nil)
 	c.Assert(err, IsNil)
 
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{

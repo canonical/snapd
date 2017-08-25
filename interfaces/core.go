@@ -46,7 +46,7 @@ func (plug *Plug) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plug)
+		err = iface.BeforePreparePlug(NewPlugData(plug.PlugInfo, nil))
 	}
 	return err
 }
@@ -81,7 +81,7 @@ func (slot *Slot) Sanitize(iface Interface) error {
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.SanitizeSlot(slot)
+		err = iface.BeforePrepareSlot(NewSlotData(slot.SlotInfo, nil))
 	}
 	return err
 }
@@ -158,12 +158,12 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *Plug) error
+	BeforePreparePlug(plug *PlugData) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
-	SanitizeSlot(slot *Slot) error
+	BeforePrepareSlot(slot *SlotData) error
 }
 
 // StaticInfo describes various static-info of a given interface.
@@ -200,13 +200,13 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *SlotData) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *PlugData) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedSlot(iface Interface, plug *PlugData, slot *SlotData) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedPlug(iface Interface, plug *PlugData, slot *SlotData) error
 }
 
 // SecuritySystem is a name of a security system.

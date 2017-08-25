@@ -82,7 +82,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *KubernetesSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	kmodSpec := &kmod.Specification{}
-	err := kmodSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := kmodSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(kmodSpec.Modules(), DeepEquals, map[string]bool{
 		"llc": true,
@@ -90,7 +90,7 @@ func (s *KubernetesSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	})
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil))
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "# Allow reading the state of modules kubernetes needs\n")

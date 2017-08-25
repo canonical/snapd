@@ -140,7 +140,7 @@ func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
@@ -148,17 +148,17 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
 	return nil
 }

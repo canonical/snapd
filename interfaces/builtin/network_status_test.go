@@ -68,7 +68,7 @@ func (s *NetworkStatusSuite) TestName(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
@@ -76,7 +76,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, interfaces.NewPlugData(s.plug.PlugInfo, nil), interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "interface=org.freedesktop.DBus.*")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
@@ -84,7 +84,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "dbus (bind)")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.connectivity1.NetworkingStatus"`)
@@ -92,7 +92,7 @@ func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestDBusPermanentSlot(c *C) {
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, interfaces.NewSlotData(s.slot.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<policy user="root">`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>`)

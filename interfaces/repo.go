@@ -29,6 +29,12 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// ConnectionAttrs is a container for plug and slot attributes of given connection
+type ConnectionAttrs struct {
+	PlugAttrs map[string]interface{}
+	SlotAttrs map[string]interface{}
+}
+
 // Repository stores all known snappy plugs and slots and ifaces.
 type Repository struct {
 	// Protects the internals from concurrent access.
@@ -37,10 +43,10 @@ type Repository struct {
 	// Indexed by [snapName][plugName]
 	plugs map[string]map[string]*Plug
 	slots map[string]map[string]*Slot
-	// given a slot and a plug, are they connected?
-	slotPlugs map[*Slot]map[*Plug]bool
-	// given a plug and a slot, are they connected?
-	plugSlots map[*Plug]map[*Slot]bool
+	// given a slot and a plug, are they connected?	ConnectionAttrs include attribute values from the yaml and provided at runtime via interface hooks.
+	slotPlugs map[*Slot]map[*Plug]*ConnectionAttrs
+	// given a plug and a slot, are they connected? ConnectionAttrs include attribute values from the yaml and provided at runtime via interface hooks.
+	plugSlots map[*Plug]map[*Slot]*ConnectionAttrs
 	backends  map[SecuritySystem]SecurityBackend
 }
 
@@ -50,8 +56,8 @@ func NewRepository() *Repository {
 		ifaces:    make(map[string]Interface),
 		plugs:     make(map[string]map[string]*Plug),
 		slots:     make(map[string]map[string]*Slot),
-		slotPlugs: make(map[*Slot]map[*Plug]bool),
-		plugSlots: make(map[*Plug]map[*Slot]bool),
+		slotPlugs: make(map[*Slot]map[*Plug]*ConnectionAttrs),
+		plugSlots: make(map[*Plug]map[*Slot]*ConnectionAttrs),
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
@@ -146,17 +152,13 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	if opts != nil && opts.Connected {
 		connected = make(map[string]bool)
 		for _, plugMap := range r.slotPlugs {
-			for plug, ok := range plugMap {
-				if ok {
-					connected[plug.Interface] = true
-				}
+			for plug := range plugMap {
+				connected[plug.Interface] = true
 			}
 		}
 		for _, slotMap := range r.plugSlots {
-			for slot, ok := range slotMap {
-				if ok {
-					connected[slot.Interface] = true
-				}
+			for slot := range slotMap {
+				connected[slot.Interface] = true
 			}
 		}
 	}
@@ -262,6 +264,11 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if i == nil {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
+
+	if i.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", i.Name()))
+	}
+
 	// Reject plug that don't pass interface-specific sanitization
 	if err := plug.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
@@ -519,7 +526,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 			return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 		}
 		// Ensure that slot and plug are connected
-		if !r.slotPlugs[slot][plug] {
+		if _, ok := r.slotPlugs[slot][plug]; !ok {
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
@@ -547,7 +554,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef) error {
+func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -572,21 +579,23 @@ func (r *Repository) Connect(ref ConnRef) error {
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
 	// Ensure that slot and plug are not connected yet
-	if r.slotPlugs[slot][plug] {
+	if _, ok := r.slotPlugs[slot][plug]; ok {
 		// But if they are don't treat this as an error.
 		return nil
 	}
 	// Connect the plug
 	if r.slotPlugs[slot] == nil {
-		r.slotPlugs[slot] = make(map[*Plug]bool)
+		r.slotPlugs[slot] = make(map[*Plug]*ConnectionAttrs)
 	}
 	if r.plugSlots[plug] == nil {
-		r.plugSlots[plug] = make(map[*Slot]bool)
+		r.plugSlots[plug] = make(map[*Slot]*ConnectionAttrs)
 	}
-	r.slotPlugs[slot][plug] = true
-	r.plugSlots[plug][slot] = true
+	connAttrs := ConnectionAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
+	r.slotPlugs[slot][plug] = &connAttrs
+	r.plugSlots[plug][slot] = &connAttrs
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
+
 	return nil
 }
 
@@ -624,12 +633,61 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 		return fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that slot and plug are connected
-	if !r.slotPlugs[slot][plug] {
+	if _, ok := r.slotPlugs[slot][plug]; !ok {
 		return fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 			plugSnapName, plugName, slotSnapName, slotName)
 	}
 	r.disconnect(plug, slot)
 	return nil
+}
+
+func (r *Repository) ValidateConnection(plug *PlugData, slot *SlotData) error {
+	if slot.Interface() != plug.Interface() {
+		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+			plug.Snap().Name(), plug.Name(), plug.Interface(), slot.Snap().Name(), slot.Name(), slot.Interface())
+	}
+	iface := r.Interface(slot.Interface())
+	if iface == nil {
+		return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface())
+	}
+	type afterPreparePlug interface {
+		AfterPreparePlug(plug *PlugData) error
+	}
+	type afterPrepareSlot interface {
+		AfterPrepareSlot(slot *SlotData) error
+	}
+	if validate, ok := iface.(afterPreparePlug); ok {
+		if err := validate.AfterPreparePlug(plug); err != nil {
+			return err
+		}
+	}
+	if validate, ok := iface.(afterPrepareSlot); ok {
+		if err := validate.AfterPrepareSlot(slot); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ConnectionAttributes returns interface attributes of given connection.
+func (r *Repository) ConnectionAttributes(plugRef PlugRef, slotRef SlotRef) (*ConnectionAttrs, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	plug := r.plugs[plugRef.Snap][plugRef.Name]
+	if plug == nil {
+		return nil, fmt.Errorf("snap %q has no plug named %q", plugRef.Snap, plugRef.Name)
+	}
+	slot := r.slots[slotRef.Snap][slotRef.Name]
+	if slot == nil {
+		return nil, fmt.Errorf("snap %q has no slot named %q", slotRef.Snap, slotRef.Name)
+	}
+
+	if attrs, ok := r.plugSlots[plug][slot]; ok {
+		return attrs, nil
+	}
+	return nil, fmt.Errorf("cannot get attributes of %s:%s %s:%s connection",
+		plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
 // Connected returns references for all connections that are currently
@@ -790,11 +848,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
-		if err := spec.AddPermanentSlot(iface, slot); err != nil {
+		if err := spec.AddPermanentSlot(iface, NewSlotData(slot.SlotInfo, nil)); err != nil {
 			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
-			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
+			attrs := r.slotPlugs[slot][plug]
+			if err := spec.AddConnectedSlot(iface, NewPlugData(plug.PlugInfo, attrs.PlugAttrs), NewSlotData(slot.SlotInfo, attrs.SlotAttrs)); err != nil {
 				return nil, err
 			}
 		}
@@ -802,11 +861,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
-		if err := spec.AddPermanentPlug(iface, plug); err != nil {
+		if err := spec.AddPermanentPlug(iface, NewPlugData(plug.PlugInfo, nil)); err != nil {
 			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
-			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
+			attrs := r.plugSlots[plug][slot]
+			if err := spec.AddConnectedPlug(iface, NewPlugData(plug.PlugInfo, attrs.PlugAttrs), NewSlotData(slot.SlotInfo, attrs.SlotAttrs)); err != nil {
 				return nil, err
 			}
 		}

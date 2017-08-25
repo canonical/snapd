@@ -46,94 +46,94 @@ var _ = Suite(&AllSuite{})
 // essentially, the only valid methods that a snapd interface can have, apart
 // from what is defined in the Interface golang interface.
 type apparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type apparmorDefiner2 interface {
-	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type apparmorDefiner3 interface {
-	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
+	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.PlugData) error
 }
 type apparmorDefiner4 interface {
-	AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error
+	AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.SlotData) error
 }
 
 type dbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type dbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type dbusDefiner3 interface {
-	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.PlugData) error
 }
 type dbusDefiner4 interface {
-	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
+	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.SlotData) error
 }
 
 type kmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type kmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type kmodDefiner3 interface {
-	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
+	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.PlugData) error
 }
 type kmodDefiner4 interface {
-	KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error
+	KModPermanentSlot(spec *kmod.Specification, slot *interfaces.SlotData) error
 }
 
 type mountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type mountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type mountDefiner3 interface {
-	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
+	MountPermanentPlug(spec *mount.Specification, plug *interfaces.PlugData) error
 }
 type mountDefiner4 interface {
-	MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error
+	MountPermanentSlot(spec *mount.Specification, slot *interfaces.SlotData) error
 }
 
 type seccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type seccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type seccompDefiner3 interface {
-	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
+	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.PlugData) error
 }
 type seccompDefiner4 interface {
-	SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error
+	SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.SlotData) error
 }
 
 type systemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type systemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type systemdDefiner3 interface {
-	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error
+	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.PlugData) error
 }
 type systemdDefiner4 interface {
-	SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.Slot) error
+	SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.SlotData) error
 }
 
 type udevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type udevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 }
 type udevDefiner3 interface {
-	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error
+	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.PlugData) error
 }
 type udevDefiner4 interface {
-	UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error
+	UDevPermanentSlot(spec *udev.Specification, slot *interfaces.SlotData) error
 }
 
 // allGoodDefiners contains all valid specification definers for all known backends.
@@ -209,12 +209,24 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
-// specification definers before the introduction of connection attributes
+// specification definers before the introduction of PlugData/SlotData types.
 type oldApparmorDefiner1 interface {
 	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldApparmorDefiner2 interface {
 	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldApparmorDefiner3 interface {
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldApparmorDefiner4 interface {
+	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldApparmorDefiner5 interface {
+	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
+}
+type oldApparmorDefiner6 interface {
+	AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error
 }
 
 type oldDbusDefiner1 interface {
@@ -223,12 +235,36 @@ type oldDbusDefiner1 interface {
 type oldDbusDefiner2 interface {
 	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
+type oldDbusDefiner3 interface {
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldDbusDefiner4 interface {
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldDbusDefiner5 interface {
+	DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+}
+type oldDbusDefiner6 interface {
+	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
+}
 
 type oldKmodDefiner1 interface {
 	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldKmodDefiner2 interface {
 	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldKmodDefiner3 interface {
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldKmodDefiner4 interface {
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldKmodDefiner5 interface {
+	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
+}
+type oldKmodDefiner6 interface {
+	KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error
 }
 
 type oldMountDefiner1 interface {
@@ -237,12 +273,36 @@ type oldMountDefiner1 interface {
 type oldMountDefiner2 interface {
 	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
+type oldMountDefiner3 interface {
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldMountDefiner4 interface {
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldMountDefiner5 interface {
+	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
+}
+type oldMountDefiner6 interface {
+	MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error
+}
 
 type oldSeccompDefiner1 interface {
 	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldSeccompDefiner2 interface {
 	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldSeccompDefiner3 interface {
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldSeccompDefiner4 interface {
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldSeccompDefiner5 interface {
+	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
+}
+type oldSeccompDefiner6 interface {
+	SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error
 }
 
 type oldSystemdDefiner1 interface {
@@ -251,12 +311,36 @@ type oldSystemdDefiner1 interface {
 type oldSystemdDefiner2 interface {
 	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
+type oldSystemdDefiner3 interface {
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldSystemdDefiner4 interface {
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldSystemdDefiner5 interface {
+	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error
+}
+type oldSystemdDefiner6 interface {
+	SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.Slot) error
+}
 
 type oldUdevDefiner1 interface {
 	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldUdevDefiner2 interface {
 	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+}
+type oldUdevDefiner3 interface {
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldUdevDefiner4 interface {
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+}
+type oldUdevDefiner5 interface {
+	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error
+}
+type oldUdevDefiner6 interface {
+	UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error
 }
 
 // allBadDefiners contains all old/unused specification definers for all known backends.
@@ -271,18 +355,46 @@ var allBadDefiners = []reflect.Type{
 	// pre-attribute definers
 	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldApparmorDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldDbusDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldDbusDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldDbusDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldKmodDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldKmodDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldKmodDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldMountDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldMountDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldMountDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldSeccompDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldSeccompDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldSeccompDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldSystemdDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldSystemdDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldSystemdDefiner6)(nil)).Elem(),
 	reflect.TypeOf((*oldUdevDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldUdevDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner4)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner5)(nil)).Elem(),
+	reflect.TypeOf((*oldUdevDefiner6)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.

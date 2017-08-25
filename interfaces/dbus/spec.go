@@ -79,35 +79,35 @@ func (spec *Specification) SecurityTags() []string {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records dbus-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		DBusConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		DBusConnectedPlug(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.DBusConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.DBusConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records dbus-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	type definer interface {
-		DBusConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		DBusConnectedSlot(spec *Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.DBusConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.DBusConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddPermanentPlug records dbus-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.PlugData) error {
 	type definer interface {
-		DBusPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		DBusPermanentPlug(spec *Specification, plug *interfaces.PlugData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
@@ -118,9 +118,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records dbus-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.SlotData) error {
 	type definer interface {
-		DBusPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		DBusPermanentSlot(spec *Specification, slot *interfaces.SlotData) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()

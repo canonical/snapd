@@ -56,19 +56,23 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 
 var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-func (iface *spiInterface) path(slot *interfaces.Slot) (string, error) {
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+func (iface *spiInterface) path(slot *interfaces.SlotData) (string, error) {
+	var pathstr string
+	var ok bool
+	if path, err := slot.StaticAttr("path"); err == nil {
+		pathstr, ok = path.(string)
+	}
+	if !ok || pathstr == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slot.Ref())
 	}
-	path = filepath.Clean(path)
-	if !spiDevPattern.MatchString(path) {
-		return "", fmt.Errorf("%q is not a valid SPI device", path)
+	pathstr = filepath.Clean(pathstr)
+	if !spiDevPattern.MatchString(pathstr) {
+		return "", fmt.Errorf("%q is not a valid SPI device", pathstr)
 	}
-	return path, nil
+	return pathstr, nil
 }
 
-func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *spiInterface) BeforePrepareSlot(slot *interfaces.SlotData) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -76,7 +80,7 @@ func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	path, err := iface.path(slot)
 	if err != nil {
 		return nil
@@ -86,13 +90,13 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.PlugData, slot *interfaces.SlotData) error {
 	path, err := iface.path(slot)
 	if err != nil {
 		return nil
 	}
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(`KERNEL=="%s", TAG+="%s"`, strings.TrimPrefix(path, "/dev/"), tag))
 	}
 	return nil

@@ -157,14 +157,14 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, nil, s.slotGadget1, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug1.PlugInfo, nil), interfaces.NewSlotData(s.slotGadget1.SlotInfo, nil)), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, nil, s.slotGadget1, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, interfaces.NewPlugData(s.plug1.PlugInfo, nil), interfaces.NewSlotData(s.slotGadget1.SlotInfo, nil)), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
 		"/dev/spidev0.0 rw,\n"+
