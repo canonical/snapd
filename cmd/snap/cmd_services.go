@@ -46,11 +46,18 @@ type svcLogs struct {
 var (
 	shortServicesHelp = i18n.G("Query the status of services")
 	shortLogsHelp     = i18n.G("Retrieve logs of services")
+	shortStartHelp    = i18n.G("Start services")
+	shortStopHelp     = i18n.G("Stop services")
+	shortRestartHelp  = i18n.G("Restart services")
 )
 
 func init() {
 	addCommand("services", shortServicesHelp, "", func() flags.Commander { return &svcStatus{} }, nil, nil)
 	addCommand("logs", shortLogsHelp, "", func() flags.Commander { return &svcLogs{} }, nil, nil)
+
+	addCommand("start", shortStartHelp, "", func() flags.Commander { return &svcStart{} }, nil, nil)
+	addCommand("stop", shortStopHelp, "", func() flags.Commander { return &svcStop{} }, nil, nil)
+	addCommand("restart", shortRestartHelp, "", func() flags.Commander { return &svcRestart{} }, nil, nil)
 }
 
 func svcNames(s []serviceName) []string {
@@ -113,6 +120,96 @@ func (s *svcLogs) Execute(args []string) error {
 	for log := range logs {
 		fmt.Fprintln(Stdout, log)
 	}
+
+	return nil
+}
+
+type svcStart struct {
+	waitMixin
+	Positional struct {
+		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+	Enable bool `long:"enable"`
+}
+
+func (s *svcStart) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	cli := Client()
+	names := svcNames(s.Positional.ServiceNames)
+	changeID, err := cli.Start(names, client.StartOptions{Enable: s.Enable})
+	if err != nil {
+		return err
+	}
+	if _, err := s.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Started.\n"))
+
+	return nil
+}
+
+type svcStop struct {
+	waitMixin
+	Positional struct {
+		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+	Disable bool `long:"disable"`
+}
+
+func (s *svcStop) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	cli := Client()
+	names := svcNames(s.Positional.ServiceNames)
+	changeID, err := cli.Stop(names, client.StopOptions{Disable: s.Disable})
+	if err != nil {
+		return err
+	}
+	if _, err := s.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Stopped.\n"))
+
+	return nil
+}
+
+type svcRestart struct {
+	waitMixin
+	Positional struct {
+		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+	Reload bool `long:"reload"`
+}
+
+func (s *svcRestart) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	cli := Client()
+	names := svcNames(s.Positional.ServiceNames)
+	changeID, err := cli.Restart(names, client.RestartOptions{Reload: s.Reload})
+	if err != nil {
+		return err
+	}
+	if _, err := s.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Restarted.\n"))
 
 	return nil
 }

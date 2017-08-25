@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -141,4 +142,101 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 	}()
 
 	return ch, nil
+}
+
+// ErrNoNames is returned by Start, Stop, or Restart, when the given
+// list of things on which to operate is empty.
+var ErrNoNames = errors.New(`"names" must not be empty`)
+
+type appInstruction struct {
+	Action string   `json:"action"`
+	Names  []string `json:"names"`
+	StartOptions
+	StopOptions
+	RestartOptions
+}
+
+// StartOptions represent the different options of the Start call.
+type StartOptions struct {
+	// Enable, as well as starting, the listed services. A
+	// disabled service does not start on boot.
+	Enable bool `json:"enable,omitempty"`
+}
+
+// Start services.
+//
+// It takes a list of names that can be snaps, of which all their
+// services are started, or snap.service which are individual
+// services to start; it shouldn't be empty.
+func (client *Client) Start(names []string, opts StartOptions) (changeID string, err error) {
+	if len(names) == 0 {
+		return "", ErrNoNames
+	}
+
+	buf, err := json.Marshal(appInstruction{
+		Action:       "start",
+		Names:        names,
+		StartOptions: opts,
+	})
+	if err != nil {
+		return "", err
+	}
+	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+}
+
+// StopOptions represent the different options of the Stop call.
+type StopOptions struct {
+	// Disable, as well as stopping, the listed services. A
+	// service that is not disabled starts on boot.
+	Disable bool `json:"disable,omitempty"`
+}
+
+// Stop services.
+//
+// It takes a list of names that can be snaps, of which all their
+// services are stopped, or snap.service which are individual
+// services to stop; it shouldn't be empty.
+func (client *Client) Stop(names []string, opts StopOptions) (changeID string, err error) {
+	if len(names) == 0 {
+		return "", ErrNoNames
+	}
+
+	buf, err := json.Marshal(appInstruction{
+		Action:      "stop",
+		Names:       names,
+		StopOptions: opts,
+	})
+	if err != nil {
+		return "", err
+	}
+	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+}
+
+// RestartOptions represent the different options of the Restart call.
+type RestartOptions struct {
+	// Reload the services, if possible (i.e. if the App has a
+	// ReloadCommand, invoque it), instead of restarting.
+	Reload bool `json:"reload,omitempty"`
+}
+
+// Restart services.
+//
+// It takes a list of names that can be snaps, of which all their
+// services are restarted, or snap.service which are individual
+// services to restart; it shouldn't be empty. If the service is not
+// running, starts it.
+func (client *Client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
+	if len(names) == 0 {
+		return "", ErrNoNames
+	}
+
+	buf, err := json.Marshal(appInstruction{
+		Action:         "restart",
+		Names:          names,
+		RestartOptions: opts,
+	})
+	if err != nil {
+		return "", err
+	}
+	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
 }

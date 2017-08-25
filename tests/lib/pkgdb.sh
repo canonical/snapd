@@ -164,12 +164,15 @@ distro_install_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
+                # shellcheck disable=SC2086
                 quiet apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
-                dnf -q -y install $DNF_FLAGS "$package_name"
+                # shellcheck disable=SC2086
+                dnf -q -y --refresh install $DNF_FLAGS "$package_name"
                 ;;
             opensuse-*)
+                # shellcheck disable=SC2086
                 zypper -q install -y $ZYPPER_FLAGS "$package_name"
                 ;;
             *)
@@ -195,6 +198,7 @@ distro_purge_package() {
                 ;;
             fedora-*)
                 dnf -y -q remove "$package_name"
+                dnf -q clean all
                 ;;
             opensuse-*)
                 zypper -q remove -y "$package_name"
@@ -289,12 +293,15 @@ distro_install_build_snapd(){
         packages=
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
+                # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
             fedora-*)
+                # shellcheck disable=SC2125
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
             opensuse-*)
+                # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd*.rpm
                 ;;
             *)
@@ -302,6 +309,7 @@ distro_install_build_snapd(){
                 ;;
         esac
 
+        # shellcheck disable=SC2086
         distro_install_local_package $packages
 
         # On some distributions the snapd.socket is not yet automatically
@@ -456,5 +464,6 @@ pkg_dependencies(){
 
 install_pkg_dependencies(){
     pkgs=$(pkg_dependencies)
+    # shellcheck disable=SC2086
     distro_install_package $pkgs
 }

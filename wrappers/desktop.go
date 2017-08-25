@@ -171,7 +171,18 @@ func updateDesktopDatabase(desktopFiles []string) error {
 }
 
 // AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
-func AddSnapDesktopFiles(s *snap.Info) error {
+func AddSnapDesktopFiles(s *snap.Info) (err error) {
+	var created []string
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		for _, fn := range created {
+			os.Remove(fn)
+		}
+	}()
+
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
@@ -194,6 +205,7 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
 		}
+		created = append(created, installedDesktopFileName)
 	}
 
 	// updates mime info etc

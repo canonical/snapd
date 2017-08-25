@@ -187,3 +187,186 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 		}
 	}
 }
+
+func (cs *clientSuite) TestClientServiceStart(c *check.C) {
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
+
+	type scenario struct {
+		names   []string
+		opts    client.StartOptions
+		comment check.CommentInterface
+	}
+
+	var scenarios []scenario
+
+	for _, names := range [][]string{
+		nil, {},
+		{"foo"},
+		{"foo", "bar", "baz"},
+	} {
+		for _, opts := range []client.StartOptions{
+			{Enable: true},
+			{Enable: false},
+		} {
+			scenarios = append(scenarios, scenario{
+				names:   names,
+				opts:    opts,
+				comment: check.Commentf("{%q; %#v}", names, opts),
+			})
+		}
+	}
+
+	for _, sc := range scenarios {
+		id, err := cs.cli.Start(sc.names, sc.opts)
+		if len(sc.names) == 0 {
+			c.Check(id, check.Equals, "", sc.comment)
+			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
+			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+		} else {
+			c.Assert(err, check.IsNil, sc.comment)
+			c.Check(id, check.Equals, "24", sc.comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
+			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
+
+			inames := make([]interface{}, len(sc.names))
+			for i, name := range sc.names {
+				inames[i] = interface{}(name)
+			}
+
+			var reqOp map[string]interface{}
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			if sc.opts.Enable {
+				c.Check(len(reqOp), check.Equals, 3, sc.comment)
+				c.Check(reqOp["enable"], check.Equals, true, sc.comment)
+			} else {
+				c.Check(len(reqOp), check.Equals, 2, sc.comment)
+				c.Check(reqOp["enable"], check.IsNil, sc.comment)
+			}
+			c.Check(reqOp["action"], check.Equals, "start", sc.comment)
+			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
+		}
+	}
+}
+
+func (cs *clientSuite) TestClientServiceStop(c *check.C) {
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
+
+	type tT struct {
+		names   []string
+		opts    client.StopOptions
+		comment check.CommentInterface
+	}
+
+	var scs []tT
+
+	for _, names := range [][]string{
+		nil, {},
+		{"foo"},
+		{"foo", "bar", "baz"},
+	} {
+		for _, opts := range []client.StopOptions{
+			{Disable: true},
+			{Disable: false},
+		} {
+			scs = append(scs, tT{
+				names:   names,
+				opts:    opts,
+				comment: check.Commentf("{%q; %#v}", names, opts),
+			})
+		}
+	}
+
+	for _, sc := range scs {
+		id, err := cs.cli.Stop(sc.names, sc.opts)
+		if len(sc.names) == 0 {
+			c.Check(id, check.Equals, "", sc.comment)
+			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
+			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+		} else {
+			c.Assert(err, check.IsNil, sc.comment)
+			c.Check(id, check.Equals, "24", sc.comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
+			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
+
+			inames := make([]interface{}, len(sc.names))
+			for i, name := range sc.names {
+				inames[i] = interface{}(name)
+			}
+
+			var reqOp map[string]interface{}
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			if sc.opts.Disable {
+				c.Check(len(reqOp), check.Equals, 3, sc.comment)
+				c.Check(reqOp["disable"], check.Equals, true, sc.comment)
+			} else {
+				c.Check(len(reqOp), check.Equals, 2, sc.comment)
+				c.Check(reqOp["disable"], check.IsNil, sc.comment)
+			}
+			c.Check(reqOp["action"], check.Equals, "stop", sc.comment)
+			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
+		}
+	}
+}
+
+func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
+
+	type tT struct {
+		names   []string
+		opts    client.RestartOptions
+		comment check.CommentInterface
+	}
+
+	var scs []tT
+
+	for _, names := range [][]string{
+		nil, {},
+		{"foo"},
+		{"foo", "bar", "baz"},
+	} {
+		for _, opts := range []client.RestartOptions{
+			{Reload: true},
+			{Reload: false},
+		} {
+			scs = append(scs, tT{
+				names:   names,
+				opts:    opts,
+				comment: check.Commentf("{%q; %#v}", names, opts),
+			})
+		}
+	}
+
+	for _, sc := range scs {
+		id, err := cs.cli.Restart(sc.names, sc.opts)
+		if len(sc.names) == 0 {
+			c.Check(id, check.Equals, "", sc.comment)
+			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
+			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+		} else {
+			c.Assert(err, check.IsNil, sc.comment)
+			c.Check(id, check.Equals, "24", sc.comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
+			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
+
+			inames := make([]interface{}, len(sc.names))
+			for i, name := range sc.names {
+				inames[i] = interface{}(name)
+			}
+
+			var reqOp map[string]interface{}
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			if sc.opts.Reload {
+				c.Check(len(reqOp), check.Equals, 3, sc.comment)
+				c.Check(reqOp["reload"], check.Equals, true, sc.comment)
+			} else {
+				c.Check(len(reqOp), check.Equals, 2, sc.comment)
+				c.Check(reqOp["reload"], check.IsNil, sc.comment)
+			}
+			c.Check(reqOp["action"], check.Equals, "restart", sc.comment)
+			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
+		}
+	}
+}
