@@ -61,6 +61,8 @@ setup_fake_store(){
     done
 
     echo "fakestore service not started properly"
+    netstat -ntlp | grep "127.0.0.1:11028" || true
+    journalctl -u fakestore || true
     exit 1
 }
 
