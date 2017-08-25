@@ -61,8 +61,7 @@ var (
 //
 // The error is returned whenever less-than-full support is detected.
 func Probe() (FeatureLevel, error) {
-	_, err := os.Stat(featuresSysPath)
-	if err != nil {
+	if _, err := os.Stat(featuresSysPath); err != nil {
 		return None, fmt.Errorf("apparmor feature directory not found: %s", err)
 	}
 	var missing []string
