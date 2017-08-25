@@ -85,7 +85,7 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 	if err != nil {
 		panic(err)
 	}
-	fakeFeaturesSysPath := filepath.Join(temp, "features")
+	featuresSysPath = filepath.Join(temp, "features")
 
 	switch level {
 	case None:
@@ -93,21 +93,20 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 		break
 	case Partial:
 		// create just the empty directory with no features.
-		if err := os.MkdirAll(fakeFeaturesSysPath, 0755); err != nil {
+		if err := os.MkdirAll(featuresSysPath, 0755); err != nil {
 			panic(err)
 		}
 		break
 	case Full:
 		// create all the feature directories.
 		for _, feature := range requiredFeatures {
-			if err := os.MkdirAll(filepath.Join(fakeFeaturesSysPath, feature), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Join(featuresSysPath, feature), 0755); err != nil {
 				panic(err)
 			}
 		}
 		break
 	}
 
-	featuresSysPath = fakeFeaturesSysPath
 	return func() {
 		if err := os.RemoveAll(temp); err != nil {
 			panic(err)
