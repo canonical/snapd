@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -57,24 +58,59 @@ var (
 	}
 )
 
-// Probe checks which apparmor features are available.
-//
-// The error is returned whenever less-than-full support is detected.
-func Probe() (FeatureLevel, error) {
-	if _, err := os.Stat(featuresSysPath); err != nil {
-		return None, fmt.Errorf("apparmor feature directory not found: %s", err)
+// KernelSupport describes apparmor features supported by the kernel.
+type KernelSupport struct {
+	enabled  bool
+	features map[string]bool
+}
+
+// ProbeKernel checks which apparmor features are available.
+func ProbeKernel() *KernelSupport {
+	entries, err := ioutil.ReadDir(featuresSysPath)
+	if err != nil {
+		return nil
+	}
+	ks := &KernelSupport{
+		enabled:  err == nil,
+		features: make(map[string]bool, len(entries)),
+	}
+	for _, entry := range entries {
+		// Each sub-directory represents a speicfic feature. Some have more
+		// details as additional sub-directories or files therein but we are
+		// not inspecting that at the moment.
+		if entry.IsDir() {
+			ks.features[entry.Name()] = true
+		}
+	}
+	return ks
+}
+
+// IsEnabled returns true if apparmor is enabled.
+func (ks *KernelSupport) IsEnabled() bool {
+	return ks != nil && ks.enabled
+}
+
+// SupportsFeature returns true if a given apparmor feature is supported.
+func (ks *KernelSupport) SupportsFeature(feature string) bool {
+	return ks != nil && ks.features[feature]
+}
+
+// Evaluate checks if the apparmor module is enabled and if all the required features are available.
+func (ks *KernelSupport) Evaluate() (level FeatureLevel, summary string) {
+	if !ks.IsEnabled() {
+		return None, fmt.Sprintf("apparmor is not enabled")
 	}
 	var missing []string
 	for _, feature := range requiredFeatures {
-		p := filepath.Join(featuresSysPath, feature)
-		if _, err := os.Stat(p); err != nil {
+		if !ks.SupportsFeature(feature) {
 			missing = append(missing, feature)
 		}
 	}
 	if len(missing) > 0 {
-		return Partial, fmt.Errorf("apparmor features missing: %s", strings.Join(missing, ", "))
+		sort.Strings(missing)
+		return Partial, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
 	}
-	return Full, nil
+	return Full, "apparmor is enabled and all features are available"
 }
 
 // MockFeatureLevel fakes the desired apparmor feature level.
@@ -91,12 +127,14 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 	case None:
 		// create no directory at all (apparmor not available).
 	case Partial:
-		// create just the empty directory with no features.
-		if err := os.MkdirAll(featuresSysPath, 0755); err != nil {
-			panic(err)
+		// create several feature directories, matching vanilla 4.12 kernel.
+		for _, feature := range []string{"caps", "domain", "file", "network", "policy", "rlimit"} {
+			if err := os.MkdirAll(filepath.Join(featuresSysPath, feature), 0755); err != nil {
+				panic(err)
+			}
 		}
 	case Full:
-		// create all the feature directories.
+		// create all the feature directories, matching Ubuntu kernels.
 		for _, feature := range requiredFeatures {
 			if err := os.MkdirAll(filepath.Join(featuresSysPath, feature), 0755); err != nil {
 				panic(err)

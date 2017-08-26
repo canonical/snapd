@@ -37,24 +37,41 @@ var _ = Suite(&probeSuite{})
 func (s *probeSuite) TestMockProbeNone(c *C) {
 	restore := apparmor.MockFeatureLevel(apparmor.None)
 	defer restore()
-	probed, err := apparmor.Probe()
-	c.Assert(probed, Equals, apparmor.None)
-	c.Assert(err, ErrorMatches, `apparmor feature directory not found: stat .*/features: no such file or directory`)
+
+	ks := apparmor.ProbeKernel()
+	c.Assert(ks.IsEnabled(), Equals, false)
+	c.Assert(ks.SupportsFeature("dbus"), Equals, false)
+	c.Assert(ks.SupportsFeature("file"), Equals, false)
+
+	level, summary := ks.Evaluate()
+	c.Assert(level, Equals, apparmor.None)
+	c.Assert(summary, Equals, "apparmor is not enabled")
 }
 
 func (s *probeSuite) TestMockProbePartial(c *C) {
 	restore := apparmor.MockFeatureLevel(apparmor.Partial)
 	defer restore()
-	probed, err := apparmor.Probe()
-	c.Assert(probed, Equals, apparmor.Partial)
-	c.Assert(err, ErrorMatches, `apparmor features missing: caps, dbus, domain, file, mount, namespaces, network, ptrace, rlimit, signal`)
 
+	ks := apparmor.ProbeKernel()
+	c.Assert(ks.IsEnabled(), Equals, true)
+	c.Assert(ks.SupportsFeature("dbus"), Equals, false)
+	c.Assert(ks.SupportsFeature("file"), Equals, true)
+
+	level, summary := ks.Evaluate()
+	c.Assert(level, Equals, apparmor.Partial)
+	c.Assert(summary, Equals, "apparmor is enabled but some features are missing: dbus, mount, namespaces, ptrace, signal")
 }
 
 func (s *probeSuite) TestMockProbeFull(c *C) {
 	restore := apparmor.MockFeatureLevel(apparmor.Full)
 	defer restore()
-	probed, err := apparmor.Probe()
-	c.Assert(probed, Equals, apparmor.Full)
-	c.Assert(err, IsNil)
+
+	ks := apparmor.ProbeKernel()
+	c.Assert(ks.IsEnabled(), Equals, true)
+	c.Assert(ks.SupportsFeature("dbus"), Equals, true)
+	c.Assert(ks.SupportsFeature("file"), Equals, true)
+
+	level, summary := ks.Evaluate()
+	c.Assert(level, Equals, apparmor.Full)
+	c.Assert(summary, Equals, "apparmor is enabled and all features are available")
 }
