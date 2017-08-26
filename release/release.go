@@ -55,7 +55,7 @@ var (
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	level, _ := apparmor.Probe()
+	level, _ := apparmor.ProbeKernel().Evaluate()
 	return level != apparmor.Full
 }
 
