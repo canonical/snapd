@@ -90,6 +90,8 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplaceWithSnapdDebug(c
 // Tests for Profile.Unload()
 
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	err := apparmor.UnloadProfile("snap.samba.smbd")
