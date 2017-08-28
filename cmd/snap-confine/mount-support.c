@@ -196,41 +196,7 @@ static void setup_mount_profiles_directly(const char *snap_name)
 	}
 }
 
-// Find snap-update-ns, returns NULL if one cannot be found.
-static const char *find_snap_update_ns()
-{
-	// Note that at this stage we _may_ be after pivot_root but we cannot rely
-	// on this. If we did pivot_root then the base snap _may_ contain the tool
-	// but we, again, cannot rely on that.
-	const char *const reexec_tools[] = {
-		SNAP_MOUNT_DIR "/core/current/usr/lib/snapd/snap-update-ns",
-		"/snap/core/current/usr/lib/snapd/snap-update-ns",
-		NULL,
-	};
-	const char *const distro_tools[] = {
-		SC_HOSTFS_DIR "/usr/lib/snapd/snap-update-ns",
-		SC_HOSTFS_DIR "/usr/libexec/snapd/snap-update-ns",
-		"/usr/lib/snapd/snap-update-ns",
-		"/usr/libexec/snapd/snap-update-ns",
-		NULL,
-	};
-	if (sc_is_reexec_enabled()) {
-		for (const char *const *tool = reexec_tools; *tool != NULL;
-		     ++tool) {
-			if (access(*tool, F_OK | X_OK) == 0) {
-				return *tool;
-			}
-		}
-	}
-	for (const char *const *tool = distro_tools; *tool != NULL; ++tool) {
-		if (access(*tool, F_OK | X_OK) == 0) {
-			return *tool;
-		}
-	}
-	return NULL;
-}
-
-static void setup_mount_profiles_via_snap_update_ns(const char *snap_update_ns,
+static void setup_mount_profiles_via_snap_update_ns(int snap_update_ns_fd,
 						    const char *snap_name)
 {
 	debug("calling snap-update-ns to initialize mount namespace");
@@ -250,10 +216,10 @@ static void setup_mount_profiles_via_snap_update_ns(const char *snap_update_ns,
 			"snap-update-ns", "--from-snap-confine", snap_name_copy,
 			NULL
 		};
-		char *envp[] = { NULL };
-		debug("execv(%s, %s %s %s,)", snap_update_ns, argv[0], argv[1],
-		      argv[2]);
-		execve(snap_update_ns, argv, envp);
+		char *envp[] = { "SNAP_CONFINE_DEBUG=yes", NULL };
+		debug("fexecv(%d, %s %s %s,)", snap_update_ns_fd, argv[0],
+		      argv[1], argv[2]);
+		fexecve(snap_update_ns_fd, argv, envp);
 		die("cannot execute snap-update-ns");
 	} else {
 		// Wait for snap-update-ns to finish.
@@ -270,6 +236,7 @@ static void setup_mount_profiles_via_snap_update_ns(const char *snap_update_ns,
 		} else {
 			die("snap-update-ns failed abnormally");
 		}
+		debug("snap-update-ns finished successfully");
 	}
 }
 
@@ -286,11 +253,11 @@ static void setup_mount_profiles_via_snap_update_ns(const char *snap_update_ns,
  * either the core snap on an all-snap system or the core snap + punched holes
  * on a classic system.
  **/
-static void sc_setup_mount_profiles(const char *snap_name)
+static void sc_setup_mount_profiles(const char *snap_name,
+				    int snap_update_ns_fd)
 {
-	const char *snap_update_ns = find_snap_update_ns();
-	if (snap_update_ns != NULL) {
-		setup_mount_profiles_via_snap_update_ns(snap_update_ns,
+	if (snap_update_ns_fd > 0) {
+		setup_mount_profiles_via_snap_update_ns(snap_update_ns_fd,
 							snap_name);
 	} else {
 		setup_mount_profiles_directly(snap_name);
@@ -590,6 +557,29 @@ static bool __attribute__ ((used))
 	return false;
 }
 
+static int sc_open_snap_update_ns()
+{
+	char buf[PATH_MAX] = { 0 };
+	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
+		die("cannot readlink /proc/self/exe");
+	}
+	debug("snap-confine executable: %s", buf);
+	char *s = strrchr(buf, '/');
+	if (s == NULL) {
+		die("cannot find trailing forward slash in %s", buf);
+	}
+	s += 1;
+	sc_must_snprintf(s, sizeof buf - (s - buf), "snap-update-ns");
+	debug("snap-update-ns executable: %s", buf);
+
+	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0) {
+		die("cannot open snap-update-ns executable");
+	}
+	debug("opened snap-update-ns executable as file descriptor %d", fd);
+	return fd;
+}
+
 void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
@@ -600,6 +590,12 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
+	// Find and open our "peer" snap-update-ns executable. The "peer" in the
+	// sense that the executable is from the same release as ourselves,
+	// regardless of which re-exec events occurred earlier.
+	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	snap_update_ns_fd = sc_open_snap_update_ns();
+
 	// Remember if we are on classic, some things behave differently there.
 	bool on_classic_distro = is_running_on_classic_distribution();
 	if (on_classic_distro) {
@@ -678,7 +674,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_name);
+	sc_setup_mount_profiles(snap_name, snap_update_ns_fd);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
