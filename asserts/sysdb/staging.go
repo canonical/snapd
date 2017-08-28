@@ -79,6 +79,26 @@ PV3bHNjD+tBq5e1xm/UWyGu7J2N4VPLgUK7F4TPUJk5lwKjmII8KD3KA/IeHnZVN6vmC2nKfhGvw
 Fy5UJIEKB0j0R2qnCz6HZkyQrUsz5HiIIlks18FfOZwuIc4GGPbwwQBoXW7a6KQg0aa62BPj5Iww
 3w60rtTSUsjINkZ/GXLodfzPglOl6VLF7bWx2hGesg==
 `
+	encodedStagingGenericAccount = `type: account
+authority-id: canonical
+account-id: generic
+display-name: Generic
+timestamp: 2017-07-27T00:00:00.0Z
+username: generic
+validation: certified
+sign-key-sha3-384: e2r8on4LgdxQSaW5T8mBD5oC2fSTktTVxOYa5w3kIP4_nNF6L7mt6fOJShdOGkKu
+
+AcLBXAQAAQoABgUCWXmmFAAKCRAHKljtl9kuLkAWD/98LgECwAN8S09o4aEFpdGXgWpx8z58wl6T
+5mZVDyYpCV9ugC2DqBqGQxp4X1P7Wn9+weXw8nmL7IywVn/hCVHJOmBLJSr3wLjpVBY9RrIHYoXi
+k9W7IFo4ggw1j1FRLg2tKk81MnK0fK/Qws9OXzilDir5R2bQ/E0sodGW3NpbwtbpkY/BtP6YPoJ/
+1+205KG5m6oG8y6mf74bjMGfJ+iFFpIDayIpXl+YTkJ25BOVGcuC66cIrmdc63rBIHL2tU/3GUMB
+xZGiyG9Fuli1uV4ALhN9j43hxAtVwXOn/qgOiN8TGQz3OvlVUXTuFVmkdvCdfT2XHrJjFmEs9SlL
+u2EEmvaNFJ61lQG/VrN6O0BswenTlIO0tTFe126o/cTmKg8/ga4v2WjMlcOCzfu+cIZIzTTnn4Le
+iXdQ6+c3QN+Co4SI0UvgJ4nGWQ9W+4q4xVJTliKTzK2BZ40vHUi51rMC/puqsMpnAbHSn4iy8vpf
+CyJh7jyuITPEzfpurNMb+VD+1Brd2DJCVnlwQq+rzNerXd5xcHCdZsfX+ATukHgYTZWa467ZEFhI
+Bk1xUWAYs8r2JDFb5YPtZuW7Vt1UUpFdx6DroL6OODvZ6mDUtsOa8nm7G1l4uRJtqunplPyCDjnL
+aQhlAouLMltWeGITO+5jePHJKTnYQAFEvo0WIgEYpA==
+`
 )
 
 func init() {
@@ -91,4 +111,10 @@ func init() {
 		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
 	}
 	trustedStagingAssertions = []asserts.Assertion{stagingTrustedAccount, stagingRootAccountKey}
+
+	genericAccount, err := asserts.Decode([]byte(encodedStagingGenericAccount))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode 'generic' account: %v", err))
+	}
+	genericStagingAssertions = []asserts.Assertion{genericAccount}
 }
