@@ -282,8 +282,14 @@ snap-confine/%.5: snap-confine/%.rst
 	$(HAVE_RST2MAN) $^ > $@
 endif
 
+
+m4_args = -DLIBEXECDIR=$(libexecdir) -DSNAP_MOUNT_DIR=$(SNAP_MOUNT_DIR)
+if !APPARMOR
+m4_args += -DALLOW_SNAP_EXEC
+endif
+
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	m4 $(m4_args) snap-confine/snap-confine.apparmor.in > snap-confine/snap-confine.apparmor
 
 # Install the apparmor profile
 #
@@ -291,10 +297,8 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 # foo.bar.froz The inner subst replaces slashes with dots and the outer
 # patsubst strips the leading dot
 install-data-local:: snap-confine/snap-confine.apparmor
-if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
-endif
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
