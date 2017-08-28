@@ -227,7 +227,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	handlers := m.repository.generateHandlers(context)
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
-		if hooksup.Optional && !hookExists {
+		if hooksup.Optional {
 			return nil
 		}
 		return fmt.Errorf("internal error: no registered handlers for hook %q", hooksup.Hook)
