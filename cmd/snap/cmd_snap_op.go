@@ -948,10 +948,10 @@ func (x *cmdRevert) Execute(args []string) error {
 	return nil
 }
 
-var shortSwitchHelp = i18n.G("Switch snap to a different channel")
+var shortSwitchHelp = i18n.G("Switches snap to a different channel")
 var longSwitchHelp = i18n.G(`
-The switch command switch the given snap to a different channel without
-actually doing a refresh.
+The switch command switches the given snap to a different channel without
+doing a refresh.
 `)
 
 type cmdSwitch struct {
@@ -967,7 +967,7 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 	if x.Channel == "" {
-		return fmt.Errorf("please use --channel=<channel-name>")
+		return fmt.Errorf("missing --channel=<channel-name> parameter")
 	}
 
 	cli := Client()
