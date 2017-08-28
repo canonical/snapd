@@ -20,6 +20,8 @@
 package dirs_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -54,9 +56,25 @@ func (s *DirsTestSuite) TestClassicConfinementSupport(c *C) {
 	reset := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer reset()
 	dirs.SetRootDir("/")
-	c.Assert(dirs.SupportsClassicConfinement(), Equals, true)
+	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
+
 	dirs.SetRootDir("/alt")
-	c.Assert(dirs.SupportsClassicConfinement(), Equals, false)
+	defer dirs.SetRootDir("/")
+	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
+}
+
+func (s *DirsTestSuite) TestClassicConfinementSymlinkWorkaround(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+
+	altRoot := c.MkDir()
+	dirs.SetRootDir(altRoot)
+	defer dirs.SetRootDir("/")
+	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
+	d := filepath.Join(altRoot, "/var/lib/snapd/snap")
+	os.MkdirAll(d, 0755)
+	os.Symlink(d, filepath.Join(altRoot, "snap"))
+	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
 }
 
 func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {

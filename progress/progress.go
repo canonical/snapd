@@ -25,8 +25,8 @@ import (
 	"os"
 	"unicode"
 
-	"github.com/cheggaaa/pb"
 	"golang.org/x/crypto/ssh/terminal"
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 // Meter is an interface to show progress to the user

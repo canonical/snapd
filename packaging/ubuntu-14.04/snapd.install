@@ -19,6 +19,8 @@ data/completion/etelpmoc.sh /usr/lib/snapd/
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
 data/info /usr/lib/snapd/
+# polkit actions
+data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine

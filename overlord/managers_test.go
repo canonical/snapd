@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -93,9 +92,6 @@ var (
 )
 
 var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 
 	develPrivKey, _ = assertstest.GenerateKey(752)
@@ -135,7 +131,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
 	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
-	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -1699,7 +1695,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
@@ -1788,17 +1784,19 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
 
-func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
+func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	_, _, err := s.ac.DeviceSessionRequest("NONCE")
+	_, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
-	// setup serial and key in system state
+	// setup model, serial and key in system state
+	err = assertstate.Add(st, s.model)
+	c.Assert(err, IsNil)
 	err = assertstate.Add(st, s.serial)
 	c.Assert(err, IsNil)
 	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -1813,9 +1811,11 @@ func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
 	})
 
 	st.Unlock()
-	req, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
+	params, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
-	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
+	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)
+	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
+	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
+
 }

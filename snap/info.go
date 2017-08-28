@@ -187,6 +187,21 @@ type Info struct {
 
 	// The ordered list of tracks that contain channels
 	Tracks []string
+
+	Layout map[string]*Layout
+}
+
+// Layout describes a single element of the layout section.
+type Layout struct {
+	Snap *Info
+
+	Path    string      `json:"path"`
+	Bind    string      `json:"bind,omitempty"`
+	Type    string      `json:"type,omitempty"`
+	User    string      `json:"user,omitempty"`
+	Group   string      `json:"group,omitempty"`
+	Mode    os.FileMode `json:"mode,omitempty"`
+	Symlink string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -457,6 +472,18 @@ func (app *AppInfo) WrapperPath() string {
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
+}
+
+// CompleterPath returns the path to the completer snippet for the app binary.
+func (app *AppInfo) CompleterPath() string {
+	var binName string
+	if app.Name == app.Snap.Name() {
+		binName = filepath.Base(app.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
+	}
+
+	return filepath.Join(dirs.CompletersDir, binName)
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
