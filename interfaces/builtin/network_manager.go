@@ -464,7 +464,7 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
