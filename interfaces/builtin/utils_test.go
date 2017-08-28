@@ -40,9 +40,9 @@ type utilsSuite struct {
 
 var _ = Suite(&utilsSuite{
 	iface:      &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:     &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}}},
-	slotApp:    &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}}},
-	slotGadget: &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}}},
+	slotOS:     &interfaces.Slot{SlotInfo: &snap.SlotInfo{PlugSlotData: snap.PlugSlotData{Snap: &snap.Info{Type: snap.TypeOS}}}},
+	slotApp:    &interfaces.Slot{SlotInfo: &snap.SlotInfo{PlugSlotData: snap.PlugSlotData{Snap: &snap.Info{Type: snap.TypeApp}}}},
+	slotGadget: &interfaces.Slot{SlotInfo: &snap.SlotInfo{PlugSlotData: snap.PlugSlotData{Snap: &snap.Info{Type: snap.TypeGadget}}}},
 })
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {

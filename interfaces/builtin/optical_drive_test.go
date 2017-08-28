@@ -63,10 +63,11 @@ func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
 func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "optical-drive",
-		Interface: "optical-drive",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "optical-drive",
+			Interface: "optical-drive",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"optical-drive slots are reserved for the core snap")
 }

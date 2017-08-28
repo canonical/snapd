@@ -52,9 +52,11 @@ apps:
 func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "unity7",
-			Interface: "unity7",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "unity7",
+				Interface: "unity7",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *Unity7InterfaceSuite) TestName(c *C) {
 func (s *Unity7InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "unity7",
-		Interface: "unity7",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "unity7",
+			Interface: "unity7",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"unity7 slots are reserved for the core snap")
 }

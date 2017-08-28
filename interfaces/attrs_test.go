@@ -145,11 +145,11 @@ func (s *AttrsSuite) TestOverwriteStaticAttrError(c *C) {
 
 	err := plugAttrData.SetAttr("attr", "overwrite")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `plug attribute "attr" cannot be overwritten`)
+	c.Assert(err, ErrorMatches, `attribute "attr" cannot be overwritten`)
 
 	err = slotAttrData.SetAttr("attr", "overwrite")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `slot attribute "attr" cannot be overwritten`)
+	c.Assert(err, ErrorMatches, `attribute "attr" cannot be overwritten`)
 }
 
 func (s *AttrsSuite) TestDynamicSlotAttrsNotInitialized(c *C) {

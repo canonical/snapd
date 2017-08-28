@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "screen-inhibit-control",
-			Interface: "screen-inhibit-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "screen-inhibit-control",
+				Interface: "screen-inhibit-control",
+			},
 		},
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -66,10 +68,11 @@ func (s *ScreenInhibitControlInterfaceSuite) TestName(c *C) {
 func (s *ScreenInhibitControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "screen-inhibit-control",
-		Interface: "screen-inhibit-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "screen-inhibit-control",
+			Interface: "screen-inhibit-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"screen-inhibit-control slots are reserved for the core snap")
 }

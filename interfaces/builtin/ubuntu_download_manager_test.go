@@ -52,9 +52,11 @@ apps:
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["ubuntu-download-manager"]}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "ubuntu-download-manager",
-			Interface: "ubuntu-download-manager",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "ubuntu-download-manager",
+				Interface: "ubuntu-download-manager",
+			},
 		},
 	}
 }
@@ -70,10 +72,11 @@ func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "ubuntu-download-manager",
-		Interface: "ubuntu-download-manager",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "ubuntu-download-manager",
+			Interface: "ubuntu-download-manager",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 

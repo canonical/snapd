@@ -64,10 +64,11 @@ func (s *FuseSupportInterfaceSuite) TestName(c *C) {
 func (s *FuseSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "fuse-support",
-		Interface: "fuse-support",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "fuse-support",
+			Interface: "fuse-support",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"fuse-support slots are reserved for the core snap")
 }

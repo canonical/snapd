@@ -52,9 +52,11 @@ var _ = Suite(&ClassicSupportInterfaceSuite{
 func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "classic-support",
-			Interface: "classic-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "classic-support",
+				Interface: "classic-support",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, classicSupportMockPlugSnapInfoYaml, nil)

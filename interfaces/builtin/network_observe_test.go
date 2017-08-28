@@ -52,9 +52,11 @@ var _ = Suite(&NetworkObserveInterfaceSuite{
 func (s *NetworkObserveInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-observe",
-			Interface: "network-observe",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "network-observe",
+				Interface: "network-observe",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, netobsMockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *NetworkObserveInterfaceSuite) TestName(c *C) {
 func (s *NetworkObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-observe",
-		Interface: "network-observe",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "network-observe",
+			Interface: "network-observe",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"network-observe slots are reserved for the core snap")
 }

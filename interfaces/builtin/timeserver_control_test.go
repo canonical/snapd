@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "timeserver-control",
-			Interface: "timeserver-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "timeserver-control",
+				Interface: "timeserver-control",
+			},
 		},
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -66,10 +68,11 @@ func (s *TimeserverControlInterfaceSuite) TestName(c *C) {
 func (s *TimeserverControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "timeserver-control",
-		Interface: "timeserver-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "timeserver-control",
+			Interface: "timeserver-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"timeserver-control slots are reserved for the core snap")
 }

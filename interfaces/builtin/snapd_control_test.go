@@ -50,9 +50,11 @@ apps:
 `, nil)
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "snapd-control",
-			Interface: "snapd-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "snapd-control",
+				Interface: "snapd-control",
+			},
 		},
 	}
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["snapd-control"]}
@@ -65,10 +67,11 @@ func (s *SnapdControlInterfaceSuite) TestName(c *C) {
 func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "snapd-control",
-		Interface: "snapd-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "snapd-control",
+			Interface: "snapd-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"snapd-control slots are reserved for the core snap")
 }

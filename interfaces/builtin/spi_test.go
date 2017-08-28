@@ -147,10 +147,11 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	err = s.slotGadgetBad6.Sanitize(s.iface)
 	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "spi",
-		Interface: "spi",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "spi",
+			Interface: "spi",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"spi slots are reserved for the core and gadget snaps")
 }

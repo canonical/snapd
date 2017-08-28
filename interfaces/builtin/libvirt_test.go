@@ -38,16 +38,20 @@ var _ = Suite(&LibvirtInterfaceSuite{
 	iface: builtin.MustInterface("libvirt"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "libvirt"},
-			Name:      "libvirt",
-			Interface: "libvirt",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "libvirt"},
+				Name:      "libvirt",
+				Interface: "libvirt",
+			},
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "libvirt",
-			Interface: "libvirt",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "other"},
+				Name:      "libvirt",
+				Interface: "libvirt",
+			},
 		},
 	},
 })

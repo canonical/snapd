@@ -25,16 +25,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type PlugData struct {
-	plug         *snap.PlugInfo
-	dynamicAttrs map[string]interface{}
-}
-
-type SlotData struct {
-	slot         *snap.SlotInfo
-	dynamicAttrs map[string]interface{}
-}
-
 type Attributes interface {
 	SetStaticAttr(key string, value interface{})
 	StaticAttr(key string) (interface{}, error)
@@ -44,146 +34,114 @@ type Attributes interface {
 	SetAttr(key string, value interface{}) error
 }
 
-func NewSlotData(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *SlotData {
-	return &SlotData{
-		slot:         slot,
-		dynamicAttrs: dynamicAttrs,
+type plugSlotData struct {
+	data         *snap.PlugSlotData
+	dynamicAttrs map[string]interface{}
+}
+
+func (attrs *plugSlotData) Interface() string {
+	return attrs.data.Interface
+}
+
+func (attrs *plugSlotData) Name() string {
+	return attrs.data.Name
+}
+
+func (attrs *plugSlotData) Snap() *snap.Info {
+	return attrs.data.Snap
+}
+
+func (attrs *plugSlotData) Apps() map[string]*snap.AppInfo {
+	return attrs.data.Apps
+}
+
+func (attrs *plugSlotData) StaticAttr(key string) (interface{}, error) {
+	if val, ok := attrs.data.Attrs[key]; ok {
+		return val, nil
 	}
+	return nil, fmt.Errorf("attribute %q not found", key)
+}
+
+func (attrs *plugSlotData) SetStaticAttr(key string, value interface{}) {
+	if attrs.data.Attrs == nil {
+		attrs.data.Attrs = make(map[string]interface{})
+	}
+	attrs.data.Attrs[key] = value
+}
+
+func (attrs *plugSlotData) StaticAttrs() map[string]interface{} {
+	return attrs.data.Attrs
+}
+
+func (attrs *plugSlotData) Attr(key string) (interface{}, error) {
+	if attrs.dynamicAttrs != nil {
+		if val, ok := attrs.dynamicAttrs[key]; ok {
+			return val, nil
+		}
+	}
+	return attrs.StaticAttr(key)
+}
+
+func (attrs *plugSlotData) Attrs() (map[string]interface{}, error) {
+	if attrs.dynamicAttrs == nil {
+		return nil, fmt.Errorf("dynamic attributes not initialized")
+	}
+	return attrs.dynamicAttrs, nil
+}
+
+func (attrs *plugSlotData) SetAttr(key string, value interface{}) error {
+	if attrs.dynamicAttrs == nil {
+		return fmt.Errorf("dynamic attributes not initialized")
+	}
+	if _, ok := attrs.data.Attrs[key]; ok {
+		return fmt.Errorf("attribute %q cannot be overwritten", key)
+	}
+	attrs.dynamicAttrs[key] = value
+	return nil
+}
+
+type PlugData struct {
+	plug *snap.PlugInfo
+	plugSlotData
 }
 
 func NewPlugData(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) *PlugData {
 	return &PlugData{
-		plug:         plug,
-		dynamicAttrs: dynamicAttrs,
+		plug: plug,
+		plugSlotData: plugSlotData{
+			data:         &plug.PlugSlotData,
+			dynamicAttrs: dynamicAttrs,
+		},
 	}
 }
 
-func (attrs *PlugData) Interface() string {
-	return attrs.plug.Interface
-}
-
-func (attrs *PlugData) Name() string {
-	return attrs.plug.Name
-}
-
-func (attrs *PlugData) Snap() *snap.Info {
-	return attrs.plug.Snap
-}
-
-func (attrs *PlugData) Apps() map[string]*snap.AppInfo {
-	return attrs.plug.Apps
+func (attrs *PlugData) Ref() PlugRef {
+	return PlugRef{Snap: attrs.data.Snap.Name(), Name: attrs.data.Name}
 }
 
 func (attrs *PlugData) SecurityTags() []string {
 	return attrs.plug.SecurityTags()
 }
 
-func (attrs *PlugData) StaticAttr(key string) (interface{}, error) {
-	if val, ok := attrs.plug.Attrs[key]; ok {
-		return val, nil
+type SlotData struct {
+	slot *snap.SlotInfo
+	plugSlotData
+}
+
+func NewSlotData(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *SlotData {
+	return &SlotData{
+		slot: slot,
+		plugSlotData: plugSlotData{
+			data:         &slot.PlugSlotData,
+			dynamicAttrs: dynamicAttrs,
+		},
 	}
-	return nil, fmt.Errorf("attribute %q not found", key)
 }
 
-func (attrs *PlugData) SetStaticAttr(key string, value interface{}) {
-	if attrs.plug.Attrs == nil {
-		attrs.plug.Attrs = make(map[string]interface{})
-	}
-	attrs.plug.Attrs[key] = value
-}
-
-func (attrs *PlugData) StaticAttrs() map[string]interface{} {
-	return attrs.plug.Attrs
-}
-
-func (attrs *PlugData) Attr(key string) (interface{}, error) {
-	if attrs.dynamicAttrs != nil {
-		if val, ok := attrs.dynamicAttrs[key]; ok {
-			return val, nil
-		}
-	}
-	return attrs.StaticAttr(key)
-}
-
-func (attrs *PlugData) Attrs() (map[string]interface{}, error) {
-	if attrs.dynamicAttrs == nil {
-		return nil, fmt.Errorf("dynamic attributes not initialized")
-	}
-	return attrs.dynamicAttrs, nil
-}
-
-func (attrs *PlugData) SetAttr(key string, value interface{}) error {
-	if attrs.dynamicAttrs == nil {
-		return fmt.Errorf("dynamic attributes not initialized")
-	}
-	if _, ok := attrs.plug.Attrs[key]; ok {
-		return fmt.Errorf("plug attribute %q cannot be overwritten", key)
-	}
-	attrs.dynamicAttrs[key] = value
-	return nil
-}
-
-func (attrs *SlotData) Interface() string {
-	return attrs.slot.Interface
-}
-
-func (attrs *SlotData) Name() string {
-	return attrs.slot.Name
-}
-
-func (attrs *SlotData) Snap() *snap.Info {
-	return attrs.slot.Snap
+func (attrs *SlotData) Ref() SlotRef {
+	return SlotRef{Snap: attrs.slot.Snap.Name(), Name: attrs.slot.Name}
 }
 
 func (attrs *SlotData) SecurityTags() []string {
 	return attrs.slot.SecurityTags()
-}
-
-func (attrs *SlotData) Apps() map[string]*snap.AppInfo {
-	return attrs.slot.Apps
-}
-
-func (attrs *SlotData) StaticAttr(key string) (interface{}, error) {
-	if val, ok := attrs.slot.Attrs[key]; ok {
-		return val, nil
-	}
-	return nil, fmt.Errorf("attribute %q not found", key)
-}
-
-func (attrs *SlotData) SetStaticAttr(key string, value interface{}) {
-	if attrs.slot.Attrs == nil {
-		attrs.slot.Attrs = make(map[string]interface{})
-	}
-	attrs.slot.Attrs[key] = value
-}
-
-func (attrs *SlotData) StaticAttrs() map[string]interface{} {
-	return attrs.slot.Attrs
-}
-
-func (attrs *SlotData) Attr(key string) (interface{}, error) {
-	if attrs.dynamicAttrs != nil {
-		if val, ok := attrs.dynamicAttrs[key]; ok {
-			return val, nil
-		}
-	}
-	return attrs.StaticAttr(key)
-}
-
-func (attrs *SlotData) Attrs() (map[string]interface{}, error) {
-	if attrs.dynamicAttrs == nil {
-		return nil, fmt.Errorf("dynamic attributes not initialized")
-	}
-	return attrs.dynamicAttrs, nil
-}
-
-func (attrs *SlotData) SetAttr(key string, value interface{}) error {
-	if attrs.dynamicAttrs == nil {
-		return fmt.Errorf("dynamic attributes not initialized")
-	}
-	if _, ok := attrs.slot.Attrs[key]; ok {
-		return fmt.Errorf("slot attribute %q cannot be overwritten", key)
-	}
-	attrs.dynamicAttrs[key] = value
-	return nil
 }

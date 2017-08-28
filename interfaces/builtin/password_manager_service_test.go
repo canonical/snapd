@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "password-manager-service",
-			Interface: "password-manager-service",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "password-manager-service",
+				Interface: "password-manager-service",
+			},
 		},
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -66,10 +68,11 @@ func (s *passwordManagerServiceInterfaceSuite) TestName(c *C) {
 func (s *passwordManagerServiceInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "password-manager-service",
-		Interface: "password-manager-service",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "password-manager-service",
+			Interface: "password-manager-service",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"password-manager-service slots are reserved for the core snap")
 }

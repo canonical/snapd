@@ -64,10 +64,11 @@ func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {
 func (s *KernelModuleControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "kernel-module-control",
-		Interface: "kernel-module-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "kernel-module-control",
+			Interface: "kernel-module-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"kernel-module-control slots are reserved for the core snap")
 }

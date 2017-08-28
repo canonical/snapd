@@ -85,10 +85,11 @@ func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
 func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "upower-observe",
-		Interface: "upower-observe",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "upower-observe",
+			Interface: "upower-observe",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"upower-observe slots are reserved for the core and app snaps")
 }
@@ -103,13 +104,15 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "upower",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "upower",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "upower",
+				Interface: "upower-observe",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "upower",
-			Interface: "upower-observe",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -129,13 +132,15 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "upower",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "upower",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "upower",
+				Interface: "upower",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "upower",
-			Interface: "upower",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -152,13 +157,15 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "upower",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "upower",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "upower",
+				Interface: "upower",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "upower",
-			Interface: "upower",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	release.OnClassic = false
@@ -224,13 +231,15 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 	app := &snap.AppInfo{Name: "app"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "upower",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "upower",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "upower",
+				Interface: "upower-observe",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "upower",
-			Interface: "upower-observe",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 

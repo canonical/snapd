@@ -71,13 +71,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -95,13 +97,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSom
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -117,13 +121,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 
@@ -140,13 +146,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll
 	app2 := &snap.AppInfo{Name: "app2"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -164,13 +172,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSom
 	app3 := &snap.AppInfo{Name: "app3"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -186,13 +196,15 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne
 	app := &snap.AppInfo{Name: "app"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "location",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "location",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "location",
+				Interface: "location",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "location",
-			Interface: "location",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 

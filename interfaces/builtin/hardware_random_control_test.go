@@ -64,10 +64,11 @@ func (s *HardwareRandomControlInterfaceSuite) TestName(c *C) {
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "hardware-random-control",
-		Interface: "hardware-random-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "hardware-random-control",
+			Interface: "hardware-random-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"hardware-random-control slots are reserved for the core snap")
 }

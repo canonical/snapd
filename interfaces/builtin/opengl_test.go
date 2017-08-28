@@ -63,10 +63,11 @@ func (s *OpenglInterfaceSuite) TestName(c *C) {
 func (s *OpenglInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "opengl",
-		Interface: "opengl",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "opengl",
+			Interface: "opengl",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"opengl slots are reserved for the core snap")
 }

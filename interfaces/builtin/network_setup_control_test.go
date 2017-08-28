@@ -50,9 +50,11 @@ apps:
 `, nil)
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-setup-control",
-			Interface: "network-setup-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "network-setup-control",
+				Interface: "network-setup-control",
+			},
 		},
 	}
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["network-setup-control"]}
@@ -65,10 +67,11 @@ func (s *NetworkSetupControlInterfaceSuite) TestName(c *C) {
 func (s *NetworkSetupControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-setup-control",
-		Interface: "network-setup-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "network-setup-control",
+			Interface: "network-setup-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"network-setup-control slots are reserved for the core snap")
 }

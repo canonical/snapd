@@ -52,9 +52,11 @@ var _ = Suite(&NetworkBindInterfaceSuite{
 func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-bind",
-			Interface: "network-bind",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "network-bind",
+				Interface: "network-bind",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, netbindMockPlugSnapInfoYaml, nil)
@@ -67,10 +69,11 @@ func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 func (s *NetworkBindInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-bind",
-		Interface: "network-bind",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "network-bind",
+			Interface: "network-bind",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"network-bind slots are reserved for the core snap")
 }

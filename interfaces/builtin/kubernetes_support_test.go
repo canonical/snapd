@@ -52,9 +52,11 @@ var _ = Suite(&KubernetesSupportInterfaceSuite{
 func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "kubernetes-support",
-			Interface: "kubernetes-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "kubernetes-support",
+				Interface: "kubernetes-support",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, k8sMockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *KubernetesSupportInterfaceSuite) TestName(c *C) {
 func (s *KubernetesSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "kubernetes-support",
-		Interface: "kubernetes-support",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "kubernetes-support",
+			Interface: "kubernetes-support",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"kubernetes-support slots are reserved for the core snap")
 }

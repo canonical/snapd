@@ -52,9 +52,11 @@ var _ = Suite(&SystemObserveInterfaceSuite{
 func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "system-observe",
-			Interface: "system-observe",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "system-observe",
+				Interface: "system-observe",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, sysobsMockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *SystemObserveInterfaceSuite) TestName(c *C) {
 func (s *SystemObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "system-observe",
-		Interface: "system-observe",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "system-observe",
+			Interface: "system-observe",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"system-observe slots are reserved for the core snap")
 }

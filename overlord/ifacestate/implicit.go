@@ -50,8 +50,10 @@ func addImplicitSlots(snapInfo *snap.Info) {
 
 func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
 	return &snap.SlotInfo{
-		Name:      ifaceName,
-		Snap:      snapInfo,
-		Interface: ifaceName,
+		PlugSlotData: snap.PlugSlotData{
+			Name:      ifaceName,
+			Snap:      snapInfo,
+			Interface: ifaceName,
+		},
 	}
 }

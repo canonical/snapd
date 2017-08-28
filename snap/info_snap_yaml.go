@@ -223,11 +223,13 @@ func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 			return err
 		}
 		snap.Plugs[name] = &PlugInfo{
-			Snap:      snap,
-			Name:      name,
-			Interface: iface,
-			Attrs:     attrs,
-			Label:     label,
+			PlugSlotData{
+				Snap:      snap,
+				Name:      name,
+				Interface: iface,
+				Attrs:     attrs,
+				Label:     label,
+			},
 		}
 		if len(y.Apps) > 0 {
 			snap.Plugs[name].Apps = make(map[string]*AppInfo)
@@ -247,11 +249,13 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 			return err
 		}
 		snap.Slots[name] = &SlotInfo{
-			Snap:      snap,
-			Name:      name,
-			Interface: iface,
-			Attrs:     attrs,
-			Label:     label,
+			PlugSlotData{
+				Snap:      snap,
+				Name:      name,
+				Interface: iface,
+				Attrs:     attrs,
+				Label:     label,
+			},
 		}
 		if len(y.Apps) > 0 {
 			snap.Slots[name].Apps = make(map[string]*AppInfo)
@@ -298,10 +302,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			if !ok {
 				// Create implicit plug definitions if required
 				plug = &PlugInfo{
-					Snap:      snap,
-					Name:      plugName,
-					Interface: plugName,
-					Apps:      make(map[string]*AppInfo),
+					PlugSlotData{
+						Snap:      snap,
+						Name:      plugName,
+						Interface: plugName,
+						Apps:      make(map[string]*AppInfo),
+					},
 				}
 				snap.Plugs[plugName] = plug
 			}
@@ -312,10 +318,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			slot, ok := snap.Slots[slotName]
 			if !ok {
 				slot = &SlotInfo{
-					Snap:      snap,
-					Name:      slotName,
-					Interface: slotName,
-					Apps:      make(map[string]*AppInfo),
+					PlugSlotData{
+						Snap:      snap,
+						Name:      slotName,
+						Interface: slotName,
+						Apps:      make(map[string]*AppInfo),
+					},
 				}
 				snap.Slots[slotName] = slot
 			}
@@ -347,10 +355,12 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 			if !ok {
 				// Create implicit plug definitions if required
 				plug = &PlugInfo{
-					Snap:      snap,
-					Name:      plugName,
-					Interface: plugName,
-					Hooks:     make(map[string]*HookInfo),
+					PlugSlotData{
+						Snap:      snap,
+						Name:      plugName,
+						Interface: plugName,
+						Hooks:     make(map[string]*HookInfo),
+					},
 				}
 				snap.Plugs[plugName] = plug
 			} else if plug.Hooks == nil {

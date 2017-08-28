@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "openvswitch",
-			Interface: "openvswitch",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "openvswitch",
+				Interface: "openvswitch",
+			},
 		},
 	}
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -66,10 +68,11 @@ func (s *OpenvSwitchInterfaceSuite) TestName(c *C) {
 func (s *OpenvSwitchInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "openvswitch",
-		Interface: "openvswitch",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "openvswitch",
+			Interface: "openvswitch",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"openvswitch slots are reserved for the core snap")
 }

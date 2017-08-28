@@ -52,9 +52,11 @@ apps:
 	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["locale-control"]}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "locale-control",
-			Interface: "locale-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "locale-control",
+				Interface: "locale-control",
+			},
 		},
 	}
 }
@@ -66,10 +68,11 @@ func (s *LocaleControlInterfaceSuite) TestName(c *C) {
 func (s *LocaleControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "locale-control",
-		Interface: "locale-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "locale-control",
+			Interface: "locale-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"locale-control slots are reserved for the core snap")
 }

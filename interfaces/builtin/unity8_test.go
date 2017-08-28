@@ -59,10 +59,12 @@ func createMockFooPlug(c *C, content string) *interfaces.Plug {
 
 	return &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      info,
-			Name:      info.Name(),
-			Interface: "unity8",
-			Apps:      info.Apps,
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      info,
+				Name:      info.Name(),
+				Interface: "unity8",
+				Apps:      info.Apps,
+			},
 		},
 	}
 }
@@ -78,9 +80,11 @@ apps:
 	dirs.SetRootDir(c.MkDir())
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "unity8-session"},
-			Name:      "unity8-session",
-			Interface: "unity8",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "unity8-session"},
+				Name:      "unity8-session",
+				Interface: "unity8",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)

@@ -361,8 +361,7 @@ type DeltaInfo struct {
 // sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
-// PlugInfo provides information about a plug.
-type PlugInfo struct {
+type PlugSlotData struct {
 	Snap *Info
 
 	Name      string
@@ -371,6 +370,11 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+}
+
+// PlugInfo provides information about a plug.
+type PlugInfo struct {
+	PlugSlotData
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -399,13 +403,7 @@ func (slot *SlotInfo) SecurityTags() []string {
 
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
-	Snap *Info
-
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
+	PlugSlotData
 }
 
 // AppInfo provides information about a app.
