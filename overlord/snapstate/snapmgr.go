@@ -347,6 +347,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
 	runner.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
 
+	// misc
+	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
+
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
 
@@ -631,6 +634,21 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		chg.AddAll(ts)
 	}
 
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
 	return nil
 }
 
