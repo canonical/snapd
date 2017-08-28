@@ -16,10 +16,17 @@ restore: |
 execute: |
     . "$TESTSLIB/pkgdb.sh"
 
-    # Original version of snapd-xdg-open in the archive which was not
+    # Original version of snapd-xdg-open in 16.04 which was not
     # part of the snapd source package.
     ver=0.0.0~16.04
-    distro_install_package snapd-xdg-open=$ver
+    if ! distro_install_package snapd-xdg-open=$ver; then
+        # version of snapd-xdg-open in 17.04,17.10
+        ver=0.0.0
+        if ! distro_install_package snapd-xdg-open=$ver; then
+            echo "SKIP: cannot find snapd-xdg-open, skipping test"
+            exit 0
+        fi
+    fi
 
     prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
 
