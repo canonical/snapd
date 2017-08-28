@@ -252,7 +252,7 @@ dbus (receive, send)
 
 const networkManagerConnectedPlugSecComp = `
 # Description: This is needed to talk to the network-manager service
-socket AF_NETLINK - KOBJECT_UEVENT
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const networkManagerPermanentSlotSecComp = `
