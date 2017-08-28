@@ -46,6 +46,9 @@ backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         halt-timeout: 2h
+        environment:
+            HTTP_PROXY: null
+            HTTPS_PROXY: null
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
