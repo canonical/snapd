@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -59,7 +60,7 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		}
 		created = append(created, wrapperPath)
 
-		if noCompletion || app.Completer == "" {
+		if !release.OnClassic || noCompletion || app.Completer == "" {
 			continue
 		}
 		// symlink the completion snippet
