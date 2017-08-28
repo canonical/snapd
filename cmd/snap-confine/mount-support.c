@@ -137,67 +137,8 @@ static void setup_private_pts()
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
-static void setup_mount_profiles_directly(const char *snap_name)
-{
-	debug("setting up mount profiles directly");
-
-	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	char profile_path[PATH_MAX];
-
-	sc_must_snprintf(profile_path, sizeof(profile_path),
-			 "/run/snapd/ns/snap.%s.fstab", snap_name);
-	debug("opening current mount profile %s", profile_path);
-	current = setmntent(profile_path, "w");
-	if (current == NULL) {
-		die("cannot open current mount profile: %s", profile_path);
-	}
-
-	sc_must_snprintf(profile_path, sizeof(profile_path),
-			 "/var/lib/snapd/mount/snap.%s.fstab", snap_name);
-	debug("opening desired mount profile %s", profile_path);
-	desired = setmntent(profile_path, "r");
-	if (desired == NULL && errno == ENOENT) {
-		// It is ok for the desired profile to not exist. Note that in this
-		// case we also "update" the current profile as we already opened and
-		// truncated it above.
-		return;
-	}
-	if (desired == NULL) {
-		die("cannot open desired mount profile: %s", profile_path);
-	}
-
-	struct mntent *m = NULL;
-	while ((m = getmntent(desired)) != NULL) {
-		debug("read mount entry\n"
-		      "\tmnt_fsname: %s\n"
-		      "\tmnt_dir: %s\n"
-		      "\tmnt_type: %s\n"
-		      "\tmnt_opts: %s\n"
-		      "\tmnt_freq: %d\n"
-		      "\tmnt_passno: %d",
-		      m->mnt_fsname, m->mnt_dir, m->mnt_type,
-		      m->mnt_opts, m->mnt_freq, m->mnt_passno);
-		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
-		debug("initial flags are: bind,ro,nodev,nosuid");
-		if (strcmp(m->mnt_type, "none") != 0) {
-			die("cannot honor mount profile, only 'none' filesystem type is supported");
-		}
-		if (hasmntopt(m, "bind") == NULL) {
-			die("cannot honor mount profile, the bind mount flag is mandatory");
-		}
-		if (hasmntopt(m, "rw") != NULL) {
-			flags &= ~MS_RDONLY;
-		}
-		sc_do_mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL);
-		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
-			die("cannot append entry to the current mount profile");
-		}
-	}
-}
-
-static void setup_mount_profiles_via_snap_update_ns(int snap_update_ns_fd,
-						    const char *snap_name)
+static void sc_setup_mount_profiles(int snap_update_ns_fd,
+				    const char *snap_name)
 {
 	debug("calling snap-update-ns to initialize mount namespace");
 	pid_t child = fork();
@@ -237,30 +178,6 @@ static void setup_mount_profiles_via_snap_update_ns(int snap_update_ns_fd,
 			die("snap-update-ns failed abnormally");
 		}
 		debug("snap-update-ns finished successfully");
-	}
-}
-
-/*
- * Setup mount profiles as described by snapd.
- *
- * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
- * and executes the mount requests described there.
- *
- * Currently only bind mounts are allowed. All bind mounts are read only by
- * default though the `rw` flag can be used.
- *
- * This function is called with the rootfs being "consistent" so that it is
- * either the core snap on an all-snap system or the core snap + punched holes
- * on a classic system.
- **/
-static void sc_setup_mount_profiles(const char *snap_name,
-				    int snap_update_ns_fd)
-{
-	if (snap_update_ns_fd > 0) {
-		setup_mount_profiles_via_snap_update_ns(snap_update_ns_fd,
-							snap_name);
-	} else {
-		setup_mount_profiles_directly(snap_name);
 	}
 }
 
@@ -674,7 +591,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_name, snap_update_ns_fd);
+	sc_setup_mount_profiles(snap_update_ns_fd, snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
