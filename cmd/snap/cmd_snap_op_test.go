@@ -1037,5 +1037,5 @@ func (s *SnapOpSuite) TestSwitchUnhappy(c *check.C) {
 
 func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"switch", "foo"})
-	c.Assert(err, check.ErrorMatches, `please use --channel=<channel-name>`)
+	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
 }
