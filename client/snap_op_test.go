@@ -46,6 +46,7 @@ var ops = []struct {
 	{(*client.Client).Revert, "revert"},
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
+	{(*client.Client).Switch, "switch"},
 }
 
 var multiOps = []struct {
