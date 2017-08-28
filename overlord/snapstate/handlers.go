@@ -173,6 +173,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if _, ok := err.(changeDuringInstallError); ok {
 		return &state.Retry{After: prerequisitesRetryTimeout}
 	}
+	if _, ok := err.(changeConflictError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
 	if err != nil {
 		return err
 	}
@@ -184,7 +187,8 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		t.WaitAll(ts)
 	}
 	chg.AddAll(ts)
-	// ensure this is not rerun again
+	// make sure that the new change is committed to the state
+	// together with marking this task done
 	t.SetStatus(state.DoneStatus)
 
 	return nil

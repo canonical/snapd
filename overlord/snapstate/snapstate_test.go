@@ -7121,7 +7121,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 
 	// Two changes are created, the first will fails, the second will
 	// be fine. The order of what change runs first is random, the
-	// first change will also insall core in its own lane. This test
+	// first change will also install core in its own lane. This test
 	// ensures that core gets installed and there are no conflicts
 	// even if core already got installed from the first change.
 	//
