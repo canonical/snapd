@@ -263,6 +263,11 @@ shutdown
 socket AF_NETLINK - -
 `
 
+const networkManagerPermanentPlugSecComp = `
+# Description: This is needed to talk to the network-manager service
+socket AF_NETLINK - KOBJECT_UEVENT
+`
+
 const networkManagerPermanentSlotDBus = `
 <!-- DBus policy for NetworkManager (upstream version 1.2.2) -->
 <policy user="root">
@@ -456,6 +461,11 @@ func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification
 
 func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
+	return nil
+}
+
+func (iface *networkManagerInterface) SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
+	spec.AddSnippet(networkManagerPermanentPlugSecComp)
 	return nil
 }
 
