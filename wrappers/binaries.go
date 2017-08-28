@@ -60,6 +60,11 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		}
 		created = append(created, wrapperPath)
 
+		// do not add completion symlinks if:
+		// - we are on "ubuntu-core" devices, in this case the
+		//   /usr/share/bash-completion dir is not writable
+		// - there is no completer dir
+		// - there is no completer for this snap
 		if !release.OnClassic || noCompletion || app.Completer == "" {
 			continue
 		}
