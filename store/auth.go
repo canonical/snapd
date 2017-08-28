@@ -33,14 +33,15 @@ import (
 )
 
 var (
-	myappsAPIBase = myappsURL()
+	baseAPIURL = apiURL()
+	// DeviceNonceAPI points to endpoint to get a nonce
+	DeviceNonceAPI = baseAPIURL.String() + "api/v1/snaps/auth/nonces"
+	// DeviceSessionAPI points to endpoint to get a device session
+	DeviceSessionAPI = baseAPIURL.String() + "api/v1/snaps/auth/sessions"
+	myappsAPIBase    = myappsURL()
 	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
 	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
-	// MyAppsDeviceNonceAPI points to MyApps endpoint to get a nonce
-	MyAppsDeviceNonceAPI = myappsAPIBase + "identity/api/v1/nonces"
-	// MyAppsDeviceSessionAPI points to MyApps endpoint to get a device session
-	MyAppsDeviceSessionAPI = myappsAPIBase + "identity/api/v1/sessions"
-	ubuntuoneAPIBase       = authURL()
+	ubuntuoneAPIBase     = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
@@ -252,7 +253,7 @@ func requestStoreDeviceNonce() (string, error) {
 		"User-Agent": httputil.UserAgent(),
 		"Accept":     "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(MyAppsDeviceNonceAPI, headers, nil, &responseData, nil)
+	resp, err := retryPostRequestDecodeJSON(DeviceNonceAPI, headers, nil, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -268,13 +269,20 @@ func requestStoreDeviceNonce() (string, error) {
 	return responseData.Nonce, nil
 }
 
+type deviceSessionRequestParamsEncoder interface {
+	EncodedRequest() string
+	EncodedSerial() string
+	EncodedModel() string
+}
+
 // requestDeviceSession requests a device session macaroon from the store.
-func requestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
+func requestDeviceSession(paramsEncoder deviceSessionRequestParamsEncoder, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
-		"serial-assertion":       serialAssertion,
-		"device-session-request": sessionRequest,
+		"device-session-request": paramsEncoder.EncodedRequest(),
+		"serial-assertion":       paramsEncoder.EncodedSerial(),
+		"model-assertion":        paramsEncoder.EncodedModel(),
 	}
 	var err error
 	deviceJSONData, err := json.Marshal(data)
@@ -295,7 +303,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
 	}
 
-	_, err = retryPostRequest(MyAppsDeviceSessionAPI, headers, deviceJSONData, func(resp *http.Response) error {
+	_, err = retryPostRequest(DeviceSessionAPI, headers, deviceJSONData, func(resp *http.Response) error {
 		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}

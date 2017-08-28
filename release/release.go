@@ -21,11 +21,11 @@ package release
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/snapcore/snapd/apparmor"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -55,16 +55,8 @@ var (
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	for _, req := range requiredApparmorFeatures {
-		// Also ensure appamor is enabled (cannot use
-		// osutil.FileExists() here because of cyclic imports)
-		p := filepath.Join(apparmorFeaturesSysPath, req)
-		if _, err := os.Stat(p); err != nil {
-			return true
-		}
-	}
-
-	return false
+	level, _ := apparmor.ProbeKernel().Evaluate()
+	return level != apparmor.Full
 }
 
 var (
@@ -76,7 +68,6 @@ var (
 func readOSRelease() OS {
 	// TODO: separate this out into its own thing maybe (if made more general)
 	osRelease := OS{
-		VersionID: "unknown",
 		// from os-release(5): If not set, defaults to "ID=linux".
 		ID: "linux",
 	}
@@ -152,26 +143,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	oldApparmorFeaturesSysPath := apparmorFeaturesSysPath
-
-	temp, err := ioutil.TempDir("", "mock-forced-devmode")
-	if err != nil {
-		panic(err)
+	level := apparmor.Full
+	if isDevmode {
+		level = apparmor.None
 	}
-	fakeApparmorFeaturesSysPath := filepath.Join(temp, "apparmor")
-	if !isDevmode {
-		for _, req := range requiredApparmorFeatures {
-			if err := os.MkdirAll(filepath.Join(fakeApparmorFeaturesSysPath, req), 0755); err != nil {
-				panic(err)
-			}
-		}
-	}
-	apparmorFeaturesSysPath = fakeApparmorFeaturesSysPath
-
-	return func() {
-		if err := os.RemoveAll(temp); err != nil {
-			panic(err)
-		}
-		apparmorFeaturesSysPath = oldApparmorFeaturesSysPath
-	}
+	return apparmor.MockFeatureLevel(level)
 }

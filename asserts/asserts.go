@@ -68,6 +68,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
 )
@@ -92,6 +93,7 @@ var typeRegistry = map[string]*AssertionType{
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
 	RepairType.Name:          RepairType,
+	StoreType.Name:           StoreType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -101,6 +103,18 @@ var typeRegistry = map[string]*AssertionType{
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
 	return typeRegistry[name]
+}
+
+// TypeNames returns a sorted list of known assertion type names.
+func TypeNames() []string {
+	names := make([]string, 0, len(typeRegistry))
+	for k := range typeRegistry {
+		names = append(names, k)
+	}
+
+	sort.Strings(names)
+
+	return names
 }
 
 var maxSupportedFormat = map[string]int{}

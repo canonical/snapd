@@ -20,12 +20,15 @@
 package interfaces_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func Test(t *testing.T) {
@@ -176,4 +179,44 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 	_, err = ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+}
+
+func (s *CoreSuite) TestSanitizePlug(c *C) {
+	info := snaptest.MockInfo(c, `
+name: snap
+plugs:
+  plug:
+    interface: iface
+`, nil)
+	plug := &Plug{PlugInfo: info.Plugs["plug"]}
+	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
+		InterfaceName: "iface",
+	}), IsNil)
+	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("broken") },
+	}), ErrorMatches, "broken")
+	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
+		InterfaceName: "other",
+	}), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
+}
+
+func (s *CoreSuite) TestSanitizeSlot(c *C) {
+	info := snaptest.MockInfo(c, `
+name: snap
+slots:
+  slot:
+    interface: iface
+`, nil)
+	slot := &Slot{SlotInfo: info.Slots["slot"]}
+	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
+		InterfaceName: "iface",
+	}), IsNil)
+	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("broken") },
+	}), ErrorMatches, "broken")
+	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
+		InterfaceName: "other",
+	}), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
 }

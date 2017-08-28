@@ -1,8 +1,7 @@
 summary: Check that try command works
-systems:
-    - -ubuntu-core-16-*
-    - -fedora-*
-    - -opensuse-*
+
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"

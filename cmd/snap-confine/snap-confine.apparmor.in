@@ -5,22 +5,25 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
-    /lib/@{multiarch}/ld-*.so mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
     # libc, you are funny
-    /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
     # normal libs in order
-    /lib/@{multiarch}/libapparmor.so* mr,
-    /lib/@{multiarch}/libcgmanager.so* mr,
-    /lib/@{multiarch}/libdl-[0-9]*.so* mr,
-    /lib/@{multiarch}/libnih.so* mr,
-    /lib/@{multiarch}/libnih-dbus.so* mr,
-    /lib/@{multiarch}/libdbus-1.so* mr,
-    /lib/@{multiarch}/libudev.so* mr,
-    /usr/lib/@{multiarch}/libseccomp.so* mr,
-    /lib/@{multiarch}/libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -57,6 +60,8 @@
     @{PROC}/[0-9]*/attr/exec w,
     # Reading current profile
     @{PROC}/[0-9]*/attr/current r,
+    # Reading available filesystems
+    @{PROC}/filesystems r,
 
     # To find where apparmor is mounted
     @{PROC}/[0-9]*/mounts r,
@@ -164,10 +169,12 @@
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     # /etc/alternatives (core)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     # the /snap directory
     mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
@@ -175,7 +182,7 @@
     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     pivot_root,
-    # cleanup 
+    # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
     umount /var/lib/snapd/hostfs/sys/,
     umount /var/lib/snapd/hostfs/dev/,
@@ -281,6 +288,14 @@
     mount options=(ro rbind) /snap/{,ubuntu-}core/*/var/lib/** -> /var/lib/**,
     umount /var/lib/snapd/,
     mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
+    # On classic systems with a setuid root snap-confine when run by non-root
+    # user, the mimic_dir is created with the gid of the calling user (ie,
+    # not '0') so when setting the permissions (chmod) of the mimicked
+    # directory to that of the reference directory, a CAP_FSETID is triggered.
+    # snap-confine sets the directory up correctly, so simply silence the
+    # denial since we don't want to grant the capability as a whole to
+    # snap-confine.
+    deny capability fsetid,
 
     # support for the LXD quirk
     mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
@@ -321,21 +336,25 @@
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions
         /etc/ld.so.cache r,
-        /lib/@{multiarch}/ld-*.so mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
         # libc, you are funny
-        /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         # normal libs in order
-        /lib/@{multiarch}/libapparmor.so* mr,
-        /lib/@{multiarch}/libcgmanager.so* mr,
-        /lib/@{multiarch}/libnih.so* mr,
-        /lib/@{multiarch}/libnih-dbus.so* mr,
-        /lib/@{multiarch}/libdbus-1.so* mr,
-        /lib/@{multiarch}/libudev.so* mr,
-        /usr/lib/@{multiarch}/libseccomp.so* mr,
-        /lib/@{multiarch}/libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 
