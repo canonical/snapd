@@ -1,8 +1,8 @@
 summary: Ensure that lxd works
 
-# only run this on ubuntu, lxd will not work on !ubuntu systems
-# currently
-systems: [ubuntu-1*]
+# only run this on ubuntu 16+, lxd will not work on !ubuntu systems
+# currently nor on ubuntu 14.04
+systems: [ubuntu-16*, ubuntu-core-*]
 
 restore: |
     lxd.lxc stop my-ubuntu
