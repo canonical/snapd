@@ -27,8 +27,6 @@ import (
 	"github.com/godbus/dbus"
 
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // DBusTest provides a separate dbus session bus for running tests
@@ -42,12 +40,12 @@ type DBusTest struct {
 }
 
 func (s *DBusTest) SetUpSuite(c *C) {
-	if !osutil.ExecutableExists("dbus-daemon") {
-		c.Skip("cannot run test without dbus-daemon")
+	if _, err := exec.LookPath("dbus-daemon"); err != nil {
+		c.Skip(fmt.Sprintf("cannot run test without dbus-daemon: %s", err))
 		return
 	}
-	if !osutil.ExecutableExists("dbus-launch") {
-		c.Skip("cannot run test without dbus-launch")
+	if _, err := exec.LookPath("dbus-launch"); err != nil {
+		c.Skip(fmt.Sprintf("cannot run test without dbus-launch: %s", err))
 		return
 	}
 
