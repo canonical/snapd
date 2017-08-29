@@ -42,4 +42,4 @@ execute: |
     network-manager.nmcli d show
 
     echo "Install a snap that contains bash-completion scripts"
-    snap install --edge test-snapd-complexion
+    snap install --edge test-snapd-test-snapd-complexion
