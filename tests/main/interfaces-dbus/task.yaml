@@ -17,6 +17,8 @@ prepare: |
     . "$TESTSLIB/dirs.sh"
     . "$TESTSLIB/pkgdb.sh"
 
+    distro_install_package dbus-x11
+
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
 
@@ -29,14 +31,14 @@ prepare: |
 
 restore: |
     rm -f call.error
-    . $TESTSLIB/dbus.sh
+    . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 
 execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
     DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
 
-    . $TESTSLIB/dbus.sh
+    . "$TESTSLIB/dbus.sh"
     init_dbus_env
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"

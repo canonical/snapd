@@ -13,6 +13,18 @@
 			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
+			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"path": "github.com/godbus/dbus",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
 			"path": "github.com/gorilla/context",
 			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
@@ -138,7 +150,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "tyXdQ4OdVQelQdsil6fXUtKKIRw=",
+			"checksumSHA1": "K3C9lD5XgLfXd25MtZe3Uw5BRoA=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "35ef4487ce0a1ea5d4b616ffe71e34febe723695",
 			"revisionTime": "2017-07-27T13:28:57Z"
