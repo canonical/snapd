@@ -44,11 +44,6 @@ import (
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
-var (
-	rootKey, _  = assertstest.GenerateKey(752)
-	storeKey, _ = assertstest.GenerateKey(752)
-)
-
 type interfaceManagerSuite struct {
 	state           *state.State
 	db              *asserts.Database
@@ -65,7 +60,7 @@ type interfaceManagerSuite struct {
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootKey, storeKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 

@@ -45,7 +45,7 @@ const i2cConnectedPlugAppArmor = `
 # Description: Can access I2C controller
 
 %s rw,
-/sys/devices/platform/**.i2c/%s/** rw,
+/sys/devices/platform/{*,**.i2c}/%s/** rw,
 `
 
 const i2cConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
