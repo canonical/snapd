@@ -106,6 +106,7 @@ endif
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	$(MAKE) -C data/systemd clean
+	$(MAKE) -C data/env clean
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -119,7 +120,7 @@ override_dh_auto_build:
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
-	# Generate the real systemd/dbus config files
+	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
 
 override_dh_auto_test:
