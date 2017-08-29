@@ -71,7 +71,6 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires:  systemd
-BuildRequires:  libseccomp-static
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
@@ -129,6 +128,7 @@ BuildRequires:  pkgconfig(systemd)
 BuildRequires:  pkgconfig(udev)
 BuildRequires:  xfsprogs-devel
 BuildRequires:  glibc-static
+BuildRequires:  libseccomp-static
 BuildRequires:  valgrind
 BuildRequires:  %{_bindir}/rst2man
 %if 0%{?fedora} >= 25
@@ -249,6 +249,7 @@ Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/assertstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
@@ -261,9 +262,10 @@ Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition) = %{version}-%{release}
+Provides:      golang(%{import_path}/partition/androidbootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition/grubenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/partition/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
-Provides:      golang(%{import_path}/provisioning) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
@@ -277,7 +279,9 @@ Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%
 Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/testutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeout) = %{version}-%{release}
+Provides:      golang(%{import_path}/timeutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
+Provides:      golang(%{import_path}/x11) = %{version}-%{release}
 
 
 %description devel
@@ -351,7 +355,7 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-%gobuild -o bin/snap-seccomp %{import_path}/cmd/snap-seccomp
+%gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 # Build SELinux module
 pushd ./data/selinux
@@ -380,7 +384,7 @@ autoreconf --force --install --verbose
 popd
 
 # Build systemd units
-pushd ./data/systemd
+pushd ./data/
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
@@ -441,7 +445,7 @@ rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
 
 # Install all systemd units
-pushd ./data/systemd
+pushd ./data/
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
@@ -560,6 +564,7 @@ popd
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -577,6 +582,7 @@ popd
 %{_prefix}/lib/udev/snappy-app-dev
 %{_udevrulesdir}/80-snappy-assign.rules
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
+
 
 %files selinux
 %license data/selinux/COPYING
@@ -648,6 +654,12 @@ fi
   - systemd: disable `Nice=-5` to fix error when running inside lxdSee
     https://bugs.launchpad.net/snapd/+bug/1709536
 
+* Wed Aug 16 2017 Neal Gompa <ngompa13@gmail.com> - 2.27.2-2
+- Bump to rebuild for F27 and Rawhide
+
+* Wed Aug 16 2017 Neal Gompa <ngompa13@gmail.com> - 2.27.2-1
+- Release 2.27.2 to Fedora (RH#1482173)
+
 * Wed Aug 16 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.2
  - tests: remove TestInterfacesHelp as it breaks when go-flags
@@ -658,6 +670,9 @@ fi
  - interfaces: allow /usr/bin/xdg-open in unity7
  - store: do not resume a download when we already have the whole
    thing
+
+* Mon Aug 14 2017 Neal Gompa <ngompa13@gmail.com> - 2.27.1-1
+- Release 2.27.1 to Fedora (RH#1481247)
 
 * Mon Aug 14 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.1
@@ -672,6 +687,9 @@ fi
  - interfaces/network-control: rw for ieee80211 advanced wireless
  - interfaces/mount-observe: allow read on sysfs entries for block
    devices
+
+* Thu Aug 10 2017 Neal Gompa <ngompa13@gmail.com> - 2.27-1
+- Release 2.27 to Fedora (RH#1458086)
 
 * Thu Aug 10 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27
@@ -935,6 +953,12 @@ fi
  - cmd/snap-confine: aggregate operations holding global lock
  - api, ifacestate: resolve disconnect early
  - interfaces/builtin: ensure we don't register interfaces twice
+
+* Thu Aug 03 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.26.3-5
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Binutils_Mass_Rebuild
+
+* Thu Jul 27 2017 Fedora Release Engineering <releng@fedoraproject.org> - 2.26.3-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
 
 * Thu May 25 2017 Neal Gompa <ngompa13@gmail.com> - 2.26.3-3
 - Cover even more stuff for proper erasure on final uninstall (RH#1444422)

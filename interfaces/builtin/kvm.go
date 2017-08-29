@@ -36,7 +36,7 @@ const kvmConnectedPlugAppArmor = `
 /dev/kvm rw,
 `
 
-const kvmConnectedPlugUDev = `KERNEL=="kvm", TAG+="###SLOT_SECURITY_TAGS###"`
+const kvmConnectedPlugUDev = `KERNEL=="kvm", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
