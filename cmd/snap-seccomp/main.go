@@ -473,7 +473,7 @@ var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
 
 func findUid(username string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(username) {
-		return 0, fmt.Errorf("\"%s\" must be a valid username", username)
+		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
 	user, err := user.Lookup(username)
 	if err != nil {
@@ -585,7 +585,7 @@ func isSizeReasonable(sz int64) bool {
 
 func findGid(group string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(group) {
-		return 0, fmt.Errorf("\"%s\" must be a valid group name", group)
+		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
 
 	//group, err := user.LookupGroup(group)
