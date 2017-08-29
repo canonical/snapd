@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27.1
+Version:        2.27.4
 Release:        1
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -206,7 +206,7 @@ install -d %buildroot/snap/bin
 install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/permissions.d/snapd
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
-make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
+make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
 for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
     rm -f %buildroot/%{_unitdir}/$s
 done
@@ -291,6 +291,7 @@ esac
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
+/usr/share/dbus-1/services/io.snapcraft.Launcher.service
 
 %changelog
 

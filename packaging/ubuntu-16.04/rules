@@ -119,8 +119,8 @@ override_dh_auto_build:
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
-	# Generate the real systemd units out of the available templates
-	$(MAKE) -C data/systemd all
+	# Generate the real systemd/dbus config files
+	$(MAKE) -C data all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -210,10 +210,11 @@ override_dh_install:
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 
-	# install snapd's systemd units, done here instead of
-	# debian/snapd.install because the ubuntu/14.04 release
-	# branch adds/changes bits here
-	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	# install snapd's systemd units / upstart jobs, done
+	# here instead of debian/snapd.install because the
+	# ubuntu/14.04 release branch adds/changes bits here
+	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
+		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 

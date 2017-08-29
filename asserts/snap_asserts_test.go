@@ -596,10 +596,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 }
 
 func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.Database) {
-	trustedPrivKey := testPrivKey0
-	storePrivKey := testPrivKey1
-
-	store = assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
+	store = assertstest.NewStoreStack("canonical", nil)
 	cfg := &asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         store.Trusted,

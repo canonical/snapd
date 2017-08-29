@@ -251,6 +251,11 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
+const networkManagerConnectedPlugSecComp = `
+# Description: This is needed to talk to the network-manager service
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
 const networkManagerPermanentSlotSecComp = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
@@ -469,6 +474,11 @@ func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification
 		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)
 		spec.AddSnippet(udevRule)
 	}
+	return nil
+}
+
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 
