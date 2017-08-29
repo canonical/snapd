@@ -391,6 +391,9 @@ make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
 
+# Build environ-tweaking snippet
+make -C data/env SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap"
+
 %install
 install -d -p %{buildroot}%{_bindir}
 install -d -p %{buildroot}%{_libexecdir}/snapd
@@ -456,17 +459,10 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
-# Put /var/lib/snapd/snap/bin on PATH
-# Put /var/lib/snapd/desktop on XDG_DATA_DIRS
-cat << __SNAPD_SH__ > %{buildroot}%{_sysconfdir}/profile.d/snapd.sh
-PATH=\$PATH:/var/lib/snapd/snap/bin
-if [ -z "\$XDG_DATA_DIRS" ]; then
-    XDG_DATA_DIRS=/usr/share/:/usr/local/share/:/var/lib/snapd/desktop
-else
-    XDG_DATA_DIRS="\$XDG_DATA_DIRS":/var/lib/snapd/desktop
-fi
-export XDG_DATA_DIRS
-__SNAPD_SH__
+# Install environ-tweaking snippet
+pushd ./data/env
+%make_install
+popd
 
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd

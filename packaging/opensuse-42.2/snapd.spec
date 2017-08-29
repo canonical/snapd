@@ -174,8 +174,8 @@ mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
-install -m 755 -d %{buildroot}/etc/profile.d/
-install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
+#   and XDG_DATA_DIRS for /var/lib/snapd/desktop
+make -C data/env install DESTDIR=%{buildroot}
 
 # Generate and install man page for snap command
 install -m 755 -d %{buildroot}%{_mandir}/man1
