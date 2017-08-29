@@ -1009,3 +1009,33 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		s.stdout.Reset()
 	}
 }
+
+func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "switch",
+			"channel": "beta",
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"switch", "--beta", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "beta" channel`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestSwitchUnhappy(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"switch"})
+	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
+func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"switch", "foo"})
+	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
+}

@@ -166,6 +166,7 @@ override_dh_install:
 	# and now the normal install rules
 	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+
 	dh_install
 
 override_dh_auto_install: snap.8
