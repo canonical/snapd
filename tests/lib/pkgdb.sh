@@ -363,12 +363,14 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         cups
         dbus-x11
+        gnome-keyring
         jq
         man
         printer-driver-cups-pdf
         python3-yaml
         upower
         weston
+        xdg-utils
         "
 
     case "$SPREAD_SYSTEM" in
@@ -460,7 +462,7 @@ pkg_dependencies(){
             ;;
         *)
             ;;
-    esac  
+    esac
 }
 
 install_pkg_dependencies(){
