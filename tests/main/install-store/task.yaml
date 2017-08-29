@@ -40,3 +40,6 @@ execute: |
     echo "Install network-manager and do basic smoke test"
     snap install network-manager
     network-manager.nmcli d show
+
+    echo "Install a snap that contains bash-completion scripts"
+    snap install --edge test-snapd-complexion
