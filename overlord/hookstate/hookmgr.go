@@ -227,6 +227,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	handlers := m.repository.generateHandlers(context)
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
+		// Do not report error if hook handler doesn't exist as long as the hook is optional.
+		// This is to avoid issues when downgrading to an old core snap that doesn't know about
+		// particular hook type and a task for it exists (e.g. "refresh" hook).
 		if hooksup.Optional {
 			return nil
 		}
