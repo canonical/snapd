@@ -1054,7 +1054,7 @@ AXNpZw==`}
 	runner.LoadState()
 
 	_, err := runner.Next("canonical")
-	c.Check(err, ErrorMatches, `cannot verify repair "canonical"-1: cannot find public key.*`)
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: cannot find public key.*`)
 
 	c.Check(runner.Sequence("canonical"), HasLen, 0)
 }
@@ -1095,7 +1095,7 @@ func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
 	runner.LoadState()
 
 	_, err = runner.Next("canonical")
-	c.Check(err, ErrorMatches, `cannot verify repair "canonical"-1: circular assertions`)
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: circular assertions`)
 
 	c.Check(runner.Sequence("canonical"), HasLen, 0)
 }
