@@ -64,7 +64,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 		} else if !dirs.SupportsClassicConfinement() {
-			return nil, fmt.Errorf("classic confinement is not yet supported on your distribution")
+			return nil, fmt.Errorf(i18n.G("classic confinement requires snaps under /snap or symlink from /snap to %s"), dirs.SnapMountDir)
 		}
 	}
 	if !snapst.HasCurrent() { // install?
@@ -169,6 +169,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	// run refresh hook when updating existing snap, otherwise run install hook
+	if snapst.HasCurrent() && !snapsup.Flags.Revert {
+		refreshHook := SetupRefreshHook(st, snapsup.Name())
+		addTask(refreshHook)
+		prev = refreshHook
+	}
+
 	// only run install hook if installing the snap for the first time
 	if !snapst.HasCurrent() {
 		installHook := SetupInstallHook(st, snapsup.Name())
@@ -266,6 +273,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 
 var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
+}
+
+var SetupRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupRefreshHook is unset")
 }
 
 var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
@@ -806,6 +817,28 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	}
 
 	return changed, mustPrune, transferTargets, nil
+}
+
+// Switch switches a snap to a new channel
+func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !snapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: snapst.CurrentSideInfo(),
+		Channel:  channel,
+	}
+
+	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.Name(), snapsup.Channel))
+	switchSnap.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(switchSnap), nil
 }
 
 // Update initiates a change updating a snap.

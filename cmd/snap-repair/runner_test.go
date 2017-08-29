@@ -36,7 +36,10 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -44,13 +47,49 @@ import (
 
 type runnerSuite struct {
 	tmpdir string
+
+	storeSigning *assertstest.StoreStack
+
+	brandSigning *assertstest.SigningDB
+	brandAcct    *asserts.Account
+	brandAcctKey *asserts.AccountKey
+
+	modelAs *asserts.Model
+
+	seedAssertsDir string
 }
 
 var _ = Suite(&runnerSuite{})
 
+func (s *runnerSuite) SetUpSuite(c *C) {
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+
+	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	s.brandAcctKey = assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model-2",
+		"architecture": "armhf",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.modelAs = modelAs.(*asserts.Model)
+}
+
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
+
+	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 }
 
 var (
@@ -262,6 +301,21 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	c.Assert(n, Equals, 1)
 }
 
+func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, testRepair)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	_, _, err := runner.Fetch("canonical", "2", 2)
+	c.Assert(err, Equals, repair.ErrRepairNotModified)
+}
+
 func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -415,31 +469,100 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
-func (s *runnerSuite) TestLoadState(c *C) {
+func (s *runnerSuite) freshState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`{"device": {"brand":"my-brand","model":"my-model"}}`), 0600)
 	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) TestLoadState(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
-	err = runner.LoadState()
+	err := runner.LoadState()
 	c.Assert(err, IsNil)
 	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model")
 }
 
+func (s *runnerSuite) initSeed(c *C) {
+	err := os.MkdirAll(s.seedAssertsDir, 0775)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) writeSeedAssert(c *C, fname string, a asserts.Assertion) {
+	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) rmSeedAssert(c *C, fname string) {
+	err := os.Remove(filepath.Join(s.seedAssertsDir, fname))
+	c.Assert(err, IsNil)
+}
+
 func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	// sanity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+	s.initSeed(c)
+	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+	s.writeSeedAssert(c, "brand.account", s.brandAcct)
+	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+	s.writeSeedAssert(c, "model", s.modelAs)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
-	// TODO: init state will do more later
+
 	brand, model := runner.BrandModel()
-	c.Check(brand, Equals, "")
-	c.Check(model, Equals, "")
+	c.Check(brand, Equals, "my-brand")
+	c.Check(model, Equals, "my-model-2")
+}
+
+func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
+	// sanity
+	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+	s.initSeed(c)
+
+	const errPrefix = "cannot set device information: "
+	tests := []struct {
+		breakFunc   func()
+		expectedErr string
+	}{
+		{func() { s.rmSeedAssert(c, "model") }, errPrefix + "no model assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
+		{func() {
+			// broken signature
+			blob := asserts.Encode(s.brandAcct)
+			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			c.Assert(err, IsNil)
+		}, errPrefix + "cannot decode signature:.*"},
+		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
+	}
+
+	for _, test := range tests {
+		s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+		s.writeSeedAssert(c, "brand.account", s.brandAcct)
+		s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+		s.writeSeedAssert(c, "model", s.modelAs)
+
+		test.breakFunc()
+
+		runner := repair.NewRunner()
+		err := runner.LoadState()
+		c.Check(err, ErrorMatches, test.expectedErr)
+	}
 }
 
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
@@ -453,6 +576,8 @@ func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
 }
 
 func (s *runnerSuite) TestSaveStateFail(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
@@ -473,11 +598,12 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 }
 
 func (s *runnerSuite) TestSaveState(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 
-	runner.SetBrandModel("my-brand", "my-model")
 	runner.SetSequence("canonical", []*repair.RepairState{
 		{Sequence: 1, Revision: 3},
 	})
@@ -490,6 +616,43 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]}}`)
+}
+
+func (s *runnerSuite) TestApplicable(c *C) {
+	s.freshState(c)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+
+	scenarios := []struct {
+		headers    map[string]interface{}
+		applicable bool
+	}{
+		{nil, true},
+		{map[string]interface{}{"series": []interface{}{"18"}}, false},
+		{map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
+		{map[string]interface{}{"series": "18"}, false},
+		{map[string]interface{}{"series": []interface{}{18}}, false},
+		{map[string]interface{}{"architectures": []interface{}{arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch", arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"architectures": arch.UbuntuArchitecture()}, false},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
+		{map[string]interface{}{"models": "my-brand/my-model"}, false},
+		// model prefix matches
+		{map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
+	}
+
+	for _, scen := range scenarios {
+		ok := runner.Applicable(scen.headers)
+		c.Check(ok, Equals, scen.applicable, Commentf("%v", scen))
+	}
 }
 
 var (

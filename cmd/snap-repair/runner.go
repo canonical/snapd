@@ -39,7 +39,9 @@ import (
 
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -325,6 +327,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
+
+	if repair.Revision() <= revision {
+		// this shouldn't happen but if it does we behave like
+		// all the rest of assertion infrastructure and ignore
+		// the now superseded revision
+		return nil, nil, ErrRepairNotModified
+	}
+
 	return
 }
 
@@ -466,9 +476,138 @@ func (run *Runner) initState() error {
 	}
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
-	// TODO: init Device
+	if err := run.initDeviceInfo(); err != nil {
+		return err
+	}
 	run.stateModified = true
 	return run.SaveState()
+}
+
+func trustedBackstore(trusted []asserts.Assertion) asserts.Backstore {
+	trustedBS := asserts.NewMemoryBackstore()
+	for _, t := range trusted {
+		trustedBS.Put(t.Type(), t)
+	}
+	return trustedBS
+}
+
+func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
+	assertType := a.Type()
+	if assertType != asserts.AccountKeyType && assertType != asserts.AccountType {
+		return nil
+	}
+	// check that account and account-key assertions are signed by
+	// a trusted authority
+	acctID := a.AuthorityID()
+	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
+	if err != nil && err != asserts.ErrNotFound {
+		return err
+	}
+	if err == asserts.ErrNotFound {
+		return fmt.Errorf("%v not signed by trusted authority: %s", a.Ref(), acctID)
+	}
+	return nil
+}
+
+func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted asserts.Backstore) error {
+	if err := checkAuthorityID(a, trusted); err != nil {
+		return err
+	}
+	acctKeyMaxSuppFormat := asserts.AccountKeyType.MaxSupportedFormat()
+
+	seen := make(map[string]bool)
+	bottom := false
+	for !bottom {
+		u := a.Ref().Unique()
+		if seen[u] {
+			return fmt.Errorf("circular assertions")
+		}
+		seen[u] = true
+		signKey := []string{a.SignKeyID()}
+		key, err := trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+		if err != nil && err != asserts.ErrNotFound {
+			return err
+		}
+		if err == nil {
+			bottom = true
+		} else {
+			key, err = workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+			if err != nil && err != asserts.ErrNotFound {
+				return err
+			}
+			if err == asserts.ErrNotFound {
+				return fmt.Errorf("cannot find public key %q", signKey[0])
+			}
+			if err := checkAuthorityID(key, trusted); err != nil {
+				return err
+			}
+		}
+		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}); err != nil {
+			return err
+		}
+		a = key
+	}
+	return nil
+}
+
+func (run *Runner) initDeviceInfo() error {
+	const errPrefix = "cannot set device information: "
+
+	workBS := asserts.NewMemoryBackstore()
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
+	dc, err := ioutil.ReadDir(assertSeedDir)
+	if err != nil {
+		return err
+	}
+	var model *asserts.Model
+	for _, fi := range dc {
+		fn := filepath.Join(assertSeedDir, fi.Name())
+		f, err := os.Open(fn)
+		if err != nil {
+			// best effort
+			continue
+		}
+		dec := asserts.NewDecoder(f)
+		for {
+			a, err := dec.Decode()
+			if err != nil {
+				// best effort
+				break
+			}
+			switch a.Type() {
+			case asserts.ModelType:
+				if model != nil {
+					return fmt.Errorf(errPrefix + "multiple models in seed assertions")
+				}
+				model = a.(*asserts.Model)
+			case asserts.AccountType, asserts.AccountKeyType:
+				workBS.Put(a.Type(), a)
+			}
+		}
+	}
+	if model == nil {
+		return fmt.Errorf(errPrefix + "no model assertion in seed data")
+	}
+	trustedBS := trustedBackstore(sysdb.Trusted())
+	if err := verifySignatures(model, workBS, trustedBS); err != nil {
+		return fmt.Errorf(errPrefix+"%v", err)
+	}
+	acctPK := []string{model.BrandID()}
+	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
+	acct, err := trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
+	if err != nil {
+		var err error
+		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
+		if err != nil {
+			return fmt.Errorf(errPrefix + "no brand account assertion in seed data")
+		}
+	}
+	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
+		return fmt.Errorf(errPrefix+"%v", err)
+	}
+	run.state.Device.Brand = model.BrandID()
+	run.state.Device.Model = model.Model()
+	return nil
 }
 
 // LoadState loads the repairs' state from disk, and (re)initializes it if it's missing or corrupted.
@@ -530,7 +669,33 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if len(series) != 0 && !strutil.ListContains(series, release.Series) {
 		return false
 	}
-	// TODO: architecture, model filtering
+	archs, err := stringList(headers, "architectures")
+	if err != nil {
+		return false
+	}
+	if len(archs) != 0 && !strutil.ListContains(archs, arch.UbuntuArchitecture()) {
+		return false
+	}
+	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)
+	models, err := stringList(headers, "models")
+	if err != nil {
+		return false
+	}
+	if len(models) != 0 && !strutil.ListContains(models, brandModel) {
+		// model prefix matching: brand/prefix*
+		hit := false
+		for _, patt := range models {
+			if strings.HasSuffix(patt, "*") && strings.ContainsRune(patt, '/') {
+				if strings.HasPrefix(brandModel, strings.TrimSuffix(patt, "*")) {
+					hit = true
+					break
+				}
+			}
+		}
+		if !hit {
+			return false
+		}
+	}
 	return true
 }
 
