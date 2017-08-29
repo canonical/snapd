@@ -7,8 +7,6 @@ usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 
-# PATH extension for snap packages, and XDG_DATA_DIRS so that we have .desktop support
-data/env/snapd.sh /etc/profile.d/apps-bin-path.sh
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
 data/completion/complete.sh /usr/lib/snapd/
