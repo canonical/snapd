@@ -680,14 +680,17 @@ func (run *Runner) Next(brandID string) (*Repair, error) {
 	}
 }
 
-// we use designated subroot keys so that we have a subtree of keys and make
-// sure not any trusted authority key can sign repairs, given that we lack
-// ATM a way to limit the purpose of keys
+// Limit trust to specific keys while there's no delegation or limited
+// keys support.  The obtained assertion stream may also include
+// account keys that are directly or indirectly signed by a trusted
+// key.
 var (
 	trustedRepairRootKeys []*asserts.AccountKey
 )
 
-// Verify verifies that the repair is properly signed taking into consideration account-key assertions from aux as needed.
+// Verify verifies that the repair is properly signed by the specific
+// trusted root keys or by account keys in the stream (passed via aux)
+// directly or indirectly signed by a trusted key.
 func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error {
 	workBS := asserts.NewMemoryBackstore()
 	for _, a := range aux {
