@@ -1,9 +1,2 @@
-Thanks for helping us make a better Snapd!
-
-Checklist:
-
-- Have you signed the contributor licence agreement?
-  https://www.ubuntu.com/legal/contributors
-
-- Have you read our contribution guide?
-  [CONTRIBUTING.md](CONTRIBUTING.md)
+Thanks for helping us make a better snapd!
+Have you signed the [license agreement](https://www.ubuntu.com/legal/contributors) and read the [contribution guide](CONTRIBUTING.md)?
