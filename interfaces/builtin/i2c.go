@@ -94,7 +94,7 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/{*,**.i2c}/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

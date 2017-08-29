@@ -13,10 +13,16 @@
 			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
-			"checksumSHA1": "LIpi0bDVAl3e0Xza8gohpKkH0+I=",
+			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
 			"path": "github.com/godbus/dbus",
-			"revision": "bd29ed602e2cf4207ebcabcd530259169e4289ba",
-			"revisionTime": "2017-07-07T17:46:28Z"
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
