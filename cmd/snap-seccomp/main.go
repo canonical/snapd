@@ -598,10 +598,6 @@ func findGid(group string) (uint64, error) {
 	return strconv.ParseUint(group, 10, 64)
 }
 
-func MockFindGid(group string) (uint64, error) {
-	return findGid(group)
-}
-
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
