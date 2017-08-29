@@ -27,7 +27,9 @@ all: ${GENERATED}
 .PHONY: all
 
 install: ${GENERATED}
-	install -D -m 0644 -t ${DESTDIR}/${ENVD} $^
+	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
+	install -d -m 0755 ${DESTDIR}/${ENVD}
+	install -m 0644 -t ${DESTDIR}/${ENVD} $^
 .PHONY: install
 
 clean:
