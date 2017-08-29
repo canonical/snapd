@@ -1,6 +1,6 @@
 # -*- shell-script -*-
 
-_complete_complexion() {
+_complete_test-snapd-complexion() {
     local cur prev words cword
     _init_completion || return
 
@@ -27,4 +27,4 @@ _complete_complexion() {
     _filedir
 }
 
-complete -F _complete_complexion complexion
+complete -F _complete_test-snapd-complexion test-snapd-complexion
