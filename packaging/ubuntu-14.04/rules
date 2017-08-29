@@ -130,6 +130,9 @@ override_dh_auto_build:
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
+	# Generate the env snippet
+	$(MAKE) -C data/env all
+
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
