@@ -36,3 +36,7 @@ execute: |
     expected="(?s)$DEVMODE_SNAP .*"
     actual=$(snap install --channel beta --devmode $DEVMODE_SNAP)
     echo "$actual" | grep -Pzq "$expected"
+
+    echo "Install network-manager and do basic smoke test"
+    snap install network-manager
+    network-manager.nmcli d show
