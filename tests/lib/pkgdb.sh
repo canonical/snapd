@@ -441,6 +441,7 @@ pkg_dependencies_opensuse(){
         netcat-openbsd
         osc
         rng-tools
+        xdg-utils
         "
 }
 
