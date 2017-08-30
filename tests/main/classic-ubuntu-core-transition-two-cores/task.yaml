@@ -6,6 +6,8 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
+debug: |
+    snap changes
 execute: |
     echo "install a snap"
     snap install test-snapd-python-webserver
@@ -30,10 +32,18 @@ execute: |
 
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
-    while snap changes|grep ".*.Doing.*"; do
-        snap changes
+    ok=0
+    for i in $(seq 40); do
+        if ! snap changes|grep -q ".*.Doing.*" ; then
+            ok=1
+            break
+        fi
         sleep .5
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Did not reach steady state"
+        exit 1
+    fi
     snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh

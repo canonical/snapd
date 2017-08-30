@@ -12,6 +12,8 @@ kill-timeout: 5m
 restore: |
     rm -f state.json.new
 
+debug: |
+    snap changes
 execute: |
     . "$TESTSLIB/pkgdb.sh"
 
@@ -67,10 +69,18 @@ execute: |
 
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
-    while snap changes|grep ".*.Doing.*"; do
-        snap changes
+    ok=0
+    for i in $(seq 40); do
+        if ! snap changes|grep -q ".*.Doing.*" ; then
+            ok=1
+            break
+        fi
         sleep .5
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Did not reach steady state"
+        exit 1
+    fi
     snap debug ensure-state-soon
 
     . "$TESTSLIB/changes.sh"
