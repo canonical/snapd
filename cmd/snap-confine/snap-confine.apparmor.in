@@ -5,22 +5,25 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
-    /lib/@{multiarch}/ld-*.so mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
     # libc, you are funny
-    /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
-    /lib/@{multiarch}/libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
     # normal libs in order
-    /lib/@{multiarch}/libapparmor.so* mr,
-    /lib/@{multiarch}/libcgmanager.so* mr,
-    /lib/@{multiarch}/libdl-[0-9]*.so* mr,
-    /lib/@{multiarch}/libnih.so* mr,
-    /lib/@{multiarch}/libnih-dbus.so* mr,
-    /lib/@{multiarch}/libdbus-1.so* mr,
-    /lib/@{multiarch}/libudev.so* mr,
-    /usr/lib/@{multiarch}/libseccomp.so* mr,
-    /lib/@{multiarch}/libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -57,6 +60,8 @@
     @{PROC}/[0-9]*/attr/exec w,
     # Reading current profile
     @{PROC}/[0-9]*/attr/current r,
+    # Reading available filesystems
+    @{PROC}/filesystems r,
 
     # To find where apparmor is mounted
     @{PROC}/[0-9]*/mounts r,
@@ -331,21 +336,25 @@
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions
         /etc/ld.so.cache r,
-        /lib/@{multiarch}/ld-*.so mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
         # libc, you are funny
-        /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
-        /lib/@{multiarch}/libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         # normal libs in order
-        /lib/@{multiarch}/libapparmor.so* mr,
-        /lib/@{multiarch}/libcgmanager.so* mr,
-        /lib/@{multiarch}/libnih.so* mr,
-        /lib/@{multiarch}/libnih-dbus.so* mr,
-        /lib/@{multiarch}/libdbus-1.so* mr,
-        /lib/@{multiarch}/libudev.so* mr,
-        /usr/lib/@{multiarch}/libseccomp.so* mr,
-        /lib/@{multiarch}/libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 

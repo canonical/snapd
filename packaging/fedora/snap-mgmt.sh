@@ -66,7 +66,7 @@ purge() {
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
             # snap mount dir
             umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR}/$snap/$rev"
+            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
             rm -f "${SNAP_MOUNT_DIR}/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
@@ -115,7 +115,7 @@ while [ -n "$1" ]; do
             ;;
         --snap-mount-dir=*)
             SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX="$(systemd-escape -p $SNAP_MOUNT_DIR)"
+            SNAP_UNIT_PREFIX=$(systemd-escape -p "$SNAP_MOUNT_DIR")
             shift
             ;;
         --purge)
