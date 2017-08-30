@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.4
+Version:        2.27.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -636,6 +636,15 @@ fi
 
 
 %changelog
+* Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.5
+  - interfaces: fix network-manager plug regression
+  - hooks: do not error when hook handler is not registered
+  - interfaces/alsa,pulseaudio: allow read on udev data for sound
+  - interfaces/optical-drive: read access to udev data for /dev/scd*
+  - interfaces/browser-support: read on /proc/vmstat and misc udev
+    data
+
 * Thu Aug 24 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.4
   - snap-seccomp: add secondary arch for unrestricted snaps as well
