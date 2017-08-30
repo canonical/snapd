@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -168,19 +167,4 @@ squashfs-root/data.bin
 squashfs-root/random
 squashfs-root/random/dir
 `)
-}
-
-func (s *SquashfsTestSuite) TestRunCommandGood(c *C) {
-	err := runCommand("true")
-	c.Assert(err, IsNil)
-}
-
-func (s *SquashfsTestSuite) TestRunCommandBad(c *C) {
-	err := runCommand("false")
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cmd: "false" failed: exit status 1 ("")`))
-}
-
-func (s *SquashfsTestSuite) TestRunCommandUgly(c *C) {
-	err := runCommand("cat", "/no/such/file")
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cmd: "cat /no/such/file" failed: exit status 1 ("cat: /no/such/file: No such file or directory\n")`))
 }
