@@ -17,6 +17,8 @@ prepare: |
     . "$TESTSLIB/dirs.sh"
     . "$TESTSLIB/pkgdb.sh"
 
+    distro_install_package dbus-x11
+
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
 
@@ -54,6 +56,7 @@ restore: |
     else
         systemctl stop dbus-provider
     fi
+    distro_purge_package dbus-x11
 
 execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
