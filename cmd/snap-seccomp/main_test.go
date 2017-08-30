@@ -832,7 +832,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 		{"setgid g:root", "setgid;native;99", main.SeccompRetKill},
 		{"setgid g:daemon", "setgid;native;99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
