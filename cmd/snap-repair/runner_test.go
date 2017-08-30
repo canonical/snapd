@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,6 +58,11 @@ type runnerSuite struct {
 	modelAs *asserts.Model
 
 	seedAssertsDir string
+
+	repairRootAcctKey *asserts.AccountKey
+	repairsAcctKey    *asserts.AccountKey
+
+	repairsSigning *assertstest.SigningDB
 }
 
 var _ = Suite(&runnerSuite{})
@@ -83,6 +89,18 @@ func (s *runnerSuite) SetUpSuite(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.modelAs = modelAs.(*asserts.Model)
+
+	repairRootKey, _ := assertstest.GenerateKey(1024)
+
+	s.repairRootAcctKey = assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, nil, repairRootKey.PublicKey(), "")
+
+	repairsKey, _ := assertstest.GenerateKey(752)
+
+	repairRootSigning := assertstest.NewSigningDB("canonical", repairRootKey)
+
+	s.repairsAcctKey = assertstest.NewAccountKey(repairRootSigning, s.storeSigning.TrustedAccount, nil, repairsKey.PublicKey(), "")
+
+	s.repairsSigning = assertstest.NewSigningDB("canonical", repairsKey)
 }
 
 func (s *runnerSuite) SetUpTest(c *C) {
@@ -756,7 +774,9 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 			return
 		}
 
-		repair, err := asserts.Decode([]byte((*seqRepairs)[seq-1]))
+		rpr := []byte((*seqRepairs)[seq-1])
+		dec := asserts.NewDecoder(bytes.NewBuffer(rpr))
+		repair, err := dec.Decode()
 		c.Assert(err, IsNil)
 
 		switch r.Header.Get("Accept") {
@@ -772,7 +792,7 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 				w.WriteHeader(304)
 				return
 			}
-			w.Write(asserts.Encode(repair))
+			w.Write(rpr)
 		}
 	}))
 
@@ -781,8 +801,49 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	return mockServer
 }
 
+func (s *runnerSuite) TestVerify(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	runner := repair.NewRunner()
+
+	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]interface{}{
+		"brand-id":  "canonical",
+		"repair-id": "2",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, []byte("#script"), "")
+	c.Assert(err, IsNil)
+	rpr := a.(*asserts.Repair)
+
+	err = runner.Verify(rpr, []asserts.Assertion{s.repairsAcctKey})
+	c.Check(err, IsNil)
+}
+
+func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
+	var seq []string
+	for _, rpr := range repairs {
+		decoded, err := asserts.Decode([]byte(rpr))
+		c.Assert(err, IsNil)
+		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+		c.Assert(err, IsNil)
+		buf := &bytes.Buffer{}
+		enc := asserts.NewEncoder(buf)
+		enc.Encode(signed)
+		enc.Encode(s.repairsAcctKey)
+		seq = append(seq, buf.String())
+	}
+	return seq
+}
+
 func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
-	seqRepairs := append([]string(nil), nextRepairs...)
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs := s.signSeqRepairs(c, nextRepairs)
 
 	mockServer := makeMockServer(c, &seqRepairs, redirectFirst)
 	defer mockServer.Close()
@@ -818,8 +879,9 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	// start fresh run with new runner
 	// will refetch repair 3
-	seqRepairs[2] = repair3Rev4
-	seqRepairs = append(seqRepairs, repair4)
+	signed := s.signSeqRepairs(c, []string{repair3Rev4, repair4})
+	seqRepairs[2] = signed[0]
+	seqRepairs = append(seqRepairs, signed[1])
 
 	runner = repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
@@ -915,6 +977,13 @@ scriptB
 
 AXNpZw==`}
 
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
@@ -947,6 +1016,8 @@ sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6B
 scriptX
 
 AXNpZw==`
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
 
 	runner = repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
@@ -1014,13 +1085,11 @@ AXNpZw==`}
 	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }
 
-func (s *runnerSuite) TestRepairSetStatus(c *C) {
+func (s *runnerSuite) TestNextVerifyNoKey(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
-series:
-  - 16
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1029,6 +1098,113 @@ scriptB
 
 
 AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err := runner.Next("canonical")
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: cannot find public key.*`)
+
+	c.Check(runner.Sequence("canonical"), HasLen, 0)
+}
+
+func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
+	randoKey, _ := assertstest.GenerateKey(752)
+
+	randomSigning := assertstest.NewSigningDB("canonical", randoKey)
+	randoKeyEncoded, err := asserts.EncodePublicKey(randoKey.PublicKey())
+	c.Assert(err, IsNil)
+	acctKey, err := randomSigning.Sign(asserts.AccountKeyType, map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": randoKey.PublicKey().ID(),
+		"name":                "repairs",
+		"since":               time.Now().UTC().Format(time.RFC3339),
+	}, randoKeyEncoded, "")
+	c.Assert(err, IsNil)
+
+	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]interface{}{
+		"brand-id":  "canonical",
+		"repair-id": "1",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, []byte("scriptB\n"), "")
+	c.Assert(err, IsNil)
+
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	enc.Encode(rpr)
+	enc.Encode(acctKey)
+	seqRepairs := []string{buf.String()}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err = runner.Next("canonical")
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: circular assertions`)
+
+	c.Check(runner.Sequence("canonical"), HasLen, 0)
+}
+
+func (s *runnerSuite) TestNextVerifyAllKeysOK(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	decoded, err := asserts.Decode([]byte(nextRepairs[0]))
+	c.Assert(err, IsNil)
+	signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+	c.Assert(err, IsNil)
+
+	// stream with all keys (any order) works as well
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	enc.Encode(signed)
+	enc.Encode(s.storeSigning.TrustedKey)
+	enc.Encode(s.repairRootAcctKey)
+	enc.Encode(s.repairsAcctKey)
+	seqRepairs := []string{buf.String()}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "1")
+}
+
+func (s *runnerSuite) TestRepairSetStatus(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
 
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
@@ -1066,6 +1242,13 @@ exit 0
 
 AXNpZw==`}
 
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
@@ -1080,5 +1263,4 @@ AXNpZw==`}
 	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, "exit 0\n")
-
 }
