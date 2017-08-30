@@ -69,7 +69,7 @@ const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
-var miscRefreshDelay = time.Hour
+var miscRefreshDelay = 24 * time.Hour
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
