@@ -284,7 +284,7 @@ func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput strin
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
-	// If we compile a test program for each test we can get aways with
+	// If we compile a test program for each test we can get away with
 	// a even smaller set of syscalls: execve,exit essentially. But it
 	// means a much longer test run (30s vs 2s). Commit d288d89 contains
 	// the code for this.
