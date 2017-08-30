@@ -167,6 +167,8 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 /dev/iio:device1 rw,
 /sys/bus/iio/devices/iio:device1/ r,
 /sys/bus/iio/devices/iio:device1/** rwk,
+/sys/devices/**/iio:device1/ r,
+/sys/devices/**/iio:device1/** rwk,
 `
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil)
