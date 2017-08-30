@@ -13,21 +13,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-BINDIR := /usr/bin
-DBUSSERVICESDIR := /usr/share/dbus-1/services
+SNAP_MOUNT_DIR := /snap
+ENVD := /etc/profile.d
 
-SERVICES_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SERVICES := ${SERVICES_GENERATED}
+%.sh: %.sh.in
+	sed   < $< > $@ \
+		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
 
-%.service: %.service.in
-	cat $< | sed 's:@bindir@:${BINDIR}:g' | cat > $@
+GENERATED = snapd.sh
 
-all: ${SERVICES}
 
-install: ${SERVICES}
+all: ${GENERATED}
+.PHONY: all
+
+install: ${GENERATED}
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
-	install -d -m 0755 ${DESTDIR}/${DBUSSERVICESDIR}
-	install -m 0644 -t ${DESTDIR}/${DBUSSERVICESDIR} $^
+	install -d -m 0755 ${DESTDIR}/${ENVD}
+	install -m 0644 -t ${DESTDIR}/${ENVD} $^
+.PHONY: install
 
 clean:
-	rm -f ${SERVICES_GENERATED}
+	$(RM) ${GENERATED}
+.PHONY: clean
