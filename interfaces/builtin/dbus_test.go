@@ -138,8 +138,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidSystemBusName(c *C) {
@@ -156,8 +155,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidFullBusName(c *C) {
@@ -174,8 +172,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestNonexistentBusName(c *C) {
@@ -192,9 +189,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
 }
 
 // If this test is failing, be sure to verify the AppArmor rules for binding to
@@ -213,9 +208,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "DBus bus name must not end with -NUMBER")
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "DBus bus name must not end with -NUMBER")
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
@@ -232,8 +225,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSession(c *C) {
@@ -250,8 +242,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, IsNil)
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
@@ -268,8 +259,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
@@ -286,8 +276,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	c.Assert(plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -412,14 +413,16 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
+const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
+
 type networkManagerInterface struct{}
 
 func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
@@ -464,11 +467,18 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
+	}
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 

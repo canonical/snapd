@@ -73,26 +73,18 @@ func (s *AccountControlSuite) TestName(c *C) {
 }
 
 func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "account-control",
 		Interface: "account-control",
-	}})
-	c.Assert(err, ErrorMatches, "account-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"account-control slots are reserved for the core snap")
 }
 
 func (s *AccountControlSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *AccountControlSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "account-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "account-control"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
@@ -107,7 +99,7 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - 0 42\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - u:root g:shadow\n")
 }
 
 func (s *AccountControlSuite) TestInterfaces(c *C) {

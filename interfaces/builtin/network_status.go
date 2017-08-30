@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -106,8 +105,8 @@ func (iface *networkStatusInterface) Name() string {
 	return "network-status"
 }
 
-func (iface *networkStatusInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkStatusInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkStatusSummary,
 		BaseDeclarationSlots: networkStatusBaseDeclarationSlots,
 	}
@@ -134,20 +133,6 @@ func (iface *networkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specif
 
 func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkStatusPermanentSlotDBus)
-	return nil
-}
-
-func (iface *networkStatusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *networkStatusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 )
@@ -99,4 +100,46 @@ func (s *StatTestSuite) TestLookPathDefaultGivesCorrectPath(c *C) {
 func (s *StatTestSuite) TestLookPathDefaultReturnsDefaultWhenNotFound(c *C) {
 	lookPath = func(name string) (string, error) { return "", fmt.Errorf("Not found") }
 	c.Assert(LookPathDefault("bar", "/bin/bla"), Equals, "/bin/bla")
+}
+
+func makeTestPath(c *C, path string, mode os.FileMode) string {
+	path = filepath.Join(c.MkDir(), path)
+
+	switch {
+	// request for directory
+	case strings.HasSuffix(path, "/"):
+		err := os.MkdirAll(path, os.FileMode(mode))
+		c.Assert(err, IsNil)
+	default:
+		// request for a file
+		err := ioutil.WriteFile(path, nil, os.FileMode(mode))
+		c.Assert(err, IsNil)
+	}
+
+	return path
+}
+
+func (s *StatTestSuite) TestIsWritableDir(c *C) {
+	for _, t := range []struct {
+		path       string
+		mode       os.FileMode
+		isWritable bool
+	}{
+		{"dir/", 0755, true},
+		{"dir/", 0555, false},
+		{"dir/", 0750, true},
+		{"dir/", 0550, false},
+		{"dir/", 0700, true},
+		{"dir/", 0500, false},
+
+		{"file", 0644, true},
+		{"file", 0444, false},
+		{"file", 0640, true},
+		{"file", 0440, false},
+		{"file", 0600, true},
+		{"file", 0400, false},
+	} {
+		writable := IsWritable(makeTestPath(c, t.path, t.mode))
+		c.Check(writable, Equals, t.isWritable, Commentf("incorrect result for %q (%s), got %v, expected %v", t.path, t.mode, writable, t.isWritable))
+	}
 }
