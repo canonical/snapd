@@ -1485,11 +1485,11 @@ func All(st *state.State) (map[string]*SnapState, error) {
 
 // NumSnaps returns the number of installed snaps.
 func NumSnaps(st *state.State) (int, error) {
-	var stateMap map[string]*SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	var snaps map[string]*json.RawMessage
+	if err := st.Get("snaps", &snaps); err != nil && err != state.ErrNoState {
 		return -1, err
 	}
-	return len(stateMap), nil
+	return len(snaps), nil
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
