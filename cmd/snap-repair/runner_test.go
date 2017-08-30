@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,7 +37,10 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -44,13 +48,66 @@ import (
 
 type runnerSuite struct {
 	tmpdir string
+
+	storeSigning *assertstest.StoreStack
+
+	brandSigning *assertstest.SigningDB
+	brandAcct    *asserts.Account
+	brandAcctKey *asserts.AccountKey
+
+	modelAs *asserts.Model
+
+	seedAssertsDir string
+
+	repairRootAcctKey *asserts.AccountKey
+	repairsAcctKey    *asserts.AccountKey
+
+	repairsSigning *assertstest.SigningDB
 }
 
 var _ = Suite(&runnerSuite{})
 
+func (s *runnerSuite) SetUpSuite(c *C) {
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+
+	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	s.brandAcctKey = assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	modelAs, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model-2",
+		"architecture": "armhf",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.modelAs = modelAs.(*asserts.Model)
+
+	repairRootKey, _ := assertstest.GenerateKey(1024)
+
+	s.repairRootAcctKey = assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, nil, repairRootKey.PublicKey(), "")
+
+	repairsKey, _ := assertstest.GenerateKey(752)
+
+	repairRootSigning := assertstest.NewSigningDB("canonical", repairRootKey)
+
+	s.repairsAcctKey = assertstest.NewAccountKey(repairRootSigning, s.storeSigning.TrustedAccount, nil, repairsKey.PublicKey(), "")
+
+	s.repairsSigning = assertstest.NewSigningDB("canonical", repairsKey)
+}
+
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
+
+	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 }
 
 var (
@@ -262,6 +319,21 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	c.Assert(n, Equals, 1)
 }
 
+func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, testRepair)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	_, _, err := runner.Fetch("canonical", "2", 2)
+	c.Assert(err, Equals, repair.ErrRepairNotModified)
+}
+
 func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -415,31 +487,100 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
-func (s *runnerSuite) TestLoadState(c *C) {
+func (s *runnerSuite) freshState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`{"device": {"brand":"my-brand","model":"my-model"}}`), 0600)
 	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) TestLoadState(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
-	err = runner.LoadState()
+	err := runner.LoadState()
 	c.Assert(err, IsNil)
 	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model")
 }
 
+func (s *runnerSuite) initSeed(c *C) {
+	err := os.MkdirAll(s.seedAssertsDir, 0775)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) writeSeedAssert(c *C, fname string, a asserts.Assertion) {
+	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *runnerSuite) rmSeedAssert(c *C, fname string) {
+	err := os.Remove(filepath.Join(s.seedAssertsDir, fname))
+	c.Assert(err, IsNil)
+}
+
 func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	// sanity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+	s.initSeed(c)
+	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+	s.writeSeedAssert(c, "brand.account", s.brandAcct)
+	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+	s.writeSeedAssert(c, "model", s.modelAs)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
-	// TODO: init state will do more later
+
 	brand, model := runner.BrandModel()
-	c.Check(brand, Equals, "")
-	c.Check(model, Equals, "")
+	c.Check(brand, Equals, "my-brand")
+	c.Check(model, Equals, "my-model-2")
+}
+
+func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
+	// sanity
+	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+	s.initSeed(c)
+
+	const errPrefix = "cannot set device information: "
+	tests := []struct {
+		breakFunc   func()
+		expectedErr string
+	}{
+		{func() { s.rmSeedAssert(c, "model") }, errPrefix + "no model assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
+		{func() { s.rmSeedAssert(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
+		{func() {
+			// broken signature
+			blob := asserts.Encode(s.brandAcct)
+			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			c.Assert(err, IsNil)
+		}, errPrefix + "cannot decode signature:.*"},
+		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
+	}
+
+	for _, test := range tests {
+		s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+		s.writeSeedAssert(c, "brand.account", s.brandAcct)
+		s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+		s.writeSeedAssert(c, "model", s.modelAs)
+
+		test.breakFunc()
+
+		runner := repair.NewRunner()
+		err := runner.LoadState()
+		c.Check(err, ErrorMatches, test.expectedErr)
+	}
 }
 
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
@@ -453,6 +594,8 @@ func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
 }
 
 func (s *runnerSuite) TestSaveStateFail(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
@@ -473,11 +616,12 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 }
 
 func (s *runnerSuite) TestSaveState(c *C) {
+	s.freshState(c)
+
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 
-	runner.SetBrandModel("my-brand", "my-model")
 	runner.SetSequence("canonical", []*repair.RepairState{
 		{Sequence: 1, Revision: 3},
 	})
@@ -490,6 +634,43 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]}}`)
+}
+
+func (s *runnerSuite) TestApplicable(c *C) {
+	s.freshState(c)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+
+	scenarios := []struct {
+		headers    map[string]interface{}
+		applicable bool
+	}{
+		{nil, true},
+		{map[string]interface{}{"series": []interface{}{"18"}}, false},
+		{map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
+		{map[string]interface{}{"series": "18"}, false},
+		{map[string]interface{}{"series": []interface{}{18}}, false},
+		{map[string]interface{}{"architectures": []interface{}{arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
+		{map[string]interface{}{"architectures": []interface{}{"other-arch", arch.UbuntuArchitecture()}}, true},
+		{map[string]interface{}{"architectures": arch.UbuntuArchitecture()}, false},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
+		{map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
+		{map[string]interface{}{"models": "my-brand/my-model"}, false},
+		// model prefix matches
+		{map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
+		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
+		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
+	}
+
+	for _, scen := range scenarios {
+		ok := runner.Applicable(scen.headers)
+		c.Check(ok, Equals, scen.applicable, Commentf("%v", scen))
+	}
 }
 
 var (
@@ -593,7 +774,9 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 			return
 		}
 
-		repair, err := asserts.Decode([]byte((*seqRepairs)[seq-1]))
+		rpr := []byte((*seqRepairs)[seq-1])
+		dec := asserts.NewDecoder(bytes.NewBuffer(rpr))
+		repair, err := dec.Decode()
 		c.Assert(err, IsNil)
 
 		switch r.Header.Get("Accept") {
@@ -609,7 +792,7 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 				w.WriteHeader(304)
 				return
 			}
-			w.Write(asserts.Encode(repair))
+			w.Write(rpr)
 		}
 	}))
 
@@ -618,8 +801,49 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	return mockServer
 }
 
+func (s *runnerSuite) TestVerify(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	runner := repair.NewRunner()
+
+	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]interface{}{
+		"brand-id":  "canonical",
+		"repair-id": "2",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, []byte("#script"), "")
+	c.Assert(err, IsNil)
+	rpr := a.(*asserts.Repair)
+
+	err = runner.Verify(rpr, []asserts.Assertion{s.repairsAcctKey})
+	c.Check(err, IsNil)
+}
+
+func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
+	var seq []string
+	for _, rpr := range repairs {
+		decoded, err := asserts.Decode([]byte(rpr))
+		c.Assert(err, IsNil)
+		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+		c.Assert(err, IsNil)
+		buf := &bytes.Buffer{}
+		enc := asserts.NewEncoder(buf)
+		enc.Encode(signed)
+		enc.Encode(s.repairsAcctKey)
+		seq = append(seq, buf.String())
+	}
+	return seq
+}
+
 func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
-	seqRepairs := append([]string(nil), nextRepairs...)
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs := s.signSeqRepairs(c, nextRepairs)
 
 	mockServer := makeMockServer(c, &seqRepairs, redirectFirst)
 	defer mockServer.Close()
@@ -655,8 +879,9 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	// start fresh run with new runner
 	// will refetch repair 3
-	seqRepairs[2] = repair3Rev4
-	seqRepairs = append(seqRepairs, repair4)
+	signed := s.signSeqRepairs(c, []string{repair3Rev4, repair4})
+	seqRepairs[2] = signed[0]
+	seqRepairs = append(seqRepairs, signed[1])
 
 	runner = repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
@@ -752,6 +977,13 @@ scriptB
 
 AXNpZw==`}
 
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
@@ -784,6 +1016,8 @@ sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6B
 scriptX
 
 AXNpZw==`
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
 
 	runner = repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
@@ -851,13 +1085,11 @@ AXNpZw==`}
 	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }
 
-func (s *runnerSuite) TestRepairSetStatus(c *C) {
+func (s *runnerSuite) TestNextVerifyNoKey(c *C) {
 	seqRepairs := []string{`type: repair
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
-series:
-  - 16
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -866,6 +1098,113 @@ scriptB
 
 
 AXNpZw==`}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err := runner.Next("canonical")
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: cannot find public key.*`)
+
+	c.Check(runner.Sequence("canonical"), HasLen, 0)
+}
+
+func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
+	randoKey, _ := assertstest.GenerateKey(752)
+
+	randomSigning := assertstest.NewSigningDB("canonical", randoKey)
+	randoKeyEncoded, err := asserts.EncodePublicKey(randoKey.PublicKey())
+	c.Assert(err, IsNil)
+	acctKey, err := randomSigning.Sign(asserts.AccountKeyType, map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": randoKey.PublicKey().ID(),
+		"name":                "repairs",
+		"since":               time.Now().UTC().Format(time.RFC3339),
+	}, randoKeyEncoded, "")
+	c.Assert(err, IsNil)
+
+	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]interface{}{
+		"brand-id":  "canonical",
+		"repair-id": "1",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, []byte("scriptB\n"), "")
+	c.Assert(err, IsNil)
+
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	enc.Encode(rpr)
+	enc.Encode(acctKey)
+	seqRepairs := []string{buf.String()}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	_, err = runner.Next("canonical")
+	c.Check(err, ErrorMatches, `cannot verify repair canonical-1: circular assertions`)
+
+	c.Check(runner.Sequence("canonical"), HasLen, 0)
+}
+
+func (s *runnerSuite) TestNextVerifyAllKeysOK(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	decoded, err := asserts.Decode([]byte(nextRepairs[0]))
+	c.Assert(err, IsNil)
+	signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+	c.Assert(err, IsNil)
+
+	// stream with all keys (any order) works as well
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	enc.Encode(signed)
+	enc.Encode(s.storeSigning.TrustedKey)
+	enc.Encode(s.repairRootAcctKey)
+	enc.Encode(s.repairsAcctKey)
+	seqRepairs := []string{buf.String()}
+
+	mockServer := makeMockServer(c, &seqRepairs, false)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	rpr, err := runner.Next("canonical")
+	c.Assert(err, IsNil)
+	c.Check(rpr.RepairID(), Equals, "1")
+}
+
+func (s *runnerSuite) TestRepairSetStatus(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+timestamp: 2017-07-02T12:00:00Z
+body-length: 8
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+scriptB
+
+
+AXNpZw==`}
+
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
 
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
@@ -903,6 +1242,13 @@ exit 0
 
 AXNpZw==`}
 
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
 	mockServer := makeMockServer(c, &seqRepairs, false)
 	defer mockServer.Close()
 
@@ -917,5 +1263,4 @@ AXNpZw==`}
 	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, "exit 0\n")
-
 }

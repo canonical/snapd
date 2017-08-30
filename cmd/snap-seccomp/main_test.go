@@ -291,6 +291,10 @@ func systemUsesSocketcall() bool {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
+	// The 'shadow' group is different in different distributions
+	shadowGid, err := main.FindGid("shadow")
+	c.Assert(err, IsNil)
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
@@ -390,6 +394,12 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		// test_bad_seccomp_filter_args_termios
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
+
+		// u:root g:shadow
+		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
 	} {
 		// skip socket tests if the system uses socketcall instead
 		// of socket
@@ -470,6 +480,22 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setpriority <=", `cannot parse line: cannot parse token "<=" .*`},
 		{"setpriority |", `cannot parse line: cannot parse token "|" .*`},
 		{"setpriority !", `cannot parse line: cannot parse token "!" .*`},
+
+		// u:<username>
+		{"setuid :root", `cannot parse line: cannot parse token ":root" .*`},
+		{"setuid u:", `cannot parse line: cannot parse token "u:" \(line "setuid u:"\): "" must be a valid username`},
+		{"setuid u:0", `cannot parse line: cannot parse token "u:0" \(line "setuid u:0"\): "0" must be a valid username`},
+		{"setuid u:b@d|npu+", `cannot parse line: cannot parse token "u:b@d|npu+" \(line "setuid u:b@d|npu+"\): "b@d|npu+" must be a valid username`},
+		{"setuid u:snap.bad", `cannot parse line: cannot parse token "u:snap.bad" \(line "setuid u:snap.bad"\): "snap.bad" must be a valid username`},
+		{"setuid U:root", `cannot parse line: cannot parse token "U:root" .*`},
+		{"setuid u:nonexistent", `cannot parse line: cannot parse token "u:nonexistent" \(line "setuid u:nonexistent"\): user: unknown user nonexistent`},
+		// g:<groupname>
+		{"setgid g:", `cannot parse line: cannot parse token "g:" \(line "setgid g:"\): "" must be a valid group name`},
+		{"setgid g:0", `cannot parse line: cannot parse token "g:0" \(line "setgid g:0"\): "0" must be a valid group name`},
+		{"setgid g:b@d|npu+", `cannot parse line: cannot parse token "g:b@d|npu+" \(line "setgid g:b@d|npu+"\): "b@d|npu+" must be a valid group name`},
+		{"setgid g:snap.bad", `cannot parse line: cannot parse token "g:snap.bad" \(line "setgid g:snap.bad"\): "snap.bad" must be a valid group name`},
+		{"setgid G:root", `cannot parse line: cannot parse token "G:root" .*`},
+		{"setgid g:nonexistent", `cannot parse line: cannot parse token "g:nonexistent" \(line "setgid g:nonexistent"\): group: unknown group nonexistent`},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
 		err := main.Compile([]byte(t.inp), outPath)
@@ -638,6 +664,28 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		// bad input
 		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
+	} {
+		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+	}
+}
+
+func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+		// good input. 'root' and 'daemon' are guaranteed to be '0' and
+		// '1' respectively
+		{"setuid u:root", "setuid;native;0", main.SeccompRetAllow},
+		{"setuid u:daemon", "setuid;native;1", main.SeccompRetAllow},
+		{"setgid g:root", "setgid;native;0", main.SeccompRetAllow},
+		{"setgid g:daemon", "setgid;native;1", main.SeccompRetAllow},
+		// bad input
+		{"setuid u:root", "setuid;native;99", main.SeccompRetKill},
+		{"setuid u:daemon", "setuid;native;99", main.SeccompRetKill},
+		{"setgid g:root", "setgid;native;99", main.SeccompRetKill},
+		{"setgid g:daemon", "setgid;native;99", main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
