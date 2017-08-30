@@ -15,9 +15,6 @@ systems: [-ubuntu-core-16-*]
 
 prepare: |
     . "$TESTSLIB/dirs.sh"
-    . "$TESTSLIB/pkgdb.sh"
-
-    distro_install_package dbus-x11
 
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
@@ -26,7 +23,7 @@ prepare: |
     snap install --edge test-snapd-dbus-consumer
 
     echo "And the provider dbus loop is started"
-    . $TESTSLIB/dbus.sh
+    . "$TESTSLIB/dbus.sh"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
@@ -38,8 +35,7 @@ execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
     DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
 
-    . "$TESTSLIB/dbus.sh"
-    init_dbus_env
+    export $(cat dbus.env)
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
     while ! dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; do

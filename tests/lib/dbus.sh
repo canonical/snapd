@@ -1,14 +1,10 @@
 #!/bin/bash
 
-init_dbus_env(){
-    export $(cat dbus.env)
-}
-
 start_dbus_unit(){
     local executable="$1"
 
     dbus-launch > dbus.env
-    init_dbus_env
+    export $(cat dbus.env)
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         cat <<EOF > /etc/init/dbus-provider.conf
 env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"

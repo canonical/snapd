@@ -35,8 +35,7 @@ execute: |
     CONNECTED_PATTERN=":autopilot-introspection +test-snapd-autopilot-consumer"
     DISCONNECTED_PATTERN="^\- +test-snapd-autopilot-consumer:autopilot-introspection"
 
-    . "$TESTSLIB/dbus.sh"
-    init_dbus_env
+    export $(cat dbus.env)
 
     echo "Then the plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
