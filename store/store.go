@@ -174,6 +174,12 @@ type Config struct {
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
 
+	// Device auth URLs:
+	// - DeviceNonceURI points to endpoint to get a nonce
+	// - DeviceSessionURI points to endpoint to get a device session
+	DeviceNonceURI   *url.URL
+	DeviceSessionURI *url.URL
+
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
 
@@ -211,6 +217,10 @@ func (cfg *Config) SetAPI(api *url.URL) error {
 
 	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 
+	// Device auth endpoints.
+	cfg.DeviceNonceURI = urlJoin(storeBaseURI, "api/v1/snaps/auth/nonces")
+	cfg.DeviceSessionURI = urlJoin(storeBaseURI, "api/v1/snaps/auth/sessions")
+
 	return nil
 }
 
@@ -224,6 +234,10 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+
+	// Device auth endpoints.
+	deviceNonceURI   *url.URL
+	deviceSessionURI *url.URL
 
 	architecture string
 	series       string
@@ -467,21 +481,23 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		searchURI:       searchURI,
-		detailsURI:      detailsURI,
-		bulkURI:         cfg.BulkURI,
-		assertionsURI:   cfg.AssertionsURI,
-		ordersURI:       cfg.OrdersURI,
-		buyURI:          cfg.BuyURI,
-		customersMeURI:  cfg.CustomersMeURI,
-		sectionsURI:     sectionsURI,
-		series:          series,
-		architecture:    architecture,
-		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
-		fallbackStoreID: cfg.StoreID,
-		detailFields:    fields,
-		authContext:     authContext,
-		deltaFormat:     deltaFormat,
+		searchURI:        searchURI,
+		detailsURI:       detailsURI,
+		bulkURI:          cfg.BulkURI,
+		assertionsURI:    cfg.AssertionsURI,
+		ordersURI:        cfg.OrdersURI,
+		buyURI:           cfg.BuyURI,
+		customersMeURI:   cfg.CustomersMeURI,
+		sectionsURI:      sectionsURI,
+		deviceNonceURI:   cfg.DeviceNonceURI,
+		deviceSessionURI: cfg.DeviceSessionURI,
+		series:           series,
+		architecture:     architecture,
+		noCDN:            osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
+		fallbackStoreID:  cfg.StoreID,
+		detailFields:     fields,
+		authContext:      authContext,
+		deltaFormat:      deltaFormat,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
@@ -616,7 +632,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce(s.deviceNonceURI.String())
 	if err != nil {
 		return err
 	}
@@ -626,7 +642,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.deviceSessionURI.String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
