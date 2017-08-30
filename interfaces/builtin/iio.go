@@ -47,6 +47,8 @@ const iioConnectedPlugAppArmor = `
 ###IIO_DEVICE_PATH### rw,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/ r,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
+/sys/devices/**/###IIO_DEVICE_NAME###/ r,
+/sys/devices/**/###IIO_DEVICE_NAME###/** rwk,
 `
 
 const iioConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
