@@ -12,7 +12,13 @@ execute: |
     echo "Install network-manager and do basic smoke test"
     snap install network-manager
 
-    . $TESTSLIB/systemd.sh
-    wait_for_service snap.network-manager.networkmanager
+    # using wait_for_service is not enough, systemd considers
+    # the service active even when it is not (yet) listening to
+    # dbus
+    for i in $(seq 300); do
+        if network-manager.nmcli general; then
+            break
+        fi
+        sleep 1
+    done
     network-manager.nmcli d show
-
