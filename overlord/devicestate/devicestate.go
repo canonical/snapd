@@ -95,17 +95,15 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
-	// we now try to get a serial everywhere, core and classic
-	// and even if there's no seeded model, using a dummy model
-	// in that case.
-	// either we have a serial or we try anyway if we attempted
+	// Either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
-	// least upgrade core if that can help
+	// least upgrade core if that can help.
 	if ensureOperationalAttempts(st) >= 3 {
 		return true, nil
 	}
 
-	// checking for model for sanity
+	// Check model exists, for sanity. We always have a model, either
+	// seeded or a generic one that ships with snapd.
 	_, err := Model(st)
 	if err == state.ErrNoState {
 		return false, nil

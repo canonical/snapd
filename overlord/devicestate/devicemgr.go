@@ -156,6 +156,9 @@ func (m *DeviceManager) ensureOperational() error {
 	// * have a model assertion with a gadget (core and
 	//   device-like classic) in which case we need also to wait
 	//   for the gadget to have been installed though
+	// TODO: consider a way to support lazy registration on classic
+	// even with a gadget and some preseeded snaps
+	//
 	// * classic with a model assertion with a non-default store specified
 	// * lazy classic case (might have a model with no gadget nor store
 	//   or no model): we wait to have some snaps installed or be
