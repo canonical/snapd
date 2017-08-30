@@ -14,6 +14,8 @@ restore: |
 
 debug: |
     snap changes
+    . "$TESTSLIB/changes.sh"
+    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
     . "$TESTSLIB/pkgdb.sh"
 
@@ -83,12 +85,19 @@ execute: |
     fi
     snap debug ensure-state-soon
 
-    . "$TESTSLIB/changes.sh"
-    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
-        snap changes
-        snap change "$(change_id 'Transition ubuntu-core to core')" || true
+    # wait for transition
+    ok=0
+    for i in $(seq 240); do
+        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
+            ok=1
+            break
+        fi
         sleep 1
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Transition did not start or finish"
+        exit 1
+    fi
 
     if snap list|grep ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
