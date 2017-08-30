@@ -38,6 +38,7 @@ data/systemd/*.service
 data/dbus/*.service
 
 data/info
+data/env/snapd.sh
 
 # test-driver
 *.log
