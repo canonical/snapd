@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -152,11 +153,18 @@ func (s *BluezInterfaceSuite) TestDBusSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.bluez"/>`)
 }
 
-func (s *BluezInterfaceSuite) TestSecCompSec(c *C) {
+func (s *BluezInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "listen\n")
+}
+
+func (s *BluezInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 }
 
 func (s *BluezInterfaceSuite) TestStaticInfo(c *C) {
