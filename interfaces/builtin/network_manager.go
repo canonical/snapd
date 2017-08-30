@@ -482,11 +482,6 @@ func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(networkManagerConnectedPlugSecComp)
-	return nil
-}
-
 func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
