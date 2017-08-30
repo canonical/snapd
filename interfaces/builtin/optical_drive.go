@@ -36,6 +36,11 @@ const opticalDriveConnectedPlugAppArmor = `
 /run/udev/data/b11:[0-9]* r,
 `
 
+const opticalDriveConnectedPlugUDev = `
+KERNEL=="sr[0-9]*",  TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="scd[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "optical-drive",
@@ -43,6 +48,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
+		connectedPlugUDev:     opticalDriveConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
