@@ -441,6 +441,7 @@ suites:
             fi
             . $TESTSLIB/pkgdb.sh
             distro_purge_package snapd
+            distro_purge_package snapd-xdg-open || true
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)

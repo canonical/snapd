@@ -1187,6 +1187,10 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 LABEL="mm_candidate_end"
 `
 
+const modemManagerPermanentSlotUDevTag = `
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 type modemManagerInterface struct{}
 
 func (iface *modemManagerInterface) Name() string {
@@ -1228,7 +1232,13 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 }
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(modemManagerPermanentSlotUDev)
+	old := "###CONNECTED_SECURITY_TAGS###"
+	udevRule := modemManagerPermanentSlotUDev
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule += strings.Replace(modemManagerPermanentSlotUDevTag, old, tag, -1)
+	}
+	spec.AddSnippet(udevRule)
 	return nil
 }
 

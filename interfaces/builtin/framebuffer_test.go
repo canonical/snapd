@@ -82,21 +82,14 @@ func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
-# Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
-# gives privileged access to the console framebuffer.
-
-/dev/fb[0-9]* rw,
-/run/udev/data/c29:[0-9]* r,
-`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/fb[0-9]* rw,`)
 }
 
 func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	// UDev tagging is disabled and will be enabled with a separate patch.
-	// Remove this comment when enabling udev tagging.
-	c.Assert(spec.Snippets(), DeepEquals, []string(nil))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="fb[0-9]*", TAG+="snap_consumer_app"`)
 }
 
 func (s *FramebufferInterfaceSuite) TestStaticInfo(c *C) {

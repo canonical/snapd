@@ -63,6 +63,12 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
+const openglConnectedPlugUDev = `
+SUBSYSTEM="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="nvidia*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "opengl",
@@ -71,6 +77,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
+		connectedPlugUDev:     openglConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

@@ -49,6 +49,8 @@ const iioConnectedPlugAppArmor = `
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
 `
 
+const iioConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
+
 // The type for iio interface
 type iioInterface struct{}
 
@@ -120,10 +122,9 @@ func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 		return nil
 	}
 	const pathPrefix = "/dev/"
-	const udevRule = `KERNEL=="%s", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+		spec.AddSnippet(fmt.Sprintf(iioConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
 	}
 	return nil
 }
