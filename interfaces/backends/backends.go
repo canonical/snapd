@@ -53,6 +53,9 @@ func backends() []interfaces.SecurityBackend {
 	//
 	// TODO: on this should become a user-visible message via the user-warning
 	// framework, so that users are aware that we have non-strict confinement.
+	// By printing this directly we ensure it will end up the journal for the
+	// snapd.service. This aspect should be retained even after the switch to
+	// user-warning.
 	if featureLevel != aa.Full {
 		fmt.Printf("WARNING: %s\n", summary)
 	}
