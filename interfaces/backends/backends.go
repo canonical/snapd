@@ -48,7 +48,7 @@ func backends() []interfaces.SecurityBackend {
 
 	// This should be logger.Noticef but due to ordering of initialization
 	// calls, the logger is not ready at this point yet and the message goes
-	// nowehre. Per advice from other snapd developers, we just print it
+	// nowhere. Per advice from other snapd developers, we just print it
 	// directly.
 	//
 	// TODO: on this should become a user-visible message via the user-warning
