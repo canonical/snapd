@@ -108,6 +108,10 @@ func (s *baseRunnerSuite) SetUpTest(c *C) {
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 }
 
+func (s *baseRunnerSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
 func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 	var seq []string
 	for _, rpr := range repairs {
@@ -1295,8 +1299,6 @@ func verifyRepairStatus(c *C, status repair.RepairStatus) {
 type runScriptSuite struct {
 	baseRunnerSuite
 
-	tmpdir string
-
 	seqRepairs []string
 
 	mockServer *httptest.Server
@@ -1308,8 +1310,7 @@ type runScriptSuite struct {
 var _ = Suite(&runScriptSuite{})
 
 func (s *runScriptSuite) SetUpTest(c *C) {
-	s.tmpdir = c.MkDir()
-	dirs.SetRootDir(s.tmpdir)
+	s.baseRunnerSuite.SetUpTest(c)
 
 	s.mockServer = makeMockServer(c, &s.seqRepairs, false)
 
@@ -1321,6 +1322,8 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 }
 
 func (s *runScriptSuite) TearDownTest(c *C) {
+	s.baseRunnerSuite.TearDownTest(c)
+
 	s.mockServer.Close()
 }
 
