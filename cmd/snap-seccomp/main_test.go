@@ -118,7 +118,9 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
 		for i := range args {
-			// init with random number argument
+			// init with random number argument to avoid
+			// we pass accidently because every argument is
+			// set to zero
 			syscallArgs[i] = (uint64)(rand.Uint32())
 			// override if the test specifies a specific number
 			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
