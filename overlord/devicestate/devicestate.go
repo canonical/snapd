@@ -95,21 +95,21 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
+	// Either we have a serial or we try anyway if we attempted
+	// for a while to get a serial, this would allow us to at
+	// least upgrade core if that can help.
+	if ensureOperationalAttempts(st) >= 3 {
+		return true, nil
+	}
+
+	// Check model exists, for sanity. We always have a model, either
+	// seeded or a generic one that ships with snapd.
 	_, err := Model(st)
 	if err == state.ErrNoState {
-		// no model, no need to wait for a serial
-		// can happen only on classic
-		return true, nil
+		return false, nil
 	}
 	if err != nil {
 		return false, err
-	}
-
-	// either we have a serial or we try anyway if we attempted
-	// for a while to get a serial, this would allow us to at
-	// least upgrade core if that can help
-	if ensureOperationalAttempts(st) >= 3 {
-		return true, nil
 	}
 
 	_, err = Serial(st)
