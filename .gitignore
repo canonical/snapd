@@ -33,7 +33,12 @@ cmd/*/*.[1-9]
 
 # auto-generated systemd units
 data/systemd/*.service
+
+# auto-generated dbus services
+data/dbus/*.service
+
 data/info
+data/env/snapd.sh
 
 # test-driver
 *.log
