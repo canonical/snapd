@@ -147,7 +147,7 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###SLOT_SECURITY_TAGS###"
+	old := "###CONNECTED_SECURITY_TAGS###"
 	if iface.connectedPlugUDev != "" {
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
