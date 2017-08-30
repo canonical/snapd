@@ -546,10 +546,12 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
+const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+
 func (s *runnerSuite) freshState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`{"device": {"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`), 0600)
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
 	c.Assert(err, IsNil)
 }
 
@@ -1141,6 +1143,40 @@ func (s *runnerSuite) TestNext500(c *C) {
 
 	_, err := runner.Next("canonical")
 	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
+}
+
+func (s *runnerSuite) TestNextNotFound(c *C) {
+	s.freshState(c)
+
+	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	// sanity
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, freshStateJSON)
+
+	_, err = runner.Next("canonical")
+	c.Assert(err, Equals, repair.ErrRepairNotFound)
+
+	// we saved new time lower bound
+	t1 := runner.TimeLowerBound()
+	expected := strings.Replace(freshStateJSON, "2017-08-11T15:49:49Z", t1.Format(time.RFC3339), 1)
+	c.Check(expected, Not(Equals), freshStateJSON)
+	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, expected)
 }
 
 func (s *runnerSuite) TestNextSaveStateError(c *C) {
