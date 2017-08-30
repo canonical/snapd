@@ -217,9 +217,9 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var policy string
-	// When apparmor partial then use the classic template as we cannot enable
-	// effective confinement and we cannot rely on the devmode template which
-	// may have things that local apparmor doesn't understand.
+	// When partial AppArmor is detected, use the classic template for now. We could
+	// use devmode, but that could generate confusing log entries for users running
+	// snaps on systems with partial AppArmor support.
 	level, _ := aa.ProbeKernel().Evaluate()
 	if level == aa.Partial || (opts.Classic && !opts.JailMode) {
 		policy = classicTemplate
