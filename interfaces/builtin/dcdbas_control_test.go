@@ -63,26 +63,18 @@ func (s *DcdbasControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "dcdbas-control",
 		Interface: "dcdbas-control",
-	}})
-	c.Assert(err, ErrorMatches, "dcdbas-control slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"dcdbas-control slots are reserved for the core snap")
 }
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *DcdbasControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "dcdbas-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "dcdbas-control"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -1187,14 +1187,18 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 LABEL="mm_candidate_end"
 `
 
+const modemManagerPermanentSlotUDevTag = `
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 type modemManagerInterface struct{}
 
 func (iface *modemManagerInterface) Name() string {
 	return "modem-manager"
 }
 
-func (iface *modemManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              modemManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: modemManagerBaseDeclarationSlots,
@@ -1228,7 +1232,13 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 }
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(modemManagerPermanentSlotUDev)
+	old := "###CONNECTED_SECURITY_TAGS###"
+	udevRule := modemManagerPermanentSlotUDev
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule += strings.Replace(modemManagerPermanentSlotUDevTag, old, tag, -1)
+	}
+	spec.AddSnippet(udevRule)
 	return nil
 }
 
@@ -1242,14 +1252,6 @@ func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 
 func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *modemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -103,8 +102,8 @@ func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              thumbnailerServiceSummary,
 		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
 	}
@@ -134,20 +133,6 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 	new = plugAppLabelExpr(plug)
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
 	return nil
 }
 

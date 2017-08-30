@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const bluezSummary = `allows operating as the bluez service`
@@ -192,14 +193,16 @@ const bluezPermanentSlotDBus = `
 </policy>
 `
 
+const bluezConnectedPlugUDev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
+
 type bluezInterface struct{}
 
 func (iface *bluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *bluezInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              bluezSummary,
 		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
@@ -226,6 +229,16 @@ func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
+func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		snippet := strings.Replace(bluezConnectedPlugUDev, old, tag, -1)
+		spec.AddSnippet(snippet)
+	}
+	return nil
+}
+
 func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotAppArmor)
 	return nil
@@ -233,14 +246,6 @@ func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

@@ -80,6 +80,115 @@ func (r *Repository) AddInterface(i Interface) error {
 	return nil
 }
 
+// InfoOptions describes options for Info.
+//
+// Names: return just this subset if non-empty.
+// Doc: return documentation.
+// Plugs: return information about plugs.
+// Slots: return information about slots.
+// Connected: only consider interfaces with at least one connection.
+type InfoOptions struct {
+	Names     []string
+	Doc       bool
+	Plugs     bool
+	Slots     bool
+	Connected bool
+}
+
+func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
+	// NOTE: InfoOptions.Connected is handled by Info
+	si := StaticInfoOf(iface)
+	ifaceName := iface.Name()
+	ii := &Info{
+		Name:    ifaceName,
+		Summary: si.Summary,
+	}
+	if opts != nil && opts.Doc {
+		// Collect documentation URL
+		ii.DocURL = si.DocURL
+	}
+	if opts != nil && opts.Plugs {
+		// Collect all plugs of this interface type.
+		for _, snapName := range sortedSnapNamesWithPlugs(r.plugs) {
+			for _, plugName := range sortedPlugNames(r.plugs[snapName]) {
+				plugInfo := r.plugs[snapName][plugName].PlugInfo
+				if plugInfo.Interface == ifaceName {
+					ii.Plugs = append(ii.Plugs, plugInfo)
+				}
+			}
+		}
+	}
+	if opts != nil && opts.Slots {
+		// Collect all slots of this interface type.
+		for _, snapName := range sortedSnapNamesWithSlots(r.slots) {
+			for _, slotName := range sortedSlotNames(r.slots[snapName]) {
+				slotInfo := r.slots[snapName][slotName].SlotInfo
+				if slotInfo.Interface == ifaceName {
+					ii.Slots = append(ii.Slots, slotInfo)
+				}
+			}
+		}
+	}
+	return ii
+}
+
+// Info returns information about interfaces in the system.
+//
+// If names is empty then all interfaces are considered. Query options decide
+// which data to return but can also skip interfaces without connections. See
+// the documentation of InfoOptions for details.
+func (r *Repository) Info(opts *InfoOptions) []*Info {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// If necessary compute the set of interfaces with any connections.
+	var connected map[string]bool
+	if opts != nil && opts.Connected {
+		connected = make(map[string]bool)
+		for _, plugMap := range r.slotPlugs {
+			for plug, ok := range plugMap {
+				if ok {
+					connected[plug.Interface] = true
+				}
+			}
+		}
+		for _, slotMap := range r.plugSlots {
+			for slot, ok := range slotMap {
+				if ok {
+					connected[slot.Interface] = true
+				}
+			}
+		}
+	}
+
+	// If weren't asked about specific interfaces then query every interface.
+	var names []string
+	if opts == nil || len(opts.Names) == 0 {
+		for _, iface := range r.ifaces {
+			name := iface.Name()
+			if connected == nil || connected[name] {
+				// Optionally filter out interfaces without connections.
+				names = append(names, name)
+			}
+		}
+	} else {
+		names = make([]string, len(opts.Names))
+		copy(names, opts.Names)
+	}
+	sort.Strings(names)
+
+	// Query each interface we are interested in.
+	infos := make([]*Info, 0, len(names))
+	for _, name := range names {
+		if iface, ok := r.ifaces[name]; ok {
+			if connected == nil || connected[name] {
+				infos = append(infos, r.interfaceInfo(iface, opts))
+			}
+		}
+	}
+	return infos
+}
+
 // AddBackend adds the provided security backend to the repository.
 func (r *Repository) AddBackend(backend SecurityBackend) error {
 	r.m.Lock()
@@ -154,7 +263,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
 	// Reject plug that don't pass interface-specific sanitization
-	if err := i.SanitizePlug(plug); err != nil {
+	if err := plug.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
@@ -253,7 +362,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if i == nil {
 		return fmt.Errorf("cannot add slot, interface %q is not known", slot.Interface)
 	}
-	if err := i.SanitizeSlot(slot); err != nil {
+	if err := slot.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
@@ -783,7 +892,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
-		if err := iface.SanitizePlug(plug); err != nil {
+		if err := plug.Sanitize(iface); err != nil {
 			bad.issues[plugName] = err.Error()
 			continue
 		}
@@ -805,7 +914,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
-		if err := iface.SanitizeSlot(slot); err != nil {
+		if err := slot.Sanitize(iface); err != nil {
 			bad.issues[slotName] = err.Error()
 			continue
 		}
