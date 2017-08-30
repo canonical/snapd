@@ -352,6 +352,7 @@ func (run *Runner) readState() error {
 
 func (run *Runner) moveTimeLowerBound(t time.Time) {
 	if t.After(run.state.TimeLowerBound) {
+		run.stateModified = true
 		run.state.TimeLowerBound = t.UTC()
 	}
 }
