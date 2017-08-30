@@ -44,7 +44,7 @@ func AddSnapBinaries(s *snap.Info) (err error) {
 		return err
 	}
 
-	noCompletion := !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
+	noCompletion := !osutil.IsWritable(dirs.CompletersDir) || !osutil.FileExists(dirs.CompletersDir) || !osutil.FileExists(dirs.CompleteSh)
 	for _, app := range s.Apps {
 		if app.IsService() {
 			continue
