@@ -5137,6 +5137,10 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapStates, HasLen, 1)
 
+	n, err := snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+
 	snapst := snapStates["name1"]
 	c.Assert(snapst, NotNil)
 
@@ -5169,17 +5173,29 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
 
+	n, err := snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
+
 	snapstate.Set(st, "foo", nil)
 
 	snapStates, err = snapstate.All(st)
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
 
+	n, err = snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
+
 	snapstate.Set(st, "foo", &snapstate.SnapState{})
 
 	snapStates, err = snapstate.All(st)
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
+
+	n, err = snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {

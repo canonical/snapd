@@ -204,12 +204,11 @@ func (m *DeviceManager) ensureOperational() error {
 		// classic: if we have no gadget and no non-default store
 		// wait to have snaps or snap installation
 
-		// TODO: implement snapstate.NumSnaps!
-		all, err := snapstate.All(m.state)
+		n, err := snapstate.NumSnaps(m.state)
 		if err != nil {
 			return err
 		}
-		if len(all) == 0 && !snapstate.Installing(m.state) {
+		if n == 0 && !snapstate.Installing(m.state) {
 			return nil
 		}
 	}
