@@ -38,7 +38,7 @@ const joystickConnectedPlugAppArmor = `
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
-//const joystickConnectedPlugUDev = `KERNEL=="js[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
+const joystickConnectedPlugUDev = `KERNEL=="js[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
@@ -48,6 +48,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  joystickBaseDeclarationSlots,
 		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
+		connectedPlugUDev:     joystickConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
