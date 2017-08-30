@@ -96,8 +96,8 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 		return nil, err
 	}
 	// libseccomp may return negative numbers here for syscalls that
-	// are "special" for some reason. there is no "official" way to
-	// resolve them using the API to the real number. this is why
+	// are "special" for some reason. There is no "official" way to
+	// resolve them using the API to the real number. This is why
 	// we workaround there.
 	if sc < 0 {
 		/* -101 is __PNR_socket */
@@ -107,8 +107,8 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 			sc = 359 /* see src/arch-s390x.c socket */
 		} else if sc == -10165 && scmpArch == seccomp.ArchARM64 {
 			// -10165 is mknod on aarch64 and it is translated
-			// to mknodat. for our simulation -10165 is fine
-			// though
+			// to mknodat. For our simulation -10165 is fine
+			// though.
 		} else {
 			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
 		}
@@ -137,7 +137,7 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 
 // Endianness detection.
 func nativeEndian() binary.ByteOrder {
-	// Credit matt kane, taken from his gosndfile project.
+	// Credit Matt Kane, taken from his gosndfile project.
 	// https://groups.google.com/forum/#!msg/golang-nuts/3GEzwKfRRQw/D1bMbFP-ClAJ
 	// https://github.com/mkb218/gosndfile
 	var i int32 = 0x01020304
@@ -178,7 +178,7 @@ int sc_apply_seccomp_bpf(const char* profile_path)
         exit(1);
     }
 
-    // set 'size' to '1; to get bytes transferred
+    // set 'size' to 1; to get bytes transferred
     size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
 
     if (ferror(fp) != 0) {
