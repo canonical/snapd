@@ -21,6 +21,8 @@ package main
 
 import (
 	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -50,6 +52,14 @@ func MockMaxRepairScriptSize(maxSize int) (restore func()) {
 	maxRepairScriptSize = maxSize
 	return func() {
 		maxRepairScriptSize = originalMaxSize
+	}
+}
+
+func MockTrustedRepairRootKeys(keys []*asserts.AccountKey) (restore func()) {
+	original := trustedRepairRootKeys
+	trustedRepairRootKeys = keys
+	return func() {
+		trustedRepairRootKeys = original
 	}
 }
 

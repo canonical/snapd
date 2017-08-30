@@ -108,8 +108,9 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path: "/v2/login",
-		POST: loginUser,
+		Path:     "/v2/login",
+		POST:     loginUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	logoutCmd = &Command{
@@ -842,6 +843,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1108,6 +1110,19 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("switch takes no revision")
+	}
+	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -1117,6 +1132,7 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"revert":  snapRevert,
 	"enable":  snapEnable,
 	"disable": snapDisable,
+	"switch":  snapSwitch,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -2011,9 +2027,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGetUID = ucrednetGetUID
-	storeUserInfo                = store.UserInfo
-	osutilAddUser                = osutil.AddUser
+	postCreateUserUcrednetGet = ucrednetGet
+	storeUserInfo             = store.UserInfo
+	osutilAddUser             = osutil.AddUser
 )
 
 func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
@@ -2189,7 +2205,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2411,7 +2427,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}

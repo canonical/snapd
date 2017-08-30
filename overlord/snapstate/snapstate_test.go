@@ -91,8 +91,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupRefreshHook := snapstate.SetupRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	snapstate.SetupRefreshHook = hookstate.SetupRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
 	var err error
@@ -107,7 +109,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.reset = func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		snapstate.SetupRefreshHook = oldSetupRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
+
 		restore2()
 		restore1()
 		dirs.SetRootDir("/")
@@ -154,7 +158,15 @@ const (
 func taskKinds(tasks []*state.Task) []string {
 	kinds := make([]string, len(tasks))
 	for i, task := range tasks {
-		kinds[i] = task.Kind()
+		k := task.Kind()
+		if k == "run-hook" {
+			var hooksup hookstate.HookSetup
+			if err := task.Get("hook-setup", &hooksup); err != nil {
+				panic(err)
+			}
+			k = fmt.Sprintf("%s[%s]", k, hooksup.Hook)
+		}
+		kinds[i] = k
 	}
 	return kinds
 }
@@ -185,7 +197,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook",
+		"run-hook[install]",
 		"start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
@@ -199,7 +211,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
-		"run-hook",
+		"run-hook[configure]",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -231,7 +243,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
+		"run-hook[refresh]",
 		"start-snap-services")
+
+	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -244,7 +259,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		)
 	}
 	expected = append(expected,
-		"run-hook",
+		"run-hook[configure]",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -253,7 +268,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
-		"run-hook",
+		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
@@ -347,7 +362,7 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 	defer reset()
 
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, ErrorMatches, "classic confinement is not yet supported on your distribution")
+	c.Assert(err, ErrorMatches, "classic confinement requires snaps under /snap or symlink from /snap to "+dirs.SnapMountDir)
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
@@ -359,12 +374,6 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// one hook task for install, one for configure hook
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run install hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
@@ -386,9 +395,10 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// no hook task for install, only for configure hook
-	c.Assert(runHooks, HasLen, 1)
-	c.Assert(runHooks[0].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+	// hook tasks for refresh and for configure hook only; no install hook
+	c.Assert(runHooks, HasLen, 2)
+	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
+	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
@@ -441,7 +451,7 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 
 	chg := s.state.NewChange("revert", "revert snap")
@@ -750,7 +760,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 }
 
@@ -777,6 +787,33 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 		"setup-aliases",
 		"start-snap-services",
 	})
+}
+
+func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Switch(s.state, "some-snap", "some-channel")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
+}
+
+func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Switch(s.state, "non-existing-snap", "some-channel")
+	c.Assert(err, ErrorMatches, `cannot find snap "non-existing-snap"`)
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -1005,11 +1042,6 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// no 'install' hook task, only configure hook
-	c.Assert(runHooks, HasLen, 1)
-	c.Assert(runHooks[0].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 
 	c.Check(validateCalled, Equals, true)
 
@@ -1309,11 +1341,6 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
-
-	runHooks := tasksWithKind(ts, "run-hook")
-	// hook task for 'remove'
-	c.Assert(runHooks, HasLen, 1)
-	c.Assert(runHooks[0].Summary(), Equals, `Run remove hook of "foo" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
@@ -1649,6 +1676,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
 	})
+
+	// check refresh hook
+	task = ts.Tasks()[11]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Summary(), Matches, `Run refresh hook of "services-snap" snap if present`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -2556,7 +2588,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 14
+			j += 15
 			c.Check(first.Kind(), Equals, "download-snap")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -2586,7 +2618,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				c.Check(aliasTask.WaitTasks(), HasLen, 0)
 			}
 		}
-		c.Assert(j, Equals, len(tasks), Commentf("%#v", scenario))
+		c.Assert(len(tasks), Equals, j, Commentf("%#v", scenario))
 
 		// conflict checks are triggered
 		chg := s.state.NewChange("update", "...")
@@ -4392,6 +4424,48 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	c.Assert(snapst.AliasesPending, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "edge",
+	})
+
+	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
+	ts, err := snapstate.Switch(s.state, "some-snap", "some-channel")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// switch is not really really doing anything backend related
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+
+	// ensure the desired channel has changed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Channel, Equals, "some-channel")
+
+	// ensure the current info has not changed
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
+}
+
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -4539,6 +4613,7 @@ link-snap: Error
  ERROR fail
 set-auto-aliases: Hold
 setup-aliases: Hold
+run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
@@ -4552,6 +4627,7 @@ link-snap: Error
  ERROR fail
 set-auto-aliases: Hold
 setup-aliases: Hold
+run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
@@ -5270,9 +5346,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook",
+		"run-hook[install]",
 		"start-snap-services",
-		"run-hook",
+		"run-hook[configure]",
 	})
 
 }
@@ -5956,7 +6032,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
-			"run-hook",
+			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",

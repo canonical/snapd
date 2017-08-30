@@ -74,7 +74,7 @@ build_rpm() {
 
     # Create a source tarball for the current snapd sources
     mkdir -p "/tmp/pkg/snapd-$version"
-    cp -rav -- * "/tmp/pkg/snapd-$version/"
+    cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
