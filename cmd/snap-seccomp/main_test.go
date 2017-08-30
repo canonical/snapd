@@ -96,15 +96,19 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 	// we workaround there.
 	if sc < 0 {
 		/* -101 is __PNR_socket */
-		if sc == -101 && scmpArch == seccomp.ArchX86 {
+		switch {
+		case sc == -101 && scmpArch == seccomp.ArchX86:
 			sc = 359 /* see src/arch-x86.c socket */
-		} else if sc == -101 && scmpArch == seccomp.ArchS390X {
+		case sc == -101 && scmpArch == seccomp.ArchS390X:
 			sc = 359 /* see src/arch-s390x.c socket */
-		} else if sc == -10165 && scmpArch == seccomp.ArchARM64 {
+		case sc == -10165 && scmpArch == seccomp.ArchARM64:
 			// -10165 is mknod on aarch64 and it is translated
 			// to mknodat. for our simulation -10165 is fine
 			// though
-		} else {
+		case sc == -10150 && scmpArch == seccomp.ArchARM64:
+			// -10150 is __PNR_chown on aarch64. Fine for the
+			// simulation
+		default:
 			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
 		}
 	}

@@ -140,6 +140,8 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
+		"desktop":                 true,
+		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
 		"mir":                     true,
