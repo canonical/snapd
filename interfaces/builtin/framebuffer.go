@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,12 +37,7 @@ const framebufferConnectedPlugAppArmor = `
 /run/udev/data/c29:[0-9]* r,
 `
 
-// This will fix access denied of opengl interface when it's used with
-// framebuffer interface in the same snap.
-// https://bugs.launchpad.net/snapd/+bug/1675738
-// TODO: we are not doing this due to the bug and we'll be reintroducing
-// the udev tagging soon.
-// const framebufferUDevConnectedPlug = `KERNEL=="fb[0-9]*", TAG+="###SLOT_SECURITY_TAGS###"`
+const framebufferConnectedPlugUDev = `KERNEL=="fb[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
@@ -52,6 +47,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  framebufferBaseDeclarationSlots,
 		connectedPlugAppArmor: framebufferConnectedPlugAppArmor,
+		connectedPlugUDev:     framebufferConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
