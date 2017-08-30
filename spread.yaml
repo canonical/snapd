@@ -237,26 +237,28 @@ exclude:
     - "*.a"
 
 prepare-each: |
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+    if [ ${SKIP_SETUP:-} != "yes" ]; then
+        # systemd on 14.04 does not know about --rotate or --vacuum-time.
+        if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+            journalctl --rotate
+            sleep .1
+            journalctl --vacuum-time=1ms
+        else
+            # Force a log rotation with small size
+            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
 
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+            # Restore the initial configuration and rotate logs
+            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
 
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
+            # Remove rotated journal logs
+            systemctl stop systemd-journald.service
+            find /run/log/journal/ -name "*@*.journal" -delete
+            systemctl start systemd-journald.service
+        fi
+        dmesg -c > /dev/null
     fi
-    dmesg -c > /dev/null
 
 debug-each: |
     echo '# journal messages for snapd'
@@ -292,11 +294,13 @@ repack: |
 kill-timeout: 20m
 
 prepare: |
-    # check if running inside a container, the testsuite will not
-    # work in such an environment
-    if systemd-detect-virt -c; then
-        echo "Tests cannot run inside a container"
-        exit 1
+    if [ ${SKIP_SETUP:-} != "yes" ]; then
+        # check if running inside a container, the testsuite will not
+        # work in such an environment
+        if systemd-detect-virt -c; then
+            echo "Tests cannot run inside a container"
+            exit 1
+        fi
     fi
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
@@ -338,8 +342,9 @@ prepare: |
         find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
         rmdir $DELTA_PREFIX
     fi
-
-    . "$TESTSLIB/prepare-project.sh"
+    if [ ${SKIP_SETUP:-} != "yes" ]; then
+        . "$TESTSLIB/prepare-project.sh"
+    fi
 
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -350,8 +355,10 @@ restore: |
         fi
     fi
 
-    rm -f $SPREAD_PATH/snapd-state.tar.gz
-    rm -rf ${GOPATH%%:*}/*
+    if [ ${SKIP_SETUP:-} != "yes" ]; then
+        rm -f $SPREAD_PATH/snapd-state.tar.gz
+        rm -rf ${GOPATH%%:*}/*
+    fi
 
 suites:
     tests/main/:
@@ -522,5 +529,42 @@ suites:
             . $TESTSLIB/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
+
+    tests/ootb/:
+        summary: Out-of-the-box experience on specific distributions
+        systems: [-ubuntu-core-*]
+        environment:
+            SKIP_SETUP: yes
+        manual: true
+        prepare-each: |
+            case "$SPREAD_SYSTEM" in
+                debian-*|ubuntu-*)
+                    apt-get update
+                    apt-get install -y snapd
+                    ;;
+                fedora-*)
+                    dnf install snapd -y
+                    ;;
+                opensuse-42.2*)
+                    zypper --non-interactive addrepo -f "http://download.opensuse.org/repositories/system:/snappy/openSUSE_Leap_42.2/" snappy
+                    zypper --non-interactive --gpg-auto-import-keys refresh
+                    zypper --non-interactive install -y snapd
+                    systemctl enable --now snapd.{socket,service}
+                    ;;
+            esac
+        restore-each: |
+            case "$SPREAD_SYSTEM" in
+                debian-*|ubuntu-*)
+                    apt-get remove --purge -y snapd
+                    apt-get autoremove --purge -y
+                    ;;
+                fedora-*)
+                    dnf remove snapd -y
+                    ;;
+                opensuse-*)
+                    zypper --non-interactive remove -y snapd
+                    zypper --non-interactive removerepo snappy
+                    ;;
+            esac
 
 # vim:ts=4:sw=4:et
