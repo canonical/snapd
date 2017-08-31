@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1357,12 +1358,20 @@ func (s *runScriptSuite) verifyRundir(c *C, names []string) {
 	}
 }
 
+type byMtime []os.FileInfo
+
+func (m byMtime) Len() int           { return len(m) }
+func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime()) }
+func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+
 func (s *runScriptSuite) verifyLastOutput(c *C, expectedOutput string) {
 	dirents, err := ioutil.ReadDir(s.runDir)
+	sort.Sort(byMtime(dirents))
+
 	c.Assert(err, IsNil)
 	for i := len(dirents) - 1; i >= 0; i-- {
 		name := dirents[i].Name()
-		if strings.HasSuffix(name, ".output") {
+		if strings.HasPrefix(name, "r") {
 			output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
 			c.Assert(err, IsNil)
 			c.Check(string(output), Equals, expectedOutput)
@@ -1385,8 +1394,7 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.done`,
-		`^r0\.000001\.[0-9T-]+\.output`,
+		`^r0.done$`,
 		`^script.r0$`,
 		`^work$`,
 	})
@@ -1403,8 +1411,7 @@ exit 1
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.output`,
-		`^r0\.000001\.[0-9T-]+\.retry`,
+		`^r0.retry$`,
 		`^script.r0$`,
 		`^work$`,
 	})
@@ -1422,8 +1429,7 @@ exit 0
 	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.output`,
-		`^r0\.000001\.[0-9T-]+\.skip`,
+		`^r0.skip$`,
 		`^script.r0$`,
 		`^work$`,
 	})
@@ -1445,8 +1451,7 @@ exit 1
 	s.seqRepairs = []string{makeMockRepair(script)}
 	rpr := s.testScriptRun(c, script)
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.output`,
-		`^r0\.000001\.[0-9T-]+\.retry`,
+		`^r0.retry$`,
 		`^script.r0$`,
 		`^work$`,
 	})
@@ -1458,10 +1463,8 @@ exit 1
 	c.Assert(err, IsNil)
 
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.output`,
-		`^r0\.000001\.[0-9T-]+\.retry`,
-		`^r0\.000002\.[0-9T-]+\.done`,
-		`^r0\.000002\.[0-9T-]+\.output`,
+		`^r0.done$`,
+		`^r0.retry$`,
 		`^script.r0$`,
 		`^work$`,
 	})
@@ -1492,8 +1495,7 @@ sleep 100
 	c.Assert(err, ErrorMatches, "repair did not finish within 10ms")
 
 	s.verifyRundir(c, []string{
-		`^r0\.000001\.[0-9T-]+\.output`,
-		`^r0\.000001\.[0-9T-]+\.retry`,
+		`^r0.retry$`,
 		`^script.r0$`,
 		`^work$`,
 	})

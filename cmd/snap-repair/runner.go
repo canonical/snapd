@@ -76,33 +76,6 @@ func (r *Repair) SetStatus(status RepairStatus) {
 	r.run.SaveState()
 }
 
-// nextCounter finds the next counter prefix to use for the output and status
-// files of a repair run
-func nextCounter(r *Repair) int {
-	counter := 0
-
-	// format: "r99.000001.2006-01-02T150405.output"
-	prefix := fmt.Sprintf("r%d.", r.Revision())
-	suffix := fmt.Sprintf(".output")
-	li, err := ioutil.ReadDir(r.RunDir())
-	if err != nil {
-		// should never happen
-		return counter
-	}
-	// ioutil.ReadDir() is already sorted
-	for _, dirent := range li {
-		name := dirent.Name()
-		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
-			li := strings.Split(name, ".")
-			if c, err := strconv.Atoi(li[1]); err == nil {
-				counter = c
-			}
-		}
-	}
-
-	return counter + 1
-}
-
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
 	// write the script to disk
@@ -119,10 +92,7 @@ func (r *Repair) Run() error {
 	}
 
 	// the date may be broken so we use an additional counter
-	counter := nextCounter(r)
-	now := time.Now().Format("2006-01-02T150405")
-	baseName := fmt.Sprintf("r%d.%06d.%v", r.Revision(), counter, now)
-
+	baseName := fmt.Sprintf("r%d", r.Revision())
 	logPath := filepath.Join(rundir, baseName+".output")
 	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -181,7 +151,7 @@ func (r *Repair) Run() error {
 			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
 		}
 		statusPath := filepath.Join(rundir, baseName+".retry")
-		if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
+		if err := os.Rename(logPath, statusPath); err != nil {
 			logger.Noticef("cannot write stamp: %s", statusPath)
 		}
 		return fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
@@ -202,9 +172,8 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	// write stamp and set status
 	statusPath := filepath.Join(rundir, baseName+"."+status.String())
-	if err := osutil.AtomicWriteFile(statusPath, nil, 0600, 0); err != nil {
+	if err := os.Rename(logPath, statusPath); err != nil {
 		return err
 	}
 	r.SetStatus(status)
