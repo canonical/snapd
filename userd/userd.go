@@ -26,6 +26,8 @@ import (
 	"github.com/godbus/dbus"
 	"github.com/godbus/dbus/introspect"
 	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -84,6 +86,8 @@ func (ud *Userd) Init() error {
 }
 
 func (ud *Userd) Start() {
+	logger.Noticef("Starting snap userd")
+
 	ud.tomb.Go(func() error {
 		// Listen to keep our thread up and running. All DBus bits
 		// are running in the background
