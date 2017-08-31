@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
 const bluezSummary = `allows operating as the bluez service`
@@ -36,8 +37,10 @@ const bluezBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+        - core
     deny-auto-connection: true
+    deny-connection:
+      on-classic: false
 `
 
 const bluezPermanentSlotAppArmor = `
@@ -204,28 +207,38 @@ func (iface *bluezInterface) Name() string {
 func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              bluezSummary,
+		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
 }
 
 func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotDBus)
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotDBus)
+	}
 	return nil
 }
 
 func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	var new string
+	if release.OnClassic {
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
 func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+	if !release.OnClassic {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
@@ -240,12 +253,16 @@ func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *i
 }
 
 func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotAppArmor)
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotAppArmor)
+	}
 	return nil
 }
 
 func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotSecComp)
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotSecComp)
+	}
 	return nil
 }
 
