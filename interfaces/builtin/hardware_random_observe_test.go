@@ -86,8 +86,8 @@ func (s *HardwareRandomObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *HardwareRandomObserveInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	expected := []string{`KERNEL=="hwrng", TAG+="snap_consumer_app"`}
-	c.Assert(spec.Snippets(), DeepEquals, expected)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="hwrng", TAG+="snap_consumer_app"`)
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestStaticInfo(c *C) {

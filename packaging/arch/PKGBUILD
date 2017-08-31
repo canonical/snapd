@@ -14,10 +14,8 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgname.git"
-        'snapd.sh')
-md5sums=('SKIP'
-         '8e9b8108165d5b2ae911de9caefb37ce')
+source=("git+https://github.com/snapcore/$pkgname.git")
+md5sums=('SKIP')
 
 _gourl=github.com/snapcore/snapd
 
@@ -123,8 +121,8 @@ package() {
   install -m 755 "$GOPATH/bin/snapd" "$pkgdir/usr/lib/snapd/"
   # Install snap-confine
   make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir/"
-  # Install script to export binaries paths of snaps
-  install -Dm 755 "$srcdir/snapd.sh" "$pkgdir/etc/profile.d/apps-bin-path.sh"
+  # Install script to export binaries paths of snaps and XDG_DATA_DIRS for their .desktop files
+  make -C "$srcdir/$pkgbase/data/env" install DESTDIR="$pkgdir"
   # Install the bash tab completion files
   install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/snap" "$pkgdir/usr/share/bash-completion/completions/snap"
   install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/complete.sh" "$pkgdir/usr/lib/snapd/complete.sh"
