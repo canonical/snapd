@@ -245,7 +245,7 @@ func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
 
-	put.Header.Set(client.AllowInteractionHeader, "1")
+	put.Header.Set(client.AllowInteractionHeader, "true")
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
 }

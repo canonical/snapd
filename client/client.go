@@ -188,7 +188,7 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	}
 
 	if client.interactive {
-		req.Header.Set(AllowInteractionHeader, "1")
+		req.Header.Set(AllowInteractionHeader, "true")
 	}
 
 	rsp, err := client.doer.Do(req)

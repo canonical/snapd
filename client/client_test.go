@@ -182,7 +182,7 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	cli.SetDoer(cs)
 	_ = cli.Do("GET", "/this", nil, nil, &v)
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
-	c.Check(interactive, Equals, "1")
+	c.Check(interactive, Equals, "true")
 }
 
 func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
