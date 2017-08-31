@@ -309,6 +309,7 @@ set_thread_area
 set_tls
 # arm64
 readlinkat
+faccessat
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
