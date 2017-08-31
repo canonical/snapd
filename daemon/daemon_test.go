@@ -287,13 +287,22 @@ func (l *witnessAcceptListener) Close() error {
 	return err
 }
 
-func (s *daemonSuite) TestStartStop(c *check.C) {
-	d := newTestDaemon(c)
+func (s *daemonSuite) markSeeded(d *Daemon) {
 	st := d.overlord.State()
-	// mark as already seeded
 	st.Lock()
 	st.Set("seeded", true)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 	st.Unlock()
+}
+
+func (s *daemonSuite) TestStartStop(c *check.C) {
+	d := newTestDaemon(c)
+	// mark as already seeded
+	s.markSeeded(d)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -336,10 +345,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d := newTestDaemon(c)
 	// mark as already seeded
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	st.Unlock()
+	s.markSeeded(d)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -401,11 +407,8 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 		return
 	})
 
-	st := d.overlord.State()
 	// mark as already seeded
-	st.Lock()
-	st.Set("seeded", true)
-	st.Unlock()
+	s.markSeeded(d)
 
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
