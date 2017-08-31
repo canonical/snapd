@@ -1,6 +1,6 @@
 summary: Checks for special cases of snap install from the store
 
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-*]
 
 environment:
     SNAP_NAME: test-snapd-tools
@@ -36,3 +36,6 @@ execute: |
     expected="(?s)$DEVMODE_SNAP .*"
     actual=$(snap install --channel beta --devmode $DEVMODE_SNAP)
     echo "$actual" | grep -Pzq "$expected"
+
+    echo "Install a snap that contains bash-completion scripts"
+    snap install --edge test-snapd-complexion
