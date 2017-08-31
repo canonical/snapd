@@ -63,32 +63,26 @@ func makeMockRepairState(c *C) {
 	basedir := filepath.Join(dirs.SnapRepairRunDir, "canonical/1")
 	err = os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r3.000001.2017-08-22T101401.output"), []byte("foo"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r3.retry"), []byte("retry output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r3.000001.2017-08-22T101401.retry"), nil, 0600)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r3"), []byte("#!/bin/sh\necho foo"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r3"), []byte("#!/bin/sh\necho retry output"), 0700)
 	c.Assert(err, IsNil)
 
 	// my-brand
 	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/1")
 	err = os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r1.000001.2017-08-21T101401.output"), []byte("bar"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.done"), []byte("done output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r1.000001.2017-08-21T101401.done"), nil, 0600)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho bar"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho done output"), 0700)
 	c.Assert(err, IsNil)
 
 	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/2")
 	err = os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r2.000001.2017-08-23T101401.output"), []byte("baz"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r2.skip"), []byte("skip output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r2.000001.2017-08-23T101401.skip"), nil, 0600)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho baz"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho skip output"), 0700)
 	c.Assert(err, IsNil)
 }
 
@@ -112,22 +106,22 @@ func (r *repairSuite) TestListRepairsVerbose(c *C) {
 	c.Check(r.Stdout(), Equals, `Issuer     Seq  Rev  Status
 canonical  1    3    retry
  output:
-  foo
+  retry output
  script:
   #!/bin/sh
-  echo foo
+  echo retry output
 my-brand  1    1    done
  output:
-  bar
+  done output
  script:
   #!/bin/sh
-  echo bar
+  echo done output
 my-brand  2    2    skip
  output:
-  baz
+  skip output
  script:
   #!/bin/sh
-  echo baz
+  echo skip output
 `)
 
 }

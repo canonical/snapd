@@ -31,7 +31,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
@@ -76,7 +75,7 @@ func showRepairOutput(w io.Writer, issuer, seq, rev string) error {
 	}
 	for _, dent := range dirents {
 		name := dent.Name()
-		if strings.HasSuffix(name, ".output") {
+		if strings.HasSuffix(name, ".retry") || strings.HasSuffix(name, ".done") || strings.HasSuffix(name, ".skip") {
 			fmt.Fprintf(w, " output:\n")
 			outputIndented(w, filepath.Join(basedir, name))
 		}
@@ -96,8 +95,21 @@ type repairTrace struct {
 	status string
 }
 
-func (c *cmdList) Execute(args []string) error {
+func newRepairTrace(artifactName, issuerName, seqName, status string) repairTrace {
+	t := repairTrace{
+		issuer: issuerName,
+		seq:    seqName,
+		rev:    "?",
+		status: status,
+	}
+	var rev int
+	if _, err := fmt.Sscanf(artifactName, "r%d.", &rev); err == nil {
+		t.rev = strconv.Itoa(rev)
+	}
+	return t
+}
 
+func (c *cmdList) Execute(args []string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	defer w.Flush()
 
@@ -107,15 +119,12 @@ func (c *cmdList) Execute(args []string) error {
 	// directory structure is:
 	//  canonical/
 	//    1/
-	//      r0.000001.2017-08-22T102401.output
-	//      r0.000001.2017-08-22T102401.retry
+	//      r0.retry
 	//      script.r0
-	//      r1.000001.2017-08-23T102401.output
-	//      r1.000001.2017-08-23T102401.done
+	//      r1.done
 	//      script.r0
 	//    2/
-	//      r3.000001.2017-08-24T102401.output
-	//      r3.000001.2017-08-24T102401.done
+	//      r3.done
 	//      script.r3
 	var repairTraces []repairTrace
 	issuersContent, err := ioutil.ReadDir(dirs.SnapRepairRunDir)
@@ -147,30 +156,13 @@ func (c *cmdList) Execute(args []string) error {
 			}
 			for _, artifact := range artifacts {
 				artifactName := artifact.Name()
-				if strings.HasSuffix(artifactName, ".output") {
-					t := repairTrace{
-						issuer: issuerName,
-						seq:    seqName,
-						rev:    "?",
-						status: "unknown",
-					}
-
-					base := filepath.Join(artifactsDir, artifactName[:len(artifactName)-len(".output")])
-					switch {
-					case osutil.FileExists(base + ".retry"):
-						t.status = "retry"
-					case osutil.FileExists(base + ".done"):
-						t.status = "done"
-					case osutil.FileExists(base + ".skip"):
-						t.status = "skip"
-					}
-
-					var rev int
-					if _, err := fmt.Sscanf(artifactName, "r%d.", &rev); err == nil {
-						t.rev = strconv.Itoa(rev)
-					}
-
-					repairTraces = append(repairTraces, t)
+				switch {
+				case strings.HasSuffix(artifactName, ".retry"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "retry"))
+				case strings.HasSuffix(artifactName, ".skip"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "skip"))
+				case strings.HasSuffix(artifactName, ".done"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "done"))
 				}
 			}
 		}
