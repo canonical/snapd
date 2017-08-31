@@ -487,7 +487,7 @@ static int sc_open_snap_update_ns()
 	if (s == NULL) {
 		die("cannot find trailing forward slash in %s", buf);
 	}
-	s += 1;
+	s += 1;			// advance pointer to the base name of the executable.
 	sc_must_snprintf(s, sizeof buf - (s - buf), "snap-update-ns");
 	debug("snap-update-ns executable: %s", buf);
 
