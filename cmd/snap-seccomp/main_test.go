@@ -305,6 +305,10 @@ sysinfo
 exit
 # i386
 set_thread_area
+# armhf
+set_tls
+# arm64
+readlinkat
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
