@@ -43,6 +43,9 @@
 
 #define MAX_BUF 1000
 
+#ifndef LIBEXECDIR
+LIBEXECDIR = "/usr/lib/snapd"
+#endif
 /*!
  * The void directory.
  *
@@ -50,7 +53,6 @@
  * working directory across the pivot_root call.
  **/
 #define SC_VOID_DIR "/var/lib/snapd/void"
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -331,13 +333,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
+			struct stat buf;
 			if (access(dir, F_OK) == 0) {
 				sc_must_snprintf(src, sizeof src, "%s%s",
 						 config->rootfs_dir, dir);
 				sc_must_snprintf(dst, sizeof dst, "%s%s",
 						 scratch_dir, dir);
-				if (access(src, F_OK) == 0
-				    && access(dst, F_OK) == 0) {
+				if (lstat(src, &buf) == 0
+				    && lstat(dst, &buf) == 0) {
 					sc_do_mount(src, dst, NULL, MS_BIND,
 						    NULL);
 					sc_do_mount("none", dst, NULL, MS_SLAVE,
@@ -347,18 +350,24 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 	}
 	if (config->uses_base_snap) {
-		// snapd dir
-		const char *src = "/usr/lib/snapd";
+		// snapd dir: we need it so that we can actually run
+		// anything because snap-exec needs to be visible the
+		// base snap
+
+		// FIXME: take re-exec into account, i.e. this may not
+		//        actually be the path we need, we need snapd
+		//        to tell us what path to use instead.
+		const char *src = LIBEXECDIR;
 		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
 		sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
 		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
-                //        /usr/bin/snapctl, we will need an empty file
-                //        here from the base snap or we need to move it
-                //        into a different location and just symlink it
-                //        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
-                //        and in the base snap case adjust PATH
+		//        /usr/bin/snapctl, we will need an empty file
+		//        here from the base snap or we need to move it
+		//        into a different location and just symlink it
+		//        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
+		//        and in the base snap case adjust PATH
 		//src = "/usr/bin/snapctl";
 		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
 		//sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
