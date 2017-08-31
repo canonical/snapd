@@ -55,6 +55,11 @@ var pppConnectedPlugKmod = []string{
 	"ppp_generic",
 }
 
+const pppConnectedPlugUDev = `
+KERNEL=="ppp", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tty[A-Z]*[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                     "ppp",
@@ -64,6 +69,7 @@ func init() {
 		baseDeclarationSlots:     pppBaseDeclarationSlots,
 		connectedPlugAppArmor:    pppConnectedPlugAppArmor,
 		connectedPlugKModModules: pppConnectedPlugKmod,
+		connectedPlugUDev:        pppConnectedPlugUDev,
 		reservedForOS:            true,
 	})
 }
