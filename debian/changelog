@@ -1,3 +1,14 @@
+snapd (2.27.5-1) unstable; urgency=medium
+
+  * New upstream release.
+    - interfaces: fix network-manager plug regression
+    - hooks: do not error when hook handler is not registered
+    - interfaces/alsa,pulseaudio: allow read on udev data for sound
+    - interfaces/optical-drive: read access to udev data for /dev/scd*
+    - interfaces/browser-support: read on /proc/vmstat and misc udev data
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Thu, 31 Aug 2017 10:11:20 +0200
+
 snapd (2.27.4-1) unstable; urgency=medium
 
   * New upstream release.
