@@ -96,3 +96,9 @@ func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
 		defaultRepairTimeout = orig
 	}
 }
+
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}

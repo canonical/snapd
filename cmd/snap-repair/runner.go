@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -54,6 +55,8 @@ var (
 	// TODO: move inside the repairs themselves?
 	defaultRepairTimeout = 30 * time.Minute
 )
+
+var errtrackerReport = errtracker.Report
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -136,25 +139,35 @@ func (r *Repair) Run() error {
 
 	// wait for repair to finish or timeout
 	killTimerCh := time.After(defaultRepairTimeout)
-	doneCh := make(chan struct{})
+	doneCh := make(chan error)
 	go func() {
 		// ignore error, we only care about what we got via
 		// the status pipe
-		cmd.Wait()
+		doneCh <- cmd.Wait()
 		close(doneCh)
 	}()
 	select {
-	case <-doneCh:
+	case err = <-doneCh:
 		// done
 	case <-killTimerCh:
 		if err := osutil.KillProcessGroup(cmd); err != nil {
 			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
 		}
+		err = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+	}
+	if err != nil {
+		err = fmt.Errorf("%q failed: %s", r.Ref(), err)
+
 		statusPath := filepath.Join(rundir, baseName+".retry")
 		if err := os.Rename(logPath, statusPath); err != nil {
 			logger.Noticef("cannot write stamp: %s", statusPath)
 		}
-		return fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+
+		if err := r.errtrackerReport(err, statusPath); err != nil {
+			logger.Noticef("cannot report error to errtracker: %s", err)
+		}
+
+		return err
 	}
 
 	// read repair status pipe, use the last value
@@ -179,6 +192,30 @@ func (r *Repair) Run() error {
 	r.SetStatus(status)
 
 	return nil
+}
+
+// errtrackerReport reports an repairErr with the given logPath to the
+// snap error tracker.
+func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
+	// FIXME: instead of a pseudo snap we could also just use a
+	// different "ProblemType". Right now we always use
+	// "ProblemType: snap" but for repairs we could set it to
+	// "ProblemType: snap-repair" or similar
+	pseudoSnap := r.Ref().String()
+
+	errMsg := fmt.Sprintf("%s", repairErr)
+
+	scriptOutput, err := ioutil.ReadFile(logPath)
+	if err != nil {
+		logger.Noticef("cannot read %s", logPath)
+	}
+	dupSig := fmt.Sprintf("%s\noutput:\n%s", errMsg, scriptOutput)
+
+	extra := map[string]string{
+		"Revision": strconv.Itoa(r.Revision()),
+	}
+	_, err = errtrackerReport(pseudoSnap, errMsg, dupSig, extra)
+	return err
 }
 
 // Runner implements fetching, tracking and running repairs.

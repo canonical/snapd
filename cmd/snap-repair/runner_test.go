@@ -1306,6 +1306,14 @@ type runScriptSuite struct {
 	runner     *repair.Runner
 
 	runDir string
+
+	restoreErrTrackerReport func()
+	errReport               struct {
+		snap   string
+		errMsg string
+		dupSig string
+		extra  map[string]string
+	}
 }
 
 var _ = Suite(&runScriptSuite{})
@@ -1320,15 +1328,27 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.runner.LoadState()
 
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
+
+	s.restoreErrTrackerReport = repair.MockErrtrackerReport(s.errtrackerReport)
 }
 
 func (s *runScriptSuite) TearDownTest(c *C) {
 	s.baseRunnerSuite.TearDownTest(c)
 
+	s.restoreErrTrackerReport()
 	s.mockServer.Close()
 }
 
-func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
+func (s *runScriptSuite) errtrackerReport(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
+	s.errReport.snap = snap
+	s.errReport.errMsg = errMsg
+	s.errReport.dupSig = dupSig
+	s.errReport.extra = extra
+
+	return "some-oops-id", nil
+}
+
+func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *repair.Repair {
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
@@ -1340,7 +1360,11 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	c.Assert(err, IsNil)
+	if expectedErr == "" {
+		c.Assert(err, IsNil)
+	} else {
+		c.Assert(err, ErrorMatches, expectedErr)
+	}
 
 	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "script.r0"))
 	c.Assert(err, IsNil)
@@ -1391,7 +1415,7 @@ echo "done" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script)
+	s.testScriptRun(c, script, "")
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
@@ -1408,7 +1432,7 @@ echo "unhappy output"
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script)
+	s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
@@ -1417,6 +1441,16 @@ exit 1
 	})
 	s.verifyLastOutput(c, "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
+
+	c.Check(s.errReport.snap, Equals, "repair (1; brand-id:canonical)")
+	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
+	c.Check(s.errReport.dupSig, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1
+output:
+unhappy output
+`)
+	c.Check(s.errReport.extra, DeepEquals, map[string]string{
+		"Revision": "0",
+	})
 }
 
 func (s *runScriptSuite) TestRepairBasicSkip(c *C) {
@@ -1426,7 +1460,7 @@ echo "skip" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script)
+	s.testScriptRun(c, script, "")
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.skip$`,
@@ -1449,7 +1483,7 @@ touch zzz-ran-once
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	rpr := s.testScriptRun(c, script)
+	rpr := s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
 		`^script.r0$`,
@@ -1492,7 +1526,7 @@ sleep 100
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	c.Assert(err, ErrorMatches, "repair did not finish within 10ms")
+	c.Assert(err, ErrorMatches, `"repair \(1; brand-id:canonical\)" failed: repair did not finish within 10ms`)
 
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
