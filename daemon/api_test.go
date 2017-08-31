@@ -283,6 +283,12 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 
 	s.d = d
 	return d
@@ -4931,8 +4937,9 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	// create fake device
 	st.Lock()
 	err = auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserial",
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
