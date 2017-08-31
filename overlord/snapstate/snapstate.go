@@ -1423,6 +1423,18 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 
 // State/info accessors
 
+// Installing returns whether there's an in-progress installation.
+func Installing(st *state.State) bool {
+	for _, task := range st.Tasks() {
+		k := task.Kind()
+		chg := task.Change()
+		if k == "mount-snap" && chg != nil && !chg.Status().Ready() {
+			return true
+		}
+	}
+	return false
+}
+
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, error) {
@@ -1491,6 +1503,15 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		}
 	}
 	return curStates, nil
+}
+
+// NumSnaps returns the number of installed snaps.
+func NumSnaps(st *state.State) (int, error) {
+	var snaps map[string]*json.RawMessage
+	if err := st.Get("snaps", &snaps); err != nil && err != state.ErrNoState {
+		return -1, err
+	}
+	return len(snaps), nil
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.

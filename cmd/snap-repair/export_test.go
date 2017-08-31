@@ -25,6 +25,7 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
@@ -78,6 +79,14 @@ func (run *Runner) SetBrandModel(brand, model string) {
 	run.state.Device.Model = model
 }
 
+func (run *Runner) TimeLowerBound() time.Time {
+	return run.state.TimeLowerBound
+}
+
+func (run *Runner) TLSTime() time.Time {
+	return httputil.BaseTransport(run.cli).TLSClientConfig.Time()
+}
+
 func (run *Runner) Sequence(brand string) []*RepairState {
 	return run.state.Sequences[brand]
 }
@@ -101,4 +110,10 @@ func MockErrtrackerReport(mock func(string, string, string, map[string]string) (
 	prev := errtrackerReport
 	errtrackerReport = mock
 	return func() { errtrackerReport = prev }
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	origTimeNow := timeNow
+	timeNow = f
+	return func() { timeNow = origTimeNow }
 }
