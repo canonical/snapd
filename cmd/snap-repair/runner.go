@@ -167,6 +167,8 @@ func (r *Repair) Run() error {
 		if err := r.errtrackerReport(err, statusPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
+		// ensure the error is present in the output log
+		fmt.Fprintf(logf, "\n%s", err)
 
 		return err
 	}

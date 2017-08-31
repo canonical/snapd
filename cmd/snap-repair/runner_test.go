@@ -1571,7 +1571,9 @@ exit 1
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	c.Check(s.errReport.snap, Equals, "repair (1; brand-id:canonical)")
@@ -1621,7 +1623,9 @@ exit 1
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	// run again, it will be happy this time
@@ -1665,6 +1669,8 @@ sleep 100
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "output before timeout\n")
+	s.verifyOutput(c, "r0.retry", `output before timeout
+
+"repair (1; brand-id:canonical)" failed: repair did not finish within 10ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }
