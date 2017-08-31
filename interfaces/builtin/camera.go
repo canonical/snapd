@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,8 @@ const cameraConnectedPlugAppArmor = `
 /sys/devices/pci**/usb*/**/video4linux/** r,
 `
 
+const cameraConnectedPlugUDev = `KERNEL=="video[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "camera",
@@ -50,6 +52,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  cameraBaseDeclarationSlots,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
+		connectedPlugUDev:     cameraConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

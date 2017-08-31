@@ -13,10 +13,16 @@
 			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
-			"checksumSHA1": "LIpi0bDVAl3e0Xza8gohpKkH0+I=",
+			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
 			"path": "github.com/godbus/dbus",
-			"revision": "bd29ed602e2cf4207ebcabcd530259169e4289ba",
-			"revisionTime": "2017-07-07T17:46:28Z"
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
@@ -126,10 +132,11 @@
 			"revisionTime": "2017-06-29T04:06:47Z"
 		},
 		{
-			"checksumSHA1": "ZaU56svwLgiJD0y8JOB3+/mpYBA=",
+			"checksumSHA1": "9C4Av3ypK5pi173F76ogJT/d8x4=",
+			"comment": "using revision before x/sys/unix/ was added to allow building on powerpc",
 			"path": "golang.org/x/crypto/ssh/terminal",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "a19fa444682e099bed1a53260e1d755754cd098a",
+			"revisionTime": "2015-11-02T21:41:26Z"
 		},
 		{
 			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
@@ -142,12 +149,6 @@
 			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
 			"revisionTime": "2017-06-28T23:42:41Z"
-		},
-		{
-			"checksumSHA1": "K3C9lD5XgLfXd25MtZe3Uw5BRoA=",
-			"path": "golang.org/x/sys/unix",
-			"revision": "35ef4487ce0a1ea5d4b616ffe71e34febe723695",
-			"revisionTime": "2017-07-27T13:28:57Z"
 		},
 		{
 			"checksumSHA1": "CEFTYXtWmgSh+3Ik1NmDaJcz4E0=",
