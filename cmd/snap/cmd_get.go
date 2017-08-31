@@ -87,19 +87,11 @@ type configValue struct {
 	value interface{}
 }
 
-type ByConfigPath []configValue
+type byConfigPath []configValue
 
-func (s ByConfigPath) Len() int {
-	return len(s)
-}
-
-func (s ByConfigPath) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s ByConfigPath) Less(i, j int) bool {
-	return s[i].path < s[j].path
-}
+func (s byConfigPath) Len() int           { return len(s) }
+func (s byConfigPath) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s byConfigPath) Less(i, j int) bool { return s[i].path < s[j].path }
 
 func flattenConfig(cfg map[string]interface{}, root bool) (values []configValue) {
 	const docstr = "{...}"
@@ -121,7 +113,7 @@ func flattenConfig(cfg map[string]interface{}, root bool) (values []configValue)
 			values = append(values, configValue{k, v})
 		}
 	}
-	sort.Sort(ByConfigPath(values))
+	sort.Sort(byConfigPath(values))
 	return values
 }
 
@@ -173,7 +165,7 @@ func (x *cmdGet) Execute(args []string) error {
 			}
 			return nil
 		} else {
-			fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d to force JSON output.\n`))
+			fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
 		}
 	}
 
