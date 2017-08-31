@@ -156,6 +156,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "serialserial",
+	})
 
 	// add "core" snap declaration
 	headers := map[string]interface{}{

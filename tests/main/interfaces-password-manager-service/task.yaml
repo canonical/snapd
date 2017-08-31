@@ -6,12 +6,10 @@ systems: [ ubuntu-1* ]
 prepare: |
     . $TESTSLIB/pkgdb.sh
     echo "Ensure we have a working gnome-keyring"
-    distro_install_package gnome-keyring dbus-x11
     snap install --edge test-snapd-password-manager-consumer
 
 restore: |
     . $TESTSLIB/pkgdb.sh
-    distro_auto_remove_packages gnome-keyring dbus-x11
     kill $(cat dbus-launch.pid)
     rm -f  dbus-launch.pid
 

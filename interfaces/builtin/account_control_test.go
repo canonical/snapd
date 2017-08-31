@@ -99,7 +99,7 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - 0 42\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - u:root g:shadow\n")
 }
 
 func (s *AccountControlSuite) TestInterfaces(c *C) {

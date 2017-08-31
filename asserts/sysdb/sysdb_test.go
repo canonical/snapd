@@ -39,6 +39,7 @@ func TestSysDB(t *testing.T) { TestingT(t) }
 type sysDBSuite struct {
 	extraTrusted []asserts.Assertion
 	extraGeneric []asserts.Assertion
+	otherModel   *asserts.Model
 	probeAssert  asserts.Assertion
 }
 
@@ -73,9 +74,19 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	sdbs.extraGeneric = []asserts.Assertion{otherAcct}
 
+	a, err := signingDB.Sign(asserts.ModelType, map[string]interface{}{
+		"series":    "16",
+		"brand-id":  "can0nical",
+		"model":     "other-model",
+		"classic":   "true",
+		"timestamp": "2015-11-20T15:04:00Z",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	sdbs.otherModel = a.(*asserts.Model)
+
 	fakeRoot := filepath.Join(tmpdir, "root")
 
-	err := os.Mkdir(fakeRoot, os.ModePerm)
+	err = os.Mkdir(fakeRoot, os.ModePerm)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
 
@@ -99,13 +110,29 @@ func (sdbs *sysDBSuite) TestTrusted(c *C) {
 
 func (sdbs *sysDBSuite) TestGeneric(c *C) {
 	generic := sysdb.Generic()
-	c.Check(generic, HasLen, 1)
+	c.Check(generic, HasLen, 2)
 
 	restore := sysdb.InjectGeneric(sdbs.extraGeneric)
 	defer restore()
 
 	genericEx := sysdb.Generic()
-	c.Check(genericEx, HasLen, 2)
+	c.Check(genericEx, HasLen, 3)
+}
+
+func (sdbs *sysDBSuite) TestGenericClassicModel(c *C) {
+	m := sysdb.GenericClassicModel()
+	c.Assert(m, NotNil)
+
+	c.Check(m.AuthorityID(), Equals, "generic")
+	c.Check(m.BrandID(), Equals, "generic")
+	c.Check(m.Model(), Equals, "generic-classic")
+	c.Check(m.Classic(), Equals, true)
+
+	r := sysdb.MockGenericClassicModel(sdbs.otherModel)
+	defer r()
+
+	m = sysdb.GenericClassicModel()
+	c.Check(m, Equals, sdbs.otherModel)
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
@@ -133,8 +160,16 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 		"account-id": "generic",
 	})
 	c.Assert(err, IsNil)
+	_, err = db.FindMany(asserts.AccountKeyType, map[string]string{
+		"account-id": "generic",
+		"name":       "models",
+	})
+	c.Assert(err, IsNil)
 
 	err = db.Check(genericAcc)
+	c.Check(err, IsNil)
+
+	err = db.Check(sysdb.GenericClassicModel())
 	c.Check(err, IsNil)
 
 	// extraneous

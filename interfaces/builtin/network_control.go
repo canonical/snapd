@@ -246,6 +246,13 @@ socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
+const networkControlConnectedPlugUDev = `
+KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###",
+KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
@@ -255,6 +262,8 @@ func init() {
 		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
+
 }
