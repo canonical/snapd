@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	unix "syscall"
@@ -102,8 +103,13 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		if c.PolkitOK != "" {
+			allow, err := strconv.ParseBool(r.Header.Get(client.AllowInteractionHeader))
+			if err != nil {
+				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+				allow = false
+			}
 			var flags polkit.CheckFlags
-			if r.Header.Get(client.AllowInteractionHeader) == "1" {
+			if allow {
 				flags |= polkit.CheckAllowInteraction
 			}
 			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
