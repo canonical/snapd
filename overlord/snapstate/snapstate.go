@@ -64,7 +64,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 		} else if !dirs.SupportsClassicConfinement() {
-			return nil, fmt.Errorf("classic confinement is not yet supported on your distribution")
+			return nil, fmt.Errorf(i18n.G("classic confinement requires snaps under /snap or symlink from /snap to %s"), dirs.SnapMountDir)
 		}
 	}
 	if !snapst.HasCurrent() { // install?
@@ -819,6 +819,28 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
+// Switch switches a snap to a new channel
+func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !snapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: snapst.CurrentSideInfo(),
+		Channel:  channel,
+	}
+
+	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.Name(), snapsup.Channel))
+	switchSnap.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(switchSnap), nil
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
@@ -1401,6 +1423,18 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 
 // State/info accessors
 
+// Installing returns whether there's an in-progress installation.
+func Installing(st *state.State) bool {
+	for _, task := range st.Tasks() {
+		k := task.Kind()
+		chg := task.Change()
+		if k == "mount-snap" && chg != nil && !chg.Status().Ready() {
+			return true
+		}
+	}
+	return false
+}
+
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, error) {
@@ -1469,6 +1503,15 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		}
 	}
 	return curStates, nil
+}
+
+// NumSnaps returns the number of installed snaps.
+func NumSnaps(st *state.State) (int, error) {
+	var snaps map[string]*json.RawMessage
+	if err := st.Get("snaps", &snaps); err != nil && err != state.ErrNoState {
+		return -1, err
+	}
+	return len(snaps), nil
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
