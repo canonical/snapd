@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1531,24 +1530,14 @@ func (m byMtime) Len() int           { return len(m) }
 func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime()) }
 func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
-func (s *runScriptSuite) verifyLastOutput(c *C, expectedOutput string) {
-	dirents, err := ioutil.ReadDir(s.runDir)
-	sort.Sort(byMtime(dirents))
-
+func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
+	output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
 	c.Assert(err, IsNil)
-	for i := len(dirents) - 1; i >= 0; i-- {
-		name := dirents[i].Name()
-		if strings.HasPrefix(name, "r") {
-			output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
-			c.Assert(err, IsNil)
-			c.Check(string(output), Equals, expectedOutput)
-
-			// ensure correct permissions
-			c.Check(dirents[i].Mode(), Equals, os.FileMode(0600))
-			return
-		}
-	}
-	c.Fatalf("cannot find expected output")
+	c.Check(string(output), Equals, expectedOutput)
+	// ensure correct permissions
+	fi, err := os.Stat(filepath.Join(s.runDir, name))
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode(), Equals, os.FileMode(0600))
 }
 
 func (s *runScriptSuite) TestRepairBasicRunHappy(c *C) {
@@ -1565,7 +1554,7 @@ exit 0
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "happy output\n")
+	s.verifyOutput(c, "r0.done", "happy output\n")
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1582,7 +1571,7 @@ exit 1
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	c.Check(s.errReport.snap, Equals, "repair (1; brand-id:canonical)")
@@ -1610,7 +1599,7 @@ exit 0
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "other output\n")
+	s.verifyOutput(c, "r0.skip", "other output\n")
 	verifyRepairStatus(c, repair.SkipStatus)
 }
 
@@ -1632,7 +1621,7 @@ exit 1
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", "unhappy output\n")
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	// run again, it will be happy this time
@@ -1645,7 +1634,7 @@ exit 1
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "happy now\n")
+	s.verifyOutput(c, "r0.done", "happy now\n")
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1676,6 +1665,6 @@ sleep 100
 		`^script.r0$`,
 		`^work$`,
 	})
-	s.verifyLastOutput(c, "output before timeout\n")
+	s.verifyOutput(c, "r0.retry", "output before timeout\n")
 	verifyRepairStatus(c, repair.RetryStatus)
 }
