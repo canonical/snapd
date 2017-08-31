@@ -483,6 +483,9 @@ static int sc_open_snap_update_ns()
 		die("cannot readlink /proc/self/exe");
 	}
 	debug("snap-confine executable: %s", buf);
+	if (buf[0] != '/') {
+		die("readlink /proc/self/exe returned relative path");
+	}
 	char *s = strrchr(buf, '/');
 	if (s == NULL) {
 		die("cannot find trailing forward slash in %s", buf);
