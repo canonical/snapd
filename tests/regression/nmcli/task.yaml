@@ -1,0 +1,24 @@
+summary: Checks basic network-manager/nmcli functionality
+
+description: |
+  Test regression caused by seccomp argument filtering getting
+  stricter but the network-manager plug side was not updated
+  to include "socket AF_NETLINK - NETLINK_KOBJECT_UEVENT" which
+  is vital for nmcli to work.
+
+systems: [ubuntu-core-*]
+
+execute: |
+    echo "Install network-manager and do basic smoke test"
+    snap install network-manager
+
+    # using wait_for_service is not enough, systemd considers
+    # the service active even when it is not (yet) listening to
+    # dbus
+    for i in $(seq 300); do
+        if network-manager.nmcli general; then
+            break
+        fi
+        sleep 1
+    done
+    network-manager.nmcli d show

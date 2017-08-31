@@ -23,8 +23,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,7 +49,10 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type snapSeccompSuite struct{}
+type snapSeccompSuite struct {
+	seccompBpfLoader     string
+	seccompSyscallRunner string
+}
 
 var _ = Suite(&snapSeccompSuite{})
 
@@ -91,20 +96,24 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 		return nil, err
 	}
 	// libseccomp may return negative numbers here for syscalls that
-	// are "special" for some reason. there is no "official" way to
-	// resolve them using the API to the real number. this is why
+	// are "special" for some reason. There is no "official" way to
+	// resolve them using the API to the real number. This is why
 	// we workaround there.
 	if sc < 0 {
 		/* -101 is __PNR_socket */
-		if sc == -101 && scmpArch == seccomp.ArchX86 {
-			sc = 359 /* see src/arch-x86.c socket */
-		} else if sc == -101 && scmpArch == seccomp.ArchS390X {
-			sc = 359 /* see src/arch-s390x.c socket */
-		} else if sc == -10165 && scmpArch == seccomp.ArchARM64 {
+		switch {
+		case sc == -101 && scmpArch == seccomp.ArchX86:
+			sc = 359 // see src/arch-x86.c socket
+		case sc == -101 && scmpArch == seccomp.ArchS390X:
+			sc = 359 // see src/arch-s390x.c socket
+		case sc == -10165 && scmpArch == seccomp.ArchARM64:
 			// -10165 is mknod on aarch64 and it is translated
-			// to mknodat. for our simulation -10165 is fine
+			// to mknodat. For our simulation -10165 is fine
 			// though
-		} else {
+		case sc == -10150 && scmpArch == seccomp.ArchARM64:
+			// -10150 is __PNR_chown on aarch64. Fine for the
+			// simulation
+		default:
 			panic(fmt.Sprintf("cannot resolve syscall %v for arch %v, got %v", l[0], l[1], sc))
 		}
 	}
@@ -113,7 +122,9 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
 		for i := range args {
-			// init with random number argument
+			// init with random number argument to avoid
+			// the test passes accidentally because every
+			// argument is set to zero
 			syscallArgs[i] = (uint64)(rand.Uint32())
 			// override if the test specifies a specific number
 			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
@@ -132,7 +143,7 @@ func parseBpfInput(s string) (*main.SeccompData, error) {
 
 // Endianness detection.
 func nativeEndian() binary.ByteOrder {
-	// Credit matt kane, taken from his gosndfile project.
+	// Credit Matt Kane, taken from his gosndfile project.
 	// https://groups.google.com/forum/#!msg/golang-nuts/3GEzwKfRRQw/D1bMbFP-ClAJ
 	// https://github.com/mkb218/gosndfile
 	var i int32 = 0x01020304
@@ -148,7 +159,213 @@ func nativeEndian() binary.ByteOrder {
 	}
 }
 
-// simulateBpf:
+var seccompBpfLoaderContent = []byte(`
+#include <fcntl.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+
+#define MAX_BPF_SIZE 32 * 1024
+
+int sc_apply_seccomp_bpf(const char* profile_path)
+{
+    unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
+    FILE* fp;
+    fp = fopen(profile_path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "cannot read %s\n", profile_path);
+        exit(1);
+    }
+
+    // set 'size' to 1; to get bytes transferred
+    size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
+
+    if (ferror(fp) != 0) {
+        perror("fread()");
+        exit(1);
+    } else if (feof(fp) == 0) {
+        fprintf(stderr, "file too big\n");
+        exit(1);
+    }
+    fclose(fp);
+
+    struct sock_fprog prog = {
+        .len = num_read / sizeof(struct sock_filter),
+        .filter = (struct sock_filter*)bpf,
+    };
+
+    // Set NNP to allow loading seccomp policy into the kernel without
+    // root
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+        perror("prctl(PR_NO_NEW_PRIVS, 1, 0, 0, 0)");
+        exit(1);
+    }
+
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
+        exit(1);
+    }
+    return 0;
+}
+
+int main(int argc, char* argv[])
+{
+    int rc = 0;
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <bpf file> [prog ...]\n", argv[0]);
+        return 1;
+    }
+
+    rc = sc_apply_seccomp_bpf(argv[1]);
+    if (rc || argc == 2)
+        return rc;
+
+    execv(argv[2], (char* const*)&argv[2]);
+    perror("execv failed");
+    return 1;
+}
+`)
+
+var seccompSyscallRunnerContent = []byte(`
+#define _GNU_SOURCE
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+int main(int argc, char** argv)
+{
+    int l[7];
+    for (int i = 0; i < 7; i++)
+        l[i] = atoi(argv[i + 1]);
+    // There might be architecture-specific requirements. see "man syscall"
+    // for details.
+    syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+    syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+}
+`)
+
+func lastKmsg() string {
+	output, err := exec.Command("dmesg").CombinedOutput()
+	if err != nil {
+		return err.Error()
+	}
+	l := strings.Split(string(output), "\n")
+	return fmt.Sprintf("Showing last 10 lines of dmesg:\n%s", strings.Join(l[len(l)-10:], "\n"))
+}
+
+func (s *snapSeccompSuite) SetUpSuite(c *C) {
+	// FIXME: we currently use a fork of x/net/bpf because of:
+	//   https://github.com/golang/go/issues/20556
+	// switch to x/net/bpf once we can simulate seccomp bpf there
+	bpf.VmEndianness = nativeEndian()
+
+	// build seccomp-load helper
+	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
+	err := ioutil.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
+	c.Assert(err, IsNil)
+	cmd := exec.Command("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
+
+	// build syscall-runner helper
+	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
+	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
+	c.Assert(err, IsNil)
+	cmd = exec.Command("gcc", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
+}
+
+func (s *snapSeccompSuite) runBpfInKernel(c *C, seccompWhitelist, bpfInput string, expected int) {
+	// Common syscalls we need to allow for a minimal statically linked
+	// c program.
+	//
+	// If we compile a test program for each test we can get away with
+	// a even smaller set of syscalls: execve,exit essentially. But it
+	// means a much longer test run (30s vs 2s). Commit d288d89 contains
+	// the code for this.
+	common := `
+execve
+uname
+brk
+arch_prctl
+readlink
+access
+sysinfo
+exit
+# i386
+set_thread_area
+`
+	bpfPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	c.Assert(err, IsNil)
+
+	// syscallName;arch;arg1,arg2...
+	l := strings.Split(bpfInput, ";")
+	if len(l) > 1 && l[1] != "native" {
+		c.Logf("cannot use non-native in runBpfInKernel")
+		return
+	}
+	// Skip prctl(PR_SET_ENDIAN) that causes havoc when run.
+	//
+	// Note that we will need to also skip: fadvise64_64,
+	//   ftruncate64, posix_fadvise, pread64, pwrite64, readahead,
+	//   sync_file_range, and truncate64.
+	// Once we start using those. See `man syscall`
+	if strings.Contains(bpfInput, "PR_SET_ENDIAN") {
+		c.Logf("cannot run PR_SET_ENDIAN in runBpfInKernel, this actually switches the endianess and the program crashes")
+		return
+	}
+
+	var syscallRunnerArgs [7]string
+	syscallNr, err := seccomp.GetSyscallFromName(l[0])
+	c.Assert(err, IsNil)
+	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
+	if len(l) > 2 {
+		args := strings.Split(l[2], ",")
+		for i := range args {
+			// init with random number argument
+			syscallArg := (uint64)(rand.Uint32())
+			// override if the test specifies a specific number
+			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
+				syscallArg = nr
+			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
+				syscallArg = nr
+			}
+			syscallRunnerArgs[i+1] = strconv.FormatUint(syscallArg, 10)
+		}
+	}
+
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	switch expected {
+	case main.SeccompRetAllow:
+		if err != nil {
+			c.Fatalf("unexpected error for %q (failed to run %q): %s", seccompWhitelist, lastKmsg(), err)
+		}
+	case main.SeccompRetKill:
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed %s)", seccompWhitelist, bpfInput, lastKmsg())
+		}
+	default:
+		c.Fatalf("unknown expected result %v", expected)
+	}
+}
+
+// simulateBpf first:
 //  1. runs main.Compile() which will catch syntax errors and output to a file
 //  2. takes the output file from main.Compile and loads it via
 //     decodeBpfFromFile
@@ -156,13 +373,20 @@ func nativeEndian() binary.ByteOrder {
 //     snapd functions
 //  4. runs the parsed bpf through a bpf VM
 //
+// Then simulateBpf runs the policy through the kernel by calling
+// runBpfInKernel() which:
+//  1. runs main.Compile()
+//  2. the program in seccompBpfLoaderContent with the output file as an
+//     argument
+//  3. the program in seccompBpfLoaderContent loads the output file BPF into
+//     the kernel and executes the program in seccompBpfRunnerContent with the
+//     syscall and arguments specified by the test
+//
 // In this manner, in addition to verifying policy syntax we are able to
-// unit test the resulting bpf in several ways approximating the kernels
-// behaviour (approximating because this parser is not the kernel's seccomp
-// parser).
+// unit test the resulting bpf in several ways.
 //
 // Full testing of applied policy is done elsewhere via spread tests.
-func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
+func (s *snapSeccompSuite) simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	outPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(seccompWhitelist), outPath)
 	c.Assert(err, IsNil)
@@ -181,13 +405,8 @@ func simulateBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	out, err := vm.Run(buf2[:])
 	c.Assert(err, IsNil)
 	c.Check(out, Equals, expected, Commentf("unexpected result for %q (input %q), got %v expected %v", seccompWhitelist, bpfInput, out, expected))
-}
 
-func (s *snapSeccompSuite) SetUpSuite(c *C) {
-	// FIXME: we currently use a fork of x/net/bpf because of:
-	//   https://github.com/golang/go/issues/20556
-	// switch to x/net/bpf once we can simulate seccomp bpf there
-	bpf.VmEndianness = nativeEndian()
+	s.runBpfInKernel(c, seccompWhitelist, bpfInput, expected)
 }
 
 func systemUsesSocketcall() bool {
@@ -237,7 +456,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"read\nwrite\nexecve\n", "write", main.SeccompRetAllow},
 
 		// trivial denial
-		{"read", "execve", main.SeccompRetKill},
+		{"read", "ioctl", main.SeccompRetKill},
 
 		// test argument filtering syntax, we currently support:
 		//   >=, <=, !, <, >, |
@@ -334,7 +553,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		if strings.Contains(t.seccompWhitelist, "socket") && systemUsesSocketcall() {
 			continue
 		}
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -445,15 +664,15 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s_%s", pre, i)
 			bpfInputBad := "socket;native;99999"
-			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 
 			for _, j := range []string{"SOCK_STREAM", "SOCK_DGRAM", "SOCK_SEQPACKET", "SOCK_RAW", "SOCK_RDM", "SOCK_PACKET"} {
 				seccompWhitelist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
 				bpfInputGood := fmt.Sprintf("socket;native;%s_%s,%s", pre, i, j)
 				bpfInputBad := fmt.Sprintf("socket;native;%s_%s,9999", pre, i)
-				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-				simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+				s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 			}
 		}
 	}
@@ -463,8 +682,8 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s - %s", j, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s,0,%s", j, i)
 			bpfInputBad := fmt.Sprintf("socket;native;%s,0,99", j)
-			simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+			s.simulateBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
 		}
 	}
 }
@@ -475,10 +694,10 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
-		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 		// bad input
 		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
-			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+			s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 		}
 	}
 }
@@ -491,22 +710,22 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("prctl %s", arg)
 		bpfInputGood := fmt.Sprintf("prctl;native;%s", arg)
-		simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 		// bad input
-		for _, bad := range []string{"prctl;native;99999", "read;native;"} {
-			simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+		for _, bad := range []string{"prctl;native;99999", "setpriority;native;"} {
+			s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 		}
 
 		if arg == "PR_CAP_AMBIENT" {
 			for _, j := range []string{"PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL"} {
 				seccompWhitelist := fmt.Sprintf("prctl %s %s", arg, j)
 				bpfInputGood := fmt.Sprintf("prctl;native;%s,%s", arg, j)
-				simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				s.simulateBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
 				for _, bad := range []string{
 					fmt.Sprintf("prctl;native;%s,99999", arg),
-					"read;native;",
+					"setpriority;native;",
 				} {
-					simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+					s.simulateBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
 				}
 			}
 		}
@@ -535,7 +754,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsClone(c *C) {
 		{"setns - CLONE_NEWUSER", "setns;native;-,99", main.SeccompRetKill},
 		{"setns - CLONE_NEWUTS", "setns;native;-,99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -559,7 +778,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsMknod(c *C) {
 		{"mknod - S_IFIFO", "mknod;native;-,999", main.SeccompRetKill},
 		{"mknod - S_IFSOCK", "mknod;native;-,999", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -579,7 +798,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrio(c *C) {
 		{"setpriority PRIO_PGRP", "setpriority;native;99", main.SeccompRetKill},
 		{"setpriority PRIO_USER", "setpriority;native;99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -595,7 +814,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		// bad input
 		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -617,7 +836,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 		{"setgid g:root", "setgid;native;99", main.SeccompRetKill},
 		{"setgid g:daemon", "setgid;native;99", main.SeccompRetKill},
 	} {
-		simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }
 
@@ -649,7 +868,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// here because on endian mismatch the arch will *not* be
 		// added
 		if arch.UbuntuArchitecture() == t.arch {
-			simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+			s.simulateBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}
 }
