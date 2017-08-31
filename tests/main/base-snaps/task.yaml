@@ -39,4 +39,3 @@ execute: |
     snap install --edge test-snapd-busybox-static
     echo "Ensure we can run a statically linked binary from an empty base"
     test-snapd-busybox-static.busybox-static echo hello | MATCH hello
-
