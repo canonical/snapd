@@ -1403,6 +1403,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(snapstate.Installing(s.state), Equals, false)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
@@ -1526,6 +1527,20 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		Revision: snap.R(42),
 	})
 	c.Assert(snapst.Required, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstalling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(snapstate.Installing(s.state), Equals, false)
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(42), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	c.Check(snapstate.Installing(s.state), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -5191,6 +5206,10 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapStates, HasLen, 1)
 
+	n, err := snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+
 	snapst := snapStates["name1"]
 	c.Assert(snapst, NotNil)
 
@@ -5223,17 +5242,29 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
 
+	n, err := snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
+
 	snapstate.Set(st, "foo", nil)
 
 	snapStates, err = snapstate.All(st)
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
 
+	n, err = snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
+
 	snapstate.Set(st, "foo", &snapstate.SnapState{})
 
 	snapStates, err = snapstate.All(st)
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
+
+	n, err = snapstate.NumSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {

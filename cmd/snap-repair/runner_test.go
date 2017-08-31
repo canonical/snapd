@@ -50,6 +50,9 @@ import (
 type baseRunnerSuite struct {
 	tmpdir string
 
+	seedTime time.Time
+	t0       time.Time
+
 	storeSigning *assertstest.StoreStack
 
 	brandSigning *assertstest.SigningDB
@@ -107,6 +110,24 @@ func (s *baseRunnerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
+
+	// dummy seed yaml
+	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	c.Assert(err, IsNil)
+	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
+	c.Assert(err, IsNil)
+	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
+	c.Assert(err, IsNil)
+	err = os.Chtimes(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), seedTime, seedTime)
+	c.Assert(err, IsNil)
+	s.seedTime = seedTime
+
+	s.t0 = time.Now().UTC().Truncate(time.Minute)
+}
+
+func (s *runnerSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *baseRunnerSuite) TearDownTest(c *C) {
@@ -183,6 +204,19 @@ func mustParseURL(s string) *url.URL {
 	return u
 }
 
+func (s *runnerSuite) mockBrokenTimeNowSetToEpoch(c *C, runner *repair.Runner) (restore func()) {
+	epoch := time.Unix(0, 0)
+	r := repair.MockTimeNow(func() time.Time {
+		return epoch
+	})
+	c.Check(runner.TLSTime().Equal(epoch), Equals, true)
+	return r
+}
+
+func (s *runnerSuite) checkBrokenTimeNowMitigated(c *C, runner *repair.Runner) {
+	c.Check(runner.TLSTime().Before(s.t0), Equals, false)
+}
+
 func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -196,6 +230,9 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
+	defer r()
+
 	repair, aux, err := runner.Fetch("canonical", "2", -1)
 	c.Assert(err, IsNil)
 	c.Check(repair, NotNil)
@@ -203,6 +240,8 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	c.Check(repair.BrandID(), Equals, "canonical")
 	c.Check(repair.RepairID(), Equals, "2")
 	c.Check(repair.Body(), DeepEquals, []byte("script\n"))
+
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
@@ -317,9 +356,14 @@ func (s *runnerSuite) TestFetchNotFound(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
+	defer r()
+
 	_, _, err := runner.Fetch("canonical", "2", -1)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
+
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
@@ -339,9 +383,14 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
+	defer r()
+
 	_, _, err := runner.Fetch("canonical", "2", 0)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 	c.Assert(n, Equals, 1)
+
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
@@ -428,11 +477,16 @@ func (s *runnerSuite) TestPeek(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
+	defer r()
+
 	h, err := runner.Peek("canonical", "2")
 	c.Assert(err, IsNil)
 	c.Check(h["series"], DeepEquals, []interface{}{"16"})
 	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
 	c.Check(h["models"], DeepEquals, []interface{}{"xyz/frobinator"})
+
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestPeek500(c *C) {
@@ -491,9 +545,14 @@ func (s *runnerSuite) TestPeekNotFound(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
+	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
+	defer r()
+
 	_, err := runner.Peek("canonical", "2")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
+
+	s.checkBrokenTimeNowMitigated(c, runner)
 }
 
 func (s *runnerSuite) TestPeekIdMismatch(c *C) {
@@ -512,10 +571,12 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
+const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+
 func (s *runnerSuite) freshState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`{"device": {"brand":"my-brand","model":"my-model"}}`), 0600)
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
 	c.Assert(err, IsNil)
 }
 
@@ -566,6 +627,8 @@ func (s *runnerSuite) TestLoadStateInitState(c *C) {
 	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model-2")
+
+	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
 }
 
 func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
@@ -608,10 +671,24 @@ func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
 	}
 }
 
-func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
-	err := os.Chmod(s.tmpdir, 0555)
+func (s *runnerSuite) TestTLSTime(c *C) {
+	s.freshState(c)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
 	c.Assert(err, IsNil)
-	defer os.Chmod(s.tmpdir, 0775)
+	epoch := time.Unix(0, 0)
+	r := repair.MockTimeNow(func() time.Time {
+		return epoch
+	})
+	defer r()
+	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
+}
+
+func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	par := filepath.Dir(dirs.SnapSeedDir)
+	err := os.Chmod(par, 0555)
+	c.Assert(err, IsNil)
+	defer os.Chmod(par, 0775)
 
 	runner := repair.NewRunner()
 	err = runner.LoadState()
@@ -658,7 +735,7 @@ func (s *runnerSuite) TestSaveState(c *C) {
 
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]}}`)
+	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
 }
 
 func (s *runnerSuite) TestApplicable(c *C) {
@@ -846,6 +923,33 @@ func (s *runnerSuite) TestVerify(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
+	var seq []string
+	for _, rpr := range repairs {
+		decoded, err := asserts.Decode([]byte(rpr))
+		c.Assert(err, IsNil)
+		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+		c.Assert(err, IsNil)
+		buf := &bytes.Buffer{}
+		enc := asserts.NewEncoder(buf)
+		enc.Encode(signed)
+		enc.Encode(s.repairsAcctKey)
+		seq = append(seq, buf.String())
+	}
+	return seq
+}
+
+func (s *runnerSuite) loadSequences(c *C) map[string][]*repair.RepairState {
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	var x struct {
+		Sequences map[string][]*repair.RepairState `json:"sequences"`
+	}
+	err = json.Unmarshal(data, &x)
+	c.Assert(err, IsNil)
+	return x.Sequences
+}
+
 func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
@@ -877,14 +981,15 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err = runner.Next("canonical")
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
-	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+	expectedSeq := []*repair.RepairState{
 		{Sequence: 1},
 		{Sequence: 2, Status: repair.SkipStatus},
 		{Sequence: 3, Revision: 2},
-	})
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":0},{"sequence":2,"revision":0,"status":1},{"sequence":3,"revision":2,"status":0}]}}`)
+	}
+	c.Check(runner.Sequence("canonical"), DeepEquals, expectedSeq)
+	// on disk
+	seqs := s.loadSequences(c)
+	c.Check(seqs["canonical"], DeepEquals, expectedSeq)
 
 	// start fresh run with new runner
 	// will refetch repair 3
@@ -962,12 +1067,13 @@ AXNpZw==`}
 	_, err := runner.Next("canonical")
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
-	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+	expectedSeq := []*repair.RepairState{
 		{Sequence: 1, Status: repair.SkipStatus},
-	})
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":1}]}}`)
+	}
+	c.Check(runner.Sequence("canonical"), DeepEquals, expectedSeq)
+	// on disk
+	seqs := s.loadSequences(c)
+	c.Check(seqs["canonical"], DeepEquals, expectedSeq)
 }
 
 func (s *runnerSuite) TestNextRefetchSkip(c *C) {
@@ -1003,12 +1109,13 @@ AXNpZw==`}
 	_, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 
-	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+	expectedSeq := []*repair.RepairState{
 		{Sequence: 1},
-	})
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":0}]}}`)
+	}
+	c.Check(runner.Sequence("canonical"), DeepEquals, expectedSeq)
+	// on disk
+	seqs := s.loadSequences(c)
+	c.Check(seqs["canonical"], DeepEquals, expectedSeq)
 
 	// new fresh run, repair becomes now unapplicable
 	seqRepairs[0] = `type: repair
@@ -1035,12 +1142,13 @@ AXNpZw==`
 	_, err = runner.Next("canonical")
 	c.Check(err, Equals, repair.ErrRepairNotFound)
 
-	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+	expectedSeq = []*repair.RepairState{
 		{Sequence: 1, Revision: 1, Status: repair.SkipStatus},
-	})
-	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":1,"status":1}]}}`)
+	}
+	c.Check(runner.Sequence("canonical"), DeepEquals, expectedSeq)
+	// on disk
+	seqs = s.loadSequences(c)
+	c.Check(seqs["canonical"], DeepEquals, expectedSeq)
 }
 
 func (s *runnerSuite) TestNext500(c *C) {
@@ -1060,6 +1168,40 @@ func (s *runnerSuite) TestNext500(c *C) {
 
 	_, err := runner.Next("canonical")
 	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
+}
+
+func (s *runnerSuite) TestNextNotFound(c *C) {
+	s.freshState(c)
+
+	restore := repair.MockPeekRetryStrategy(testRetryStrategy)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+	runner.LoadState()
+
+	// sanity
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, freshStateJSON)
+
+	_, err = runner.Next("canonical")
+	c.Assert(err, Equals, repair.ErrRepairNotFound)
+
+	// we saved new time lower bound
+	t1 := runner.TimeLowerBound()
+	expected := strings.Replace(freshStateJSON, "2017-08-11T15:49:49Z", t1.Format(time.RFC3339), 1)
+	c.Check(expected, Not(Equals), freshStateJSON)
+	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, expected)
 }
 
 func (s *runnerSuite) TestNextSaveStateError(c *C) {
@@ -1227,12 +1369,13 @@ AXNpZw==`}
 
 	rpr.SetStatus(repair.DoneStatus)
 
-	c.Check(runner.Sequence("canonical"), DeepEquals, []*repair.RepairState{
+	expectedSeq := []*repair.RepairState{
 		{Sequence: 1, Status: repair.DoneStatus},
-	})
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":2}]}}`)
+	}
+	c.Check(runner.Sequence("canonical"), DeepEquals, expectedSeq)
+	// on disk
+	seqs := s.loadSequences(c)
+	c.Check(seqs["canonical"], DeepEquals, expectedSeq)
 }
 
 func (s *runnerSuite) TestRepairBasicRun(c *C) {
@@ -1293,7 +1436,7 @@ AXNpZw==`, len(script), script)
 func verifyRepairStatus(c *C, status repair.RepairStatus) {
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}]}}`, status))
+	c.Check(string(data), Matches, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":\[{"sequence":1,"revision":0,"status":%d}.*`, status))
 }
 
 // tests related to correct execution of script
