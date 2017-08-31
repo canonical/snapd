@@ -130,13 +130,12 @@ func (r *Repair) Run() error {
 	}
 	defer logf.Close()
 
-	// run things and captures output etc
-	stR, stW, err := os.Pipe()
+	statusR, statusW, err := os.Pipe()
 	if err != nil {
 		return err
 	}
-	defer stR.Close()
-	defer stW.Close()
+	defer statusR.Close()
+	defer statusW.Close()
 
 	// run the script
 	env := os.Environ()
@@ -157,13 +156,13 @@ func (r *Repair) Run() error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = env
 	cmd.Dir = workdir
-	cmd.ExtraFiles = []*os.File{stW}
+	cmd.ExtraFiles = []*os.File{statusW}
 	cmd.Stdout = logf
 	cmd.Stderr = logf
 	if err = cmd.Start(); err != nil {
 		return err
 	}
-	stW.Close()
+	statusW.Close()
 
 	// wait for repair to finish or timeout
 	killTimerCh := time.After(defaultRepairTimeout)
@@ -190,7 +189,7 @@ func (r *Repair) Run() error {
 
 	// read repair status pipe, use the last value
 	var status RepairStatus
-	scanner := bufio.NewScanner(stR)
+	scanner := bufio.NewScanner(statusR)
 	for scanner.Scan() {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
@@ -429,7 +428,7 @@ func (rs RepairStatus) String() string {
 	case DoneStatus:
 		return "done"
 	default:
-		panic(fmt.Sprintf("unknown repair status %d", rs))
+		return "unknown"
 	}
 }
 
