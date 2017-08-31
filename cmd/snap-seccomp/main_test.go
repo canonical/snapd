@@ -50,93 +50,93 @@ type snapSeccompSuite struct {
 var _ = Suite(&snapSeccompSuite{})
 
 var seccompBpfLoaderContent = []byte(`
+#include <fcntl.h>
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
 #include <string.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <fcntl.h>
 #include <sys/prctl.h>
+#include <unistd.h>
 
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 
 #define MAX_BPF_SIZE 32 * 1024
 
-int sc_apply_seccomp_bpf(const char *profile_path)
+int sc_apply_seccomp_bpf(const char* profile_path)
 {
-	unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
-	FILE *fp;
-	fp = fopen(profile_path, "rb");
-	if (fp == NULL) {
-		fprintf(stderr, "cannot read %s\n", profile_path);
-		exit(1);
-	}
+    unsigned char bpf[MAX_BPF_SIZE + 1]; // account for EOF
+    FILE* fp;
+    fp = fopen(profile_path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "cannot read %s\n", profile_path);
+        exit(1);
+    }
 
-	// set 'size' to '1; to get bytes transferred
-	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
+    // set 'size' to 1; to get bytes transferred
+    size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
 
-	if (ferror(fp) != 0) {
-		perror("fread()");
-		exit(1);
-	} else if (feof(fp) == 0) {
-		fprintf(stderr, "file too big\n");
-		exit(1);
-	}
-	fclose(fp);
+    if (ferror(fp) != 0) {
+        perror("fread()");
+        exit(1);
+    } else if (feof(fp) == 0) {
+        fprintf(stderr, "file too big\n");
+        exit(1);
+    }
+    fclose(fp);
 
-	struct sock_fprog prog = {
-		.len = num_read / sizeof(struct sock_filter),
-		.filter = (struct sock_filter *)bpf,
-	};
+    struct sock_fprog prog = {
+        .len = num_read / sizeof(struct sock_filter),
+        .filter = (struct sock_filter*)bpf,
+    };
 
-	// Set NNP to allow loading seccomp policy into the kernel without
-	// root
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-		perror("prctl(PR_NO_NEW_PRIVS, 1, 0, 0, 0)");
-		exit(1);
-	}
+    // Set NNP to allow loading seccomp policy into the kernel without
+    // root
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+        perror("prctl(PR_NO_NEW_PRIVS, 1, 0, 0, 0)");
+        exit(1);
+    }
 
-	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
-		exit(1);
-	}
-	return 0;
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+        perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
+        exit(1);
+    }
+    return 0;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-	int rc = 0;
-	if (argc < 2) {
-		fprintf(stderr, "Usage: %s <bpf file> [prog ...]\n", argv[0]);
-		return 1;
-	}
+    int rc = 0;
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <bpf file> [prog ...]\n", argv[0]);
+        return 1;
+    }
 
-	rc = sc_apply_seccomp_bpf(argv[1]);
-	if (rc || argc == 2)
-		return rc;
+    rc = sc_apply_seccomp_bpf(argv[1]);
+    if (rc || argc == 2)
+        return rc;
 
-	execv(argv[2], (char *const *)&argv[2]);
-	perror("execv failed");
-	return 1;
+    execv(argv[2], (char* const*)&argv[2]);
+    perror("execv failed");
+    return 1;
 }
 `)
 
 var seccompSyscallRunnerContent = []byte(`
 #define _GNU_SOURCE
-#include<unistd.h>
-#include<sys/syscall.h>
-#include<stdlib.h>
-int main(int argc, char **argv) {
-   int l[7];
-   for (int i=0; i<7;i++)
-      l[i] = atoi(argv[i+1]);
-   // There might be architecture-specific requirements. see "man syscall"
-   // for details.
-   syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
-   syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+int main(int argc, char** argv)
+{
+    int l[7];
+    for (int i = 0; i < 7; i++)
+        l[i] = atoi(argv[i + 1]);
+    // There might be architecture-specific requirements. see "man syscall"
+    // for details.
+    syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+    syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
 }
 `)
 
@@ -197,7 +197,7 @@ func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expec
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
-	// If we compile a test program for each test we can get aways with
+	// If we compile a test program for each test we can get away with
 	// a even smaller set of syscalls: execve,exit essentially. But it
 	// means a much longer test run (30s vs 2s). Commit d288d89 contains
 	// the code for this.

@@ -14,16 +14,11 @@ restore: |
     rm -f dbus.env
     umount -f /usr/bin/xdg-open || true
     umount -f $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open || true
-    distro_purge_package dbus-x11 xdg-utils
 
 execute: |
     . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/dirs.sh"
 
-    # Install necessary pacakges to get dbus-launch helper
-    distro_install_package dbus-x11 xdg-utils
-
-    # launch dbus session bus
     dbus-launch > dbus.env
     export $(cat dbus.env | xargs)
 
