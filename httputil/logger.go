@@ -20,6 +20,7 @@
 package httputil
 
 import (
+	"crypto/tls"
 	"errors"
 	"net/http"
 	"net/http/httputil"
@@ -89,8 +90,13 @@ func (tr *LoggedTransport) getFlags() debugflag {
 
 type ClientOpts struct {
 	Timeout    time.Duration
+	TLSConfig  *tls.Config
 	MayLogBody bool
 }
+
+var (
+	defaultTransport *http.Transport = http.DefaultTransport.(*http.Transport)
+)
 
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
 // Timeout and preservation of range requests across redirects
@@ -99,9 +105,12 @@ func NewHTTPClient(opts *ClientOpts) *http.Client {
 		opts = &ClientOpts{}
 	}
 
+	transport := *defaultTransport
+	transport.TLSClientConfig = opts.TLSConfig
+
 	return &http.Client{
 		Transport: &LoggedTransport{
-			Transport: http.DefaultTransport,
+			Transport: &transport,
 			Key:       "SNAPD_DEBUG_HTTP",
 			body:      opts.MayLogBody,
 		},
@@ -118,4 +127,13 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	fixupHeadersForRedirect(req, via)
 
 	return nil
+}
+
+// BaseTransport returns the underlying http.Transport of a client created with NewHTTPClient. It panics if that's not the case. For tests.
+func BaseTransport(cli *http.Client) *http.Transport {
+	tr, ok := cli.Transport.(*LoggedTransport)
+	if !ok {
+		panic("client must have been created with httputil.NewHTTPClient")
+	}
+	return tr.Transport.(*http.Transport)
 }
