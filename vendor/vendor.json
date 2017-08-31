@@ -127,10 +127,10 @@
 		},
 		{
 			"checksumSHA1": "9C4Av3ypK5pi173F76ogJT/d8x4=",
+			"comment": "using revision before x/sys/unix/ was added to allow building on powerpc",
 			"path": "golang.org/x/crypto/ssh/terminal",
 			"revision": "a19fa444682e099bed1a53260e1d755754cd098a",
-		        "revisionTime": "2015-11-02T21:41:26Z",
-                        "comment": "using revision before x/sys/unix/ was added to allow building on powerpc"
+			"revisionTime": "2015-11-02T21:41:26Z"
 		},
 		{
 			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
