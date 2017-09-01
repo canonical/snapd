@@ -92,6 +92,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 
 	snapConfineProfile := filepath.Join(s.tmpdir, "/etc/apparmor.d/usr.lib.snapd.snap-confine")
 	err := os.MkdirAll(filepath.Dir(snapConfineProfile), 0755)
+	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(snapConfineProfile, []byte("# fake profile of snap-confine"), 0644)
 	c.Assert(err, IsNil)
 
