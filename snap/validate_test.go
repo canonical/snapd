@@ -269,7 +269,7 @@ license: GPL~3.0
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `unknown license: GPL~3.0`)
+	c.Check(err, ErrorMatches, `cannot validate license "GPL~3.0": unknown license: GPL~3.0`)
 }
 
 func (s *ValidateSuite) TestMissingSnapLicenseIsOkay(c *C) {

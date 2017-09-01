@@ -28,14 +28,14 @@ import (
 type operator string
 
 const (
-	UNSET operator = ""
-	AND            = "AND"
-	OR             = "OR"
-	WITH           = "WITH"
+	opUNSET operator = ""
+	opAND            = "AND"
+	opOR             = "OR"
+	opWITH           = "WITH"
 )
 
 func isOperator(tok string) bool {
-	return tok == AND || tok == OR || tok == WITH
+	return tok == opAND || tok == opOR || tok == opWITH
 }
 
 type licenseID string
@@ -96,35 +96,40 @@ func (p *parser) validate(depth int) error {
 				return err
 			}
 			if p.s.Text() != ")" {
-				return fmt.Errorf(`expected closing parenthesis got %q`, p.s.Text())
+				return fmt.Errorf(`expected ")" got %q`, p.s.Text())
 			}
 		case tok == ")":
 			if depth == 0 {
-				return fmt.Errorf("unbalanced parenthesis")
+				return fmt.Errorf(`unexpected ")"`)
 			}
 			return nil
 		case isOperator(tok):
 			if p.last == "" {
-				return fmt.Errorf("expected left license with operator %s", tok)
+				return fmt.Errorf("missing license before %s", tok)
 			}
-			if p.last == AND || p.last == OR {
-				return fmt.Errorf("expected license-id, got %q", tok)
+			if p.last == opAND || p.last == opOR {
+				return fmt.Errorf("expected license name, got %q", tok)
 			}
-			if p.last == WITH {
-				return fmt.Errorf("expected license-exception-id, got %q", tok)
+			if p.last == opWITH {
+				return fmt.Errorf("expected exception name, got %q", tok)
 			}
 		default:
 			switch {
-			case p.last == WITH:
+			case p.last == opWITH:
 				if _, err := newLicenseExceptionID(tok); err != nil {
 					return err
 				}
-			case p.last == "", p.last == AND, p.last == OR:
+			case p.last == "", p.last == opAND, p.last == opOR:
 				if _, err := newLicenseID(tok); err != nil {
 					return err
 				}
 			default:
-				return fmt.Errorf("unexpected token: %q", tok)
+				if _, err := newLicenseID(p.last); err == nil {
+					if _, err := newLicenseID(tok); err == nil {
+						return fmt.Errorf("missing AND or OR between %q and %q", p.last, tok)
+					}
+				}
+				return fmt.Errorf("unexpected string: %q", tok)
 			}
 
 		}
@@ -134,7 +139,10 @@ func (p *parser) validate(depth int) error {
 		return err
 	}
 	if isOperator(p.last) {
-		return fmt.Errorf("expected right license with operator %s", p.last)
+		return fmt.Errorf("missing license after %s", p.last)
+	}
+	if p.last == "" {
+		return fmt.Errorf("empty expression")
 	}
 
 	return nil
