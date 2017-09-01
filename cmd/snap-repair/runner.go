@@ -198,12 +198,6 @@ func readStatus(r io.Reader) RepairStatus {
 // errtrackerReport reports an repairErr with the given logPath to the
 // snap error tracker.
 func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
-	// FIXME: instead of a pseudo snap we could also just use a
-	// different "ProblemType". Right now we always use
-	// "ProblemType: snap" but for repairs we could set it to
-	// "ProblemType: snap-repair" or similar
-	pseudoSnap := r.Ref().String()
-
 	errMsg := fmt.Sprintf("%s", repairErr)
 
 	scriptOutput, err := ioutil.ReadFile(logPath)
@@ -217,7 +211,7 @@ func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
 		"BrandID":  r.BrandID(),
 		"RepairID": r.RepairID(),
 	}
-	_, err = errtrackerReportRepair(pseudoSnap, errMsg, dupSig, extra)
+	_, err = errtrackerReportRepair(r.Ref().String(), errMsg, dupSig, extra)
 	return err
 }
 
