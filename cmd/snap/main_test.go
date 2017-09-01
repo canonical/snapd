@@ -61,6 +61,8 @@ func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
 
 func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
@@ -83,6 +85,7 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
 	c.Assert(err, IsNil)
+	dirs.SetRootDir("/")
 	s.BaseTest.TearDownTest(c)
 }
 
@@ -241,9 +244,6 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
-
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, IsNil)
 
