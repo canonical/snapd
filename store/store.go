@@ -172,6 +172,7 @@ type Config struct {
 	BuyURI         *url.URL
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
+	CommandsURI    *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
@@ -204,6 +205,7 @@ func (cfg *Config) SetAPI(api *url.URL) error {
 	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
 	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
 	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+	cfg.CommandsURI = urlJoin(storeBaseURI, "api/v1/snaps/names")
 	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
 	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
 	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
@@ -223,6 +225,7 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+	commandsURI    *url.URL
 
 	architecture string
 	series       string
@@ -403,6 +406,14 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
+type cmdsResults struct {
+	Payload struct {
+		Packages []struct {
+			Name string `json:"package_name"`
+		} `json:"clickindex:package"`
+	} `json:"_embedded"`
+}
+
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
@@ -444,11 +455,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
-	var sectionsURI *url.URL
-	if cfg.SectionsURI != nil {
-		sectionsURI = cfg.SectionsURI
-	}
-
 	architecture := arch.UbuntuArchitecture()
 	if cfg.Architecture != "" {
 		architecture = cfg.Architecture
@@ -473,7 +479,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		ordersURI:       cfg.OrdersURI,
 		buyURI:          cfg.BuyURI,
 		customersMeURI:  cfg.CustomersMeURI,
-		sectionsURI:     sectionsURI,
+		sectionsURI:     cfg.SectionsURI,
+		commandsURI:     cfg.CommandsURI,
 		series:          series,
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
@@ -1091,6 +1098,48 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	s.extractSuggestedCurrency(resp)
 
 	return snaps, nil
+}
+
+// SnapCommands retrieves a mapping of snap names to the commands it provides.
+func (s *Store) SnapCommands() (map[string][]string, error) {
+	u := *s.commandsURI
+
+	q := u.Query()
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u.RawQuery = q.Encode()
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
+	}
+
+	var cmdsData cmdsResults
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, nil, &cmdsData, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, respToError(resp, "commands")
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the commands via %q", ct, resp.Request.URL)
+	}
+
+	cmds := make(map[string][]string, len(cmdsData.Payload.Packages))
+	for _, cmd := range cmdsData.Payload.Packages {
+		if len(cmd.Name) > 0 {
+			cmds[cmd.Name] = nil
+		}
+	}
+
+	return cmds, nil
 }
 
 // Sections retrieves the list of available store sections.

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type installedSnapName string
@@ -28,9 +31,38 @@ func (s installedSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func completeFromSortedFile(fn, match string) ([]flags.Completion, error) {
+	fd, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+
+	var ret []flags.Completion
+
+	// TODO: the file is sorted; we should bisect it
+	scanner := bufio.NewScanner(fd)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line >= match {
+			if strings.HasPrefix(line, match) {
+				ret = append(ret, flags.Completion{Item: line})
+			} else {
+				break
+			}
+		}
+	}
+
+	return ret, nil
+}
+
 type remoteSnapName string
 
 func (s remoteSnapName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapNamesFile, match); err == nil {
+		return ret
+	}
+
 	if len(match) < 3 {
 		return nil
 	}

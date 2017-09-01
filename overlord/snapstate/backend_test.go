@@ -269,6 +269,24 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	return nil
 }
 
+func (f *fakeStore) SnapCommands() (map[string][]string, error) {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-commands",
+	})
+
+	return nil, nil
+}
+
+func (f *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-sections",
+	})
+
+	return nil, nil
+}
+
 type fakeSnappyBackend struct {
 	ops fakeOps
 

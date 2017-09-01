@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -77,6 +78,10 @@ func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Tas
 	m.runner.AddHandler(adhoc, do, undo)
 }
 
+func (m *SnapManager) SetNextMiscRefresh(next time.Time) {
+	m.nextMiscRefresh = next
+}
+
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := readInfo
 	readInfo = mock
@@ -102,6 +107,7 @@ var (
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
+	RefreshMisc            = refreshMisc
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
