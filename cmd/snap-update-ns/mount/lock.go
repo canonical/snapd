@@ -38,7 +38,7 @@ func lockFileName(snapName string) string {
 // OpenLock creates and opens a lock file associated with a particular snap.
 func OpenLock(snapName string) (*osutil.FileLock, error) {
 	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
-	//if err := os.MkdirAll("/run/snapd/lock", 0700); err != nil {
+		//if err := os.MkdirAll("/run/snapd/lock", 0700); err != nil {
 		return nil, fmt.Errorf("cannot create lock directory: %s", err)
 	}
 	flock, err := osutil.NewFileLock(lockFileName(snapName))

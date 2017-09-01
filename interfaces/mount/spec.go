@@ -20,8 +20,8 @@
 package mount
 
 import (
-	"github.com/snapcore/snapd/interfaces"
 	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // Specification assists in collecting mount entries associated with an interface.
