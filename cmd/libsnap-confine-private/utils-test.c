@@ -25,35 +25,48 @@ static void test_str2bool()
 	int err;
 	bool value;
 
-	err = str2bool("yes", &value);
+	value = false;
+	err = str2bool("yes", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_true(value);
 
-	err = str2bool("1", &value);
+	value = false;
+	err = str2bool("1", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_true(value);
 
-	err = str2bool("no", &value);
+	value = true;
+	err = str2bool("no", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
-	err = str2bool("0", &value);
+	value = true;
+	err = str2bool("0", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
-	err = str2bool("", &value);
+	value = true;
+	err = str2bool("", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
-	err = str2bool(NULL, &value);
+	value = true;
+	err = str2bool(NULL, &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
-	err = str2bool("flower", &value);
+	value = false;
+	err = str2bool(NULL, &value, true);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_true(value);
+
+	value = true;
+	err = str2bool("flower", &value, false);
 	g_assert_cmpint(err, ==, -1);
 	g_assert_cmpint(errno, ==, EINVAL);
+	g_assert_true(value);
 
-	err = str2bool("yes", NULL);
+	err = str2bool("yes", NULL, false);
 	g_assert_cmpint(err, ==, -1);
 	g_assert_cmpint(errno, ==, EFAULT);
 }
