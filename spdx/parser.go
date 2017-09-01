@@ -66,9 +66,6 @@ func newLicenseExceptionID(s string) (licenseExceptionID, error) {
 
 type parser struct {
 	s *Scanner
-
-	// state
-	last string
 }
 
 func newParser(r io.Reader) *parser {
@@ -87,11 +84,16 @@ func (p *parser) advance(id string) error {
 }
 
 func (p *parser) validate(depth int) error {
+	last := ""
+
 	for p.s.Scan() {
 		tok := p.s.Text()
 
 		switch {
 		case tok == "(":
+			if last == opWITH {
+				return fmt.Errorf("%q not allowed after WITH", tok)
+			}
 			if err := p.validate(depth + 1); err != nil {
 				return err
 			}
@@ -102,46 +104,49 @@ func (p *parser) validate(depth int) error {
 			if depth == 0 {
 				return fmt.Errorf(`unexpected ")"`)
 			}
+			if last == "" {
+				return fmt.Errorf("empty expression")
+			}
 			return nil
 		case isOperator(tok):
-			if p.last == "" {
+			if last == "" {
 				return fmt.Errorf("missing license before %s", tok)
 			}
-			if p.last == opAND || p.last == opOR {
+			if last == opAND || last == opOR {
 				return fmt.Errorf("expected license name, got %q", tok)
 			}
-			if p.last == opWITH {
+			if last == opWITH {
 				return fmt.Errorf("expected exception name, got %q", tok)
 			}
 		default:
 			switch {
-			case p.last == opWITH:
+			case last == opWITH:
 				if _, err := newLicenseExceptionID(tok); err != nil {
 					return err
 				}
-			case p.last == "", p.last == opAND, p.last == opOR:
+			case last == "", last == opAND, last == opOR:
 				if _, err := newLicenseID(tok); err != nil {
 					return err
 				}
 			default:
-				if _, err := newLicenseID(p.last); err == nil {
+				if _, err := newLicenseID(last); err == nil {
 					if _, err := newLicenseID(tok); err == nil {
-						return fmt.Errorf("missing AND or OR between %q and %q", p.last, tok)
+						return fmt.Errorf("missing AND or OR between %q and %q", last, tok)
 					}
 				}
 				return fmt.Errorf("unexpected string: %q", tok)
 			}
 
 		}
-		p.last = tok
+		last = tok
 	}
 	if err := p.s.Err(); err != nil {
 		return err
 	}
-	if isOperator(p.last) {
-		return fmt.Errorf("missing license after %s", p.last)
+	if isOperator(last) {
+		return fmt.Errorf("missing license after %s", last)
 	}
-	if p.last == "" {
+	if last == "" {
 		return fmt.Errorf("empty expression")
 	}
 

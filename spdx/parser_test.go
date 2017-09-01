@@ -56,6 +56,8 @@ func (s *spdxSuite) TestParseError(c *C) {
 		errStr string
 	}{
 		{"", "empty expression"},
+		{"GPL-3.0 AND ()", "empty expression"},
+		{"()", "empty expression"},
 
 		{"FOO", `unknown license: FOO`},
 		{"GPL-3.0 xxx", `unexpected string: "xxx"`},
@@ -66,7 +68,7 @@ func (s *spdxSuite) TestParseError(c *C) {
 		{"OR GPL-2.0", "missing license before OR"},
 		{"GPL-2.0 OR", "missing license after OR"},
 		{"GPL-2.0 WITH BAR", "unknown license exception: BAR"},
-		{"GPL-2.0 WITH (foo)", `unknown license exception: foo`},
+		{"GPL-2.0 WITH (foo)", `"\(" not allowed after WITH`},
 	} {
 		err := spdx.ValidateLicense(t.inp)
 		c.Check(err, ErrorMatches, t.errStr, Commentf("input: %q", t.inp))
