@@ -46,6 +46,31 @@ func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
 	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
 }
 
+func (as *assertsSuite) TestTypeNames(c *C) {
+	c.Check(asserts.TypeNames(), DeepEquals, []string{
+		"account",
+		"account-key",
+		"account-key-request",
+		"base-declaration",
+		"device-session-request",
+		"model",
+		"repair",
+		"serial",
+		"serial-request",
+		"snap-build",
+		"snap-declaration",
+		"snap-developer",
+		"snap-revision",
+		"store",
+		"system-user",
+		"test-only",
+		"test-only-2",
+		"test-only-no-authority",
+		"test-only-no-authority-pk",
+		"validation",
+	})
+}
+
 func (as *assertsSuite) TestSuggestFormat(c *C) {
 	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
 	c.Assert(err, IsNil)
@@ -820,6 +845,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"account",
 		"account-key",
 		"base-declaration",
+		"store",
 		"snap-declaration",
 		"snap-build",
 		"snap-revision",

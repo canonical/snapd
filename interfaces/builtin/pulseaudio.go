@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,9 +20,12 @@
 package builtin
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -45,6 +48,9 @@ owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+
+/run/udev/data/c116:[0-9]* r,
+/run/udev/data/+sound:card[0-9]* r,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -123,14 +129,20 @@ setgroups32
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
+const pulseaudioPermanentSlotUdev = `
+KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 type pulseAudioInterface struct{}
 
 func (iface *pulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *pulseAudioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              pulseaudioSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
@@ -141,6 +153,16 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
+	}
+	return nil
+}
+
+func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule := strings.Replace(pulseaudioPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
 	}
 	return nil
 }
@@ -157,14 +179,6 @@ func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 
 func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *pulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

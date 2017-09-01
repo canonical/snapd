@@ -79,15 +79,7 @@ func (s *Unity8ContactsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *Unity8ContactsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "unity8-contacts"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "unity8-contacts"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestUsedSecuritySystems(c *C) {

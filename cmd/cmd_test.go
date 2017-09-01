@@ -57,8 +57,8 @@ func (s *cmdSuite) SetUpTest(c *C) {
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
-	s.newCore = filepath.Join(s.fakeroot, "/snap/core/42")
-	s.oldCore = filepath.Join(s.fakeroot, "/snap/ubuntu-core/21")
+	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
+	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
@@ -145,7 +145,7 @@ func (s *cmdSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 	// no distro supports re-exec when not on classic :-)
 	for _, id := range []string{
 		"fedora", "centos", "rhel", "opensuse", "suse", "poky",
-		"debian", "ubuntu",
+		"debian", "ubuntu", "arch",
 	} {
 		restore = release.MockReleaseInfo(&release.OS{ID: id})
 		defer restore()
@@ -217,7 +217,12 @@ func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 }
 
 func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
-	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd")
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return "/usr/bin/potato", nil
+	})
+	defer restore()
+
+	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
 }
 
 func (s *cmdSuite) TestExecInCoreSnap(c *C) {
@@ -281,10 +286,9 @@ func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
 }
 
 func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
-
-	os.Setenv("SNAP_DID_REEXEC", "1")
-	defer os.Unsetenv("SNAP_DID_REEXEC")
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	c.Assert(err, IsNil)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

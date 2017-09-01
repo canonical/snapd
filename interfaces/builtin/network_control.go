@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,26 @@ const networkControlConnectedPlugAppArmor = `
 # trusted apps.
 
 #include <abstractions/nameservice>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 capability net_admin,
@@ -66,6 +86,10 @@ network sna,
 @{PROC}/sys/net/netfilter/ r,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
+
+# For advanced wireless configuration
+/sys/kernel/debug/ieee80211/ r,
+/sys/kernel/debug/ieee80211/** rw,
 
 # read netfilter module parameters
 /sys/module/nf_*/                r,
@@ -102,6 +126,9 @@ network sna,
 /{,usr/}{,s}bin/wpa_supplicant ixr,
 
 /dev/rfkill rw,
+/sys/class/rfkill/ r,
+/sys/devices/{pci[0-9]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
+/sys/devices/{pci[0-9]*,platform,virtual}/**/rfkill[0-9]*/state w,
 
 # arp
 network netlink dgram,
@@ -219,6 +246,13 @@ socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
+const networkControlConnectedPlugUDev = `
+KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###",
+KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
@@ -228,6 +262,8 @@ func init() {
 		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
+
 }

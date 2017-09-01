@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/sha3"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
@@ -54,6 +55,84 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestStore(t *testing.T) { TestingT(t) }
+
+type configTestSuite struct{}
+
+var _ = Suite(&configTestSuite{})
+
+func (suite *configTestSuite) TestSetAPI(c *C) {
+	// Sanity check to prove at least one URI changes.
+	cfg := DefaultConfig()
+	c.Assert(cfg.SectionsURI.Scheme, Equals, "https")
+	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
+	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
+
+	api, err := url.Parse("http://example.com/path/prefix/")
+	c.Assert(err, IsNil)
+	err = cfg.SetAPI(api)
+	c.Assert(err, IsNil)
+
+	uris := []*url.URL{
+		cfg.SearchURI,
+		cfg.DetailsURI,
+		cfg.BulkURI,
+		cfg.SectionsURI,
+		cfg.OrdersURI,
+		cfg.BuyURI,
+		cfg.CustomersMeURI,
+		cfg.AssertionsURI,
+	}
+	for _, uri := range uris {
+		c.Assert(uri, NotNil)
+		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	for _, u := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI, cfg.AssertionsURI} {
+		c.Check(u.String(), Matches, "https://force-api.local/.*")
+	}
+}
+
+func (suite *configTestSuite) TestSetAPIStoreURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsOverrides(c *C) {
+	cfg := DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	cfg = DefaultConfig()
+	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Check(cfg.AssertionsURI, Matches, "https://force-sas.local/.*")
+}
+
+func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	cfg := DefaultConfig()
+	err := cfg.SetAPI(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
+}
+
 type remoteRepoTestSuite struct {
 	testutil.BaseTest
 	store     *Store
@@ -66,11 +145,23 @@ type remoteRepoTestSuite struct {
 	mockXDelta       *testutil.MockCmd
 }
 
-func TestStore(t *testing.T) { TestingT(t) }
-
 var _ = Suite(&remoteRepoTestSuite{})
 
 const (
+	exModel = `type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: baz-3000
+architecture: armhf
+gadget: gadget
+kernel: kernel
+store: my-brand-store-id
+timestamp: 2016-08-20T13:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
+
 	exSerial = `type: serial
 authority-id: my-brand
 brand-id: my-brand
@@ -142,18 +233,27 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
+func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+	model, err := asserts.Decode([]byte(exModel))
+	if err != nil {
+		return nil, err
+	}
+
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), nil
+	return &auth.DeviceSessionRequestParams{
+		Request: sessReq.(*asserts.DeviceSessionRequest),
+		Serial:  serial.(*asserts.Serial),
+		Model:   model.(*asserts.Model),
+	}, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -279,10 +379,10 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
-
+	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
-		w.Write([]byte("I was downloaded"))
+		w.Write(expectedContent)
 		return nil
 	}
 
@@ -290,6 +390,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
@@ -298,16 +399,18 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
+	c.Assert(string(content), Equals, string(expectedContent))
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	partialContentStr := "partial content "
+	missingContentStr := "was downloaded"
+	expectedContentStr := partialContentStr + missingContentStr
 
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
 		c.Check(url, Equals, "anon-url")
-		w.Write([]byte("was downloaded"))
+		w.Write([]byte(missingContentStr))
 		return nil
 	}
 
@@ -316,6 +419,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = "abcdabcd"
+	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
@@ -326,7 +430,31 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 
 	content, err := ioutil.ReadFile(targetFn)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, partialContentStr+"was downloaded")
+	c.Assert(string(content), Equals, expectedContentStr)
+}
+
+func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
+	expectedContentStr := "nothing downloaded"
+
+	download = nil
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", sha3.Sum384([]byte(expectedContentStr)))
+	snap.Size = int64(len(expectedContentStr))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := ioutil.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
@@ -361,6 +489,7 @@ func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	snap.AnonDownloadURL = mockServer.URL
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
@@ -408,6 +537,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	snap.AnonDownloadURL = mockServer.URL
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
@@ -418,6 +548,45 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	c.Assert(content, DeepEquals, buf)
 
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
+}
+
+func (t *remoteRepoTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
+	var mockServer *httptest.Server
+
+	// our mock download content
+	buf := make([]byte, 50000)
+	badbuf := make([]byte, 50000)
+	for i := range buf {
+		buf[i] = 'x'
+		badbuf[i] = 'y'
+	}
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBuffer(buf))
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(buf)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = 50000
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	c.Assert(ioutil.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
+	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, buf)
+
+	c.Assert(t.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) {
@@ -437,6 +606,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c
 	snap.AnonDownloadURL = mockServer.URL
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = "invalid-hash"
+	snap.Size = int64(len("something invalid"))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
@@ -448,6 +618,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
+	expectedContentStr := "file was downloaded from scratch"
 	partialContentStr := "partial content "
 
 	n := 0
@@ -458,7 +629,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 			c.Check(resume, Equals, int64(len(partialContentStr)))
 			return HashError{"foo", "1234", "5678"}
 		}
-		w.Write([]byte("file was downloaded from scratch"))
+		w.Write([]byte(expectedContentStr))
 		return nil
 	}
 
@@ -467,6 +638,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = ""
+	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
@@ -478,7 +650,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 
 	content, err := ioutil.ReadFile(targetFn)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "file was downloaded from scratch")
+	c.Assert(string(content), Equals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
@@ -495,6 +667,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	snap.Sha3_384 = ""
+	snap.Size = int64(len(partialContentStr) + 1)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
@@ -507,12 +680,13 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
 
-		w.Write([]byte("I was downloaded"))
+		w.Write(expectedContent)
 		return nil
 	}
 
@@ -520,6 +694,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, t.user)
@@ -528,15 +703,16 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
+	c.Assert(string(content), Equals, string(expectedContent))
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
+	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check auth url is used
 		c.Check(url, Equals, "AUTH-URL")
 
-		w.Write([]byte("I was downloaded"))
+		w.Write(expectedContent)
 		return nil
 	}
 
@@ -544,6 +720,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
 
 	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&Config{}, authContext)
@@ -556,14 +733,15 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
+	c.Assert(string(content), Equals, string(expectedContent))
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
+	expectedContentStr := "I was downloaded"
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 
-		w.Write([]byte("I was downloaded"))
+		w.Write([]byte(expectedContentStr))
 		return nil
 	}
 
@@ -571,6 +749,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContentStr))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, t.localUser)
@@ -579,7 +758,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
+	c.Assert(string(content), Equals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
@@ -593,6 +772,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
@@ -615,6 +795,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len("sync will fail"))
 
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -956,6 +1137,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	for _, testCase := range deltaTests {
+		testCase.info.Size = int64(len(testCase.expectedContent))
 		downloadIndex := 0
 		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 			if testCase.downloads[downloadIndex].error {
@@ -1364,9 +1546,19 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
 				io.WriteString(w, "response-data")
 			}
-		case "/identity/api/v1/nonces":
+		case "/api/v1/auth/nonces":
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
+		case "/api/v1/auth/sessions":
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
 			authorization := r.Header.Get("X-Device-Authorization")
 			if authorization == "" {
 				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
@@ -1383,8 +1575,8 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+	DeviceNonceAPI = mockServer.URL + "/api/v1/auth/nonces"
+	DeviceSessionAPI = mockServer.URL + "/api/v1/auth/sessions"
 
 	// make sure device session is not set
 	t.device.SessionMacaroon = ""
@@ -3603,17 +3795,6 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := apiURL()
-
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := apiURL()
-
-	c.Check(before, Not(Equals), after)
-}
-
 func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
@@ -3636,15 +3817,82 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := assertsURL()
+	before := apiURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := assertsURL()
+	after := apiURL()
 
 	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
+	// This also depends on the API URL, but that's tested separately (see
+	// TestApiURLDependsOnEnviron).
+	api := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", ""), IsNil)
+
+	// Test in order of precedence (low first) leaving env vars set as we go ...
+
+	u, err := storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, api.String()+".*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-api.local/.*")
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "https://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	u, err = storeURL(api)
+	c.Assert(err, IsNil)
+	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironAPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+}
+
+func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
+	_, err := storeURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+	// This also depends on the store API, but that's tested separately (see
+	// TestStoreURLDependsOnEnviron).
+	apiBaseURI := apiURL()
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
+	before, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
+
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+	after, err := assertsURL(apiBaseURI)
+	c.Assert(err, IsNil)
+
+	c.Check(before.String(), Not(Equals), after.String())
+	c.Check(after.String(), Equals, "https://assertions.example.org/v1/")
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
+	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
+
+	_, err := assertsURL(apiURL())
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
@@ -3661,7 +3909,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://api.snapcraft.io/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://api.snapcraft.io/api/v1/snaps/metadata"), Equals, true)
-	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://api.snapcraft.io/api/v1/snaps/assertions/")
 }
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
@@ -3980,8 +4228,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	c.Check(requestRecieved, Equals, false)
 }
 
-const ordersPath = "/purchases/v1/orders"
-const customersMePath = "/purchases/v1/customers/me"
+const ordersPath = "/api/v1/snaps/purchases/orders"
+const buyPath = "/api/v1/snaps/purchases/buy"
+const customersMePath = "/api/v1/snaps/purchases/customers/me"
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4208,7 +4457,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 
 	detailsURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 	c.Assert(err, IsNil)
 	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
 	c.Assert(err, IsNil)
@@ -4217,7 +4466,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	cfg := Config{
 		CustomersMeURI: customersMeURI,
 		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
+		BuyURI:         buyURI,
 	}
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
@@ -4270,7 +4519,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-				c.Check(r.URL.Path, Equals, ordersPath)
+				c.Check(r.URL.Path, Equals, buyPath)
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.expectedInput)
@@ -4302,14 +4551,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 		c.Assert(err, IsNil)
 		ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 		c.Assert(err, IsNil)
-		customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+		buyURI, err := url.Parse(mockPurchasesServer.URL + buyPath)
 		c.Assert(err, IsNil)
 
 		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
 		cfg := Config{
-			CustomersMeURI: customersMeURI,
-			DetailsURI:     detailsURI,
-			OrdersURI:      ordersURI,
+			DetailsURI: detailsURI,
+			OrdersURI:  ordersURI,
+			BuyURI:     buyURI,
 		}
 		repo := New(&cfg, authContext)
 		c.Assert(repo, NotNil)

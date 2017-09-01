@@ -50,7 +50,21 @@ setup_fake_store(){
     systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} -assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "And snapd is configured to use the controlled store"
-    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+
+    echo "Wait until fake store is ready"
+    for _ in $(seq 15); do
+        if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "fakestore service not started properly"
+    netstat -ntlp | grep "127.0.0.1:11028" || true
+    journalctl -u fakestore || true
+    systemctl status fakestore || true
+    exit 1
 }
 
 teardown_fake_store(){

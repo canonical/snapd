@@ -64,26 +64,18 @@ func (s *OpenvSwitchInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "openvswitch",
 		Interface: "openvswitch",
-	}})
-	c.Assert(err, ErrorMatches, "openvswitch slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"openvswitch slots are reserved for the core snap")
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *OpenvSwitchInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "openvswitch"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "openvswitch"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -28,12 +28,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type JSONSuite struct{}
+type JSONSuite struct {
+	plug *Plug
+	slot *Slot
+}
 
-var _ = Suite(&JSONSuite{})
-
-func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
-	plug := &Plug{
+var _ = Suite(&JSONSuite{
+	plug: &Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "snap-name"},
 			Name:      "plug-name",
@@ -50,8 +51,29 @@ func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
 			Snap: "other-snap-name",
 			Name: "slot-name",
 		}},
-	}
-	data, err := json.Marshal(plug)
+	},
+	slot: &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "snap-name"},
+			Name:      "slot-name",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps: map[string]*snap.AppInfo{
+				"app-name": {
+					Name: "app-name",
+				},
+			},
+			Label: "label",
+		},
+		Connections: []PlugRef{{
+			Snap: "other-snap-name",
+			Name: "plug-name",
+		}},
+	},
+})
+
+func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
+	data, err := json.Marshal(s.plug)
 	c.Assert(err, IsNil)
 	var repr map[string]interface{}
 	err = json.Unmarshal(data, &repr)
@@ -70,25 +92,7 @@ func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
 }
 
 func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
-	slot := &Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap-name"},
-			Name:      "slot-name",
-			Interface: "interface",
-			Attrs:     map[string]interface{}{"key": "value"},
-			Apps: map[string]*snap.AppInfo{
-				"app-name": {
-					Name: "app-name",
-				},
-			},
-			Label: "label",
-		},
-		Connections: []PlugRef{{
-			Snap: "other-snap-name",
-			Name: "plug-name",
-		}},
-	}
-	data, err := json.Marshal(slot)
+	data, err := json.Marshal(s.slot)
 	c.Assert(err, IsNil)
 	var repr map[string]interface{}
 	err = json.Unmarshal(data, &repr)
@@ -102,6 +106,42 @@ func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 		"label":     "label",
 		"connections": []interface{}{
 			map[string]interface{}{"snap": "other-snap-name", "plug": "plug-name"},
+		},
+	})
+}
+
+func (s *JSONSuite) TestInfoMarshalJSON(c *C) {
+	ifaceInfo := &Info{
+		Name:    "iface",
+		Summary: "interface summary",
+		DocURL:  "http://example.org/",
+		Plugs:   []*snap.PlugInfo{s.plug.PlugInfo},
+		Slots:   []*snap.SlotInfo{s.slot.SlotInfo},
+	}
+	data, err := json.Marshal(ifaceInfo)
+	c.Assert(err, IsNil)
+	var repr map[string]interface{}
+	err = json.Unmarshal(data, &repr)
+	c.Assert(err, IsNil)
+	c.Check(repr, DeepEquals, map[string]interface{}{
+		"name":    "iface",
+		"summary": "interface summary",
+		"doc-url": "http://example.org/",
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap":  "snap-name",
+				"plug":  "plug-name",
+				"attrs": map[string]interface{}{"key": "value"},
+				"label": "label",
+			},
+		},
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap":  "snap-name",
+				"slot":  "slot-name",
+				"attrs": map[string]interface{}{"key": "value"},
+				"label": "label",
+			},
 		},
 	})
 }

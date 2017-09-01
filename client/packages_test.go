@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -227,4 +228,56 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{URL: "http://example.com/shot2.png"},
 		},
 	})
+}
+
+func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"name": "hello"
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{
+		Snap:    "foo",
+		Name:    "hello",
+		Daemon:  "daemon",
+		Enabled: true,
+		Active:  false,
+	}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"snap": "foo",
+		"name": "hello",
+		"daemon": "daemon",
+		"enabled": true
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoNilNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoNoDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoEmptyDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": ""}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
+	var app *client.AppInfo
+
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, true)
 }

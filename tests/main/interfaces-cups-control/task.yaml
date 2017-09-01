@@ -1,7 +1,8 @@
 summary: Ensure that the cups interface works.
 
-systems:
-    - -ubuntu-core-16-*
+# Default cups/cups-pdf configuration on these distributions isn't
+# working yet without further tweaks.
+systems: [-ubuntu-core-16-*, -opensuse-*, -fedora-*]
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -23,24 +24,26 @@ prepare: |
     echo "Given a snap declaring a cups plug is installed"
     snap install test-snapd-cups-control-consumer
 
-    echo "And the pdf printer is available"
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package --no-install-recommends cups printer-driver-cups-pdf
-
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         # Not all distributions are starting the cups service directly after
         # the package was installed.
+        echo "Enabling cups service in case it is not enabled"
         if ! systemctl is-enabled cups ; then
             # We can't use --now as this isn't supported by all distributions
             systemctl enable cups
+        fi
+        echo "Starting cups service in case it is not active"
+        if ! systemctl is-active cups; then
             systemctl start cups
         fi
     fi
 
 restore: |
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package cups printer-driver-cups-pdf
     rm -rf $HOME/PDF $TEST_FILE print.error
+
+debug: |
+    systemctl status cups || true
+    journalctl -u cpus || true
 
 execute: |
     CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"

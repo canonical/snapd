@@ -21,6 +21,7 @@ package cmd
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -66,7 +67,7 @@ func distroSupportsReExec() bool {
 		return false
 	}
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky":
+	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch":
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
@@ -115,12 +116,6 @@ func coreSupportsReExec(corePath string) bool {
 func InternalToolPath(tool string) string {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
-	// mostly useful for tests
-	if !osutil.GetenvBool(reExecKey, true) {
-		logger.Debugf("re-exec disabled by user")
-		return distroTool
-	}
-
 	// find the internal path relative to the running snapd, this
 	// ensure we don't rely on the state of the system (like
 	// having a valid "current" symlink).
@@ -131,11 +126,12 @@ func InternalToolPath(tool string) string {
 	}
 
 	// ensure we never use this helper from anything but
-	if !strings.HasSuffix(exe, "/snapd") {
-		panic("InternalToolPath can only be used from snapd")
+	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
+		log.Panicf("InternalToolPath can only be used from snapd, got: %s", exe)
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
@@ -144,9 +140,34 @@ func InternalToolPath(tool string) string {
 	return filepath.Join(filepath.Dir(exe), tool)
 }
 
+// mustUnsetenv will unset the given environment key or panic if it
+// cannot do that
+func mustUnsetenv(key string) {
+	if err := os.Unsetenv(key); err != nil {
+		log.Panicf("cannot unset %s: %s", key, err)
+	}
+}
+
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
+	// Which executable are we?
+	exe, err := os.Readlink(selfExe)
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		return
+	}
+
+	// Special case for snapd re-execing from 2.21. In this
+	// version of snap/snapd we did set SNAP_REEXEC=0 when we
+	// re-execed. In this case we need to unset the reExecKey to
+	// ensure that subsequent run of snap/snapd (e.g. when using
+	// classic confinement) will *not* prevented from re-execing.
+	if strings.HasPrefix(exe, dirs.SnapMountDir) && !osutil.GetenvBool(reExecKey, true) {
+		mustUnsetenv(reExecKey)
+		return
+	}
+
 	// If we are asked not to re-execute use distribution packages. This is
 	// "spiritual" re-exec so use the same environment variable to decide.
 	if !osutil.GetenvBool(reExecKey, true) {
@@ -155,18 +176,12 @@ func ExecInCoreSnap() {
 	}
 
 	// Did we already re-exec?
-	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return
 	}
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
 	if !distroSupportsReExec() {
-		return
-	}
-
-	// Which executable are we?
-	exe, err := os.Readlink(selfExe)
-	if err != nil {
 		return
 	}
 
@@ -187,6 +202,7 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
+	// we keep this for e.g. the errtracker
 	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
 	panic(syscallExec(full, os.Args, env))
 }

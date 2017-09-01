@@ -67,11 +67,6 @@ type Snap struct {
 	Tracks []string
 }
 
-type AppInfo struct {
-	Name   string `json:"name"`
-	Daemon string `json:"daemon"`
-}
-
 type Screenshot struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width,omitempty"`
