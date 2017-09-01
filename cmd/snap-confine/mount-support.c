@@ -169,23 +169,22 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
 		fexecve(snap_update_ns_fd, argv, envp);
 		die("cannot execute snap-update-ns");
-	} else {
-		// Wait for snap-update-ns to finish.
-		int status = 0;
-		debug("waiting for snap-update-ns to finish...");
-		if (waitpid(child, &status, 0) < 0) {
-			die("cannot wait for snap-update-ns process");
-		}
-		if (WIFEXITED(status)) {
-			if (WEXITSTATUS(status) != 0) {
-				die("snap-update-ns failed with code %d",
-				    WEXITSTATUS(status));
-			}
-		} else {
-			die("snap-update-ns failed abnormally");
-		}
-		debug("snap-update-ns finished successfully");
 	}
+	// Wait for snap-update-ns to finish.
+	int status = 0;
+	debug("waiting for snap-update-ns to finish...");
+	if (waitpid(child, &status, 0) < 0) {
+		die("cannot wait for snap-update-ns process");
+	}
+	if (WIFEXITED(status)) {
+		if (WEXITSTATUS(status) != 0) {
+			die("snap-update-ns failed with code %d",
+			    WEXITSTATUS(status));
+		}
+	} else {
+		die("snap-update-ns failed abnormally");
+	}
+	debug("snap-update-ns finished successfully");
 }
 
 struct sc_mount {
