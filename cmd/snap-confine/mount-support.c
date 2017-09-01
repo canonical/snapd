@@ -137,6 +137,13 @@ static void setup_private_pts()
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
+/**
+ * Setup mount profiles by running snap-update-ns.
+ *
+ * The first argument is an open file descriptor (though opened with O_PATH, so
+ * not as powerful), to a copy of snap-update-ns. The program is opened before
+ * the root filesystem is pivoted so that it is easier to pick the right copy.
+ **/
 static void sc_setup_mount_profiles(int snap_update_ns_fd,
 				    const char *snap_name)
 {
