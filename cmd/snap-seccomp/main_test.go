@@ -71,7 +71,7 @@ int sc_apply_seccomp_bpf(const char* profile_path)
     fp = fopen(profile_path, "rb");
     if (fp == NULL) {
         fprintf(stderr, "cannot read %s\n", profile_path);
-        exit(1);
+        return -1;
     }
 
     // set 'size' to 1; to get bytes transferred
@@ -79,10 +79,10 @@ int sc_apply_seccomp_bpf(const char* profile_path)
 
     if (ferror(fp) != 0) {
         perror("fread()");
-        exit(1);
+        return -1;
     } else if (feof(fp) == 0) {
         fprintf(stderr, "file too big\n");
-        exit(1);
+        return -1;
     }
     fclose(fp);
 
@@ -95,12 +95,12 @@ int sc_apply_seccomp_bpf(const char* profile_path)
     // root
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
         perror("prctl(PR_NO_NEW_PRIVS, 1, 0, 0, 0)");
-        exit(1);
+        return -1;
     }
 
     if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
         perror("prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...) failed");
-        exit(1);
+        return -1;
     }
     return 0;
 }
@@ -114,8 +114,8 @@ int main(int argc, char* argv[])
     }
 
     rc = sc_apply_seccomp_bpf(argv[1]);
-    if (rc || argc == 2)
-        return rc;
+    if (rc != 0)
+        return -rc;
 
     execv(argv[2], (char* const*)&argv[2]);
     perror("execv failed");
