@@ -73,17 +73,7 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 	err = cfg.SetAPI(api)
 	c.Assert(err, IsNil)
 
-	uris := []*url.URL{
-		cfg.SearchURI,
-		cfg.DetailsURI,
-		cfg.BulkURI,
-		cfg.SectionsURI,
-		cfg.OrdersURI,
-		cfg.BuyURI,
-		cfg.CustomersMeURI,
-		cfg.AssertionsURI,
-	}
-	for _, uri := range uris {
+	for _, uri := range cfg.apiURIs() {
 		c.Assert(uri, NotNil)
 		c.Check(uri.String(), Matches, "http://example.com/path/prefix/api/v1/snaps/.*")
 	}
@@ -98,7 +88,7 @@ func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	cfg = DefaultConfig()
 	c.Assert(cfg.SetAPI(apiURL()), IsNil)
-	for _, u := range []*url.URL{cfg.SearchURI, cfg.DetailsURI, cfg.BulkURI, cfg.SectionsURI, cfg.AssertionsURI} {
+	for _, u := range cfg.apiURIs() {
 		c.Check(u.String(), Matches, "https://force-api.local/.*")
 	}
 }

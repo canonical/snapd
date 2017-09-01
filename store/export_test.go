@@ -20,6 +20,8 @@
 package store
 
 import (
+	"net/url"
+
 	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/retry.v1"
@@ -32,4 +34,17 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	t.AddCleanup(func() {
 		defaultRetryStrategy = originalDefaultRetryStrategy
 	})
+}
+
+func (cfg *Config) apiURIs() []*url.URL {
+	return []*url.URL{
+		cfg.SearchURI,
+		cfg.DetailsURI,
+		cfg.BulkURI,
+		cfg.SectionsURI,
+		cfg.OrdersURI,
+		cfg.BuyURI,
+		cfg.CustomersMeURI,
+		cfg.AssertionsURI,
+	}
 }
