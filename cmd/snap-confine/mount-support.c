@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
 #include <mntent.h>
 #include <sched.h>
@@ -488,18 +489,17 @@ static int sc_open_snap_update_ns()
 	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
 		die("cannot readlink /proc/self/exe");
 	}
-	debug("snap-confine executable: %s", buf);
-	if (buf[0] != '/') {
+	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
-	char *s = strrchr(buf, '/');
-	if (s == NULL) {
-		die("cannot find trailing forward slash in %s", buf);
+	char *bufcopy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	bufcopy = strdup(buf);
+	if (bufcopy == NULL) {
+		die("cannot copy buffer");
 	}
-	s += 1;			// advance pointer to the base name of the executable.
-	sc_must_snprintf(s, sizeof buf - (s - buf), "snap-update-ns");
+	char *dname = dirname(bufcopy);
+	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
 	debug("snap-update-ns executable: %s", buf);
-
 	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		die("cannot open snap-update-ns executable");
