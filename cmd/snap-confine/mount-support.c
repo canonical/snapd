@@ -165,8 +165,8 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 			NULL
 		};
 		char *envp[] = { NULL };
-		debug("fexecv(%d, %s %s %s,)", snap_update_ns_fd, argv[0],
-		      argv[1], argv[2]);
+		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
+		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
 		fexecve(snap_update_ns_fd, argv, envp);
 		die("cannot execute snap-update-ns");
 	} else {
