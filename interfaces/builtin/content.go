@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -161,11 +162,11 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) sun_mount.Entry {
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
-	return mount.Entry{
+	return sun_mount.Entry{
 		Name:    resolveSpecialVariable(relSrc, slot.Snap),
 		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
 		Options: options,

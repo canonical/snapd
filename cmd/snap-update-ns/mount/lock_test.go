@@ -25,8 +25,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	// TODO: remove
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
+	//"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 type lockSuite struct{}

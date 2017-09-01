@@ -22,13 +22,15 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snap"
+	//"github.com/snapcore/snapd/dirs"
+	//"github.com/snapcore/snapd/interfaces/mount"
+	//"github.com/snapcore/snapd/logger"
+	//"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 var opts struct {
@@ -44,12 +46,23 @@ func main() {
 	}
 }
 
+// copied from snap/validate.go
+func validateName(name string) error {
+	validSnapName := regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
+	valid := validSnapName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	if _, err := parser.ParseArgs(args); err != nil {
 		return err
 	}
-	return snap.ValidateName(opts.Positionals.SnapName)
+	//return snap.ValidateName(opts.Positionals.SnapName)
+	return validateName(opts.Positionals.SnapName)
 }
 
 func run() error {
@@ -84,13 +97,15 @@ func run() error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	//desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", "/var/lib/snapd/mount", snapName)
 	desired, err := mount.LoadProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 
-	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	//currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", "/run/snapd/ns", snapName)
 	currentBefore, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
@@ -106,7 +121,8 @@ func run() error {
 			continue
 		}
 		if err := change.Perform(); err != nil {
-			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			//logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			fmt.Printf("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
 		changesMade = append(changesMade, change)

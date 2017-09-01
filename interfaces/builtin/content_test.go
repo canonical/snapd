@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -232,7 +233,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []sun_mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -263,7 +264,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []sun_mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -306,7 +307,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []sun_mount.Entry{{
 		Name:    "/var/snap/producer/5/export",
 		Dir:     "/var/snap/consumer/7/import",
 		Options: []string{"bind"},
@@ -351,7 +352,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []sun_mount.Entry{{
 		Name:    "/var/snap/producer/common/export",
 		Dir:     "/var/snap/consumer/common/import",
 		Options: []string{"bind"},

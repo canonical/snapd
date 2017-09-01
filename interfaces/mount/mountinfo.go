@@ -26,6 +26,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 // InfoEntry contains data from /proc/$PID/mountinfo
@@ -117,9 +119,12 @@ func ParseInfoEntry(s string) (*InfoEntry, error) {
 	}
 	// NOTE: All string fields use the same escape/unescape logic as fstab files.
 	// Parse Root, MountDir and MountOptions fields.
-	e.Root = unescape(fields[3])
-	e.MountDir = unescape(fields[4])
-	e.MountOptions = parseMountOpts(unescape(fields[5]))
+	//e.Root = unescape(fields[3])
+	//e.MountDir = unescape(fields[4])
+	//e.MountOptions = parseMountOpts(unescape(fields[5]))
+	e.Root = sun_mount.Unescape(fields[3])
+	e.MountDir = sun_mount.Unescape(fields[4])
+	e.MountOptions = parseMountOpts(sun_mount.Unescape(fields[5]))
 	// Optional fields are terminated with a "-" value and start
 	// after the mount options field. Skip ahead until we see the "-"
 	// marker.
@@ -131,16 +136,20 @@ func ParseInfoEntry(s string) (*InfoEntry, error) {
 	}
 	e.OptionalFields = fields[6:i]
 	for j := range e.OptionalFields {
-		e.OptionalFields[j] = unescape(e.OptionalFields[j])
+		//e.OptionalFields[j] = unescape(e.OptionalFields[j])
+		e.OptionalFields[j] = sun_mount.Unescape(e.OptionalFields[j])
 	}
 	// Parse the last three fixed fields.
 	tailFields := fields[i+1:]
 	if len(tailFields) != 3 {
 		return nil, fmt.Errorf("incorrect number of tail fields, expected 3 but found %d", len(tailFields))
 	}
-	e.FsType = unescape(tailFields[0])
-	e.MountSource = unescape(tailFields[1])
-	e.SuperOptions = parseMountOpts(unescape(tailFields[2]))
+	//e.FsType = unescape(tailFields[0])
+	//e.MountSource = unescape(tailFields[1])
+	//e.SuperOptions = parseMountOpts(unescape(tailFields[2]))
+	e.FsType = sun_mount.Unescape(tailFields[0])
+	e.MountSource = sun_mount.Unescape(tailFields[1])
+	e.SuperOptions = parseMountOpts(sun_mount.Unescape(tailFields[2]))
 	return &e, nil
 }
 

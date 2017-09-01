@@ -75,8 +75,9 @@ var escape = strings.NewReplacer(
 	"\\", `\134`,
 ).Replace
 
-// unescape replaces escape sequences used by setmnt with whitespace characters.
-var unescape = strings.NewReplacer(
+// Unescape replaces escape sequences used by setmnt with whitespace characters.
+//var unescape = strings.NewReplacer(
+var Unescape = strings.NewReplacer(
 	`\040`, " ",
 	`\011`, "\t",
 	`\012`, "\n",
@@ -132,10 +133,14 @@ func ParseEntry(s string) (Entry, error) {
 			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
-	e.Name = unescape(fields[0])
-	e.Dir = unescape(fields[1])
-	e.Type = unescape(fields[2])
-	e.Options = strings.Split(unescape(fields[3]), ",")
+	//e.Name = unescape(fields[0])
+	//e.Dir = unescape(fields[1])
+	//e.Type = unescape(fields[2])
+	//e.Options = strings.Split(unescape(fields[3]), ",")
+	e.Name = Unescape(fields[0])
+	e.Dir = Unescape(fields[1])
+	e.Type = Unescape(fields[2])
+	e.Options = strings.Split(Unescape(fields[3]), ",")
 	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil

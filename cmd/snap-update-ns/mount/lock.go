@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	// TODO: remove
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -31,11 +32,13 @@ import (
 // lockFileName returns the name of the lock file for the given snap.
 func lockFileName(snapName string) string {
 	return filepath.Join(dirs.SnapRunLockDir, fmt.Sprintf("%s.lock", snapName))
+	//return filepath.Join("/run/snapd/lock", fmt.Sprintf("%s.lock", snapName))
 }
 
 // OpenLock creates and opens a lock file associated with a particular snap.
 func OpenLock(snapName string) (*osutil.FileLock, error) {
 	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
+		//if err := os.MkdirAll("/run/snapd/lock", 0700); err != nil {
 		return nil, fmt.Errorf("cannot create lock directory: %s", err)
 	}
 	flock, err := osutil.NewFileLock(lockFileName(snapName))

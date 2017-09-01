@@ -20,6 +20,7 @@
 package mount
 
 import (
+	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -29,18 +30,22 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	mountEntries []Entry
+	//mountEntries []Entry
+	mountEntries []sun_mount.Entry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddMountEntry(e Entry) error {
+//func (spec *Specification) AddMountEntry(e Entry) error {
+func (spec *Specification) AddMountEntry(e sun_mount.Entry) error {
 	spec.mountEntries = append(spec.mountEntries, e)
 	return nil
 }
 
 // MountEntries returns a copy of the added mount entries.
-func (spec *Specification) MountEntries() []Entry {
-	result := make([]Entry, len(spec.mountEntries))
+//func (spec *Specification) MountEntries() []Entry {
+func (spec *Specification) MountEntries() []sun_mount.Entry {
+	//result := make([]Entry, len(spec.mountEntries))
+	result := make([]sun_mount.Entry, len(spec.mountEntries))
 	copy(result, spec.mountEntries)
 	return result
 }
