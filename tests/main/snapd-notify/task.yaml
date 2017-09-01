@@ -1,5 +1,9 @@
 summary: Ensure snapd notify feature is working
 
+# this test requires SNAPD_DEBUG to be set, we can't make that assumption for the
+# external backend
+backends: [-external]
+
 execute: |
     for _ in $(seq 5); do
       if systemctl status snapd.service | MATCH "Active: active"; then

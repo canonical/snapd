@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -121,6 +122,24 @@ deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 
 # DBus accesses
 #include <abstractions/dbus-strict>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
    bus=system
@@ -230,6 +249,11 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const networkManagerConnectedPlugSecComp = `
+# Description: This is needed to talk to the network-manager service
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const networkManagerPermanentSlotSecComp = `
@@ -389,14 +413,16 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
+const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
+
 type networkManagerInterface struct{}
 
 func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              networkManagerSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
@@ -441,11 +467,18 @@ func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
+	}
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 

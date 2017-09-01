@@ -20,13 +20,11 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
 )
 
 const unity7Summary = `allows interacting with Unity 7 services`
@@ -85,13 +83,24 @@ const unity7ConnectedPlugAppArmor = `
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
-/usr/local/bin/xdg-open ixr,
-/usr/local/share/applications/{,*} r,
+/usr/bin/xdg-open ixr,
+/usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
+
+# This allow access to the first version of the snapd-xdg-open
+# version which was shipped outside of snapd
 dbus (send)
     bus=session
     path=/
     interface=com.canonical.SafeLauncher
+    member=OpenURL
+    peer=(label=unconfined),
+# ... and this allows access to the new xdg-open service which
+# is now part of snapd itself.
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Launcher
+    interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
 
@@ -195,6 +204,12 @@ dbus send
     member=GetAll
     peer=(label=unconfined),
 
+# Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
+# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# filtering.
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:* r,
 
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
@@ -298,6 +313,11 @@ dbus (send)
 dbus (send)
     bus=session
     interface=com.canonical.SafeLauncher.OpenURL
+    peer=(label=unconfined),
+# new url helper (part of snap userd)
+dbus (send)
+    bus=session
+    interface=io.snapcraft.Launcher.OpenURL
     peer=(label=unconfined),
 
 # dbusmenu
@@ -511,8 +531,8 @@ dbus (receive)
 
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
-# interested in are pressed.
-dbus (send)
+# interested in are pressed, and allows us to receive those events.
+dbus (receive, send)
   bus=session
   interface=org.gnome.SettingsDaemon.MediaKeys
   path=/org/gnome/SettingsDaemon/MediaKeys
@@ -536,6 +556,10 @@ const unity7ConnectedPlugSeccomp = `
 
 # X
 shutdown
+
+# Needed by QtSystems on X to detect mouse and keyboard
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 type unity7Interface struct{}
@@ -544,8 +568,8 @@ func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *unity7Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              unity7Summary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: unity7BaseDeclarationSlots,
@@ -569,25 +593,8 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
-	return nil
-}
-
 func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-
-	return nil
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

@@ -1,4 +1,5 @@
 summary: Check commands help
+systems: [+fedora-*]
 environment:
     CMD/abort: abort
     CMD/changes: changes

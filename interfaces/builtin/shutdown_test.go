@@ -63,26 +63,17 @@ func (s *ShutdownInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "shutdown",
 		Interface: "shutdown",
-	}})
-	c.Assert(err, ErrorMatches, "shutdown slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "shutdown slots are reserved for the core snap")
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *ShutdownInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "shutdown"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "shutdown"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {

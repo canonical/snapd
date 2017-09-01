@@ -162,8 +162,8 @@ func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *mediaHubInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              mediaHubSummary,
 		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
 	}
@@ -190,14 +190,6 @@ func (iface *mediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specificati
 
 func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mediaHubPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *mediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *mediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

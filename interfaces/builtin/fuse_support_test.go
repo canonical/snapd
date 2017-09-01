@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,8 +26,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,12 +37,16 @@ type FuseSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-const fuseSupportMockPlugSnapInfoYaml = `name: other
-version: 1.0
+const fuseSupportConsumerYaml = `name: consumer
 apps:
- app2:
-  command: foo
+ app:
   plugs: [fuse-support]
+`
+
+const fuseSupportCoreYaml = `name: core
+type: os
+slots:
+  fuse-support:
 `
 
 var _ = Suite(&FuseSupportInterfaceSuite{
@@ -50,15 +54,8 @@ var _ = Suite(&FuseSupportInterfaceSuite{
 })
 
 func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "fuse-support",
-			Interface: "fuse-support",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, fuseSupportMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fuse-support"]}
+	s.plug = MockPlug(c, fuseSupportConsumerYaml, nil, "fuse-support")
+	s.slot = MockSlot(c, fuseSupportCoreYaml, nil, "fuse-support")
 }
 
 func (s *FuseSupportInterfaceSuite) TestName(c *C) {
@@ -66,42 +63,51 @@ func (s *FuseSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "fuse-support",
 		Interface: "fuse-support",
-	}})
-	c.Assert(err, ErrorMatches, "fuse-support slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"fuse-support slots are reserved for the core snap")
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
-func (s *FuseSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "fuse-support"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "fuse-support"`)
+func (s *FuseSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/fuse`)
 }
 
-func (s *FuseSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `/dev/fuse`)
+func (s *FuseSupportInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount\n")
+}
 
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount\n")
+func (s *FuseSupportInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="fuse", TAG+="snap_consumer_app"`)
+}
+
+func (s *FuseSupportInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to the FUSE file system`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "fuse-support")
+}
+
+func (s *FuseSupportInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *FuseSupportInterfaceSuite) TestInterfaces(c *C) {

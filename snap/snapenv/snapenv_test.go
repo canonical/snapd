@@ -67,7 +67,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
 
 	c.Assert(env, DeepEquals, map[string]string{
-		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.SnapMountDir),
+		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",
@@ -121,7 +121,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
 			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
-			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.SnapMountDir),
+			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
 			"SNAP_DATA":         "/var/snap/snapname/42",

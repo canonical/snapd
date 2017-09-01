@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -179,6 +180,11 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 	st.Unlock()
 }
 
@@ -358,7 +364,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(20*time.Millisecond, 100*time.Millisecond, 100*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -378,7 +384,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	cycles := -1
 	waitForPrune := func(_ *state.State) error {
 		if cycles == -1 {
-			if time.Since(t0) > 100*time.Millisecond {
+			if time.Since(t0) > 1000*time.Millisecond {
 				cycles = 2 // wait a couple more loop cycles
 			}
 			return nil
@@ -419,7 +425,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
-	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 100*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -443,7 +449,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	o.Loop()
 
 	// ensure the first change is pruned
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
@@ -452,7 +458,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	st.Lock()
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()

@@ -1,4 +1,34 @@
 -------------------------------------------------------------------
+Wed Aug 30 07:45:01 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.5
+
+-------------------------------------------------------------------
+Thu Aug 24 09:08:32 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.4
+
+-------------------------------------------------------------------
+Fri Aug 18 15:51:22 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.3
+
+-------------------------------------------------------------------
+Wed Aug 16 12:16:01 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.2
+
+-------------------------------------------------------------------
+Mon Aug 14 08:07:21 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.1
+
+-------------------------------------------------------------------
+Thu Aug 10 11:25:11 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27
+
+-------------------------------------------------------------------
 Wed May 19 14:35:29 UTC 2017 - morphis@gravedo.de
 
 - Add bind() syscall to default seccomp policy to allow execution

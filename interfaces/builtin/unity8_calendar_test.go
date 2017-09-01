@@ -78,15 +78,7 @@ func (s *Unity8CalendarInterfaceSuite) TestName(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *Unity8CalendarInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "unity8-calendar"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "unity8-calendar"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestUsedSecuritySystems(c *C) {
