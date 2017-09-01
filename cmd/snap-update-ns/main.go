@@ -25,7 +25,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/dirs"
+	//"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -84,13 +84,15 @@ func run() error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	//desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", "/var/lib/snapd/mount", snapName)
 	desired, err := mount.LoadProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 
-	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	//currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", "/run/snapd/ns", snapName)
 	currentBefore, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
