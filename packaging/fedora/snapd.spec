@@ -452,7 +452,7 @@ pushd ./data/
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
-rm -fv %{buildroot}%{_unitdir}/snap-repair.*
+rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 popd
 
