@@ -140,6 +140,7 @@ func (r *Repair) Run() error {
 	statusW.Close()
 
 	// wait for repair to finish or timeout
+	var scriptErr error
 	killTimerCh := time.After(defaultRepairTimeout)
 	doneCh := make(chan error)
 	go func() {
@@ -147,34 +148,39 @@ func (r *Repair) Run() error {
 		close(doneCh)
 	}()
 	select {
-	case err = <-doneCh:
+	case scriptErr = <-doneCh:
 		// done
 	case <-killTimerCh:
 		if err := osutil.KillProcessGroup(cmd); err != nil {
 			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
 		}
-		err = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+		scriptErr = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
 	}
-	if err != nil {
-		err = fmt.Errorf("%q failed: %s", r.Ref(), err)
+	// read repair status pipe, use the last value
+	status := readStatus(statusR)
+	statusPath := filepath.Join(rundir, baseName+"."+status.String())
 
-		statusPath := filepath.Join(rundir, baseName+".retry")
-		if err := os.Rename(logPath, statusPath); err != nil {
-			logger.Noticef("cannot write stamp: %s", statusPath)
-		}
-
-		if err := r.errtrackerReport(err, statusPath); err != nil {
+	// if the script had an error exit status still honor what we
+	// read from the status-pipe, however report the error
+	if scriptErr != nil {
+		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		if err := r.errtrackerReport(scriptErr, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
 		// ensure the error is present in the output log
-		fmt.Fprintf(logf, "\n%s", err)
-
+		fmt.Fprintf(logf, "\n%s", scriptErr)
+	}
+	if err := os.Rename(logPath, statusPath); err != nil {
 		return err
 	}
+	r.SetStatus(status)
 
-	// read repair status pipe, use the last value
+	return nil
+}
+
+func readStatus(r io.Reader) RepairStatus {
 	var status RepairStatus
-	scanner := bufio.NewScanner(statusR)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
@@ -184,16 +190,9 @@ func (r *Repair) Run() error {
 		}
 	}
 	if scanner.Err() != nil {
-		return err
+		return RetryStatus
 	}
-
-	statusPath := filepath.Join(rundir, baseName+"."+status.String())
-	if err := os.Rename(logPath, statusPath); err != nil {
-		return err
-	}
-	r.SetStatus(status)
-
-	return nil
+	return status
 }
 
 // errtrackerReport reports an repairErr with the given logPath to the

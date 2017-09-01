@@ -1490,7 +1490,7 @@ func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, e
 	return "some-oops-id", nil
 }
 
-func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *repair.Repair {
+func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
@@ -1502,11 +1502,7 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *re
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	if expectedErr == "" {
-		c.Assert(err, IsNil)
-	} else {
-		c.Assert(err, ErrorMatches, expectedErr)
-	}
+	c.Assert(err, IsNil)
 
 	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.script"))
 	c.Assert(err, IsNil)
@@ -1547,7 +1543,7 @@ echo "done" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, "")
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
@@ -1564,7 +1560,7 @@ echo "unhappy output"
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
@@ -1596,7 +1592,7 @@ echo "skip" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, "")
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.script$`,
@@ -1619,7 +1615,7 @@ touch zzz-ran-once
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	rpr := s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
+	rpr := s.testScriptRun(c, script)
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
 		`^r0.script$`,
@@ -1664,7 +1660,7 @@ sleep 100
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	c.Assert(err, ErrorMatches, `"repair \(1; brand-id:canonical\)" failed: repair did not finish within 10ms`)
+	c.Assert(err, IsNil)
 
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
