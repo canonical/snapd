@@ -20,12 +20,11 @@
 package spdx_test
 
 import (
-	"bytes"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/mvo5/spdx-license-validator"
+	"github.com/snapcore/snapd/spdx"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -46,8 +45,7 @@ func (s *spdxSuite) TestParseHappy(c *C) {
 		"GPL-2.0 AND (BSD-2-Clause OR 0BSD) WITH GCC-exception-3.1",
 		"((GPL-2.0 AND (BSD-2-Clause OR 0BSD)) OR GPL-3.0) ",
 	} {
-		parser := spdx.NewParser(bytes.NewBufferString(t))
-		err := parser.Validate()
+		err := spdx.ValidateLicense(t)
 		c.Check(err, IsNil, Commentf("input: %q", t))
 	}
 }
@@ -67,8 +65,7 @@ func (s *spdxSuite) TestParseError(c *C) {
 		{"GPL-2.0 WITH BAR", "unknown license exception: BAR"},
 		{"GPL-2.0 WITH (foo)", `unknown license exception: foo`},
 	} {
-		parser := spdx.NewParser(bytes.NewBufferString(t.inp))
-		err := parser.Validate()
+		err := spdx.ValidateLicense(t.inp)
 		c.Check(err, ErrorMatches, t.errStr, Commentf("input: %q", t.inp))
 	}
 }
