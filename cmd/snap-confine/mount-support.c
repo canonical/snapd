@@ -362,8 +362,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		//        actually be the path we need, we need snapd
 		//        to tell us what path to use instead.
 		const char *src = LIBEXECDIR;
-		sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
-		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
 		//        /usr/bin/snapctl, we will need an empty file
