@@ -174,7 +174,7 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 	int status = 0;
 	debug("waiting for snap-update-ns to finish...");
 	if (waitpid(child, &status, 0) < 0) {
-		die("cannot wait for snap-update-ns process");
+		die("waitpid() failed for snap-update-ns process");
 	}
 	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
 		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
