@@ -218,7 +218,6 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestPolkitAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
 	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 
@@ -233,11 +232,15 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	// an error occurs communicating with polkit
 	s.err = errors.New("error")
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+}
 
-	// polkit is not consulted for GET requests
-	s.authorized = true
-	s.err = nil
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+func (s *daemonSuite) TestPolkitAccessForUserOK(c *check.C) {
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
+	cmd := &Command{d: newTestDaemon(c), UserOK: true, PolkitOK: "polkit.action"}
+	polkitCheckAuthorizationForPid = func(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		panic("polkit.CheckAuthorizationForPid called")
+	}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
