@@ -22,13 +22,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/jessevdk/go-flags"
 
 	//"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
 	//"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snap"
+	//"github.com/snapcore/snapd/snap"
 )
 
 var opts struct {
@@ -44,12 +45,23 @@ func main() {
 	}
 }
 
+// copied from snap/validate.go
+func validateName(name string) error {
+	validSnapName := regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
+	valid := validSnapName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	if _, err := parser.ParseArgs(args); err != nil {
 		return err
 	}
-	return snap.ValidateName(opts.Positionals.SnapName)
+	//return snap.ValidateName(opts.Positionals.SnapName)
+	return validateName(opts.Positionals.SnapName)
 }
 
 func run() error {
