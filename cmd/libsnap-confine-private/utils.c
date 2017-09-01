@@ -66,20 +66,22 @@ static const struct sc_bool_name sc_bool_names[] = {
 };
 
 /**
- * Convert string to a boolean value.
+ * Convert string to a boolean value, with a default.
  *
  * The return value is 0 in case of success or -1 when the string cannot be
  * converted correctly. In such case errno is set to indicate the problem and
  * the value is not written back to the caller-supplied pointer.
+ *
+ * If the text cannot be recognized the default value is used.
  **/
-static int str2bool(const char *text, bool * value)
+static int str2bool(const char *text, bool * value, bool default_value)
 {
 	if (value == NULL) {
 		errno = EFAULT;
 		return -1;
 	}
 	if (text == NULL) {
-		*value = false;
+		*value = default_value;
 		return 0;
 	}
 	for (int i = 0; i < sizeof sc_bool_names / sizeof *sc_bool_names; ++i) {
@@ -96,14 +98,15 @@ static int str2bool(const char *text, bool * value)
  * Get an environment variable and convert it to a boolean.
  *
  * Supported values are those of str2bool(), namely "yes", "no" as well as "1"
- * and "0". All other values are treated as false and a diagnostic message is
- * printed to stderr.
+ * and "0". If the given environment variable is unset a default value is used.
+ * All other values are treated as false and a diagnostic message is printed to
+ * stderr.
  **/
 static bool getenv_bool(const char *name, bool default_value)
 {
 	const char *str_value = getenv(name);
 	bool value = default_value;
-	if (str2bool(str_value, &value) < 0) {
+	if (str2bool(str_value, &value, default_value) < 0) {
 		if (errno == EINVAL) {
 			fprintf(stderr,
 				"WARNING: unrecognized value of environment variable %s (expected yes/no or 1/0)\n",
