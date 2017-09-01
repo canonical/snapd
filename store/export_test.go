@@ -21,6 +21,7 @@ package store
 
 import (
 	"net/url"
+	"reflect"
 
 	"github.com/snapcore/snapd/testutil"
 
@@ -36,15 +37,18 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
-func (cfg *Config) apiURIs() []*url.URL {
-	return []*url.URL{
-		cfg.SearchURI,
-		cfg.DetailsURI,
-		cfg.BulkURI,
-		cfg.SectionsURI,
-		cfg.OrdersURI,
-		cfg.BuyURI,
-		cfg.CustomersMeURI,
-		cfg.AssertionsURI,
+func (cfg *Config) apiURIs() map[string]*url.URL {
+	urls := map[string]*url.URL{}
+
+	v := reflect.ValueOf(*cfg)
+	t := reflect.TypeOf(*cfg)
+	n := v.NumField()
+	for i := 0; i < n; i++ {
+		vf := v.Field(i)
+		if u, ok := vf.Interface().(*url.URL); ok {
+			urls[t.Field(i).Name] = u
+		}
 	}
+
+	return urls
 }
