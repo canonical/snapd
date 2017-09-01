@@ -29,6 +29,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 )
 
+// copied from cmd/snap-update-ns/profile_test.go
+type profileSuite struct{}
+
 type mountinfoSuite struct{}
 
 var _ = Suite(&mountinfoSuite{})

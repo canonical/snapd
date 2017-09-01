@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	sun_mount "github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 func Test(t *testing.T) {
@@ -124,8 +125,10 @@ slots:
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntry1 := mount.Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry2 := mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	//fsEntry1 := Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	//fsEntry2 := Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry1 := sun_mount.Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := sun_mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
@@ -163,7 +166,8 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddMountEntry(mount.Entry{})
+		//return spec.AddMountEntry(Entry{})
+		return spec.AddMountEntry(sun_mount.Entry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand

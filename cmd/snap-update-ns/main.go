@@ -27,9 +27,10 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	//"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
+	//"github.com/snapcore/snapd/interfaces/mount"
 	//"github.com/snapcore/snapd/logger"
 	//"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 var opts struct {

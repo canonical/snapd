@@ -28,9 +28,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/interfaces/mount"
+	//"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
+// TODO: convert this back to private profileSuite
 type profileSuite struct{}
 
 var _ = Suite(&profileSuite{})

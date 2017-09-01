@@ -22,7 +22,8 @@ package mount_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/interfaces/mount"
+	//"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/cmd/snap-update-ns/mount"
 )
 
 type changeSuite struct{}
