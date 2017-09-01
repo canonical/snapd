@@ -4,16 +4,24 @@ set -e
 
 systemctl_stop() {
     unit="$1"
-    if systemctl is-active -q "$unit"; then
-        echo "Stoping $unit"
+    for i in $(seq 10); do
+        if ! systemctl is-active -q "$unit"; then
+            echo "$unit is stopped."
+            break
+        fi
+        echo "Stoping $unit [attempt $i]"
         systemctl stop -q "$unit" || true
-    fi
+        sleep .1
+    done
 }
 
 if [ "$1" = "purge" ]; then
-    units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service)
-    mounts=$(echo "$units" | grep '^snap[-.].*\.mount$')
-    services=$(echo "$units" | grep '^snap[-.].*\.service$')
+    # snap.mount.service is a trusty thing
+    systemctl_stop snap.mount.service
+
+    units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
+    mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
+    services=$(echo "$units" | grep '^snap[-.].*\.service$' || true)
 
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit
@@ -60,9 +68,6 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
-
-    # snap.mount.service is a trusty thing
-    systemctl_stop snap.mount.service
 
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
