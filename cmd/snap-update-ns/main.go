@@ -27,7 +27,7 @@ import (
 
 	//"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/logger"
+	//"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -108,7 +108,8 @@ func run() error {
 			continue
 		}
 		if err := change.Perform(); err != nil {
-			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			//logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			fmt.Printf("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
 		changesMade = append(changesMade, change)
