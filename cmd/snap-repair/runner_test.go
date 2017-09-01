@@ -1584,6 +1584,8 @@ unhappy output
 `)
 	c.Check(s.errReport.extra, DeepEquals, map[string]string{
 		"Revision": "0",
+		"RepairID": "1",
+		"BrandID":  "canonical",
 	})
 }
 

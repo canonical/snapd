@@ -143,8 +143,6 @@ func (r *Repair) Run() error {
 	killTimerCh := time.After(defaultRepairTimeout)
 	doneCh := make(chan error)
 	go func() {
-		// ignore error, we only care about what we got via
-		// the status pipe
 		doneCh <- cmd.Wait()
 		close(doneCh)
 	}()
@@ -217,6 +215,8 @@ func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
 
 	extra := map[string]string{
 		"Revision": strconv.Itoa(r.Revision()),
+		"BrandID":  r.BrandID(),
+		"RepairID": r.RepairID(),
 	}
 	_, err = errtrackerReport(pseudoSnap, errMsg, dupSig, extra)
 	return err
