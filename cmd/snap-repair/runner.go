@@ -57,7 +57,7 @@ var (
 	defaultRepairTimeout = 30 * time.Minute
 )
 
-var errtrackerReport = errtracker.Report
+var errtrackerReportRepair = errtracker.ReportRepair
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -218,7 +218,7 @@ func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
 		"BrandID":  r.BrandID(),
 		"RepairID": r.RepairID(),
 	}
-	_, err = errtrackerReport(pseudoSnap, errMsg, dupSig, extra)
+	_, err = errtrackerReportRepair(pseudoSnap, errMsg, dupSig, extra)
 	return err
 }
 
