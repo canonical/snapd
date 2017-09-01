@@ -32,7 +32,7 @@ var origDefaultTransport *http.Transport = http.DefaultTransport.(*http.Transpor
 // with the same parameters as http.DefaultTransport.
 func newDefaultTransport() *http.Transport {
 	// based on https://github.com/golang/go/blob/release-branch.go1.7/src/net/http/transport.go#L38
-	return &Transport{
+	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           origDefaultTransport.DialContext,
 		MaxIdleConns:          100,
