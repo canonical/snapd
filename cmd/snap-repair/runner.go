@@ -89,14 +89,15 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
+	baseName := fmt.Sprintf("r%d", r.Revision())
+
+	script := filepath.Join(rundir, baseName+".script")
 	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
 		return err
 	}
 
 	// the date may be broken so we use an additional counter
-	baseName := fmt.Sprintf("r%d", r.Revision())
 	logPath := filepath.Join(rundir, baseName+".output")
 	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -787,14 +788,14 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
 		}
 	}
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
 func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", revision))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
 	f, err := os.Open(p)
 	if err != nil {
 		return nil, nil, err
