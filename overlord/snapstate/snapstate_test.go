@@ -4929,63 +4929,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
 }
 
-func (s *snapmgrTestSuite) TestMiscRefresh(c *C) {
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
-
-	c.Assert(snapstate.RefreshMisc(s.fakeStore), IsNil)
-
-	c.Check(len(s.fakeBackend.ops), Equals, 2)
-	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{op: "x-commands"})
-	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{op: "x-sections"})
-
-	for _, fn := range []string{
-		dirs.SnapNamesFile,
-		dirs.SnapSectionsFile,
-	} {
-		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
-	}
-}
-
-func (s *snapmgrTestSuite) TestEnsureRunsMiscRefresh(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-
-	// the next misc refresh time is not set
-	c.Check(s.snapmgr.NextMiscRefresh().IsZero(), Equals, true)
-
-	// Ensure() also runs ensureMiscRefresh()
-	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.state.Lock()
-
-	// the next misc refresh time is now set
-	c.Check(s.snapmgr.NextMiscRefresh().IsZero(), Equals, false)
-	c.Check(len(s.fakeBackend.ops), Equals, 2)
-	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{op: "x-commands"})
-	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{op: "x-sections"})
-}
-
-func (s *snapmgrTestSuite) TestEnsureMiscRefreshDoesNotRunUnlessTimeIsUp(c *C) {
-	// sanity
-	c.Assert(s.fakeBackend.ops, HasLen, 0)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-
-	// the next misc refresh time is in the future
-	s.snapmgr.SetNextMiscRefresh(time.Now().Add(time.Hour))
-
-	// Ensure() also runs ensureMiscRefresh()
-	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.state.Lock()
-
-	// nothing happened
-	c.Check(s.fakeBackend.ops, HasLen, 0)
-}
-
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
