@@ -22,7 +22,8 @@ package snap
 import (
 	"fmt"
 	"regexp"
-	"strings"
+
+	"github.com/snapcore/snapd/spdx"
 )
 
 // Regular expression describing correct identifiers.
@@ -50,81 +51,8 @@ func ValidateEpoch(epoch string) error {
 
 // ValidateLicense checks if a string is a valid SPDX expression.
 func ValidateLicense(license string) error {
-	offset := 0
-	if license[offset] == '(' {
-		bracket_count := 1
-		offset++
-		for offset < len(license) && bracket_count != 0 {
-			if license[offset] == '(' {
-				bracket_count++
-			} else if license[offset] == ')' {
-				bracket_count--
-			}
-			offset++
-		}
-		if bracket_count != 0 {
-			return fmt.Errorf("invalid snap license: %q", license)
-		}
-		err := ValidateLicense(license[1 : offset-1])
-		if err != nil {
-			return err
-		}
-	} else {
-		validSpdxStartRune := func(c byte) bool {
-			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-		}
-		validSpdxRune := func(c byte) bool {
-			return validSpdxStartRune(c) || (c >= '0' && c <= '9') || c == '-' || c == '.'
-		}
+	return spdx.ValidateLicense(license)
 
-		if !validSpdxStartRune(license[offset]) {
-			return fmt.Errorf("invalid snap license: %q", license)
-		}
-		offset++
-		for offset < len(license) && validSpdxRune(license[offset]) {
-			offset++
-		}
-		if offset < len(license) && license[offset] == '+' {
-			offset++
-		}
-	}
-
-	if offset >= len(license) {
-		return nil
-	}
-
-	// Must use whitespace if not using parenthesis
-	if license[offset] != ')' {
-		if license[offset] != ' ' {
-			return fmt.Errorf("invalid snap license: %q", license)
-		}
-		for offset < len(license) && license[offset] == ' ' {
-			offset++
-		}
-	}
-
-	op := license[offset:]
-	if strings.HasPrefix(op, "WITH") {
-		offset += 4
-	} else if strings.HasPrefix(op, "AND") {
-		offset += 3
-	} else if strings.HasPrefix(op, "OR") {
-		offset += 2
-	} else {
-		return fmt.Errorf("invalid snap license: %q", license)
-	}
-
-	// Must use whitespace if not using parenthesis
-	if license[offset] != '(' {
-		if license[offset] != ' ' {
-			return fmt.Errorf("invalid snap license: %q", license)
-		}
-		for license[offset] == ' ' {
-			offset++
-		}
-	}
-
-	return ValidateLicense(license[offset:])
 }
 
 // ValidateHook validates the content of the given HookInfo
