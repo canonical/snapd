@@ -967,12 +967,12 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "1")
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "repair.r0")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "3")
-	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "repair.r2"))
+	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
 	c.Assert(err, IsNil)
 	c.Check(string(strm), Equals, seqRepairs[2])
 
@@ -1411,7 +1411,7 @@ AXNpZw==`}
 	c.Assert(err, IsNil)
 
 	rpr.Run()
-	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, "exit 0\n")
 }
@@ -1508,7 +1508,7 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *re
 		c.Assert(err, ErrorMatches, expectedErr)
 	}
 
-	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.script"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, mockScript)
 
@@ -1551,7 +1551,7 @@ exit 0
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", "happy output\n")
@@ -1568,7 +1568,7 @@ exit 1
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `unhappy output
@@ -1597,8 +1597,8 @@ exit 0
 	s.testScriptRun(c, script, "")
 	// verify
 	s.verifyRundir(c, []string{
+		`^r0.script$`,
 		`^r0.skip$`,
-		`^script.r0$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.skip", "other output\n")
@@ -1620,7 +1620,7 @@ exit 1
 	rpr := s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `unhappy output
@@ -1635,7 +1635,7 @@ exit 1
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", "happy now\n")
@@ -1666,7 +1666,7 @@ sleep 100
 
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `output before timeout
