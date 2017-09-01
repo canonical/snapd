@@ -397,6 +397,33 @@
     # Allow snap-confine to be killed
     signal (receive) peer=unconfined,
 
-    # Allow snap-confine to use snap-update-ns
-    /{var/lib/snapd/hostfs/,}{,{,var/lib/snapd/}snap/core/*/}usr/lib{,exec}/snapd/snap-update-ns Ux,
+    # Allow executing snap-update-ns when...
+
+    # ...snap-confine is not, conceptually, not re-executing and uses
+    # snap-update-ns from the distribution package. This is also the location
+    # used when using the core/base snap on all-snap systems. The variants here
+    # represent various locations of libexecdir across distributions.
+    /usr/lib{,exec}/snapd/snap-update-ns Ux,
+
+    # ...snap-confine is, conceptually, not re-executing and uses
+    # snap-update-ns from the distribution package but we are already inside
+    # the constructed mount namespace so we must traverse "hostfs". The
+    # variants here represent various locations of libexecdir across
+    # distributions.
+    /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns Ux,
+
+    # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
+    # from the core snap. Note that the location of the core snap varies from
+    # distribution to distribution. The variants here represent different
+    # location of snap mount directory across distributions.
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Ux,
+
+    # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
+    # from the core snap but we are already inside the constructed mount
+    # namespace. Here the apparmor kernel module re-constructs the path to
+    # snap-update-ns using the "hostfs" mount entry rather than the more
+    # "natural" /snap mount entry but we have no control over that. The
+    # variants here represent different location of snap mount directory across
+    # distributions.
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Ux,
 }
