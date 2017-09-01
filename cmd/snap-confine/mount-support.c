@@ -354,11 +354,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// anything because snap-exec needs to be visible the
 		// base snap
 
+		// dst is always /usr/lib/snapd as this is where snapd
+		// assumes to find snap-exec
+		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
+				 scratch_dir);
 		// FIXME: take re-exec into account, i.e. this may not
 		//        actually be the path we need, we need snapd
 		//        to tell us what path to use instead.
 		const char *src = LIBEXECDIR;
-		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
 		sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
 		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 
