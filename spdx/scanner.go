@@ -29,7 +29,6 @@ type Scanner struct {
 }
 
 func spdxSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	//println(len(data), string(data), atEOF)
 	// skip WS
 	start := 0
 	for ; start < len(data); start++ {
@@ -41,19 +40,18 @@ func spdxSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		return start, nil, nil
 	}
 
-	// found (,)
 	switch data[start] {
+	// found ( or )
 	case '(', ')':
 		return start + 1, data[start : start+1], nil
 	}
 
-	// found non-ws, non-(), must be a token
 	for i := start; i < len(data); i++ {
 		switch data[i] {
 		// token finished
 		case ' ', '\n':
 			return i + 1, data[start:i], nil
-			// found (,) - we need to rescan it
+			// found ( or ) - we need to rescan it
 		case '(', ')':
 			return i, data[start:i], nil
 		}

@@ -55,13 +55,16 @@ func (s *spdxSuite) TestParseError(c *C) {
 		inp    string
 		errStr string
 	}{
+		{"", "empty expression"},
+
 		{"FOO", `unknown license: FOO`},
-		{"GPL-2.0 GPL-3.0", `unexpected token: "GPL-3.0"`},
-		{"(GPL-2.0))", "unbalanced parenthesis"},
-		{"(GPL-2.0", `expected closing parenthesis got ""`},
-		{"OR", "expected left license with operator OR"},
-		{"OR GPL-2.0", "expected left license with operator OR"},
-		{"GPL-2.0 OR", "expected right license with operator OR"},
+		{"GPL-3.0 xxx", `unexpected string: "xxx"`},
+		{"GPL-2.0 GPL-3.0", `missing AND or OR between "GPL-2.0" and "GPL-3.0"`},
+		{"(GPL-2.0))", `unexpected "\)"`},
+		{"(GPL-2.0", `expected "\)" got ""`},
+		{"OR", "missing license before OR"},
+		{"OR GPL-2.0", "missing license before OR"},
+		{"GPL-2.0 OR", "missing license after OR"},
 		{"GPL-2.0 WITH BAR", "unknown license exception: BAR"},
 		{"GPL-2.0 WITH (foo)", `unknown license exception: foo`},
 	} {

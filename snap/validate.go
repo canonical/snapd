@@ -53,8 +53,10 @@ func ValidateEpoch(epoch string) error {
 
 // ValidateLicense checks if a string is a valid SPDX expression.
 func ValidateLicense(license string) error {
-	return spdx.ValidateLicense(license)
-
+	if err := spdx.ValidateLicense(license); err != nil {
+		return fmt.Errorf("cannot validate license %q: %s", license, err)
+	}
+	return nil
 }
 
 // ValidateHook validates the content of the given HookInfo
