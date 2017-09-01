@@ -481,7 +481,9 @@ static bool __attribute__ ((used))
 
 static int sc_open_snap_update_ns()
 {
-	char buf[PATH_MAX] = { 0 };
+	// +1 is for the case where the link is exactly PATH_MAX long but we also
+	// want to store the terminating '\0'.
+	char buf[PATH_MAX + 1] = { 0 };
 	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
 		die("cannot readlink /proc/self/exe");
 	}
