@@ -234,9 +234,16 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
-func (s *daemonSuite) TestPolkitAccessForUserOK(c *check.C) {
+func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
-	cmd := &Command{d: newTestDaemon(c), UserOK: true, PolkitOK: "polkit.action"}
+	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
+
+	// polkit can grant authorisation for GET requests
+	s.authorized = true
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+
+	// for UserOK commands, polkit is not consulted
+	cmd.UserOK = true
 	polkitCheckAuthorizationForPid = func(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		panic("polkit.CheckAuthorizationForPid called")
 	}
