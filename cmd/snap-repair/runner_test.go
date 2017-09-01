@@ -1449,9 +1449,9 @@ type runScriptSuite struct {
 
 	runDir string
 
-	restoreErrTrackerReport func()
-	errReport               struct {
-		snap   string
+	restoreErrTrackerReportRepair func()
+	errReport                     struct {
+		repair string
 		errMsg string
 		dupSig string
 		extra  map[string]string
@@ -1471,18 +1471,18 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
-	s.restoreErrTrackerReport = repair.MockErrtrackerReport(s.errtrackerReport)
+	s.restoreErrTrackerReportRepair = repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
 }
 
 func (s *runScriptSuite) TearDownTest(c *C) {
 	s.baseRunnerSuite.TearDownTest(c)
 
-	s.restoreErrTrackerReport()
+	s.restoreErrTrackerReportRepair()
 	s.mockServer.Close()
 }
 
-func (s *runScriptSuite) errtrackerReport(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
-	s.errReport.snap = snap
+func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
+	s.errReport.repair = repair
 	s.errReport.errMsg = errMsg
 	s.errReport.dupSig = dupSig
 	s.errReport.extra = extra
@@ -1576,7 +1576,7 @@ exit 1
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
-	c.Check(s.errReport.snap, Equals, "repair (1; brand-id:canonical)")
+	c.Check(s.errReport.repair, Equals, "repair (1; brand-id:canonical)")
 	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
 	c.Check(s.errReport.dupSig, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1
 output:
