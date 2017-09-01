@@ -91,11 +91,11 @@ func (s *ValidateSuite) TestValidateLicense(c *C) {
 		c.Assert(err, IsNil)
 	}
 	invalidLicenses := []string{
-		" GPL-3.0", " GPL-3.0 ", "GPL-3.0 ", "GPL~3.0", "3.0-GPL", "(GPL-3.0", "(GPL-3.0))", "GPL-3.0++", "+GPL-3.0", "GPL-3.0 GPL-2.0",
+		"GPL~3.0", "3.0-GPL", "(GPL-3.0", "(GPL-3.0))", "GPL-3.0++", "+GPL-3.0", "GPL-3.0 GPL-2.0",
 	}
 	for _, epoch := range invalidLicenses {
 		err := ValidateLicense(epoch)
-		c.Assert(err, ErrorMatches, `invalid snap license: ".*"`)
+		c.Assert(err, NotNil)
 	}
 }
 
@@ -269,7 +269,7 @@ license: GPL~3.0
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `invalid snap license: "GPL~3.0"`)
+	c.Check(err, ErrorMatches, `unknown license: GPL~3.0`)
 }
 
 func (s *ValidateSuite) TestMissingSnapLicenseIsOkay(c *C) {
