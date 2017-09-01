@@ -1498,9 +1498,7 @@ func All(st *state.State) (map[string]*SnapState, error) {
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
 	for snapName, snapst := range stateMap {
-		if snapst.HasCurrent() {
-			curStates[snapName] = snapst
-		}
+		curStates[snapName] = snapst
 	}
 	return curStates, nil
 }
