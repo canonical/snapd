@@ -207,7 +207,7 @@ install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
 make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
+for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
     rm -f %buildroot/%{_unitdir}/$s
 done
 # Remove snappy core specific scripts
