@@ -61,8 +61,43 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 }
 
 func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
+	aw, err := NewAtomicWriter(filename, perm, flags, uid, gid)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			os.Remove(aw.Name())
+		}
+	}()
+
+	if _, err := io.Copy(aw, reader); err != nil {
+		return err
+	}
+
+	return aw.Commit()
+}
+
+type AtomicWriter interface {
+	io.WriteCloser
+	Commit() error
+	Name() string
+}
+
+type atomicWriter struct {
+	*os.File
+
+	target  string
+	tmpname string
+	uid     int
+	gid     int
+	renamed bool
+}
+
+func NewAtomicWriter(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (aw AtomicWriter, err error) {
 	if (uid < 0) != (gid < 0) {
-		return errors.New("internal error: AtomicWriteChown needs none or both of uid and gid set")
+		return nil, errors.New("internal error: AtomicWriteChown needs none or both of uid and gid set")
 	}
 
 	if flags&AtomicWriteFollow != 0 {
@@ -76,49 +111,61 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 	}
 	tmp := filename + "." + strutil.MakeRandomString(12)
 
-	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
-	dir, err := os.Open(filepath.Dir(filename))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
 	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer func() {
-		e := fd.Close()
-		if err == nil {
-			err = e
+
+	return &atomicWriter{
+		File:    fd,
+		target:  filename,
+		tmpname: tmp,
+		uid:     uid,
+		gid:     gid,
+	}, nil
+}
+
+func (aw *atomicWriter) Name() string {
+	if aw.renamed {
+		return aw.target
+	}
+
+	return aw.tmpname
+}
+
+func (aw *atomicWriter) Commit() error {
+	if aw.uid > -1 && aw.gid > -1 {
+		if err := aw.Chown(aw.uid, aw.gid); err != nil {
+			aw.Close()
+			return err
 		}
+	}
+
+	var dir *os.File
+	if !snapdUnsafeIO {
+		// XXX: if go switches to use aio_fsync, we need to open the dir for writing
+		d, err := os.Open(filepath.Dir(aw.target))
 		if err != nil {
-			os.Remove(tmp)
+			return err
 		}
-	}()
+		dir = d
+		defer dir.Close()
 
-	if _, err := io.Copy(fd, reader); err != nil {
-		return err
-	}
-
-	if uid > -1 && gid > -1 {
-		if err := fd.Chown(uid, gid); err != nil {
+		if err := aw.Sync(); err != nil {
 			return err
 		}
 	}
 
+	if err := os.Rename(aw.tmpname, aw.target); err != nil {
+		return err
+	}
+	aw.renamed = true
+
 	if !snapdUnsafeIO {
-		if err := fd.Sync(); err != nil {
+		if err := dir.Sync(); err != nil {
 			return err
 		}
 	}
 
-	if err := os.Rename(tmp, filename); err != nil {
-		return err
-	}
-
-	if !snapdUnsafeIO {
-		return dir.Sync()
-	}
-	return nil
+	return aw.Close()
 }
