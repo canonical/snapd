@@ -20,7 +20,9 @@
 package osutil
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,10 +49,22 @@ var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".tes
 // Note that it won't follow symlinks and will replace existing symlinks
 // with the real file
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	return AtomicWriteFileChown(filename, data, perm, flags, -1, -1)
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, -1, -1)
+}
+
+func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags) (err error) {
+	return AtomicWriteChown(filename, reader, perm, flags, -1, -1)
 }
 
 func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, uid, gid)
+}
+
+func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
+	if (uid < 0) != (gid < 0) {
+		return errors.New("internal error: AtomicWriteChown needs none or both of uid and gid set")
+	}
+
 	if flags&AtomicWriteFollow != 0 {
 		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
@@ -83,9 +97,7 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		}
 	}()
 
-	// according to the docs, Write returns a non-nil error when n !=
-	// len(b), so don't worry about short writes.
-	if _, err := fd.Write(data); err != nil {
+	if _, err := io.Copy(fd, reader); err != nil {
 		return err
 	}
 
@@ -93,8 +105,6 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		if err := fd.Chown(uid, gid); err != nil {
 			return err
 		}
-	} else if uid > -1 || gid > -1 {
-		return errors.New("internal error: AtomicWriteFileChown needs none or both of uid and gid set")
 	}
 
 	if !snapdUnsafeIO {
