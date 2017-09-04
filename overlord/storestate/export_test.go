@@ -32,4 +32,4 @@ func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) func()
 	}
 }
 
-var AuthContextTestsOnly = authContext
+var CachedAuthContext = cachedAuthContext

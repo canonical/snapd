@@ -80,23 +80,23 @@ func (ss *storeStateSuite) state(c *C, data string) *state.State {
 	return st
 }
 
-func (ss *storeStateSuite) TestDefaultAPI(c *C) {
+func (ss *storeStateSuite) TestDefaultStoreLocation(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
-	api := storestate.API(st)
+	loc := storestate.StoreLocation(st)
 	st.Unlock()
-	c.Check(api, Equals, "")
+	c.Check(loc, Equals, "")
 }
 
-func (ss *storeStateSuite) TestExplicitAPI(c *C) {
+func (ss *storeStateSuite) TestExplicitStoreLocation(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
 	defer st.Unlock()
 
-	storeState := storestate.StoreState{API: "http://example.com/"}
+	storeState := storestate.StoreState{StoreLocation: "http://example.com/"}
 	st.Set("store", &storeState)
-	api := storestate.API(st)
-	c.Check(api, Equals, storeState.API)
+	loc := storestate.StoreLocation(st)
+	c.Check(loc, Equals, storeState.StoreLocation)
 }
 
 func (ss *storeStateSuite) TestSetupStoreCachesState(c *C) {
@@ -106,14 +106,14 @@ func (ss *storeStateSuite) TestSetupStoreCachesState(c *C) {
 
 	c.Check(func() { storestate.Store(st) }, PanicMatches,
 		"internal error: needing the store before managers have initialized it")
-	c.Check(func() { storestate.AuthContextTestsOnly(st) }, PanicMatches,
+	c.Check(func() { storestate.CachedAuthContext(st) }, PanicMatches,
 		"internal error: needing the auth context before managers have initialized it")
 
 	err := storestate.SetupStore(st, &fakeAuthContext{})
 	c.Assert(err, IsNil)
 
 	c.Check(storestate.Store(st), NotNil)
-	c.Check(storestate.AuthContextTestsOnly(st), NotNil)
+	c.Check(storestate.CachedAuthContext(st), NotNil)
 }
 
 func (ss *storeStateSuite) TestSetupStoreDefaultAPI(c *C) {
@@ -140,7 +140,7 @@ func (ss *storeStateSuite) TestSetupStoreAPIFromState(c *C) {
 		return nil
 	})()
 
-	st := ss.state(c, `{"data":{"store":{"api": "http://example.com/"}}}`)
+	st := ss.state(c, `{"data":{"store":{"store-location": "http://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
@@ -152,7 +152,7 @@ func (ss *storeStateSuite) TestSetupStoreAPIFromState(c *C) {
 
 func (ss *storeStateSuite) TestSetupStoreBadEnvironURLOverride(c *C) {
 	// We need store api state to trigger this.
-	st := ss.state(c, `{"data":{"store":{"api": "http://example.com/"}}}`)
+	st := ss.state(c, `{"data":{"store":{"store-location": "http://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
@@ -182,13 +182,13 @@ func (ss *storeStateSuite) TestSetupStoreEmptyAPIFromState(c *C) {
 }
 
 func (ss *storeStateSuite) TestSetupStoreInvalidAPIFromState(c *C) {
-	st := ss.state(c, `{"data":{"store":{"api": "://example.com/"}}}`)
+	st := ss.state(c, `{"data":{"store":{"store-location": "://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
 	err := storestate.SetupStore(st, nil)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid store API URL: parse ://example.com/: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid store API location: parse ://example.com/: missing protocol scheme")
 }
 
 func (ss *storeStateSuite) TestStore(c *C) {
@@ -215,15 +215,15 @@ func (ss *storeStateSuite) TestReplaceStoreAPI(c *C) {
 	c.Assert(err, IsNil)
 
 	oldStore := storestate.Store(st)
-	c.Assert(storestate.API(st), Equals, "")
+	c.Assert(storestate.StoreLocation(st), Equals, "")
 
-	api, err := url.Parse("http://example.com/")
+	u, err := url.Parse("http://example.com/")
 	c.Assert(err, IsNil)
-	err = storestate.SetupStoreAPI(st, api)
+	err = storestate.SetStoreLocation(st, u)
 	c.Assert(err, IsNil)
 
 	c.Check(storestate.Store(st), Not(Equals), oldStore)
-	c.Check(storestate.API(st), Equals, "http://example.com/")
+	c.Check(storestate.StoreLocation(st), Equals, "http://example.com/")
 }
 
 func (ss *storeStateSuite) TestReplaceStoreAPIReset(c *C) {
@@ -232,28 +232,28 @@ func (ss *storeStateSuite) TestReplaceStoreAPIReset(c *C) {
 	defer st.Unlock()
 
 	st.Set("store", map[string]interface{}{
-		"api": "http://example.com/",
+		"store-location": "http://example.com/",
 	})
-	c.Assert(storestate.API(st), Not(Equals), "")
+	c.Assert(storestate.StoreLocation(st), Not(Equals), "")
 
 	err := storestate.SetupStore(st, &fakeAuthContext{})
 	c.Assert(err, IsNil)
 	oldStore := storestate.Store(st)
 
-	err = storestate.SetupStoreAPI(st, nil)
+	err = storestate.SetStoreLocation(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(storestate.Store(st), Not(Equals), oldStore)
-	c.Check(storestate.API(st), Equals, "")
+	c.Check(storestate.StoreLocation(st), Equals, "")
 }
 
 func (ss *storeStateSuite) TestReplaceStoreAPIBadEnvironURLOverride(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 
-	api, _ := url.Parse("http://example.com/")
+	u, _ := url.Parse("http://example.com/")
 	st := ss.state(c, "")
-	err := storestate.SetupStoreAPI(st, api)
+	err := storestate.SetStoreLocation(st, u)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
