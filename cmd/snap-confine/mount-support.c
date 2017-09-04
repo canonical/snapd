@@ -43,9 +43,6 @@
 
 #define MAX_BUF 1000
 
-#ifndef LIBEXECDIR
-LIBEXECDIR = "/usr/lib/snapd"
-#endif
 /*!
  * The void directory.
  *
@@ -350,9 +347,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 	}
 	if (config->uses_base_snap) {
-		// snapd dir: we need it so that we can actually run
-		// anything because snap-exec needs to be visible the
-		// base snap
+		// when bases are used we need to bind-mount the libexecdir
+		// (that contains snap-exec) into /usr/lib/snapd of the
+		// base snap so that snap-exec is available for the snaps
+		// (base snaps do not ship snapd)
 
 		// dst is always /usr/lib/snapd as this is where snapd
 		// assumes to find snap-exec
