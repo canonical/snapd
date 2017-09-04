@@ -395,6 +395,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
+	if info.Base != "" {
+		cmd = append(cmd, "--base", info.Base)
+	}
 	cmd = append(cmd, securityTag)
 	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
 

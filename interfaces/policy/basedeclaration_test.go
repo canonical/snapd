@@ -140,6 +140,8 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
+		"desktop":                 true,
+		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
 		"mir":                     true,
@@ -459,7 +461,7 @@ var (
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
-		"bluez":                   {"app"},
+		"bluez":                   {"app", "core"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
@@ -617,7 +619,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                     true,
 		"content":                   true,
 		"docker":                    true,
 		"fwupd":                     true,

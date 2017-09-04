@@ -24,6 +24,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/spdx"
 )
 
 // Regular expression describing correct identifiers.
@@ -45,6 +47,14 @@ func ValidateEpoch(epoch string) error {
 	valid := validEpoch.MatchString(epoch)
 	if !valid {
 		return fmt.Errorf("invalid snap epoch: %q", epoch)
+	}
+	return nil
+}
+
+// ValidateLicense checks if a string is a valid SPDX expression.
+func ValidateLicense(license string) error {
+	if err := spdx.ValidateLicense(license); err != nil {
+		return fmt.Errorf("cannot validate license %q: %s", license, err)
 	}
 	return nil
 }
@@ -87,6 +97,14 @@ func Validate(info *Info) error {
 	err = ValidateEpoch(epoch)
 	if err != nil {
 		return err
+	}
+
+	license := info.License
+	if license != "" {
+		err := ValidateLicense(license)
+		if err != nil {
+			return err
+		}
 	}
 
 	// validate app entries

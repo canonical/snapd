@@ -283,6 +283,12 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 
 	s.d = d
 	return d
@@ -413,6 +419,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
 description: description
 summary: summary
+license: GPL-3.0
 apps:
   cmd:
     command: some.cmd
@@ -528,6 +535,7 @@ UnitFileState=potatoes
 			},
 			"broken":  "",
 			"contact": "",
+			"license": "GPL-3.0",
 		},
 		Meta: meta,
 	}
@@ -4923,8 +4931,9 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	// create fake device
 	st.Lock()
 	err = auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserial",
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
