@@ -349,9 +349,10 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 # set tags.
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
-%gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+# build snap-exec completely static for base snaps
+CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
