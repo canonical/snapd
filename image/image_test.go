@@ -824,8 +824,5 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
-	// check that cloud-init is setup correctly
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)
-
 	c.Check(s.stderr.String(), Equals, "")
 }
