@@ -283,6 +283,12 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 
 	s.d = d
 	return d
@@ -413,6 +419,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
 description: description
 summary: summary
+license: GPL-3.0
 apps:
   cmd:
     command: some.cmd
@@ -528,6 +535,7 @@ UnitFileState=potatoes
 			},
 			"broken":  "",
 			"contact": "",
+			"license": "GPL-3.0",
 		},
 		Meta: meta,
 	}
@@ -633,6 +641,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateRefreshCandidates",
 		"snapstateRevert",
 		"snapstateRevertToRevision",
+		"snapstateSwitch",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
@@ -1890,6 +1899,7 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"revert", snapRevert},
 		{"enable", snapEnable},
 		{"disable", snapDisable},
+		{"switch", snapSwitch},
 		{"xyzzy", nil},
 	}
 
@@ -1900,8 +1910,8 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestPostSnapEnableDisableRevision(c *check.C) {
-	for _, action := range []string{"enable", "disable"} {
+func (s *apiSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
+	for _, action := range []string{"enable", "disable", "switch"} {
 		buf := bytes.NewBufferString(`{"action": "` + action + `", "revision": "42"}`)
 		req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 		c.Assert(err, check.IsNil)
@@ -4921,8 +4931,9 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	// create fake device
 	st.Lock()
 	err = auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserial",
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)

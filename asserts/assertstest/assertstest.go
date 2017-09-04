@@ -267,9 +267,11 @@ type StoreStack struct {
 	Trusted        []asserts.Assertion
 
 	// Generic authority assertions.
-	GenericAccount *asserts.Account
-	GenericKey     *asserts.AccountKey
-	Generic        []asserts.Assertion
+	GenericAccount      *asserts.Account
+	GenericKey          *asserts.AccountKey
+	GenericModelsKey    *asserts.AccountKey
+	Generic             []asserts.Assertion
+	GenericClassicModel *asserts.Model
 
 	// Signing assertion db that signs with the root private key.
 	RootSigning *SigningDB
@@ -280,20 +282,23 @@ type StoreStack struct {
 
 // StoreKeys holds a set of store private keys.
 type StoreKeys struct {
-	Root    asserts.PrivateKey
-	Store   asserts.PrivateKey
-	Generic asserts.PrivateKey
+	Root          asserts.PrivateKey
+	Store         asserts.PrivateKey
+	Generic       asserts.PrivateKey
+	GenericModels asserts.PrivateKey
 }
 
 var (
-	rootPrivKey, _    = GenerateKey(1024)
-	storePrivKey, _   = GenerateKey(752)
-	genericPrivKey, _ = GenerateKey(752)
+	rootPrivKey, _          = GenerateKey(1024)
+	storePrivKey, _         = GenerateKey(752)
+	genericPrivKey, _       = GenerateKey(752)
+	genericModelsPrivKey, _ = GenerateKey(752)
 
 	pregenKeys = StoreKeys{
-		Root:    rootPrivKey,
-		Store:   storePrivKey,
-		Generic: genericPrivKey,
+		Root:          rootPrivKey,
+		Store:         storePrivKey,
+		Generic:       genericPrivKey,
+		GenericModels: genericModelsPrivKey,
 	}
 )
 
@@ -322,7 +327,16 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 		"validation": "certified",
 		"timestamp":  ts,
 	}, "")
-	generic := []asserts.Assertion{genericAcct}
+
+	err := rootSigning.ImportKey(keys.GenericModels)
+	if err != nil {
+		panic(err)
+	}
+	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
+		"name":  "models",
+		"since": ts,
+	}, genericModelsPrivKey.PublicKey(), "")
+	generic := []asserts.Assertion{genericAcct, genericModelsKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
@@ -357,14 +371,29 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 		panic(err)
 	}
 
+	a, err := rootSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"authority-id": "generic",
+		"series":       "16",
+		"brand-id":     "generic",
+		"model":        "generic-classic",
+		"classic":      "true",
+		"timestamp":    ts,
+	}, nil, genericModelsKey.PublicKeyID())
+	if err != nil {
+		panic(err)
+	}
+	genericClassicMod := a.(*asserts.Model)
+
 	return &StoreStack{
 		TrustedAccount: trustedAcct,
 		TrustedKey:     trustedKey,
 		Trusted:        trusted,
 
-		GenericAccount: genericAcct,
-		GenericKey:     genericKey,
-		Generic:        generic,
+		GenericAccount:      genericAcct,
+		GenericKey:          genericKey,
+		GenericModelsKey:    genericModelsKey,
+		Generic:             generic,
+		GenericClassicModel: genericClassicMod,
 
 		RootSigning: rootSigning,
 

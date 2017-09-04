@@ -152,8 +152,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// HasCurrent returns whether snapst.Current is set.
-func (snapst *SnapState) HasCurrent() bool {
+// IsInstalled returns whether the snap is installed, i.e. snapst represents an installed snap with Current revision set.
+func (snapst *SnapState) IsInstalled() bool {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
@@ -176,11 +176,9 @@ func (snapst *SnapState) LocalRevision() snap.Revision {
 	return local
 }
 
-// TODO: unexport CurrentSideInfo and HasCurrent?
-
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil
 	}
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
@@ -346,6 +344,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
 	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
 	runner.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
+
+	// misc
+	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
@@ -631,6 +632,21 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		chg.AddAll(ts)
 	}
 
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
 	return nil
 }
 

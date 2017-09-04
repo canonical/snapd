@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,10 +32,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
@@ -96,15 +99,17 @@ type Runner struct {
 
 // NewRunner returns a Runner.
 func NewRunner() *Runner {
-	// TODO: pass TLSConfig with lower-bounded time
-	opts := httputil.ClientOpts{
-		MayLogBody: false,
-	}
-	cli := httputil.NewHTTPClient(&opts)
-	return &Runner{
-		cli:          cli,
+	run := &Runner{
 		sequenceNext: make(map[string]int),
 	}
+	opts := httputil.ClientOpts{
+		MayLogBody: false,
+		TLSConfig: &tls.Config{
+			Time: run.now,
+		},
+	}
+	run.cli = httputil.NewHTTPClient(&opts)
+	return run
 }
 
 var (
@@ -180,6 +185,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 		return nil, nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
@@ -189,6 +202,7 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	case 404:
 		return nil, nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
@@ -196,6 +210,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
+
+	if repair.Revision() <= revision {
+		// this shouldn't happen but if it does we behave like
+		// all the rest of assertion infrastructure and ignore
+		// the now superseded revision
+		return nil, nil, ErrRepairNotModified
+	}
+
 	return
 }
 
@@ -249,12 +271,21 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 		return nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
 	case 404:
 		return nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, fmt.Errorf("cannot peek repair headers, unexpected status %d", resp.StatusCode)
 	}
 
@@ -290,8 +321,9 @@ type RepairState struct {
 
 // state holds the atomically updated control state of the runner with sequences of repairs and their states.
 type state struct {
-	Device    deviceInfo                `json:"device"`
-	Sequences map[string][]*RepairState `json:"sequences,omitempty"`
+	Device         deviceInfo                `json:"device"`
+	Sequences      map[string][]*RepairState `json:"sequences,omitempty"`
+	TimeLowerBound time.Time                 `json:"time-lower-bound"`
 }
 
 func (run *Runner) setRepairState(brandID string, state RepairState) {
@@ -318,12 +350,37 @@ func (run *Runner) readState() error {
 	return dec.Decode(&run.state)
 }
 
+func (run *Runner) moveTimeLowerBound(t time.Time) {
+	if t.After(run.state.TimeLowerBound) {
+		run.stateModified = true
+		run.state.TimeLowerBound = t.UTC()
+	}
+}
+
+var timeNow = time.Now
+
+func (run *Runner) now() time.Time {
+	now := timeNow().UTC()
+	if now.Before(run.state.TimeLowerBound) {
+		return run.state.TimeLowerBound
+	}
+	return now
+}
+
 func (run *Runner) initState() error {
 	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
 		return fmt.Errorf("cannot create repair state directory: %v", err)
 	}
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
+	run.state = state{}
+	// initialize time lower bound with image built time/seed.yaml time
+	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	if err != nil {
+		return err
+	}
+	run.moveTimeLowerBound(info.ModTime())
+	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
 	}
@@ -517,7 +574,33 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if len(series) != 0 && !strutil.ListContains(series, release.Series) {
 		return false
 	}
-	// TODO: architecture, model filtering
+	archs, err := stringList(headers, "architectures")
+	if err != nil {
+		return false
+	}
+	if len(archs) != 0 && !strutil.ListContains(archs, arch.UbuntuArchitecture()) {
+		return false
+	}
+	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)
+	models, err := stringList(headers, "models")
+	if err != nil {
+		return false
+	}
+	if len(models) != 0 && !strutil.ListContains(models, brandModel) {
+		// model prefix matching: brand/prefix*
+		hit := false
+		for _, patt := range models {
+			if strings.HasSuffix(patt, "*") && strings.ContainsRune(patt, '/') {
+				if strings.HasPrefix(brandModel, strings.TrimSuffix(patt, "*")) {
+					hit = true
+					break
+				}
+			}
+		}
+		if !hit {
+			return false
+		}
+	}
 	return true
 }
 
@@ -552,7 +635,7 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 	r := append([]asserts.Assertion{repair}, aux...)
 	for _, a := range r {
 		if err := enc.Encode(a); err != nil {
-			return fmt.Errorf("cannot encode repair assertions %q-%s for saving: %v", brandID, repairID, err)
+			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
 		}
 	}
 	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
@@ -577,7 +660,7 @@ func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *a
 			break
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot decode repair assertions %q-%s from disk: %v", brandID, repairID, err)
+			return nil, nil, fmt.Errorf("cannot decode repair assertions %s-%s from disk: %v", brandID, repairID, err)
 		}
 		r = append(r, a)
 	}
@@ -598,7 +681,7 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
 		if err != nil {
 			if err != ErrRepairNotModified {
-				logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+				logger.Noticef("cannot refetch repair %s-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
 			}
 			// try to use what we have already on disk
 			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
@@ -625,7 +708,10 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 			return nil, errSkip
 		}
 	}
-	// TODO: verify with signatures
+	// verify with signatures
+	if err := run.Verify(repair, aux); err != nil {
+		return nil, fmt.Errorf("cannot verify repair %s-%d: %v", brandID, state.Sequence, err)
+	}
 	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
 		return nil, err
 	}
@@ -675,4 +761,39 @@ func (run *Runner) Next(brandID string) (*Repair, error) {
 			sequence: sequenceNext - 1,
 		}, nil
 	}
+}
+
+// Limit trust to specific keys while there's no delegation or limited
+// keys support.  The obtained assertion stream may also include
+// account keys that are directly or indirectly signed by a trusted
+// key.
+var (
+	trustedRepairRootKeys []*asserts.AccountKey
+)
+
+// Verify verifies that the repair is properly signed by the specific
+// trusted root keys or by account keys in the stream (passed via aux)
+// directly or indirectly signed by a trusted key.
+func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error {
+	workBS := asserts.NewMemoryBackstore()
+	for _, a := range aux {
+		if a.Type() != asserts.AccountKeyType {
+			continue
+		}
+		err := workBS.Put(asserts.AccountKeyType, a)
+		if err != nil {
+			return err
+		}
+	}
+	trustedBS := asserts.NewMemoryBackstore()
+	for _, t := range trustedRepairRootKeys {
+		trustedBS.Put(asserts.AccountKeyType, t)
+	}
+	for _, t := range sysdb.Trusted() {
+		if t.Type() == asserts.AccountType {
+			trustedBS.Put(asserts.AccountType, t)
+		}
+	}
+
+	return verifySignatures(repair, workBS, trustedBS)
 }

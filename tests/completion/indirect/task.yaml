@@ -2,20 +2,20 @@ summary: indirect completion
 
 prepare: |
   (
-      cd ../../lib/snaps/complexion
+      cd ../../lib/snaps/test-snapd-complexion
       snap try
-      mv complexion.bash-completer complexion.bash-completer.orig
-      cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" complexion.bash-completer
+      mv test-snapd-complexion.bash-completer test-snapd-complexion.bash-completer.orig
+      cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" test-snapd-complexion.bash-completer
       # current ordering should ensure this anyway, but just in case, make sure we're
       # using complete.sh and not the generated snippet by removing the snippet
-      rm /usr/share/bash-completion/completions/complexion
+      rm /usr/share/bash-completion/completions/test-snapd-complexion
   )
 
 restore: |
   (
-      cd ../../lib/snaps/complexion
-      mv complexion.bash-completer.orig complexion.bash-completer
-      snap remove complexion
+      cd ../../lib/snaps/test-snapd-complexion
+      mv test-snapd-complexion.bash-completer.orig test-snapd-complexion.bash-completer
+      snap remove test-snapd-complexion
   )
 
 execute: |
