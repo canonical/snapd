@@ -213,28 +213,6 @@
     # NOTE: at this stage the /snap directory is stable as we have called
     # pivot_root already.
 
-    # Support mount profiles via the content interface. This should correspond
-    # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
-    # $SNAP_{DATA,COMMON} for both reading and writing.
-    #
-    # Note that:
-    #   /snap/*/*/**
-    # is meant to mean:
-    #   /snap/$SNAP_NAME/$SNAP_REVISION/and-any-subdirectory
-    # but:
-    #   /var/snap/*/**
-    # is meant to mean:
-    #   /var/snap/$SNAP_NAME/$SNAP_REVISION/
-    mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
-    mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
-    mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
-    mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
-    # But we don't want anyone to touch /snap/bin
-    audit deny mount /snap/bin/** -> /**,
-    audit deny mount /** -> /snap/bin/**,
-    # Allow the content interface to bind fonts from the host filesystem
-    mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
-
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
     /sys/module/nvidia/version r,
@@ -403,20 +381,20 @@
     # snap-update-ns from the distribution package. This is also the location
     # used when using the core/base snap on all-snap systems. The variants here
     # represent various locations of libexecdir across distributions.
-    /usr/lib{,exec}/snapd/snap-update-ns Ux,
+    /usr/lib{,exec}/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     # ...snap-confine is, conceptually, not re-executing and uses
     # snap-update-ns from the distribution package but we are already inside
     # the constructed mount namespace so we must traverse "hostfs". The
     # variants here represent various locations of libexecdir across
     # distributions.
-    /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns Ux,
+    /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the core snap. Note that the location of the core snap varies from
     # distribution to distribution. The variants here represent different
     # location of snap mount directory across distributions.
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Ux,
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the core snap but we are already inside the constructed mount
@@ -425,5 +403,85 @@
     # "natural" /snap mount entry but we have no control over that. The
     # variants here represent different location of snap mount directory across
     # distributions.
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Ux,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Cxr -> snap_update_ns,
+
+    profile snap_update_ns (attach_disconnected) {
+        # The next four rules mirror those above. We want to be able to read
+        # and map snap-update-ns into memory but it may come from a variety of places.
+        /usr/lib{,exec}/snapd/snap-update-ns mr,
+        /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns mr,
+        /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+        /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+
+        # Allow reading the dynamic linker cache.
+        /etc/ld.so.cache r,
+        # Allow reading, mapping and executing the dynamic linker.
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+        # Allow reading and mapping various parts of the standard library and
+        # dynamically loaded nss modules and what not.
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+
+        # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
+        @{PROC}/@{pid}/cmdline r,
+
+        # Allow reading the os-release file (possibly a symlink to /usr/lib).
+        /{etc/,usr/lib/}os-release r,
+
+        # Allow creating/grabbing various snapd lock files.
+        /run/snapd/lock/*.lock wrk,
+
+        # Allow reading stored mount namespaces,
+        /run/snapd/ns/ r,
+        /run/snapd/ns/*.mnt r,
+
+        # Allow reading per-snap desired mount profiles. Those are written by
+        # snapd and represent the desired layout and content connections.
+        /var/lib/snapd/mount/snap.*.fstab r,
+
+        # Allow reading and writing actual per-snap mount profiles. Note that
+        # the second rule is generic to allow our tmpfile-rename approach to
+        # writing them. Those are written by snap-update-ns and represent the
+        # actual layout at a given moment.
+        /run/snapd/ns/*.fstab wr,
+        /run/snapd/ns/*.fstab.* wr,
+
+        # NOTE: at this stage the /snap directory is stable as we have called
+        # pivot_root already.
+
+        # Support mount profiles via the content interface. This should correspond
+        # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
+        # $SNAP_{DATA,COMMON} for both reading and writing.
+        #
+        # Note that:
+        #   /snap/*/*/**
+        # is meant to mean:
+        #   /snap/$SNAP_NAME/$SNAP_REVISION/and-any-subdirectory
+        # but:
+        #   /var/snap/*/**
+        # is meant to mean:
+        #   /var/snap/$SNAP_NAME/$SNAP_REVISION/
+        mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
+        mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
+        mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
+        mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
+        # But we don't want anyone to touch /snap/bin
+        audit deny mount /snap/bin/** -> /**,
+        audit deny mount /** -> /snap/bin/**,
+        # Allow the content interface to bind fonts from the host filesystem
+        mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
+
+        # Needed to perform mount/unmounts.
+        capability sys_admin,
+
+        # Allow arbitrary unmounts
+        # TODO: make this rule much more strict.
+        umount,
+    }
 }
