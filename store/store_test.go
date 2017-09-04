@@ -1565,21 +1565,22 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	DeviceNonceAPI = mockServer.URL + "/api/v1/auth/nonces"
-	DeviceSessionAPI = mockServer.URL + "/api/v1/auth/sessions"
+	mockServerURL, _ := url.Parse(mockServer.URL)
 
 	// make sure device session is not set
 	t.device.SessionMacaroon = ""
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	repo := New(&Config{}, authContext)
+	repo := New(&Config{
+		DeviceNonceURI:   urlJoin(mockServerURL, "api/v1/auth/nonces"),
+		DeviceSessionURI: urlJoin(mockServerURL, "api/v1/auth/sessions"),
+	}, authContext)
 	c.Assert(repo, NotNil)
 
-	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := &requestOptions{Method: "GET", URL: mockServerURL}
 
 	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
-	defer response.Body.Close()
 	c.Assert(err, IsNil)
+	defer response.Body.Close()
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	c.Assert(err, IsNil)
