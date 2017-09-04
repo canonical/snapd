@@ -50,6 +50,7 @@
  * working directory across the pivot_root call.
  **/
 #define SC_VOID_DIR "/var/lib/snapd/void"
+
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
