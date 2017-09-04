@@ -157,25 +157,19 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	c.Assert(s.testUDevBadValue7.Sanitize(s.iface), ErrorMatches, "i2c slot must have a path attribute")
 }
 
-func (s *I2cInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
-	expectedSnippet1 := `KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`
-
+func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	snippet := spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet1)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
 }
 
-func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := `/dev/i2c-1 rw,
-/sys/devices/platform/{*,**.i2c}/i2c-1/** rw,`
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
-	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+func (s *I2cInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/sys/devices/platform/{*,**.i2c}/i2c-1/** rw,`)
 }
 
 func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {

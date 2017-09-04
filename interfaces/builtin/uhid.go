@@ -37,7 +37,7 @@ const uhidConnectedPlugAppArmor = `
   /dev/uhid rw,
 `
 
-const uhidConnectedPlugUDev = `KERNEL=="uhid", TAG+="###SLOT_SECURITY_TAGS###"`
+const uhidConnectedPlugUDev = `KERNEL=="uhid", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

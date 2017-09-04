@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.4
+Version:        2.27.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -349,9 +349,10 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 # set tags.
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
-%gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+# build snap-exec completely static for base snaps
+CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
@@ -384,12 +385,15 @@ autoreconf --force --install --verbose
 popd
 
 # Build systemd units
-pushd ./data/systemd
+pushd ./data/
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
+
+# Build environ-tweaking snippet
+make -C data/env SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap"
 
 %install
 install -d -p %{buildroot}%{_bindir}
@@ -445,28 +449,21 @@ rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
 
 # Install all systemd units
-pushd ./data/systemd
+pushd ./data/
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
-rm -fv %{buildroot}%{_unitdir}/snap-repair.*
+rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
-# Put /var/lib/snapd/snap/bin on PATH
-# Put /var/lib/snapd/desktop on XDG_DATA_DIRS
-cat << __SNAPD_SH__ > %{buildroot}%{_sysconfdir}/profile.d/snapd.sh
-PATH=\$PATH:/var/lib/snapd/snap/bin
-if [ -z "\$XDG_DATA_DIRS" ]; then
-    XDG_DATA_DIRS=/usr/share/:/usr/local/share/:/var/lib/snapd/desktop
-else
-    XDG_DATA_DIRS="\$XDG_DATA_DIRS":/var/lib/snapd/desktop
-fi
-export XDG_DATA_DIRS
-__SNAPD_SH__
+# Install environ-tweaking snippet
+pushd ./data/env
+%make_install
+popd
 
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
@@ -564,6 +561,7 @@ popd
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -644,6 +642,15 @@ fi
 
 
 %changelog
+* Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.5
+  - interfaces: fix network-manager plug regression
+  - hooks: do not error when hook handler is not registered
+  - interfaces/alsa,pulseaudio: allow read on udev data for sound
+  - interfaces/optical-drive: read access to udev data for /dev/scd*
+  - interfaces/browser-support: read on /proc/vmstat and misc udev
+    data
+
 * Thu Aug 24 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.4
   - snap-seccomp: add secondary arch for unrestricted snaps as well
