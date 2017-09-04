@@ -105,7 +105,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		if c.PolkitOK != "" {
 			allow, err := strconv.ParseBool(r.Header.Get(client.AllowInteractionHeader))
 			if err != nil {
-				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+				// default behaviour if the header
+				// cannot be parsed
 				allow = false
 			}
 			var flags polkit.CheckFlags
