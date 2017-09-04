@@ -174,3 +174,61 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	err = AtomicWriteFile(p, []byte(""), 0600, 0)
 	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileUidGidError(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	_, err := NewAtomicFile(p, 0644, 0, -1, 1)
+	c.Check(err, ErrorMatches, ".*needs none or both of uid and gid set")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("this will fail if run as root")
+	}
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	aw, err := NewAtomicFile(p, 0644, 0, 0, 0)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+
+	_, err = aw.Write([]byte("hello"))
+	c.Assert(err, IsNil)
+
+	c.Check(aw.Finalize(), ErrorMatches, ".* operation not permitted")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+	aw, err := NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+	c.Assert(aw.Close(), IsNil)
+	c.Check(aw.Cancel(), ErrorMatches, "invalid argument")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+	aw, err := NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+	defer aw.Close()
+
+	aw.(*atomicFile).renamed = true
+
+	c.Check(aw.Cancel(), Equals, ErrCannotCancel)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	aw, err := NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+	fn := aw.(*atomicFile).Name()
+	c.Check(FileExists(fn), Equals, true)
+	c.Check(aw.Cancel(), IsNil)
+	c.Check(FileExists(fn), Equals, false)
+}
