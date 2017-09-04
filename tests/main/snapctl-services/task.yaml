@@ -1,0 +1,34 @@
+summary: Check that own services can be controlled by snapctl
+
+kill-timeout: 3m
+execute: |
+    echo "When the service snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-service
+
+    echo "We can see it running"
+    snap services test-snapd-service.test-snapd-service|MATCH " active"
+
+    echo "When we stop the service via configure hook"
+    snap set test-snapd-service command=stop
+
+    echo "It's stopped"
+    snap services test-snapd-service.test-snapd-service|MATCH " inactive"
+
+    echo "When we start the service via configure hook"
+    snap set test-snapd-service command=start
+
+    echo "It's running again"
+    snap services test-snapd-service.test-snapd-service|MATCH " active"
+
+    echo "When we stop it again"
+    snap set test-snapd-service command=stop
+
+    echo "It's stopped"
+    snap services test-snapd-service.test-snapd-service|MATCH " inactive"
+
+    echo "And then restart"
+    snap set test-snapd-service command=restart
+
+    echo "It's is running"
+    snap services test-snapd-service.test-snapd-service|MATCH " active"

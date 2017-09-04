@@ -43,7 +43,7 @@ type startCommand struct {
 
 func (c *startCommand) Execute(args []string) error {
 	inst := servicectl.AppInstruction{
-		Action: "stop",
+		Action: "start",
 		Names:  c.Positional.ServiceNames,
 		StartOptions: client.StartOptions{
 			Enable: c.Enable,
