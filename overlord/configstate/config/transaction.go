@@ -146,7 +146,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	// special case - get root document
 	if len(subkeys) == 0 {
 		if len(config) == 0 {
-			return fmt.Errorf("snap %q has no configuration", snapName)
+			return &NoOptionError{SnapName: snapName}
 		}
 		raw := jsonRaw(config)
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
@@ -263,5 +263,8 @@ type NoOptionError struct {
 }
 
 func (e *NoOptionError) Error() string {
+	if e.Key == "" {
+		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
+	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }
