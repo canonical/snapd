@@ -74,6 +74,9 @@ var getTests = []struct {
 	args:   "get -l snapname",
 	stdout: "Key  Value\nbar  100\nfoo  {...}\n",
 }, {
+	args:   "get snapname -l test-key3 test-key4",
+	stdout: "Key          Value\ntest-key3.a  1\ntest-key3.b  2\ntest-key4.a  3\ntest-key4.b  4\n",
+}, {
 	args:   "get -d snapname",
 	stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }}
@@ -115,6 +118,8 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key2":2}}`)
 		case "test-key1,test-key2":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key1":"test-value1","test-key2":2}}`)
+		case "test-key3,test-key4":
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key3":{"a":1,"b":2},"test-key4":{"a":3,"b":4}}}`)
 		case "missing-key":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
 		case "document":
