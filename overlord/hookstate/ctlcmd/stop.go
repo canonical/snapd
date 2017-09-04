@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -40,6 +41,7 @@ type stopCommand struct {
 }
 
 var (
+	timeout       = 120 * time.Second
 	shortStopHelp = i18n.G("Stop services")
 )
 
@@ -68,9 +70,10 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 	var svcs []*snap.AppInfo
 	for _, app := range info.Apps {
-		if _, ok := requested[app.ServiceName()]; ok && app.IsService() {
+		svcName := snapName + "." + app.Name
+		if _, ok := requested[svcName]; ok && app.IsService() {
 			svcs = append(svcs, app)
-			delete(requested, app.ServiceName())
+			delete(requested, svcName)
 		}
 	}
 
@@ -93,9 +96,24 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstructi
 		return err
 	}
 
-	_, err = servicectl.ServiceControl(context.State(), appInfos, inst)
+	chg, err := servicectl.ServiceControl(context.State(), appInfos, inst)
 	if err != nil {
 		return err
+	}
+
+	st := context.State()
+	st.Lock()
+	st.EnsureBefore(0)
+	st.Unlock()
+
+	tmout := time.NewTicker(timeout)
+	for {
+		select {
+		case <-chg.Ready():
+			return chg.Err()
+		case <-tmout.C:
+			return fmt.Errorf("%s command timed out", inst.Action)
+		}
 	}
 	return nil
 }
