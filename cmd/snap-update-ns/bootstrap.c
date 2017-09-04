@@ -92,15 +92,15 @@ find_snap_name(char* buf, size_t num_read)
         buf += arg_len + 1;
     } while (buf[0] == '-');
 
-    char *snap_name = buf;
+    char* snap_name = buf;
     if (*snap_name == '\0') {
         return NULL;
     }
     return snap_name;
 }
 
-const char *
-find_1st_option(char *buf, size_t num_read)
+const char*
+find_1st_option(char* buf, size_t num_read)
 {
     size_t argv0_len = strnlen(buf, num_read);
     if (argv0_len + 1 >= num_read) {
@@ -215,9 +215,8 @@ void bootstrap(void)
 
     // When we are running under "--from-snap-confine" option skip the setns
     // call as snap-confine has already placed us in the right namespace.
-    const char *option = find_1st_option(cmdline, (size_t)num_read);
-    if (option != NULL && strncmp(option, "--from-snap-confine",
-                strlen("--from-snap-confine")) == 0) {
+    const char* option = find_1st_option(cmdline, (size_t)num_read);
+    if (option != NULL && strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
         return;
     }
 
