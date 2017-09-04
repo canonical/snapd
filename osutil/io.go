@@ -130,9 +130,11 @@ func (aw *atomicFile) Cancel() error {
 	return nil
 }
 
+var chown = (*os.File).Chown
+
 func (aw *atomicFile) Finalize() error {
 	if aw.uid > -1 && aw.gid > -1 {
-		if err := aw.Chown(aw.uid, aw.gid); err != nil {
+		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
 			return err
 		}
 	}

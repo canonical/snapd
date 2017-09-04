@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"io"
+	"os"
 	"os/exec"
 	"os/user"
 	"syscall"
@@ -84,4 +85,21 @@ var KillProcessGroup = killProcessGroup
 func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
 	wr := r.(*waitingReader)
 	return wr.reader, wr.cmd
+}
+
+func MockChown(f func(*os.File, int, int) error) func() {
+	oldChown := chown
+	chown = f
+	return func() {
+		chown = oldChown
+	}
+}
+
+func SetAtomicFileRenamed(aw AtomicWriter, renamed bool) {
+	aw.(*atomicFile).renamed = renamed
+}
+
+func GetAtomicFileName(aw AtomicWriter) string {
+	return aw.(*atomicFile).Name()
+
 }
