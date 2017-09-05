@@ -20,11 +20,11 @@
 package wrappers_test
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
-
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -112,9 +112,10 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	var buf bytes.Buffer
+	err = wrappers.GenerateSnapServiceFile(&buf, app)
 	c.Assert(err, IsNil)
-	c.Check(string(generatedWrapper), Equals, expectedAppService)
+	c.Check(buf.String(), Equals, expectedAppService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
@@ -132,9 +133,10 @@ apps:
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
-		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+		var buf bytes.Buffer
+		err = wrappers.GenerateSnapServiceFile(&buf, app)
 		c.Assert(err, IsNil)
-		wrapperText := string(generatedWrapper)
+		wrapperText := buf.String()
 		if cond == snap.RestartNever {
 			c.Check(wrapperText, Matches,
 				`(?ms).*^Restart=no$.*`, Commentf(name))
@@ -161,9 +163,10 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		Daemon:          "forking",
 	}
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	var buf bytes.Buffer
+	err := wrappers.GenerateSnapServiceFile(&buf, service)
 	c.Assert(err, IsNil)
-	c.Assert(string(generatedWrapper), Equals, expectedTypeForkingWrapper)
+	c.Assert(buf.String(), Equals, expectedTypeForkingWrapper)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) {
@@ -182,7 +185,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		Daemon:          "simple",
 	}
 
-	_, err := wrappers.GenerateSnapServiceFile(service)
+	var buf bytes.Buffer
+	err := wrappers.GenerateSnapServiceFile(&buf, service)
 	c.Assert(err, NotNil)
 }
 
@@ -207,10 +211,11 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	var buf bytes.Buffer
+	err = wrappers.GenerateSnapServiceFile(&buf, app)
 	c.Assert(err, IsNil)
 
-	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
+	c.Assert(buf.String(), Equals, expectedDbusService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {
@@ -230,8 +235,9 @@ apps:
 
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	var buf bytes.Buffer
+	err := wrappers.GenerateSnapServiceFile(&buf, app)
 	c.Assert(err, IsNil)
 
-	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
+	c.Assert(buf.String(), Equals, expectedOneshotService)
 }

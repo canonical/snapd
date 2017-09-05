@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -533,12 +532,16 @@ func (run *Runner) SaveState() error {
 	if !run.stateModified {
 		return nil
 	}
-	m, err := json.Marshal(&run.state)
+	fd, err := osutil.NewAtomicFile(dirs.SnapRepairStateFile, 0600, 0, -1, -1)
 	if err != nil {
+		return fmt.Errorf("cannot save repair state: %v", err)
+	}
+	defer fd.Cancel()
+
+	if err := json.NewEncoder(fd).Encode(&run.state); err != nil {
 		return fmt.Errorf("cannot marshal repair state: %v", err)
 	}
-	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0)
-	if err != nil {
+	if err := fd.Commit(); err != nil {
 		return fmt.Errorf("cannot save repair state: %v", err)
 	}
 	run.stateModified = false
@@ -626,20 +629,26 @@ func (run *Runner) refetch(brandID string, seq, revision int) (repair *asserts.R
 func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, aux []asserts.Assertion) error {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
-	err := os.MkdirAll(d, 0775)
+	if err := os.MkdirAll(d, 0775); err != nil {
+		return err
+	}
+
+	r := append([]asserts.Assertion{repair}, aux...)
+	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
+
+	fd, err := osutil.NewAtomicFile(p, 0600, 0, -1, -1)
 	if err != nil {
 		return err
 	}
-	buf := &bytes.Buffer{}
-	enc := asserts.NewEncoder(buf)
-	r := append([]asserts.Assertion{repair}, aux...)
+	defer fd.Cancel()
+
+	enc := asserts.NewEncoder(fd)
 	for _, a := range r {
 		if err := enc.Encode(a); err != nil {
 			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
 		}
 	}
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
-	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
+	return fd.Commit()
 }
 
 func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {

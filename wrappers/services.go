@@ -20,8 +20,8 @@
 package wrappers
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -50,12 +50,12 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
+func generateSnapServiceFile(fd io.Writer, app *snap.AppInfo) error {
 	if err := snap.ValidateApp(app); err != nil {
-		return nil, err
+		return err
 	}
 
-	return genServiceFile(app), nil
+	return genServiceFile(fd, app)
 }
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
@@ -130,14 +130,21 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		if !app.IsService() {
 			continue
 		}
-		// Generate service file
-		content, err := generateSnapServiceFile(app)
+		svcFilePath := app.ServiceFile()
+		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
+		fd, err := osutil.NewAtomicFile(svcFilePath, 0644, 0, -1, -1)
 		if err != nil {
 			return err
 		}
-		svcFilePath := app.ServiceFile()
-		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
-		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
+		// no defer fd.Cancel() because it's a loop
+
+		// Generate service file
+		if err := generateSnapServiceFile(fd, app); err != nil {
+			fd.Cancel()
+			return err
+		}
+		if err := fd.Commit(); err != nil {
+			fd.Cancel()
 			return err
 		}
 		written = append(written, svcFilePath)
@@ -211,8 +218,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func genServiceFile(appInfo *snap.AppInfo) []byte {
-	serviceTemplate := `[Unit]
+const serviceTemplateText = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
 Requires={{.MountUnit}}
@@ -236,9 +242,10 @@ Type={{.App.Daemon}}
 [Install]
 WantedBy={{.ServicesTarget}}
 `
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
 
+var serviceTemplate = template.Must(template.New("service-wrapper").Parse(serviceTemplateText))
+
+func genServiceFile(fd io.Writer, appInfo *snap.AppInfo) error {
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
 		restartCond = snap.RestartOnFailure.String()
@@ -281,10 +288,5 @@ WantedBy={{.ServicesTarget}}
 		Home: "/root",
 	}
 
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
-
-	return templateOut.Bytes()
+	return serviceTemplate.Execute(fd, wrapperData)
 }

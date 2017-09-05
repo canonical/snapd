@@ -710,7 +710,7 @@ func (s *runnerSuite) TestSaveState(c *C) {
 
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
+	c.Check(strings.TrimSpace(string(data)), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
 }
 
 func (s *runnerSuite) TestApplicable(c *C) {
@@ -1176,7 +1176,7 @@ func (s *runnerSuite) TestNextNotFound(c *C) {
 	c.Check(expected, Not(Equals), freshStateJSON)
 	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, expected)
+	c.Check(strings.TrimSpace(string(data)), Equals, expected)
 }
 
 func (s *runnerSuite) TestNextSaveStateError(c *C) {

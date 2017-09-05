@@ -128,12 +128,17 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	outStr, err := json.Marshal(user)
+	fd, err := osutil.NewAtomicFile(targetFile, 0600, 0, uid, gid)
 	if err != nil {
+		return err
+	}
+	defer fd.Cancel()
+
+	if err := json.NewEncoder(fd).Encode(user); err != nil {
 		return nil
 	}
 
-	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
+	return fd.Commit()
 }
 
 // readAuthData reads previously written authentication details
