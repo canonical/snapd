@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/overlord/storestate"
 )
 
 var (
@@ -77,7 +77,7 @@ type Overlord struct {
 	cmdMgr    *cmdstate.CommandManager
 }
 
-var storeNew = store.New
+var setupStore = storestate.SetupStore
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -141,15 +141,19 @@ func New() (*Overlord, error) {
 	o.cmdMgr = cmdstate.Manager(s)
 	o.stateEng.AddManager(o.cmdMgr)
 
+	s.Lock()
+	defer s.Unlock()
+
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(nil, authContext)
-	s.Lock()
-	snapstate.ReplaceStore(s, sto)
+	err = setupStore(s, authContext)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := o.snapMgr.GenerateCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
-	s.Unlock()
 
 	return o, nil
 }
