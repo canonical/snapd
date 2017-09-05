@@ -164,7 +164,7 @@ func (r *Repair) Run() error {
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
 		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
-		if err := r.errtrackerReport(scriptErr, logPath); err != nil {
+		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
 		// ensure the error is present in the output log
@@ -197,21 +197,22 @@ func readStatus(r io.Reader) RepairStatus {
 
 // errtrackerReport reports an repairErr with the given logPath to the
 // snap error tracker.
-func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
+func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
 	errMsg := fmt.Sprintf("%s", repairErr)
 
 	scriptOutput, err := ioutil.ReadFile(logPath)
 	if err != nil {
 		logger.Noticef("cannot read %s", logPath)
 	}
-	dupSig := fmt.Sprintf("%s\noutput:\n%s", errMsg, scriptOutput)
+	dupSig := fmt.Sprintf("%s/%s\n%s\noutput:\n%s", r.BrandID(), r.RepairID(), errMsg, scriptOutput)
 
 	extra := map[string]string{
 		"Revision": strconv.Itoa(r.Revision()),
 		"BrandID":  r.BrandID(),
 		"RepairID": r.RepairID(),
+		"Status":   status.String(),
 	}
-	_, err = errtrackerReportRepair(r.Ref().String(), errMsg, dupSig, extra)
+	_, err = errtrackerReportRepair(fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID()), errMsg, dupSig, extra)
 	return err
 }
 
