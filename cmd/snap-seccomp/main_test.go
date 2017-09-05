@@ -136,6 +136,7 @@ int main(int argc, char** argv)
     // for details.
     syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
     syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+    return 0;
 }
 `)
 
@@ -163,7 +164,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
-	cmd = exec.Command("gcc", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
+	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
