@@ -160,19 +160,14 @@ int partially_validate_snap_name(const char* snap_name)
     }
 }
 
-static void neuter_environment()
+// bootstrap prepares snap-update-ns to work in the namespace of the snap given
+// on command line.
+void bootstrap(void)
 {
     // We may have been started via a setuid-root snap-confine. In order to
     // prevent environment-based attacks we start by erasing all environment
     // variables.
     clearenv();
-}
-
-// bootstrap prepares snap-update-ns to work in the namespace of the snap given
-// on command line.
-void bootstrap(void)
-{
-    neuter_environment();
     // We don't have argc/argv so let's imitate that by reading cmdline
     char cmdline[1024];
     memset(cmdline, 0, sizeof cmdline);
