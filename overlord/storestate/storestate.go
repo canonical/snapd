@@ -37,12 +37,12 @@ var storeNew = store.New
 
 // StoreState holds the state for the store in the system.
 type StoreState struct {
-	// StoreLocation is the store API's base location.
-	StoreLocation string `json:"store-location"`
+	// BaseURL is the store API's base URL.
+	BaseURL string `json:"base-url"`
 }
 
-// StoreLocation returns the store API's explicit location.
-func StoreLocation(st *state.State) string {
+// BaseURL returns the store API's explicit base URL.
+func BaseURL(st *state.State) string {
 	var storeState StoreState
 
 	err := st.Get("store", &storeState)
@@ -50,14 +50,14 @@ func StoreLocation(st *state.State) string {
 		return ""
 	}
 
-	return storeState.StoreLocation
+	return storeState.BaseURL
 }
 
-// updateStoreLocation updates the store API's location in persistent state.
-func updateStoreLocation(st *state.State, location string) {
+// updateBaseURL updates the store API's base URL in persistent state.
+func updateBaseURL(st *state.State, baseURL string) {
 	var storeState StoreState
 	st.Get("store", &storeState)
-	storeState.StoreLocation = location
+	storeState.BaseURL = baseURL
 	st.Set("store", &storeState)
 }
 
@@ -89,13 +89,13 @@ func SetupStore(st *state.State, authContext auth.AuthContext) error {
 	return nil
 }
 
-// SetStoreLocation replaces the location of the store API used by the system.
+// SetBaseURL reconfigures the base URL of the store API used by the system.
 // If the URL is nil the store is reverted to the system's default.
-func SetStoreLocation(state *state.State, u *url.URL) error {
-	location := ""
+func SetBaseURL(state *state.State, u *url.URL) error {
+	baseURL := ""
 	config := store.DefaultConfig()
 	if u != nil {
-		location = u.String()
+		baseURL = u.String()
 		err := config.SetAPI(u)
 		if err != nil {
 			return err
@@ -103,16 +103,16 @@ func SetStoreLocation(state *state.State, u *url.URL) error {
 	}
 	store := store.New(config, cachedAuthContext(state))
 	ReplaceStore(state, store)
-	updateStoreLocation(state, location)
+	updateBaseURL(state, baseURL)
 	return nil
 }
 
 func initialStoreConfig(st *state.State) (*store.Config, error) {
 	config := store.DefaultConfig()
-	if location := StoreLocation(st); location != "" {
-		u, err := url.Parse(location)
+	if baseURL := BaseURL(st); baseURL != "" {
+		u, err := url.Parse(baseURL)
 		if err != nil {
-			return nil, fmt.Errorf("invalid store API location: %s", err)
+			return nil, fmt.Errorf("invalid store API base URL: %s", err)
 		}
 		err = config.SetAPI(u)
 		if err != nil {

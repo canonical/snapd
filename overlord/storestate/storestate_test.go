@@ -80,23 +80,23 @@ func (ss *storeStateSuite) state(c *C, data string) *state.State {
 	return st
 }
 
-func (ss *storeStateSuite) TestDefaultStoreLocation(c *C) {
+func (ss *storeStateSuite) TestDefaultBaseURL(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
-	loc := storestate.StoreLocation(st)
+	baseURL := storestate.BaseURL(st)
 	st.Unlock()
-	c.Check(loc, Equals, "")
+	c.Check(baseURL, Equals, "")
 }
 
-func (ss *storeStateSuite) TestExplicitStoreLocation(c *C) {
+func (ss *storeStateSuite) TestExplicitBaseURL(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
 	defer st.Unlock()
 
-	storeState := storestate.StoreState{StoreLocation: "http://example.com/"}
+	storeState := storestate.StoreState{BaseURL: "http://example.com/"}
 	st.Set("store", &storeState)
-	loc := storestate.StoreLocation(st)
-	c.Check(loc, Equals, storeState.StoreLocation)
+	baseURL := storestate.BaseURL(st)
+	c.Check(baseURL, Equals, storeState.BaseURL)
 }
 
 func (ss *storeStateSuite) TestSetupStoreCachesState(c *C) {
@@ -116,7 +116,7 @@ func (ss *storeStateSuite) TestSetupStoreCachesState(c *C) {
 	c.Check(storestate.CachedAuthContext(st), NotNil)
 }
 
-func (ss *storeStateSuite) TestSetupStoreDefaultAPI(c *C) {
+func (ss *storeStateSuite) TestSetupStoreDefaultBaseURL(c *C) {
 	var config *store.Config
 	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
 		config = c
@@ -133,14 +133,14 @@ func (ss *storeStateSuite) TestSetupStoreDefaultAPI(c *C) {
 	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
 }
 
-func (ss *storeStateSuite) TestSetupStoreAPIFromState(c *C) {
+func (ss *storeStateSuite) TestSetupStoreBaseURLFromState(c *C) {
 	var config *store.Config
 	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
 		config = c
 		return nil
 	})()
 
-	st := ss.state(c, `{"data":{"store":{"store-location": "http://example.com/"}}}`)
+	st := ss.state(c, `{"data":{"store":{"base-url": "http://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
@@ -151,8 +151,8 @@ func (ss *storeStateSuite) TestSetupStoreAPIFromState(c *C) {
 }
 
 func (ss *storeStateSuite) TestSetupStoreBadEnvironURLOverride(c *C) {
-	// We need store api state to trigger this.
-	st := ss.state(c, `{"data":{"store":{"store-location": "http://example.com/"}}}`)
+	// We need store state to trigger this.
+	st := ss.state(c, `{"data":{"store":{"base-url": "http://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
@@ -164,14 +164,14 @@ func (ss *storeStateSuite) TestSetupStoreBadEnvironURLOverride(c *C) {
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
 
-func (ss *storeStateSuite) TestSetupStoreEmptyAPIFromState(c *C) {
+func (ss *storeStateSuite) TestSetupStoreEmptyBaseURLFromState(c *C) {
 	var config *store.Config
 	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
 		config = c
 		return nil
 	})()
 
-	st := ss.state(c, `{"data":{"store":{"api": ""}}}`)
+	st := ss.state(c, `{"data":{"store":{"base-url": ""}}}`)
 	st.Lock()
 	defer st.Unlock()
 
@@ -181,14 +181,14 @@ func (ss *storeStateSuite) TestSetupStoreEmptyAPIFromState(c *C) {
 	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
 }
 
-func (ss *storeStateSuite) TestSetupStoreInvalidAPIFromState(c *C) {
-	st := ss.state(c, `{"data":{"store":{"store-location": "://example.com/"}}}`)
+func (ss *storeStateSuite) TestSetupStoreInvalidBaseURLFromState(c *C) {
+	st := ss.state(c, `{"data":{"store":{"base-url": "://example.com/"}}}`)
 	st.Lock()
 	defer st.Unlock()
 
 	err := storestate.SetupStore(st, nil)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid store API location: parse ://example.com/: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid store API base URL: parse ://example.com/: missing protocol scheme")
 }
 
 func (ss *storeStateSuite) TestStore(c *C) {
@@ -206,7 +206,7 @@ func (ss *storeStateSuite) TestStore(c *C) {
 	c.Check(store2, Equals, sto)
 }
 
-func (ss *storeStateSuite) TestReplaceStoreAPI(c *C) {
+func (ss *storeStateSuite) TestSetBaseURL(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
 	defer st.Unlock()
@@ -215,45 +215,45 @@ func (ss *storeStateSuite) TestReplaceStoreAPI(c *C) {
 	c.Assert(err, IsNil)
 
 	oldStore := storestate.Store(st)
-	c.Assert(storestate.StoreLocation(st), Equals, "")
+	c.Assert(storestate.BaseURL(st), Equals, "")
 
 	u, err := url.Parse("http://example.com/")
 	c.Assert(err, IsNil)
-	err = storestate.SetStoreLocation(st, u)
+	err = storestate.SetBaseURL(st, u)
 	c.Assert(err, IsNil)
 
 	c.Check(storestate.Store(st), Not(Equals), oldStore)
-	c.Check(storestate.StoreLocation(st), Equals, "http://example.com/")
+	c.Check(storestate.BaseURL(st), Equals, "http://example.com/")
 }
 
-func (ss *storeStateSuite) TestReplaceStoreAPIReset(c *C) {
+func (ss *storeStateSuite) TestSetBaseURLReset(c *C) {
 	st := ss.state(c, "")
 	st.Lock()
 	defer st.Unlock()
 
 	st.Set("store", map[string]interface{}{
-		"store-location": "http://example.com/",
+		"base-url": "http://example.com/",
 	})
-	c.Assert(storestate.StoreLocation(st), Not(Equals), "")
+	c.Assert(storestate.BaseURL(st), Not(Equals), "")
 
 	err := storestate.SetupStore(st, &fakeAuthContext{})
 	c.Assert(err, IsNil)
 	oldStore := storestate.Store(st)
 
-	err = storestate.SetStoreLocation(st, nil)
+	err = storestate.SetBaseURL(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(storestate.Store(st), Not(Equals), oldStore)
-	c.Check(storestate.StoreLocation(st), Equals, "")
+	c.Check(storestate.BaseURL(st), Equals, "")
 }
 
-func (ss *storeStateSuite) TestReplaceStoreAPIBadEnvironURLOverride(c *C) {
+func (ss *storeStateSuite) TestSetBaseURLBadEnvironURLOverride(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 
 	u, _ := url.Parse("http://example.com/")
 	st := ss.state(c, "")
-	err := storestate.SetStoreLocation(st, u)
+	err := storestate.SetBaseURL(st, u)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
