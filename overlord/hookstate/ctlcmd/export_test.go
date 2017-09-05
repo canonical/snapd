@@ -24,6 +24,14 @@ import "fmt"
 var AttributesTask = attributesTask
 var CopyAttributes = copyAttributes
 
+func SetServiceControlFunc(f ServiceControlFunc) {
+	runService = f
+}
+
+func GetServiceControlFunc() ServiceControlFunc {
+	return runService
+}
+
 func AddMockCommand(name string) *MockCommand {
 	mockCommand := NewMockCommand()
 	addCommand(name, "", "", func() command { return mockCommand })
