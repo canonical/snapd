@@ -84,7 +84,7 @@ func SetupStore(st *state.State, authContext auth.AuthContext) error {
 		return err
 	}
 	sto := storeNew(storeConfig, authContext)
-	replaceAuthContext(st, authContext)
+	saveAuthContext(st, authContext)
 	ReplaceStore(st, sto)
 	return nil
 }
@@ -124,7 +124,7 @@ func initialStoreConfig(st *state.State) (*store.Config, error) {
 
 type cachedAuthContextKey struct{}
 
-func replaceAuthContext(state *state.State, authContext auth.AuthContext) {
+func saveAuthContext(state *state.State, authContext auth.AuthContext) {
 	state.Cache(cachedAuthContextKey{}, authContext)
 }
 
