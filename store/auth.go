@@ -33,12 +33,7 @@ import (
 )
 
 var (
-	baseAPIURL = apiURL()
-	// DeviceNonceAPI points to endpoint to get a nonce
-	DeviceNonceAPI = baseAPIURL.String() + "api/v1/snaps/auth/nonces"
-	// DeviceSessionAPI points to endpoint to get a device session
-	DeviceSessionAPI = baseAPIURL.String() + "api/v1/snaps/auth/sessions"
-	myappsAPIBase    = myappsURL()
+	myappsAPIBase = myappsURL()
 	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
 	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
 	ubuntuoneAPIBase     = authURL()
@@ -242,7 +237,7 @@ func refreshDischargeMacaroon(discharge string) (string, error) {
 }
 
 // requestStoreDeviceNonce requests a nonce for device authentication against the store.
-func requestStoreDeviceNonce() (string, error) {
+func requestStoreDeviceNonce(deviceNonceEndpoint string) (string, error) {
 	const errorPrefix = "cannot get nonce from store: "
 
 	var responseData struct {
@@ -253,7 +248,7 @@ func requestStoreDeviceNonce() (string, error) {
 		"User-Agent": httputil.UserAgent(),
 		"Accept":     "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(DeviceNonceAPI, headers, nil, &responseData, nil)
+	resp, err := retryPostRequestDecodeJSON(deviceNonceEndpoint, headers, nil, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -276,7 +271,7 @@ type deviceSessionRequestParamsEncoder interface {
 }
 
 // requestDeviceSession requests a device session macaroon from the store.
-func requestDeviceSession(paramsEncoder deviceSessionRequestParamsEncoder, previousSession string) (string, error) {
+func requestDeviceSession(deviceSessionEndpoint string, paramsEncoder deviceSessionRequestParamsEncoder, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
@@ -303,7 +298,7 @@ func requestDeviceSession(paramsEncoder deviceSessionRequestParamsEncoder, previ
 		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
 	}
 
-	_, err = retryPostRequest(DeviceSessionAPI, headers, deviceJSONData, func(resp *http.Response) error {
+	_, err = retryPostRequest(deviceSessionEndpoint, headers, deviceJSONData, func(resp *http.Response) error {
 		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
