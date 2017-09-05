@@ -82,38 +82,60 @@ func init() {
 		})
 }
 
-type configValue struct {
-	path  string
-	value interface{}
+type ConfigValue struct {
+	Path  string
+	Value interface{}
 }
 
-type byConfigPath []configValue
+type byConfigPath []ConfigValue
 
-func (s byConfigPath) Len() int           { return len(s) }
-func (s byConfigPath) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s byConfigPath) Less(i, j int) bool { return s[i].path < s[j].path }
+func (s byConfigPath) Len() int      { return len(s) }
+func (s byConfigPath) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s byConfigPath) Less(i, j int) bool {
+	other := s[j].Path
+	for k, c := range s[i].Path {
+		if len(other) <= k {
+			return false
+		}
 
-func flattenConfig(cfg map[string]interface{}, root bool) (values []configValue) {
+		switch {
+		case c == rune(other[k]):
+			continue
+		case c == '.':
+			return true
+		case other[k] == '.' || c > rune(other[k]):
+			return false
+		}
+		return true
+	}
+	return true
+}
+
+func sortByPath(config []ConfigValue) {
+	sort.Sort(byConfigPath(config))
+}
+
+func flattenConfig(cfg map[string]interface{}, root bool) (values []ConfigValue) {
 	const docstr = "{...}"
 	for k, v := range cfg {
 		if input, ok := v.(map[string]interface{}); ok {
 			if root {
-				values = append(values, configValue{k, docstr})
+				values = append(values, ConfigValue{k, docstr})
 			} else {
 				for kk, vv := range input {
 					p := k + "." + kk
 					if _, ok := vv.(map[string]interface{}); ok {
-						values = append(values, configValue{p, docstr})
+						values = append(values, ConfigValue{p, docstr})
 					} else {
-						values = append(values, configValue{p, vv})
+						values = append(values, ConfigValue{p, vv})
 					}
 				}
 			}
 		} else {
-			values = append(values, configValue{k, v})
+			values = append(values, ConfigValue{k, v})
 		}
 	}
-	sort.Sort(byConfigPath(values))
+	sortByPath(values)
 	return values
 }
 
@@ -161,7 +183,7 @@ func (x *cmdGet) Execute(args []string) error {
 			fmt.Fprintf(w, "Key\tValue\n")
 			values := flattenConfig(cfg, rootRequested)
 			for _, v := range values {
-				fmt.Fprintf(w, "%s\t%v\n", v.path, v.value)
+				fmt.Fprintf(w, "%s\t%v\n", v.Path, v.Value)
 			}
 			return nil
 		} else {
