@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -101,7 +102,7 @@ func (s *FuseSupportInterfaceSuite) TestUDevSpec(c *C) {
 func (s *FuseSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
-	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
 	c.Assert(si.Summary, Equals, `allows access to the FUSE file system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "fuse-support")
 }
