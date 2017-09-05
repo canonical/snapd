@@ -1572,9 +1572,10 @@ exit 1
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
-	c.Check(s.errReport.repair, Equals, "repair (1; brand-id:canonical)")
+	c.Check(s.errReport.repair, Equals, "canonical/1")
 	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
-	c.Check(s.errReport.dupSig, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1
+	c.Check(s.errReport.dupSig, Equals, `canonical/1
+"repair (1; brand-id:canonical)" failed: exit status 1
 output:
 unhappy output
 `)
@@ -1582,6 +1583,7 @@ unhappy output
 		"Revision": "0",
 		"RepairID": "1",
 		"BrandID":  "canonical",
+		"Status":   "retry",
 	})
 }
 
