@@ -152,8 +152,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// HasCurrent returns whether snapst.Current is set.
-func (snapst *SnapState) HasCurrent() bool {
+// IsInstalled returns whether the snap is installed, i.e. snapst represents an installed snap with Current revision set.
+func (snapst *SnapState) IsInstalled() bool {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
@@ -176,11 +176,9 @@ func (snapst *SnapState) LocalRevision() snap.Revision {
 	return local
 }
 
-// TODO: unexport CurrentSideInfo and HasCurrent?
-
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil
 	}
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {

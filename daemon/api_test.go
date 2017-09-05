@@ -419,6 +419,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
 description: description
 summary: summary
+license: GPL-3.0
 apps:
   cmd:
     command: some.cmd
@@ -534,6 +535,7 @@ UnitFileState=potatoes
 			},
 			"broken":  "",
 			"contact": "",
+			"license": "GPL-3.0",
 		},
 		Meta: meta,
 	}
