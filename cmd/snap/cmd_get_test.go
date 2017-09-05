@@ -75,7 +75,7 @@ var getTests = []struct {
 	stdout: "Key  Value\nbar  100\nfoo  {...}\n",
 }, {
 	args:   "get snapname -l test-key3 test-key4",
-	stdout: "Key          Value\ntest-key3.a  1\ntest-key3.b  2\ntest-key4.a  3\ntest-key4.b  4\n",
+	stdout: "Key          Value\ntest-key3.a  1\ntest-key3.b  2\ntest-key3-a  9\ntest-key4.a  3\ntest-key4.b  4\n",
 }, {
 	args:   "get -d snapname",
 	stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
@@ -101,6 +101,32 @@ func (s *SnapSuite) TestSnapGetTests(c *C) {
 	}
 }
 
+func (s *SnapSuite) TestSortByPath(c *C) {
+	values := []snapset.ConfigValue{
+		{Path: "test-key3.b"},
+		{Path: "test-key3.a"},
+		{Path: "a.b.c"},
+		{Path: "test-key4.a"},
+		{Path: "test-key4.b"},
+		{Path: "a-b"},
+		{Path: "zzz"},
+		{Path: "aa"},
+		{Path: "test-key3-a"},
+		{Path: "a.b"},
+	}
+	snapset.SortByPath(values)
+	c.Assert(values[0].Path, Equals, "a.b")
+	c.Assert(values[1].Path, Equals, "a.b.c")
+	c.Assert(values[2].Path, Equals, "a-b")
+	c.Assert(values[3].Path, Equals, "aa")
+	c.Assert(values[4].Path, Equals, "test-key3.a")
+	c.Assert(values[5].Path, Equals, "test-key3.b")
+	c.Assert(values[6].Path, Equals, "test-key3-a")
+	c.Assert(values[7].Path, Equals, "test-key4.a")
+	c.Assert(values[8].Path, Equals, "test-key4.b")
+	c.Assert(values[9].Path, Equals, "zzz")
+}
+
 func (s *SnapSuite) mockGetConfigServer(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v2/snaps/snapname/conf" {
@@ -119,7 +145,7 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 		case "test-key1,test-key2":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key1":"test-value1","test-key2":2}}`)
 		case "test-key3,test-key4":
-			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key3":{"a":1,"b":2},"test-key4":{"a":3,"b":4}}}`)
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key3":{"a":1,"b":2},"test-key3-a":9,"test-key4":{"a":3,"b":4}}}`)
 		case "missing-key":
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
 		case "document":
