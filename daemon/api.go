@@ -2189,15 +2189,20 @@ func setupLocalUser(st *state.State, username, email string) error {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}
 	// store macaroon auth in auth.json in the new users home dir
-	outStr, err := json.Marshal(struct {
+	fd, err := osutil.NewAtomicFile(authDataFn, 0600, 0, uid, gid)
+	if err != nil {
+		return fmt.Errorf("cannot create auth file %q: %s", authDataFn, err)
+	}
+	defer fd.Cancel()
+
+	if err := json.NewEncoder(fd).Encode(struct {
 		Macaroon string `json:"macaroon"`
 	}{
 		Macaroon: authUser.Macaroon,
-	})
-	if err != nil {
+	}); err != nil {
 		return fmt.Errorf("cannot marshal auth data: %s", err)
 	}
-	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
+	if err := fd.Commit(); err != nil {
 		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
 	}
 

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -55,7 +56,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(strings.TrimSpace(string(content)), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginError(c *check.C) {
@@ -111,7 +112,7 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
+	c.Check(strings.TrimSpace(string(content)), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
 }
 
 func (cs *clientSuite) TestReadAuthData(c *check.C) {

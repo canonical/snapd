@@ -4849,7 +4849,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+	c.Check(strings.TrimSpace(string(content)), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {

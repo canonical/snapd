@@ -21,7 +21,6 @@ package mount
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -53,11 +52,16 @@ func LoadProfile(fname string) (*Profile, error) {
 // Save saves a mount profile (fstab-like) to a given file.
 // The profile is saved with an atomic write+rename+sync operation.
 func (p *Profile) Save(fname string) error {
-	var buf bytes.Buffer
-	if _, err := p.WriteTo(&buf); err != nil {
+	fd, err := osutil.NewAtomicFile(fname, 0644, 0, -1, -1)
+	if err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(fname, buf.Bytes(), 0644, osutil.AtomicWriteFlags(0))
+	defer fd.Cancel()
+
+	if _, err := p.WriteTo(fd); err != nil {
+		return err
+	}
+	return fd.Commit()
 }
 
 // ReadProfile reads and parses a mount profile.

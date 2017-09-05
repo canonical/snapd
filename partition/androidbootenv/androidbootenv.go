@@ -21,7 +21,6 @@ package androidbootenv
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -78,13 +77,17 @@ func (a *Env) Load() error {
 }
 
 func (a *Env) Save() error {
-	var w bytes.Buffer
+	fd, err := osutil.NewAtomicFile(a.path, 0644, 0, -1, -1)
+	if err != nil {
+		return err
+	}
+	defer fd.Cancel()
 
 	for k, v := range a.env {
-		if _, err := fmt.Fprintf(&w, "%s=%s\n", k, v); err != nil {
+		if _, err := fmt.Fprintf(fd, "%s=%s\n", k, v); err != nil {
 			return err
 		}
 	}
 
-	return osutil.AtomicWriteFile(a.path, w.Bytes(), 0644, 0)
+	return fd.Commit()
 }
