@@ -55,6 +55,16 @@ apps:
   reload-command: bin/reload
 `
 
+const otherSnapYaml = `name: other-snap
+version: 1.0
+summary: other-snap
+apps:
+ test-service:
+  command: bin/service
+  daemon: simple
+  reload-command: bin/reload
+`
+
 func mockServiceControlFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction)) {
 	ctlcmd.SetServiceControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) (*state.Change, error) {
 		testServiceControlInputs(appInfos, inst)
@@ -81,21 +91,34 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// mock installed snap
-	info := snaptest.MockSnap(c, string(testSnapYaml), "", &snap.SideInfo{
+	// mock installed snaps
+	info1 := snaptest.MockSnap(c, string(testSnapYaml), "", &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-
-	snapstate.Set(st, info.Name(), &snapstate.SnapState{
+	info2 := snaptest.MockSnap(c, string(otherSnapYaml), "", &snap.SideInfo{
+		Revision: snap.R(1),
+	})
+	snapstate.Set(st, info1.Name(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: info.Name(),
-				Revision: info.Revision,
+				RealName: info1.Name(),
+				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
 		},
-		Current: info.Revision,
+		Current: info1.Revision,
+	})
+	snapstate.Set(st, info2.Name(), &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{
+				RealName: info2.Name(),
+				Revision: info2.Revision,
+				SnapID:   "other-snap-id",
+			},
+		},
+		Current: info2.Revision,
 	})
 
 	task := st.NewTask("test-task", "my test task")
@@ -140,6 +163,18 @@ func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.fooservice"})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `unknown service: "test-snap.fooservice"`)
+	c.Assert(serviceCtlFuncCalled, Equals, false)
+}
+
+func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
+	var serviceCtlFuncCalled bool
+	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+		serviceCtlFuncCalled = true
+	})
+	// verify that snapctl is not allowed to control services of other snaps (only the one of its hook)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "other-snap.test-service"})
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, `unknown service: "other-snap.test-service"`)
 	c.Assert(serviceCtlFuncCalled, Equals, false)
 }
 
