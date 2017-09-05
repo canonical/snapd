@@ -127,15 +127,14 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	if c.PolkitOK != "" {
-		allow, err := strconv.ParseBool(r.Header.Get(client.AllowInteractionHeader))
-		if err != nil {
-			// default behaviour if the header
-			// cannot be parsed
-			allow = false
-		}
 		var flags polkit.CheckFlags
-		if allow {
-			flags |= polkit.CheckAllowInteraction
+		allowHeader := r.Header.Get(client.AllowInteractionHeader)
+		if allowHeader != "" {
+			if allow, err := strconv.ParseBool(allowHeader); err != nil {
+				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+			} else if allow {
+				flags |= polkit.CheckAllowInteraction
+			}
 		}
 		if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
 			if authorized {

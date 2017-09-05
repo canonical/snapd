@@ -264,6 +264,11 @@ func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
 	put.Header.Set(client.AllowInteractionHeader, "true")
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
+
+	// bad values are logged and treated as false
+	put.Header.Set(client.AllowInteractionHeader, "garbage")
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
