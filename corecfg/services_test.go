@@ -35,6 +35,8 @@ import (
 
 type servicesSuite struct {
 	systemctlArgs [][]string
+
+	mockSystemctl *testutil.MockCmd
 }
 
 var _ = Suite(&servicesSuite{})
@@ -51,10 +53,13 @@ func (s *servicesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
+
+	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
 }
 
 func (s *servicesSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.mockSystemctl.Restore()
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
