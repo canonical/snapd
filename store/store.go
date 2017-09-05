@@ -190,9 +190,10 @@ type Config struct {
 	DeltaFormat  string
 }
 
-// SetAPI updates API URLs in the Config. Must not be used to change active config.
-func (cfg *Config) SetAPI(api *url.URL) error {
-	storeBaseURI, err := storeURL(api)
+// SetBaseURL updates the store API's base URL in the Config. Must not be used
+// to change active config.
+func (cfg *Config) SetBaseURL(u *url.URL) error {
+	storeBaseURI, err := storeURL(u)
 	if err != nil {
 		return err
 	}
@@ -400,7 +401,7 @@ func init() {
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	err = defaultConfig.SetAPI(storeBaseURI)
+	err = defaultConfig.SetBaseURL(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}

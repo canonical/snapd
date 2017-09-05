@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -140,7 +141,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.mgr = mgr
 
 	s.state.Lock()
-	snapstate.ReplaceStore(s.state, &fakeStore{
+	storestate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
