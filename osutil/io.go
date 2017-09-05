@@ -80,10 +80,17 @@ type atomicFile struct {
 //
 //   It _might_ be implemented using O_TMPFILE (see open(2)).
 //
-// It is the caller's responsibility to clean up on error, by calling Cancel().
-//
 // Note that it won't follow symlinks and will replace existing symlinks with
 // the real file, unless the AtomicWriteFollow flag is specified.
+//
+// It is the caller's responsibility to clean up on error, by calling Cancel().
+//
+// It is also the caller's responsibility to coordinate access to this, if it
+// is used from different goroutines.
+//
+// Also note that there are a number of scenarios where Commit fails and then
+// Cancel also fails. In all these scenarios your filesystem was probably in a
+// rather poor state. Good luck.
 func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (aw AtomicWriter, err error) {
 	if (uid < 0) != (gid < 0) {
 		return nil, errors.New("internal error: AtomicFile needs none or both of uid and gid set")
@@ -175,8 +182,7 @@ func (aw *atomicFile) Commit() error {
 	aw.renamed = true // it is now too late to Cancel()
 
 	if !snapdUnsafeIO {
-		// the dir sync is best-effort (no error return)
-		dir.Sync()
+		return dir.Sync()
 	}
 
 	return nil
