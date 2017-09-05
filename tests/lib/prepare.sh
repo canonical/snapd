@@ -57,11 +57,11 @@ update_core_snap_for_classic_reexec() {
     esac
 
     case "$SPREAD_SYSTEM" in
-		ubuntu-*)
+        ubuntu-*)
             # also load snap-confine's apparmor profile
             apparmor_parser -r squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-			;;
-	esac
+            ;;
+    esac
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
