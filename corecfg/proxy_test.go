@@ -35,6 +35,8 @@ import (
 
 type proxySuite struct {
 	mockEtcEnvironment string
+
+	mockSystemctl *testutil.MockCmd
 }
 
 var _ = Suite(&proxySuite{})
@@ -44,10 +46,13 @@ func (s *proxySuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir, "/etc/environment")
+
+	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
 }
 
 func (s *proxySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.mockSystemctl.Restore()
 }
 
 func (s *proxySuite) TestConfigureProxy(c *C) {

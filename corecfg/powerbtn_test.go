@@ -35,6 +35,8 @@ import (
 
 type powerbtnSuite struct {
 	mockPowerBtnCfg string
+
+	mockSystemctl *testutil.MockCmd
 }
 
 var _ = Suite(&powerbtnSuite{})
@@ -44,10 +46,13 @@ func (s *powerbtnSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
 	s.mockPowerBtnCfg = filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+
+	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
 }
 
 func (s *powerbtnSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.mockSystemctl.Restore()
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
