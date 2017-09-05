@@ -43,23 +43,24 @@ const (
 // all unit tests in genreal.
 var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO")
 
-// An AtomicWriter is an io.WriteCloser that has a Finalize() method that does
-// whatever needs to be done so the edition is "atomic": an AtomicWriter will
-// do its best to leave either the previous content or the new content in
+// An AtomicWriter is an io.WriteCloser that has a Commit() method that does
+// whatever needs to be done so the modification is "atomic": an AtomicWriter
+// will do its best to leave either the previous content or the new content in
 // permanent storage. It also has a Cancel() method to abort and clean up.
 type AtomicWriter interface {
 	io.WriteCloser
 
-	// Finalize the writing operation and make it permanent.
+	// Commit the modification; make it permanent.
 	//
-	// If Finalize succeeds, the file is closed and further attempts to write will
-	// fail. If Finalize fails, Cancel() needs to be called to clean up.
-	Finalize() error
+	// If Commit succeeds, the writer is closed and further attempts to write will
+	// fail. If Commit fails, the writer _might_ be closed; Cancel() needs to be
+	// called to clean up.
+	Commit() error
 
-	// Cancel closes the AtomicWriter, and cleans up any artifacts. Cancel
-	// can fail if Finalize() was (even partially) successful.
-	//
-	// It's an error to call Cancel once Close has been called.
+	// Cancel closes the AtomicWriter, and cleans up any artifacts. Cancel can fail
+	// if Commit() was (even partially) successful, but calling Cancel after a
+	// successful Commit does nothing beyond returning error--so it's always safe
+	// to defer a Cancel().
 	Cancel() error
 }
 
@@ -70,11 +71,12 @@ type atomicFile struct {
 	tmpname string
 	uid     int
 	gid     int
+	closed  bool
 	renamed bool
 }
 
 // NewAtomicFile builds an AtomicWriter backed by an *os.File that will have
-// the given filename, permissions and uid/gid when Finalized.
+// the given filename, permissions and uid/gid when Committed.
 //
 //   It _might_ be implemented using O_TMPFILE (see open(2)).
 //
@@ -112,27 +114,36 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	}, nil
 }
 
-// ErrCannotCancel means the Finalize operation failed at the last step, and
+// ErrCannotCancel means the Commit operation failed at the last step, and
 // your luck has run out.
 var ErrCannotCancel = errors.New("cannot cancel: file has already been renamed")
+
+func (aw *atomicFile) Close() error {
+	aw.closed = true
+	return aw.File.Close()
+}
 
 func (aw *atomicFile) Cancel() error {
 	if aw.renamed {
 		return ErrCannotCancel
 	}
-	if err := aw.Close(); err != nil {
-		return err
-	}
-	if aw.tmpname != "" {
-		return os.Remove(aw.tmpname)
-	}
 
-	return nil
+	var e1, e2 error
+	if aw.tmpname != "" {
+		e1 = os.Remove(aw.tmpname)
+	}
+	if !aw.closed {
+		e2 = aw.Close()
+	}
+	if e1 != nil {
+		return e1
+	}
+	return e2
 }
 
 var chown = (*os.File).Chown
 
-func (aw *atomicFile) Finalize() error {
+func (aw *atomicFile) Commit() error {
 	if aw.uid > -1 && aw.gid > -1 {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
 			return err
@@ -154,24 +165,25 @@ func (aw *atomicFile) Finalize() error {
 		}
 	}
 
+	if err := aw.Close(); err != nil {
+		return err
+	}
+
 	if err := os.Rename(aw.tmpname, aw.target); err != nil {
 		return err
 	}
 	aw.renamed = true // it is now too late to Cancel()
 
 	if !snapdUnsafeIO {
-		if err := dir.Sync(); err != nil {
-			return err
-		}
+		// the dir sync is best-effort (no error return)
+		dir.Sync()
 	}
 
-	// given we called Sync before, Close _shouldn't_ be able to
-	// fail. Still, stuff happens.
-	return aw.Close()
+	return nil
 }
 
 // The AtomicWrite* family of functions work like ioutil.WriteFile(), but the
-// file created is an AtomicWriter, which is Finalized before returning.
+// file created is an AtomicWriter, which is Committed before returning.
 //
 // AtomicWriteChown and AtomicWriteFileChown take an uid and a gid that can be
 // used to specify the ownership of the created file. They must be both
@@ -200,18 +212,12 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 		return err
 	}
 
-	defer func() {
-		if err != nil {
-			// XXX there's a small window where Finalize can fail in the last two steps
-			// (syncing the containing directory, or closing the file), and this quietly
-			// ignores that -- not that there'd be much we could do!
-			aw.Cancel()
-		}
-	}()
+	// Cancel once Committed is a NOP :-)
+	defer aw.Cancel()
 
 	if _, err := io.Copy(aw, reader); err != nil {
 		return err
 	}
 
-	return aw.Finalize()
+	return aw.Commit()
 }

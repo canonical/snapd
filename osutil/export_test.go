@@ -96,10 +96,11 @@ func MockChown(f func(*os.File, int, int) error) func() {
 }
 
 func SetAtomicFileRenamed(aw AtomicWriter, renamed bool) {
+	println("renamed", renamed)
 	aw.(*atomicFile).renamed = renamed
 }
 
-func GetAtomicFileName(aw AtomicWriter) string {
-	return aw.(*atomicFile).Name()
+func GetAtomicFile(aw AtomicWriter) *os.File {
+	return aw.(*atomicFile).File
 
 }
