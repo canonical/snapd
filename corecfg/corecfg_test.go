@@ -31,11 +31,29 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type coreCfgSuite struct{}
+// coreCfgSuite is the base for all the corecfg tests
+type coreCfgSuite struct {
+	mockSystemctl *testutil.MockCmd
+}
 
 var _ = Suite(&coreCfgSuite{})
 
-func (s *coreCfgSuite) TestConfigureErrorsOnClassic(c *C) {
+func (s *coreCfgSuite) SetUpSuite(c *C) {
+	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
+}
+
+func (s *coreCfgSuite) TearDownSuite(c *C) {
+	s.mockSystemctl.Restore()
+}
+
+// runCfgSuite tests corecfg.Run()
+type runCfgSuite struct {
+	coreCfgSuite
+}
+
+var _ = Suite(&runCfgSuite{})
+
+func (s *runCfgSuite) TestConfigureErrorsOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -43,7 +61,7 @@ func (s *coreCfgSuite) TestConfigureErrorsOnClassic(c *C) {
 	c.Check(err, ErrorMatches, "cannot run core-configure on classic distribution")
 }
 
-func (s *coreCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
+func (s *runCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 

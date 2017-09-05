@@ -34,12 +34,16 @@ import (
 )
 
 type servicesSuite struct {
+	coreCfgSuite
+
 	systemctlArgs [][]string
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpSuite(c *C) {
+	s.coreCfgSuite.SetUpSuite(c)
+
 	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("ActiveState=inactive")
