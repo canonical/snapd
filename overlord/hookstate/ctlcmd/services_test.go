@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,14 +34,14 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type stopSuite struct {
+type servicectlSuite struct {
 	mockContext *hookstate.Context
 	mockHandler *hooktest.MockHandler
 
 	restore func()
 }
 
-var _ = Suite(&stopSuite{})
+var _ = Suite(&servicectlSuite{})
 
 const testSnapYaml = `name: test-snap
 version: 1.0
@@ -66,7 +66,7 @@ func mockServiceControlFunc(testServiceControlInputs func(appInfos []*snap.AppIn
 	})
 }
 
-func (s *stopSuite) SetUpTest(c *C) {
+func (s *servicectlSuite) SetUpTest(c *C) {
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
 	oldServiceCtlFunc := ctlcmd.GetServiceControlFunc()
@@ -106,12 +106,14 @@ func (s *stopSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *stopSuite) TearDownTest(c *C) {
+func (s *servicectlSuite) TearDownTest(c *C) {
 	s.restore()
 }
 
-func (s *stopSuite) TestStopCommand(c *C) {
+func (s *servicectlSuite) TestStopCommand(c *C) {
+	var serviceCtlFuncCalled bool
 	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+		serviceCtlFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
 		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
@@ -127,4 +129,60 @@ func (s *stopSuite) TestStopCommand(c *C) {
 	c.Check(err, IsNil)
 	c.Check(string(stderr), Equals, "")
 	c.Check(string(stdout), Equals, "")
+	c.Assert(serviceCtlFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
+	var serviceCtlFuncCalled bool
+	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+		serviceCtlFuncCalled = true
+	})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.fooservice"})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `unknown service: "test-snap.fooservice"`)
+	c.Assert(serviceCtlFuncCalled, Equals, false)
+}
+
+func (s *servicectlSuite) TestStartCommand(c *C) {
+	var serviceCtlFuncCalled bool
+	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+		serviceCtlFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
+			Action: "start",
+			Names:  []string{"test-snap.test-service"},
+			StartOptions: client.StartOptions{
+				Enable: false,
+			},
+		},
+		)
+	})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
+	c.Check(err, IsNil)
+	c.Check(string(stderr), Equals, "")
+	c.Check(string(stdout), Equals, "")
+	c.Assert(serviceCtlFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestRestartCommand(c *C) {
+	var serviceCtlFuncCalled bool
+	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+		serviceCtlFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
+			Action: "restart",
+			Names:  []string{"test-snap.test-service"},
+			RestartOptions: client.RestartOptions{
+				Reload: false,
+			},
+		},
+		)
+	})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"})
+	c.Check(err, IsNil)
+	c.Check(string(stderr), Equals, "")
+	c.Check(string(stdout), Equals, "")
+	c.Assert(serviceCtlFuncCalled, Equals, true)
 }
