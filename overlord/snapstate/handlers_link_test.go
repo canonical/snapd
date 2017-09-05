@@ -61,7 +61,7 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
-	dirs.SnapCookieDir = c.MkDir()
+	dirs.SetRootDir(c.MkDir())
 
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
@@ -182,7 +182,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35")
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "foo/35")
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -204,11 +204,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
+			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
+			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 	})
 }
