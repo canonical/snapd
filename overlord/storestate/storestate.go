@@ -96,7 +96,7 @@ func SetBaseURL(state *state.State, u *url.URL) error {
 	config := store.DefaultConfig()
 	if u != nil {
 		baseURL = u.String()
-		err := config.SetAPI(u)
+		err := config.SetBaseURL(u)
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func initialStoreConfig(st *state.State) (*store.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid store API base URL: %s", err)
 		}
-		err = config.SetAPI(u)
+		err = config.SetBaseURL(u)
 		if err != nil {
 			return nil, err
 		}

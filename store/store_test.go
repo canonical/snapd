@@ -61,16 +61,16 @@ type configTestSuite struct{}
 
 var _ = Suite(&configTestSuite{})
 
-func (suite *configTestSuite) TestSetAPI(c *C) {
+func (suite *configTestSuite) TestSetBaseURL(c *C) {
 	// Sanity check to prove at least one URI changes.
 	cfg := DefaultConfig()
 	c.Assert(cfg.SectionsURI.Scheme, Equals, "https")
 	c.Assert(cfg.SectionsURI.Host, Equals, "api.snapcraft.io")
 	c.Assert(cfg.SectionsURI.Path, Matches, "/api/v1/snaps/.*")
 
-	api, err := url.Parse("http://example.com/path/prefix/")
+	u, err := url.Parse("http://example.com/path/prefix/")
 	c.Assert(err, IsNil)
-	err = cfg.SetAPI(api)
+	err = cfg.SetBaseURL(u)
 	c.Assert(err, IsNil)
 
 	for _, uri := range cfg.apiURIs() {
@@ -79,47 +79,47 @@ func (suite *configTestSuite) TestSetAPI(c *C) {
 	}
 }
 
-func (suite *configTestSuite) TestSetAPIStoreOverrides(c *C) {
+func (suite *configTestSuite) TestSetBaseURLStoreOverrides(c *C) {
 	cfg := DefaultConfig()
-	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
 	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	cfg = DefaultConfig()
-	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
 	for _, u := range cfg.apiURIs() {
 		c.Check(u.String(), Matches, "https://force-api.local/.*")
 	}
 }
 
-func (suite *configTestSuite) TestSetAPIStoreURLBadEnviron(c *C) {
+func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://example.com"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 
 	cfg := DefaultConfig()
-	err := cfg.SetAPI(apiURL())
+	err := cfg.SetBaseURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
 }
 
-func (suite *configTestSuite) TestSetAPIAssertsOverrides(c *C) {
+func (suite *configTestSuite) TestSetBaseURLAssertsOverrides(c *C) {
 	cfg := DefaultConfig()
-	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
 	c.Check(cfg.SearchURI, Matches, apiURL().String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 	cfg = DefaultConfig()
-	c.Assert(cfg.SetAPI(apiURL()), IsNil)
+	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
 	c.Check(cfg.AssertionsURI, Matches, "https://force-sas.local/.*")
 }
 
-func (suite *configTestSuite) TestSetAPIAssertsURLBadEnviron(c *C) {
+func (suite *configTestSuite) TestSetBaseURLAssertsURLBadEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 
 	cfg := DefaultConfig()
-	err := cfg.SetAPI(apiURL())
+	err := cfg.SetBaseURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
