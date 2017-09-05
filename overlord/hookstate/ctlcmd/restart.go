@@ -30,7 +30,7 @@ var (
 )
 
 func init() {
-	addCommand("restart", shortStartHelp, "", func() command { return &startCommand{} })
+	addCommand("restart", shortStartHelp, "", func() command { return &restartCommand{} })
 }
 
 type restartCommand struct {

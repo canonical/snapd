@@ -86,25 +86,29 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	return svcs, nil
 }
 
+type ServiceControlFunc func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) (*state.Change, error)
+
+var runService ServiceControlFunc = servicectl.ServiceControl
+
 func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstruction, serviceNames []string) error {
 	if context == nil {
 		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
 	}
 
-	appInfos, err := getServiceInfos(context.State(), context.SnapName(), serviceNames)
-	if err != nil {
-		return err
-	}
-
-	chg, err := servicectl.ServiceControl(context.State(), appInfos, inst)
-	if err != nil {
-		return err
-	}
-
 	st := context.State()
+	appInfos, err := getServiceInfos(st, context.SnapName(), serviceNames)
+	if err != nil {
+		return err
+	}
+
+	chg, err := runService(st, appInfos, inst)
+	if err != nil {
+		return err
+	}
+
 	st.Lock()
 	st.EnsureBefore(0)
-	st.Unlock()
+	defer st.Unlock()
 
 	tmout := time.NewTicker(timeout)
 	for {
