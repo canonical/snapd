@@ -64,7 +64,7 @@ const openglConnectedPlugAppArmor = `
 `
 
 const openglConnectedPlugUDev = `
-SUBSYSTEM="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 KERNEL=="nvidia*", TAG+="###CONNECTED_SECURITY_TAGS###"
 KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
 `
