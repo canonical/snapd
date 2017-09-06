@@ -86,6 +86,8 @@ Requires:       %{name}-selinux = %{version}-%{release}
 %if ! 0%{?with_bundled}
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
+BuildRequires: golang(github.com/godbus/dbus)
+BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
@@ -171,6 +173,8 @@ BuildArch:     noarch
 %if ! 0%{?with_bundled}
 Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
+Requires:      golang(github.com/godbus/dbus)
+Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/mvo5/uboot-go/uenv)
@@ -194,6 +198,8 @@ Requires:      golang(gopkg.in/yaml.v2)
 # *sigh*... I hate golang...
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
+Provides:      bundled(golang(github.com/godbus/dbus))
+Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
 Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
