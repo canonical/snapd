@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -264,32 +263,6 @@ func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 		}
 	}
 	return false
-}
-
-type cachedStoreKey struct{}
-
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
-}
-
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
-		return nil
-	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
-	}
-	panic("internal error: needing the store before managers have initialized it")
 }
 
 // Manager returns a new snap manager.
