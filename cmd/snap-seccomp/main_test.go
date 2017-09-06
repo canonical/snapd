@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -137,6 +136,7 @@ int main(int argc, char** argv)
     // for details.
     syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
     syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+    return 0;
 }
 `)
 
@@ -164,7 +164,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
-	cmd = exec.Command("gcc", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
+	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
@@ -232,6 +232,11 @@ faccessat
 	var syscallRunnerArgs [7]string
 	syscallNr, err := seccomp.GetSyscallFromName(l[0])
 	c.Assert(err, IsNil)
+	if syscallNr < 0 {
+		c.Skip(fmt.Sprintf("skipping %v because it resolves to negative %v", l[0], syscallNr))
+		return
+	}
+
 	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
@@ -265,21 +270,6 @@ faccessat
 	default:
 		c.Fatalf("unknown expected result %v", expected)
 	}
-}
-
-func systemUsesSocketcall() bool {
-	// We need to skip the tests on trusty/i386 and trusty/s390x as
-	// those are using the socketcall syscall instead of the real
-	// socket syscall.
-	//
-	// See also:
-	// https://bugs.launchpad.net/ubuntu/+source/glibc/+bug/1576066
-	if release.ReleaseInfo.VersionID == "14.04" {
-		if arch.UbuntuArchitecture() == "i386" || arch.UbuntuArchitecture() == "s390x" {
-			return true
-		}
-	}
-	return false
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
@@ -390,12 +380,6 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", main.SeccompRetAllow},
 		{"quotactl Q_GETQUOTA", "quotactl;native;99", main.SeccompRetKill},
 
-		// test_bad_seccomp_filter_args_socket
-		{"socket AF_UNIX", "socket;native;AF_UNIX", main.SeccompRetAllow},
-		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
-		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", main.SeccompRetAllow},
-		{"socket - SOCK_STREAM", "socket;native;-,99", main.SeccompRetKill},
-
 		// test_bad_seccomp_filter_args_termios
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
@@ -406,13 +390,31 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
 		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
 	} {
-		// skip socket tests if the system uses socketcall instead
-		// of socket
-		if strings.Contains(t.seccompWhitelist, "socket") && systemUsesSocketcall() {
-			continue
-		}
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
+}
+
+// TestCompileSocket runs in a separate tests so that only this part
+// can be skipped when "socketcall()" is used instead of "socket()".
+//
+// Some architectures (i386, s390x) use the "socketcall" syscall instead
+// of "socket". This is the case on Ubuntu 14.04, 17.04, 17.10
+func (s *snapSeccompSuite) TestCompileSocket(c *C) {
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+
+		// test_bad_seccomp_filter_args_socket
+		{"socket AF_UNIX", "socket;native;AF_UNIX", main.SeccompRetAllow},
+		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
+		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", main.SeccompRetAllow},
+		{"socket - SOCK_STREAM", "socket;native;-,99", main.SeccompRetKill},
+	} {
+		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+	}
+
 }
 
 func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
@@ -510,13 +512,6 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 
 // ported from test_restrictions_working_args_socket
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
-	// skip socket tests if the system uses socketcall instead
-	// of socket
-	if systemUsesSocketcall() {
-		c.Skip("cannot run when socketcall() is used")
-		return
-	}
-
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
