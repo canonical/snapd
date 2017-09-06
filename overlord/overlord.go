@@ -282,8 +282,9 @@ func (o *Overlord) Stop() error {
 
 // Settle runs first a state engine Ensure and then wait for activities to settle.
 // That's done by waiting for all managers activities to settle while
-// making sure no immediate further Ensure is scheduled. Chiefly for tests.
-// Cannot be used in conjunction with Loop. Errors if settlings takes long than timeout if timeout is not zero.
+// making sure no immediate further Ensure is scheduled. Chiefly for
+// tests.  Cannot be used in conjunction with Loop. If timeout is
+// non-zero and settling takes longer than timeout, returns an error.
 func (o *Overlord) Settle(timeout time.Duration) error {
 	func() {
 		o.ensureLock.Lock()
