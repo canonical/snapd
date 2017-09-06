@@ -469,8 +469,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		store.deviceSessionURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/sessions", nil)
 	}
 	if cfg.AssertionsBaseURL != nil {
-		// slash at the end because type & key is appended to this with URL.Parse.
-		store.assertionsURI = endpointURL(cfg.AssertionsBaseURL, "assertions/", nil)
+		store.assertionsURI = endpointURL(cfg.AssertionsBaseURL, "assertions", nil)
 	}
 
 	return store
@@ -1606,13 +1605,9 @@ type assertionSvcError struct {
 
 // Assertion retrivies the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	u, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
-	if err != nil {
-		return nil, err
-	}
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
-	u.RawQuery = v.Encode()
+	u := endpointURL(s.assertionsURI, path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
 	reqOptions := &requestOptions{
 		Method: "GET",
