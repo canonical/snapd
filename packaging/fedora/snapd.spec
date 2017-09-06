@@ -324,6 +324,10 @@ providing packages with %{import_path} prefix.
 %prep
 %setup -q
 
+%if ! 0%{?with_bundled}
+# Ensure there's no bundled stuff accidentally leaking in...
+rm -rf vendor/*
+%endif
 
 %build
 # Generate version files
