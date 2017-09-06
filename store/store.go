@@ -1082,15 +1082,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(user *auth.UserState) ([]string, error) {
-	u := *s.sectionsURI // make a copy, so we can mutate it
-
-	q := u.Query()
-
-	u.RawQuery = q.Encode()
-
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    &u,
+		URL:    s.sectionsURI,
 		Accept: halJsonContentType,
 	}
 
