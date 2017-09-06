@@ -22,6 +22,17 @@ execute: |
         exit 1
     fi
 
+    echo "Test that getting root document without any configuration produces an error"
+    if output=$(snap get snapctl-hooks 2>&1); then
+        echo "snap get didn't fail as expected"
+        exit 1
+    fi
+    expected="error: snap \"snapctl-hooks\" has no configuration"
+    if [ "$output" != "$expected" ]; then
+        echo "Expected '$expected' error, but it was '$output'"
+        exit 1
+    fi
+
     echo "Test that values set via snapctl can be obtained via snap get"
     if ! snap set snapctl-hooks command=test-snapctl-set-foo; then
         echo "snap set unexpectedly failed"
@@ -45,6 +56,22 @@ execute: |
         echo "Expected 'foo' to be '$expected', but it was '$output'"
         exit 1
     fi
+
+    echo "Test that keys of json documents can be obtained via snap get"
+    if ! snap set snapctl-hooks command=test-snapctl-set-bar-doc; then
+        echo "snap set unexpectedly failed"
+        exit 1
+    fi
+    snap get snapctl-hooks bar 2>&1 | MATCH -z "WARNING"
+    snap get snapctl-hooks -l bar 2>&1 | MATCH -z "^Key.*Value.*bar.a.*{\.\.\.}.*bar.b.*3"
+    snap get snapctl-hooks -d bar | MATCH -z "^{.*\"bar\": {.*\"a\": {.*\"aa\": 1,.*\"ab\": 2.*},.*\"b\": 3.*}.*}"
+
+    snap get snapctl-hooks bar.a.aa | MATCH "^1$"
+    snap get snapctl-hooks bar.a.ab | MATCH "^2$"
+
+    echo "Test that root document can be obtained via snap get"
+    snap get snapctl-hooks -l 2>&1 | MATCH -z "^Key.*Value.*bar.*{\.\.\.}.*command.*test-snapctl-set-bar-doc.*foo.*bar"
+    snap get snapctl-hooks -d | MATCH -z "^{.*\"bar\": {.*\"a\": {.*\"aa\": 1,.*\"ab\": 2.*},.*\"b\": 3.*}.*,.*\"command\": \"test-snapctl-set-bar-doc\",.*\"foo\": \"bar\".*}"
 
     echo "Test number formats"
     if ! snap set snapctl-hooks command=test-get-int intnumber=1234567890 intnumber2="{\"a\":9876543210}"; then
