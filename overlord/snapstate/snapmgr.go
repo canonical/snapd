@@ -285,6 +285,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	// install/update related
+
+	// TODO: no undo handler here, we may use the GC for this and just
+	// remove anything that is not referenced anymore
+	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
@@ -336,6 +340,17 @@ func Manager(st *state.State) (*SnapManager, error) {
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// Serialize "prerequisites", the state lock is not enough as
+	// Install() inside doPrerequisites() will unlock to talk to
+	// the store.
+	if cand.Kind() == "prerequisites" {
+		for _, t := range running {
+			if t.Kind() == "prerequisites" {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
