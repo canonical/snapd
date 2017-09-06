@@ -20,30 +20,31 @@
 package corecfg_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 // coreCfgSuite is the base for all the corecfg tests
 type coreCfgSuite struct {
-	mockSystemctl *testutil.MockCmd
+	systemctlArgs [][]string
 }
 
 var _ = Suite(&coreCfgSuite{})
 
 func (s *coreCfgSuite) SetUpSuite(c *C) {
-	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
-}
-
-func (s *coreCfgSuite) TearDownSuite(c *C) {
-	s.mockSystemctl.Restore()
+	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
+		s.systemctlArgs = append(s.systemctlArgs, args[:])
+		output := []byte("ActiveState=inactive")
+		return output, nil
+	}
 }
 
 // runCfgSuite tests corecfg.Run()
@@ -65,12 +66,14 @@ func (s *runCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSystemctl := testutil.MockCommand(c, "systemctl", `
-echo "simulate missing core-support"
-exit 1
-`)
-	defer mockSystemctl.Restore()
+	oldSystemdSystemctlCmd := systemd.SystemctlCmd
+	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("simulate missing core-support")
+	}
+	defer func() {
+		systemd.SystemctlCmd = oldSystemdSystemctlCmd
+	}()
 
 	err := corecfg.Run()
-	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: \[--version\] failed with exit status 1: simulate missing core-support`)
+	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: simulate missing core-support`)
 }
