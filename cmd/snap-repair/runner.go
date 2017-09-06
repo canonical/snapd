@@ -204,15 +204,16 @@ func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath 
 	if err != nil {
 		logger.Noticef("cannot read %s", logPath)
 	}
-	dupSig := fmt.Sprintf("%s/%s\n%s\noutput:\n%s", r.BrandID(), r.RepairID(), errMsg, scriptOutput)
+	s := fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID())
 
+	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
 	extra := map[string]string{
 		"Revision": strconv.Itoa(r.Revision()),
 		"BrandID":  r.BrandID(),
 		"RepairID": r.RepairID(),
 		"Status":   status.String(),
 	}
-	_, err = errtrackerReportRepair(fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID()), errMsg, dupSig, extra)
+	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
 	return err
 }
 
