@@ -38,8 +38,9 @@ import (
 
 type mountunitSuite struct {
 	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
 	umount       *testutil.MockCmd
+
+	restore func()
 }
 
 var _ = Suite(&mountunitSuite{})
@@ -50,17 +51,16 @@ func (s *mountunitSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.restore = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
 	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *mountunitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	systemd.SystemctlCmd = s.prevctlCmd
 	s.umount.Restore()
+	s.restore()
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
