@@ -72,8 +72,9 @@ backends:
                 workers: 4
             - fedora-25-64:
                 workers: 3
-            - opensuse-42.2-64:
-                workers: 2
+            # Disabled on 2017-09-06 13:26 CET due to SUSE infrastructure failure.
+            #- opensuse-42.2-64:
+            #    workers: 2
     qemu:
         systems:
             - ubuntu-14.04-32:
