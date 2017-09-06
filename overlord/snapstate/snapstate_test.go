@@ -7315,7 +7315,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
 
-	snapstate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
+	storestate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
 
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)
