@@ -25,6 +25,7 @@ package main
 #cgo LDFLAGS: -no-pie
 
 // we need "-no-pie" for ppc64le,go1.7 to work around build failure on
-ppc64el with
-// go1.7, see https://forum.snapcraft.io/t/snapd-master-fails-on-zesty-ppc64el-with-r-ppc64-addr16-ha-for-symbol-out-of-range/
+// ppc64el with go1.7, see
+// https://forum.snapcraft.io/t/snapd-master-fails-on-zesty-ppc64el-with-r-ppc64-addr16-ha-for-symbol-out-of-range/
 */
+import "C"

@@ -25,10 +25,6 @@ package main
 
 /*
 
-// we need "-no-pie" here to work around build failure on ppc64el with
-// go1.7, see https://forum.snapcraft.io/t/snapd-master-fails-on-zesty-ppc64el-with-r-ppc64-addr16-ha-for-symbol-out-of-range/
-#cgo LDFLAGS: -no-pie
-
 #include <stdlib.h>
 #include "bootstrap.h"
 
