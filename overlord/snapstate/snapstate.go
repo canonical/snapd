@@ -25,12 +25,14 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
@@ -1669,4 +1671,27 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
+}
+
+func refreshCatalogs(aStore storestate.StoreService) error {
+	sections, err := aStore.Sections(nil)
+	if err != nil {
+		return err
+	}
+
+	sort.Strings(sections)
+	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
+		return err
+	}
+
+	namesFd, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	if err != nil {
+		return err
+	}
+	defer namesFd.Cancel()
+	if err := aStore.WriteCommandsCatalogs(namesFd, nil); err != nil {
+		return err
+	}
+
+	return namesFd.Commit()
 }

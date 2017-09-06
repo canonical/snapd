@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -68,6 +69,7 @@ const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
+var catalogRefreshDelay = 24 * time.Hour
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -77,6 +79,8 @@ type SnapManager struct {
 	currentRefreshSchedule string
 	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
+
+	nextCatalogRefresh time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
@@ -278,6 +282,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
+	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
+	}
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -441,12 +448,24 @@ func (m *SnapManager) LastRefresh() (time.Time, error) {
 	return lastRefresh, nil
 }
 
+// NextRefresh returns the time the next update of the system's snaps
+// will be attempted.
+// The caller should be holding the state lock.
 func (m *SnapManager) NextRefresh() time.Time {
 	return m.nextRefresh
 }
 
+// RefreshSchedule returns the current refresh schedule.
+// The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() string {
 	return m.currentRefreshSchedule
+}
+
+// NextCatalogRefresh returns the time the next update of catalog
+// data will be attempted.
+// The caller should be holding the state lock.
+func (m *SnapManager) NextCatalogRefresh() time.Time {
+	return m.nextCatalogRefresh
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
@@ -509,6 +528,32 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	return err
+}
+
+// ensureCatalogRefresh ensures that we refresh the cataloge
+// data periodically
+func (m *SnapManager) ensureCatalogRefresh() error {
+	// sneakily don't do anything if in testing
+	if CanAutoRefresh == nil {
+		return nil
+	}
+	m.state.Lock()
+	aStore := storestate.Store(m.state)
+	now := time.Now()
+	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
+
+	if !needsRefresh {
+		m.state.Unlock()
+		return nil
+	}
+
+	next := now.Add(catalogRefreshDelay)
+	// catalog refresh does not carry on trying on error
+	m.nextCatalogRefresh = next
+	m.state.Unlock()
+	logger.Debugf("Next catalog refresh scheduled for %s.", next)
+
+	return refreshCatalogs(aStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -660,6 +705,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.ensureRefreshes(),
+		m.ensureCatalogRefresh(),
 	}
 
 	m.runner.Ensure()

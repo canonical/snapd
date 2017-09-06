@@ -173,6 +173,7 @@ type Config struct {
 	BuyURI         *url.URL
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
+	CommandsURI    *url.URL
 
 	// Device auth URLs:
 	// - DeviceNonceURI points to endpoint to get a nonce
@@ -212,6 +213,7 @@ func (cfg *Config) SetBaseURL(u *url.URL) error {
 	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
 	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
 	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
+	cfg.CommandsURI = urlJoin(storeBaseURI, "api/v1/snaps/names")
 	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
 	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
 	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
@@ -235,6 +237,7 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+	commandsURI    *url.URL
 
 	// Device auth endpoints.
 	deviceNonceURI   *url.URL
@@ -460,11 +463,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
-	var sectionsURI *url.URL
-	if cfg.SectionsURI != nil {
-		sectionsURI = cfg.SectionsURI
-	}
-
 	architecture := arch.UbuntuArchitecture()
 	if cfg.Architecture != "" {
 		architecture = cfg.Architecture
@@ -489,7 +487,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		ordersURI:        cfg.OrdersURI,
 		buyURI:           cfg.BuyURI,
 		customersMeURI:   cfg.CustomersMeURI,
-		sectionsURI:      sectionsURI,
+		sectionsURI:      cfg.SectionsURI,
+		commandsURI:      cfg.CommandsURI,
 		deviceNonceURI:   cfg.DeviceNonceURI,
 		deviceSessionURI: cfg.DeviceSessionURI,
 		series:           series,
@@ -696,6 +695,47 @@ func cancelled(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+var expectedCatalogPreamble = []interface{}{
+	json.Delim('{'),
+	"_embedded",
+	json.Delim('{'),
+	"clickindex:package",
+	json.Delim('['),
+}
+
+type catalogItem struct {
+	Name string `json:"package_name"`
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer) error {
+	const what = "decode new commands catalog"
+	if resp.StatusCode != 200 {
+		return respToError(resp, what)
+	}
+	dec := json.NewDecoder(resp.Body)
+	for _, expectedToken := range expectedCatalogPreamble {
+		token, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if token != expectedToken {
+			return fmt.Errorf(what+": bad catalog preamble: expected %#v, got %#v", expectedToken, token)
+		}
+	}
+
+	for dec.More() {
+		var v catalogItem
+		if err := dec.Decode(&v); err != nil {
+			return fmt.Errorf(what+": %v", err)
+		}
+		if v.Name != "" {
+			fmt.Fprintln(names, v.Name)
+		}
+	}
+
+	return nil
 }
 
 func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
@@ -1145,6 +1185,42 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	return sectionNames, nil
+}
+
+// WriteCommandsCatalogs queries the "commands" endpoint and writes
+// the command names into the given io.Writer [and at some point the
+// CNF catalog to another io.Writer; adding now to minimise interface
+// churn].
+func (s *Store) WriteCommandsCatalogs(names io.Writer, _ io.Writer) error {
+	u := *s.commandsURI
+
+	q := u.Query()
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u.RawQuery = q.Encode()
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
+	}
+
+	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error {
+		return decodeCatalog(resp, names)
+	}, defaultRetryStrategy)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return respToError(resp, "refresh commands catalog")
+	}
+
+	return nil
 }
 
 // RefreshCandidate contains information for the store about the currently
