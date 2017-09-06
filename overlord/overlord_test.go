@@ -21,6 +21,7 @@ package overlord_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -34,10 +35,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,6 +63,12 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	restore := patch.Mock(42, nil)
 	defer restore()
 
+	var setupStoreAuthContext auth.AuthContext
+	defer overlord.MockSetupStore(func(_ *state.State, ac auth.AuthContext) error {
+		setupStoreAuthContext = ac
+		return nil
+	})()
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -81,9 +88,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
 
-	// store is setup
-	sto := snapstate.Store(s)
-	c.Check(sto, FitsTypeOf, &store.Store{})
+	// store was setup with an auth context
+	c.Check(setupStoreAuthContext, NotNil)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
@@ -150,6 +156,15 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	c.Check(b, Equals, true)
 }
 
+func (ovs *overlordSuite) TestNewWithSetupStoreError(c *C) {
+	defer overlord.MockSetupStore(func(*state.State, auth.AuthContext) error {
+		return errors.New("fake error")
+	})()
+
+	_, err := overlord.New()
+	c.Check(err, ErrorMatches, "fake error")
+}
+
 type witnessManager struct {
 	state          *state.State
 	expectedEnsure int
@@ -179,6 +194,11 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 	st.Unlock()
 }
 
@@ -358,7 +378,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(20*time.Millisecond, 100*time.Millisecond, 100*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -378,7 +398,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	cycles := -1
 	waitForPrune := func(_ *state.State) error {
 		if cycles == -1 {
-			if time.Since(t0) > 100*time.Millisecond {
+			if time.Since(t0) > 1000*time.Millisecond {
 				cycles = 2 // wait a couple more loop cycles
 			}
 			return nil
@@ -419,7 +439,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
-	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 100*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -443,7 +463,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	o.Loop()
 
 	// ensure the first change is pruned
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
@@ -452,7 +472,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	st.Lock()
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()
