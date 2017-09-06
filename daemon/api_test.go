@@ -87,6 +87,7 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
+	systemctlRestorer func()
 
 	origSysctlCmd func(...string) ([]byte, error)
 	sysctlArgses  [][]string
@@ -157,16 +158,15 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = release.MockForcedDevmode(false)
 
 	snapstate.CanAutoRefresh = nil
-	s.origSysctlCmd = systemd.SystemctlCmd
+	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.origJctlCmd = systemd.JournalctlCmd
-	systemd.SystemctlCmd = s.systemctl
 	systemd.JournalctlCmd = s.journalctl
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
-	systemd.SystemctlCmd = s.origSysctlCmd
+	s.systemctlRestorer()
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
