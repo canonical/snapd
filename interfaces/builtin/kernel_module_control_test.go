@@ -102,6 +102,7 @@ func (s *KernelModuleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "finit_module\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_KOBJECT_UEVENT\n")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestInterfaces(c *C) {

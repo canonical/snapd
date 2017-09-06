@@ -59,6 +59,9 @@ const kernelModuleControlConnectedPlugSecComp = `
 init_module
 finit_module
 delete_module
+
+# Allow communication with the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 func init() {
