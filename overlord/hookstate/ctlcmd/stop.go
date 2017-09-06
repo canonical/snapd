@@ -108,10 +108,12 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstructi
 
 	st.Lock()
 	st.EnsureBefore(0)
-	defer st.Unlock()
+	st.Unlock()
 
 	select {
 	case <-chg.Ready():
+		st.Lock()
+		defer st.Unlock()
 		return chg.Err()
 	case <-time.After(configstate.ConfigureHookTimeout() / 2):
 		return fmt.Errorf("%s command timed out", inst.Action)
