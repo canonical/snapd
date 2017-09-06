@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicectl"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -41,7 +42,6 @@ type stopCommand struct {
 }
 
 var (
-	timeout       = 120 * time.Second
 	shortStopHelp = i18n.G("Stop services")
 )
 
@@ -78,7 +78,7 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	}
 
 	if len(requested) > 0 {
-		for k, _ := range requested {
+		for k := range requested {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), k)
 		}
 	}
@@ -110,16 +110,12 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstructi
 	st.EnsureBefore(0)
 	defer st.Unlock()
 
-	tmout := time.NewTicker(timeout)
-	for {
-		select {
-		case <-chg.Ready():
-			return chg.Err()
-		case <-tmout.C:
-			return fmt.Errorf("%s command timed out", inst.Action)
-		}
+	select {
+	case <-chg.Ready():
+		return chg.Err()
+	case <-time.After(configstate.ConfigureHookTimeout() / 2):
+		return fmt.Errorf("%s command timed out", inst.Action)
 	}
-	return nil
 }
 
 func (c *stopCommand) Execute(args []string) error {
