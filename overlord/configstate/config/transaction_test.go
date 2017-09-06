@@ -103,6 +103,13 @@ var setGetTests = [][]setGetOp{{
 	`set doc={"one":1,"two":2}`,
 	`get doc={"one":1,"two":2}`,
 }, {
+	// Root doc
+	`set doc={"one":1,"two":2}`,
+	`getroot ={"doc":{"one":1,"two":2}}`,
+	`commit`,
+	`getroot ={"doc":{"one":1,"two":2}}`,
+	`getrootunder ={"doc":{"one":1,"two":2}}`,
+}, {
 	// Nested mutations.
 	`set one.two.three=3`,
 	`set one.five=5`,
@@ -248,7 +255,20 @@ func (s *transactionSuite) TestSetGet(c *C) {
 					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
 					c.Assert(cfg, DeepEquals, expected)
 				}
-
+			case "getroot":
+				var obtained interface{}
+				c.Assert(t.Get(snap, "", &obtained), IsNil)
+				c.Assert(obtained, DeepEquals, op.args()[""])
+			case "getrootunder":
+				var config map[string]*json.RawMessage
+				s.state.Get("config", &config)
+				for _, expected := range op.args() {
+					obtained, ok := config[snap]
+					c.Assert(ok, Equals, true)
+					var cfg interface{}
+					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(cfg, DeepEquals, expected)
+				}
 			default:
 				panic("unknown test op kind: " + op.kind())
 			}

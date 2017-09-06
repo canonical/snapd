@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -524,12 +525,12 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-func getStore(c *Command) snapstate.StoreService {
+func getStore(c *Command) storestate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return storestate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1566,9 +1567,6 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	keys := splitQS(r.URL.Query().Get("keys"))
-	if len(keys) == 0 {
-		return BadRequest("cannot obtain configuration: no keys supplied")
-	}
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -1576,6 +1574,10 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
+	// Special case - return root document
+	if len(keys) == 0 {
+		keys = []string{""}
+	}
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
@@ -1584,6 +1586,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			} else {
 				return InternalError("%v", err)
 			}
+		}
+		if key == "" {
+			if len(keys) > 1 {
+				return BadRequest("keys contains zero-length string")
+			}
+			return SyncResponse(value, nil)
 		}
 
 		currentConfValues[key] = value

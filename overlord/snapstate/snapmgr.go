@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -152,8 +151,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// HasCurrent returns whether snapst.Current is set.
-func (snapst *SnapState) HasCurrent() bool {
+// IsInstalled returns whether the snap is installed, i.e. snapst represents an installed snap with Current revision set.
+func (snapst *SnapState) IsInstalled() bool {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
@@ -176,11 +175,9 @@ func (snapst *SnapState) LocalRevision() snap.Revision {
 	return local
 }
 
-// TODO: unexport CurrentSideInfo and HasCurrent?
-
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil
 	}
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
@@ -266,32 +263,6 @@ func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 		}
 	}
 	return false
-}
-
-type cachedStoreKey struct{}
-
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
-}
-
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
-		return nil
-	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
-	}
-	panic("internal error: needing the store before managers have initialized it")
 }
 
 // Manager returns a new snap manager.

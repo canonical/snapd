@@ -18,3 +18,24 @@ execute: |
     echo "With test-snapd-base installed we now can install test-snapd-requires-base"
     install_local test-snapd-requires-base
     snap list | MATCH test-snapd-requires-base
+
+
+    echo "Ensure the bare base works"
+
+    if [ "$(uname -m)" != "x86_64" ]; then
+        echo "This test can only run on amd64 right now because snapcraft "
+        echo "cannot current generate binaries without wrapper scripts."
+        echo "Check: https://github.com/snapcore/snapcraft/pull/1420"
+        echo "and: https://code.launchpad.net/~snappy-dev/snappy-hub/test-snapd-busybox-static"
+        exit 0
+    fi
+
+    # FIXME: we need to pull in test-snapd-base-bare explicitly here for now
+    #        once snapd can do that on its own we can remove this
+    # This will be fixed via:
+    #  https://github.com/mvo5/snappy/tree/ensure-core-in-snapstate-with-bases
+    #
+    snap install --edge test-snapd-base-bare
+    snap install --edge test-snapd-busybox-static
+    echo "Ensure we can run a statically linked binary from an empty base"
+    test-snapd-busybox-static.busybox-static echo hello | MATCH hello
