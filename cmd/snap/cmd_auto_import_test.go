@@ -187,9 +187,6 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)
 	logger.SetLogger(l)
@@ -257,9 +254,6 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 
 	})
 
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	fakeAssertsFn := filepath.Join(dirs.SnapAssertsSpoolDir, "1234343")
 	err := os.MkdirAll(filepath.Dir(fakeAssertsFn), 0755)
 	c.Assert(err, IsNil)
@@ -286,9 +280,6 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
 
 	l, err := logger.New(s.stderr, 0)
 	c.Assert(err, IsNil)

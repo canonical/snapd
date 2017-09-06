@@ -124,6 +124,13 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	# Generate static snap-exec - it somehow includes CGO so we must
+	# force a static build here. We need a static snap-exec inside
+	# the core snap because not all bases will have a libc
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	# ensure we generated a static build
+	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
+
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
@@ -163,12 +170,12 @@ override_dh_systemd_enable:
 	# we want the repair timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
-		data/systemd/snap-repair.timer
+		data/systemd/snapd.snap-repair.timer
 	# but the repair service disabled
 	dh_systemd_enable \
 		--no-enable \
 		-psnapd \
-		data/systemd/snap-repair.service
+		data/systemd/snapd.snap-repair.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -67,7 +68,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, fmt.Errorf(i18n.G("classic confinement requires snaps under /snap or symlink from /snap to %s"), dirs.SnapMountDir)
 		}
 	}
-	if !snapst.HasCurrent() { // install?
+	if !snapst.IsInstalled() { // install?
 		// check that the snap command namespace doesn't conflict with an enabled alias
 		if err := checkSnapAliasConflict(st, snapsup.Name()); err != nil {
 			return nil, err
@@ -170,14 +171,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = setupAliases
 
 	// run refresh hook when updating existing snap, otherwise run install hook
-	if snapst.HasCurrent() && !snapsup.Flags.Revert {
+	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		refreshHook := SetupRefreshHook(st, snapsup.Name())
 		addTask(refreshHook)
 		prev = refreshHook
 	}
 
 	// only run install hook if installing the snap for the first time
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		installHook := SetupInstallHook(st, snapsup.Name())
 		addTask(installHook)
 		prev = installHook
@@ -189,7 +190,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
-	if snapst.HasCurrent() && !snapsup.Flags.Revert {
+	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -242,7 +243,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	var confFlags int
-	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+	if !snapst.IsInstalled() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
 		// installation, run configure using the gadget defaults
 		// if available
 		confFlags |= UseConfigDefaults
@@ -455,7 +456,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.HasCurrent() {
+	if snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
@@ -562,7 +563,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 
 	st.Unlock()
 	updates, err := theStore.ListRefresh(candidatesInfo, user)
@@ -826,7 +827,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -849,7 +850,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -1141,7 +1142,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		return nil, err
 	}
 
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
@@ -1364,7 +1365,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if !oldSnapst.HasCurrent() {
+	if !oldSnapst.IsInstalled() {
 		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
 	}
 
@@ -1380,7 +1381,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if !newSnapst.HasCurrent() {
+	if !newSnapst.IsInstalled() {
 		// start by instaling the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
@@ -1498,9 +1499,7 @@ func All(st *state.State) (map[string]*SnapState, error) {
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
 	for snapName, snapst := range stateMap {
-		if snapst.HasCurrent() {
-			curStates[snapName] = snapst
-		}
+		curStates[snapName] = snapst
 	}
 	return curStates, nil
 }
@@ -1566,7 +1565,7 @@ func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 
 	var res []*snap.Info
 	for _, snapst := range stateMap {
-		if !snapst.HasCurrent() {
+		if !snapst.IsInstalled() {
 			continue
 		}
 		typ, err := snapst.Type()

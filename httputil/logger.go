@@ -94,10 +94,6 @@ type ClientOpts struct {
 	MayLogBody bool
 }
 
-var (
-	defaultTransport *http.Transport = http.DefaultTransport.(*http.Transport)
-)
-
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
 // Timeout and preservation of range requests across redirects
 func NewHTTPClient(opts *ClientOpts) *http.Client {
@@ -105,12 +101,12 @@ func NewHTTPClient(opts *ClientOpts) *http.Client {
 		opts = &ClientOpts{}
 	}
 
-	transport := *defaultTransport
+	transport := newDefaultTransport()
 	transport.TLSClientConfig = opts.TLSConfig
 
 	return &http.Client{
 		Transport: &LoggedTransport{
-			Transport: &transport,
+			Transport: transport,
 			Key:       "SNAPD_DEBUG_HTTP",
 			body:      opts.MayLogBody,
 		},
