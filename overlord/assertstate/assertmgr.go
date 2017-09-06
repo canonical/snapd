@@ -42,7 +42,7 @@ type AssertManager struct {
 
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
-	crossInit()
+	delayedCrossMgrInit()
 
 	runner := state.NewTaskRunner(s)
 

@@ -55,7 +55,7 @@ type DeviceManager struct {
 
 // Manager returns a new device manager.
 func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
-	crossInit()
+	delayedCrossMgrInit()
 
 	runner := state.NewTaskRunner(s)
 

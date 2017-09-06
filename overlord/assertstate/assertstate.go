@@ -344,7 +344,7 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	return res, nil
 }
 
-func crossInit() {
+func delayedCrossMgrInit() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
 	// hook auto refresh of assertions into snapstate
