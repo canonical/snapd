@@ -104,6 +104,7 @@ func (s *SnapSuite) TestSnapGetTests(c *C) {
 func (s *SnapSuite) TestSortByPath(c *C) {
 	values := []snapset.ConfigValue{
 		{Path: "test-key3.b"},
+		{Path: "a"},
 		{Path: "test-key3.a"},
 		{Path: "a.b.c"},
 		{Path: "test-key4.a"},
@@ -115,16 +116,26 @@ func (s *SnapSuite) TestSortByPath(c *C) {
 		{Path: "a.b"},
 	}
 	snapset.SortByPath(values)
-	c.Assert(values[0].Path, Equals, "a.b")
-	c.Assert(values[1].Path, Equals, "a.b.c")
-	c.Assert(values[2].Path, Equals, "a-b")
-	c.Assert(values[3].Path, Equals, "aa")
-	c.Assert(values[4].Path, Equals, "test-key3.a")
-	c.Assert(values[5].Path, Equals, "test-key3.b")
-	c.Assert(values[6].Path, Equals, "test-key3-a")
-	c.Assert(values[7].Path, Equals, "test-key4.a")
-	c.Assert(values[8].Path, Equals, "test-key4.b")
-	c.Assert(values[9].Path, Equals, "zzz")
+
+	expected := []string{
+		"a",
+		"a.b",
+		"a.b.c",
+		"a-b",
+		"aa",
+		"test-key3.a",
+		"test-key3.b",
+		"test-key3-a",
+		"test-key4.a",
+		"test-key4.b",
+		"zzz",
+	}
+
+	c.Assert(values, HasLen, len(expected))
+
+	for i, e := range expected {
+		c.Assert(values[i].Path, Equals, e)
+	}
 }
 
 func (s *SnapSuite) mockGetConfigServer(c *C) {
