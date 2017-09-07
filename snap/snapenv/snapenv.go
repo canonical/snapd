@@ -106,8 +106,17 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	return result
 }
 
-// envMap creates a map from the given environment string list, e.g. the
-// list returned from os.Environ()
+var unsafeEnv = map[string]bool{
+	"HOSTALIASES": true,
+	"TMPDIR":      true,
+}
+
+const PreservedUnsafePrefix = "SNAPD_SAVED_"
+
+// envMap creates a map from the given environment string list,
+// e.g. the list returned from os.Environ(). It renames variables that
+// will be stripped out by the dynamic linker executing the setuid
+// snap-confine by prepending their names with PreservedUnsafePrefix.
 func envMap(env []string) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
@@ -116,6 +125,9 @@ func envMap(env []string) map[string]string {
 			continue // strange
 		}
 		k, v := l[0], l[1]
+		if unsafeEnv[k] {
+			k = PreservedUnsafePrefix + k
+		}
 		envMap[k] = v
 	}
 	return envMap
