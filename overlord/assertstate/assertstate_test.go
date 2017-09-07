@@ -411,8 +411,9 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 11)
 }
 
-func (s *assertMgrSuite) settle() {
-	s.o.Settle(5 * time.Second)
+func (s *assertMgrSuite) settle(c *C) {
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
@@ -442,7 +443,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -480,7 +481,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
@@ -513,7 +514,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
@@ -567,7 +568,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
