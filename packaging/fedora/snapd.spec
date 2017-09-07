@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.5
+Version:        2.27.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -636,6 +636,12 @@ fi
 
 
 %changelog
+* Thu Sep 07 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.6
+  - interfaces: add udev netlink support to hardware-observe
+  - interfaces/network-{control,observe}: allow receiving
+    kobject_uevent() messages
+
 * Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.5
   - interfaces: fix network-manager plug regression

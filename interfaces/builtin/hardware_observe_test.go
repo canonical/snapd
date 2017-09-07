@@ -95,6 +95,7 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability sys_rawio,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "network netlink raw,\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
@@ -102,6 +103,7 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "iopl\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_KOBJECT_UEVENT\n")
 }
 
 func (s *HardwareObserveInterfaceSuite) TestInterfaces(c *C) {
