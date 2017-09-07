@@ -5,6 +5,10 @@ summary: Ensure that lxd works
 systems: [ubuntu-16*, ubuntu-core-*]
 
 restore: |
+    if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
+        exit
+    fi
+
     lxd.lxc stop my-ubuntu
     lxd.lxc delete my-ubuntu
 
@@ -13,6 +17,11 @@ debug: |
     journalctl -u snap.lxd.daemon.service
 
 execute: |
+    if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
+        echo "No run lxd test when there are not .deb files built"
+        exit
+    fi
+
     wait_for_lxd(){
         while ! printf "GET / HTTP/1.0\n\n" | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH "200 OK"; do sleep 1; done
     }
@@ -44,7 +53,8 @@ execute: |
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
-    echo "Install the new snapd into the container"
+
+    echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push "$GOHOME"/snapd_*.deb my-ubuntu/$GOPATH/
     lxd.lxc exec my-ubuntu -- dpkg -i "$GOHOME"/snapd_*.deb
