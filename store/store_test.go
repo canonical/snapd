@@ -3915,7 +3915,7 @@ func (t *remoteRepoTestSuite) TestNew(c *C) {
 	// check for fields
 	c.Check(aStore.detailFields, DeepEquals, detailFields)
 	c.Check(aStore.searchURI.Query().Get("fields"), Equals, fields)
-	c.Check(aStore.detailsURI.Query().Get("fields"), Equals, fields)
+	c.Check(aStore.detailsURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.bulkURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.sectionsURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.assertionsURI.Query(), DeepEquals, url.Values{})

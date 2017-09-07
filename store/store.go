@@ -412,10 +412,11 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if fields == nil {
 		fields = detailFields
 	}
+	fieldsEncoded := encodeFields(fields)
 
 	fieldsQuery := url.Values{}
 	if len(fields) > 0 {
-		fieldsQuery.Set("fields", strings.Join(fields, ","))
+		fieldsQuery.Set("fields", fieldsEncoded)
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -458,8 +459,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	// individual endpoint paths.
 	if cfg.StoreBaseURL != nil {
 		store.searchURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/search", fieldsQuery)
-		// slash at the end because snap name is appended to this with .Parse(snapName)
-		store.detailsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/details/", fieldsQuery)
+		store.detailsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/details", nil)
 		store.bulkURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/metadata", nil)
 		store.ordersURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/orders", nil)
 		store.buyURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/buy", nil)
@@ -473,6 +473,10 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	}
 
 	return store
+}
+
+func encodeFields(fields []string) string {
+	return strings.Join(fields, ",")
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -924,11 +928,10 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	// get the query before doing Parse, as that overwrites it
-	query := s.detailsURI.Query()
-	u, err := s.detailsURI.Parse(snapSpec.Name)
-	if err != nil {
-		return nil, err
+	query := url.Values{}
+
+	if len(s.detailFields) != 0 {
+		query.Set("fields", encodeFields(s.detailFields))
 	}
 
 	channel := snapSpec.Channel
@@ -949,8 +952,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 	query.Set("channel", channel)
 
-	u.RawQuery = query.Encode()
-
+	u := endpointURL(s.detailsURI, snapSpec.Name, query)
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    u,
