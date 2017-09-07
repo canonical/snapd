@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -37,19 +36,22 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
 
 type assertMgrSuite struct {
+	o     *overlord.Overlord
 	state *state.State
 	mgr   *assertstate.AssertManager
 
@@ -63,6 +65,7 @@ type assertMgrSuite struct {
 var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
+	storetest.Store
 	state *state.State
 	db    asserts.RODatabase
 }
@@ -84,48 +87,10 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.SnapInfo not expected")
-}
-
-func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.Find not expected")
-}
-
-func (sto *fakeStore) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.LookupRefresh not expected")
-}
-
-func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.ListRefresh not expected")
-}
-
-func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
-	panic("fakeStore.Download not expected")
-}
-
-func (sto *fakeStore) SuggestedCurrency() string {
-	panic("fakeStore.SuggestedCurrency not expected")
-}
-
-func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
-	panic("fakeStore.Buy not expected")
-}
-
-func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
-	panic("fakeStore.ReadyToBuy not expected")
-}
-
-func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
-	panic("fakeStore.Sections not expected")
-}
-
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	dev1PrivKey, _ := assertstest.GenerateKey(752)
@@ -140,13 +105,15 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	mgr, err := assertstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.mgr = mgr
+	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	snapstate.ReplaceStore(s.state, &fakeStore{
+	storestate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
@@ -445,11 +412,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 }
 
 func (s *assertMgrSuite) settle() {
-	// XXX: would like to use Overlord.Settle but not enough control there
-	for i := 0; i < 50; i++ {
-		s.mgr.Ensure()
-		s.mgr.Wait()
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {

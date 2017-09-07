@@ -31,7 +31,7 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
+func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -40,7 +40,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Plugs: []client.Plug{
 					{
 						Snap: "keyboard-lights",
@@ -60,7 +60,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
+func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -69,7 +69,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -91,7 +91,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
+func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -100,7 +100,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -158,7 +158,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
+func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -167,7 +167,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -199,7 +199,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
+func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -208,7 +208,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -266,7 +266,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
+func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -275,7 +275,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "core",
@@ -333,7 +333,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
+func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -342,7 +342,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -382,7 +382,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
+func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -391,7 +391,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -426,7 +426,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
+func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -435,7 +435,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -469,7 +469,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
+func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -478,7 +478,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type":   "sync",
-			"result": client.Interfaces{},
+			"result": client.Connections{},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interfaces"})
@@ -490,7 +490,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
+func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -499,7 +499,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -535,14 +535,14 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesCompletion(c *C) {
+func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": fortestingInterfaceList,
+				"result": fortestingConnectionList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

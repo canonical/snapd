@@ -14,10 +14,19 @@ execute: |
     snap get snap-hooks installed | MATCH 1
     snap get snap-hooks foo | MATCH bar
 
+    echo "Verify that refresh hook was not executed"
+    if snap get snap-install-hooks refreshed; then
+        echo "'refreshed' config value not expected on first install"
+        exit 1
+    fi
+
     echo "Verify that install hook is run only once"
     snap set snap-hooks installed=2
     install_local snap-hooks
     snap get snap-hooks installed | MATCH 2
+
+    echo "Verify that refresh hook was executed"
+    snap get snap-hooks refreshed | MATCH 1
 
     snap connect snap-hooks:home
 

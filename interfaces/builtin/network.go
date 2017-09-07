@@ -28,12 +28,6 @@ const networkBaseDeclarationSlots = `
         - core
 `
 
-const networkDescription = `
-The network interface allows connected plugs to access the network as a client.
-
-The core snap provides the slot that is shared by all the snaps.
-`
-
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
@@ -81,7 +75,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network",
 		summary:               networkSummary,
-		description:           networkDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkBaseDeclarationSlots,

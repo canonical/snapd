@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -1058,6 +1057,7 @@ summary: foo app
 type: app
 epoch: 1*
 confinement: devmode
+license: GPL-3.0
 description: |
     Foo provides useful services
 apps:
@@ -1101,6 +1101,7 @@ slots:
 	c.Check(info.Publisher, Equals, "")
 	c.Check(info.PublisherID, Equals, "")
 	c.Check(info.Channel, Equals, "")
+	c.Check(info.License, Equals, "GPL-3.0")
 
 	app1 := info.Apps["daemon"]
 	app2 := info.Apps["foo"]
@@ -1344,7 +1345,7 @@ apps:
 			Name:            "svc",
 			Command:         "svc1",
 			Daemon:          "forking",
-			RestartCond:     systemd.RestartOnAbnormal,
+			RestartCond:     snap.RestartOnAbnormal,
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",

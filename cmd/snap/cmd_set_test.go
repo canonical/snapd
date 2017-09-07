@@ -20,13 +20,13 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"gopkg.in/check.v1"
 
 	snapset "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -46,9 +46,6 @@ func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 
 func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 	// mock installed snap
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("/") }()
-
 	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
@@ -63,26 +60,33 @@ func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 
 func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	// mock installed snap
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("/") }()
-
 	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
 	// and mock the server
-	s.mockSetConfigServer(c, 1.2)
+	s.mockSetConfigServer(c, json.Number("1.2"))
 
 	// Set a config value for the active snap
 	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=1.2"})
 	c.Assert(err, check.IsNil)
 }
 
+func (s *SnapSuite) TestSnapSetIntegrationBigInt(c *check.C) {
+	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockSetConfigServer(c, json.Number("1234567890"))
+
+	// Set a config value for the active snap
+	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=1234567890"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
 	// mock installed snap
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("/") }()
-
 	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})

@@ -97,9 +97,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
@@ -363,11 +361,6 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
-	st.Unlock()
-	s.overlord.Settle()
-	st.Lock()
-	// unlocked by defer
-
 	return chg
 }
 
@@ -381,6 +374,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	})
 
 	chg := s.makeBecomeOpertionalChange(c)
+	s.overlord.Settle(5 * time.Second)
+
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -445,9 +440,18 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	chg := s.makeBecomeOpertionalChange(c)
 	st := s.overlord.State()
+
+	// run the change, we cannot use s.overlord.Settle() here as each
+	// "DeviceManager.Ensure()" will call ensureSeedYaml which will
+	// create a new "seed" change so things never settle down
+	s.overlord.Loop()
+	defer s.overlord.Stop()
+	for !chg.IsReady() {
+		// nothing
+	}
+
 	st.Lock()
 	defer st.Unlock()
-
 	c.Assert(chg.Err(), ErrorMatches, `(?s).* cannot determine bootloader.*`)
 }
 
@@ -536,7 +540,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	s.overlord.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 
@@ -719,7 +723,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	s.overlord.Settle(5 * time.Second)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 
