@@ -1,0 +1,12 @@
+summary: Ensure caonical-livepatch snap works
+
+# livepatch works only on 16.04 systems
+systems: [ubuntu-16.04-*]
+
+execute: |
+    echo "Ensure canonical-livepatch can be installed"
+    snap install canonical-livepatch
+
+    echo "Ensure canonical-livepatch can be used"
+    canonical-livepatch status | MATCH "Machine is not enabled"
+
