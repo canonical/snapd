@@ -1,4 +1,4 @@
-summary: Ensure caonical-livepatch snap works
+summary: Ensure canonical-livepatch snap works
 
 # livepatch works only on 16.04 systems
 systems: [ubuntu-16.04-*]
