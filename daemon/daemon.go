@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	unix "syscall"
@@ -35,6 +36,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -77,8 +80,13 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
+	// can polkit grant access? set to polkit action ID if so
+	PolkitOK string
+
 	d *Daemon
 }
+
+var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if user != nil {
@@ -87,15 +95,36 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	isUser := false
-	uid, err := ucrednetGetUID(r.RemoteAddr)
+	pid, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
 		if uid == 0 {
 			// Superuser does anything.
 			return true
 		}
 
+		if c.PolkitOK != "" {
+			allow, err := strconv.ParseBool(r.Header.Get(client.AllowInteractionHeader))
+			if err != nil {
+				// default behaviour if the header
+				// cannot be parsed
+				allow = false
+			}
+			var flags polkit.CheckFlags
+			if allow {
+				flags |= polkit.CheckAllowInteraction
+			}
+			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
+				if authorized {
+					// polkit says user is authorised
+					return true
+				}
+			} else if err != polkit.ErrDismissed {
+				logger.Noticef("polkit error: %s", err)
+			}
+		}
+
 		isUser = true
-	} else if err != errNoUID {
+	} else if err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return false
 	} else if c.SnapOK {
@@ -166,6 +195,12 @@ func (w *wrappedWriter) Write(bs []byte) (int, error) {
 func (w *wrappedWriter) WriteHeader(s int) {
 	w.w.WriteHeader(s)
 	w.s = s
+}
+
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func logit(handler http.Handler) http.Handler {

@@ -25,13 +25,19 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -157,18 +163,155 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
-// appJSON contains the json for snap.AppInfo
-type appJSON struct {
-	Name        string `json:"name"`
-	Daemon      string `json:"daemon"`
-	DesktopFile string `json:"desktop-file,omitempty"`
-}
-
 // screenshotJSON contains the json for snap.ScreenshotInfo
 type screenshotJSON struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
+}
+
+type bySnapApp []*snap.AppInfo
+
+func (a bySnapApp) Len() int      { return len(a) }
+func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a bySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.Name()
+	jName := a[j].Snap.Name()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
+}
+
+// this differs from snap.SplitSnapApp in the handling of the
+// snap-only case:
+//   snap.SplitSnapApp("foo") is ("foo", "foo"),
+//   splitAppName("foo") is ("foo", "").
+func splitAppName(s string) (snap, app string) {
+	if idx := strings.IndexByte(s, '.'); idx > -1 {
+		return s[:idx], s[idx+1:]
+	}
+
+	return s, ""
+}
+
+type appInfoOptions struct {
+	service bool
+}
+
+func (opts appInfoOptions) String() string {
+	if opts.service {
+		return "service"
+	}
+
+	return "app"
+}
+
+// appInfosFor returns a sorted list apps described by names.
+//
+// * If names is empty, returns all apps of the wanted kinds (which
+//   could be an empty list).
+// * An element of names can be a snap name, in which case all apps
+//   from the snap of the wanted kind are included in the result (and
+//   it's an error if the snap has no apps of the wanted kind).
+// * An element of names can instead be snap.app, in which case that app is
+//   included in the result (and it's an error if the snap and app don't
+//   both exist, or if the app is not a wanted kind)
+// On error an appropriate error Response is returned; a nil Response means
+// no error.
+//
+// It's a programming error to call this with wanted having neither
+// services nor commands set.
+func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
+	snapNames := make(map[string]bool)
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+		name, _ = splitAppName(name)
+		snapNames[name] = true
+	}
+
+	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	if err != nil {
+		return nil, InternalError("cannot list local snaps! %v", err)
+	}
+
+	found := make(map[string]bool)
+	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	for _, snp := range snaps {
+		snapName := snp.info.Name()
+		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
+		for _, app := range snp.info.Apps {
+			if !opts.service || app.IsService() {
+				apps = append(apps, app)
+			}
+		}
+
+		if len(apps) == 0 && requested[snapName] {
+			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
+		}
+
+		includeAll := len(requested) == 0 || requested[snapName]
+		if includeAll {
+			// want all services in a snap
+			found[snapName] = true
+		}
+
+		for _, app := range apps {
+			appName := snapName + "." + app.Name
+			if includeAll || requested[appName] {
+				appInfos = append(appInfos, app)
+				found[appName] = true
+			}
+		}
+	}
+
+	for k := range requested {
+		if !found[k] {
+			if snapNames[k] {
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
+			} else {
+				snap, app := splitAppName(k)
+				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
+			}
+		}
+	}
+
+	sort.Sort(bySnapApp(appInfos))
+
+	return appInfos, nil
+}
+
+func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []*client.AppInfo {
+	// TODO: pass in an actual notifier here instead of null
+	//       (Status doesn't _need_ it, but benefits from it)
+	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+
+	out := make([]*client.AppInfo, len(apps))
+	for i, app := range apps {
+		out[i] = &client.AppInfo{
+			Snap: app.Snap.Name(),
+			Name: app.Name,
+		}
+		if fn := app.DesktopFile(); osutil.FileExists(fn) {
+			out[i].DesktopFile = fn
+		}
+
+		if app.IsService() {
+			// TODO: look into making a single call to Status for all services
+			if sts, err := sysd.Status(app.ServiceName()); err != nil {
+				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
+			} else if len(sts) != 1 {
+				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
+			} else {
+				out[i].Daemon = sts[0].Daemon
+				out[i].Enabled = sts[0].Enabled
+				out[i].Active = sts[0].Active
+			}
+		}
+	}
+
+	return out
 }
 
 func mapLocal(about aboutSnap) map[string]interface{} {
@@ -178,25 +321,13 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		status = "active"
 	}
 
-	appNames := make([]string, 0, len(localSnap.Apps))
-	for appName := range localSnap.Apps {
-		appNames = append(appNames, appName)
+	snapapps := make([]*snap.AppInfo, 0, len(localSnap.Apps))
+	for _, app := range localSnap.Apps {
+		snapapps = append(snapapps, app)
 	}
-	sort.Strings(appNames)
-	apps := make([]appJSON, 0, len(localSnap.Apps))
-	for _, appName := range appNames {
-		app := localSnap.Apps[appName]
-		var installedDesktopFile string
-		if osutil.FileExists(app.DesktopFile()) {
-			installedDesktopFile = app.DesktopFile()
-		}
+	sort.Sort(bySnapApp(snapapps))
 
-		apps = append(apps, appJSON{
-			Name:        app.Name,
-			Daemon:      app.Daemon,
-			DesktopFile: installedDesktopFile,
-		})
-	}
+	apps := clientAppInfosFromSnapAppInfos(snapapps)
 
 	// TODO: expose aliases information and state?
 
@@ -227,6 +358,10 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 
 	if localSnap.Title() != "" {
 		result["title"] = localSnap.Title()
+	}
+
+	if localSnap.License != "" {
+		result["license"] = localSnap.License
 	}
 
 	return result
@@ -272,6 +407,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 
 	if remoteSnap.Title() != "" {
 		result["title"] = remoteSnap.Title()
+	}
+
+	if remoteSnap.License != "" {
+		result["license"] = remoteSnap.License
 	}
 
 	if len(screenshots) > 0 {

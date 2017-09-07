@@ -21,13 +21,6 @@ package builtin
 
 const accountControlSummary = `allows managing non-system user accounts`
 
-const accountControlDescription = `
-The account-control interface allows connected plugs to create, modify and
-delete non-system users as well as to change account passwords.
-
-The core snap provides the slot that is shared by all the snaps.
-`
-
 const accountControlBaseDeclarationSlots = `
   account-control:
     allow-installation:
@@ -66,9 +59,8 @@ capability fsetid,
 // Needed because useradd uses a netlink socket
 const accountControlConnectedPlugSecComp = `
 # useradd requires chowning to 'shadow'
-# TODO: dynamically determine the shadow gid to support alternate cores
-fchown - 0 42
-fchown32 - 0 42
+fchown - u:root g:shadow
+fchown32 - u:root g:shadow
 
 # from libaudit1
 bind
@@ -79,7 +71,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "account-control",
 		summary:               accountControlSummary,
-		description:           accountControlDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  accountControlBaseDeclarationSlots,

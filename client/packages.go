@@ -55,6 +55,7 @@ type Snap struct {
 	Apps            []AppInfo     `json:"apps"`
 	Broken          string        `json:"broken"`
 	Contact         string        `json:"contact"`
+	License         string        `json:"license,omitempty"`
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
@@ -64,11 +65,6 @@ type Snap struct {
 
 	// The ordered list of tracks that contains channels
 	Tracks []string
-}
-
-type AppInfo struct {
-	Name   string `json:"name"`
-	Daemon string `json:"daemon"`
 }
 
 type Screenshot struct {

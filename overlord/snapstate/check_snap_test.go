@@ -612,3 +612,66 @@ version: 2
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }
+
+func (s *checkSnapSuite) TestCheckSnapBasesErrorsIfMissing(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	const yaml = `name: requires-base
+version: 1
+base: some-base
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, "cannot find required base \"some-base\"")
+}
+
+func (s *checkSnapSuite) TestCheckSnapBasesHappy(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1), SnapID: "some-base-id"}
+	snaptest.MockSnap(c, `
+name: some-base
+type: base
+version: 1
+`, "", si)
+	snapstate.Set(st, "some-base", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: requires-base
+version: 1
+base: some-base
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}

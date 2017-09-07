@@ -100,6 +100,12 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		// arch/channel/revision. Surface that here somehow!
 
 		msg = i18n.G("snap %q not found")
+		if snapName == "" {
+			errValStr, ok := err.Value.(string)
+			if ok && errValStr != "" {
+				snapName = errValStr
+			}
+		}
 		if opts != nil {
 			if opts.Revision != "" {
 				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
