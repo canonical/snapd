@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -58,6 +59,7 @@ import (
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
+	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
 
@@ -70,10 +72,9 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle() {
-	// FIXME: use the real settle here
-	for i := 0; i < 50; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+	err := s.o.Settle(5 * time.Second)
+	if err != nil {
+		panic(fmt.Sprintf("Settle: %v", err))
 	}
 }
 
@@ -82,8 +83,10 @@ var _ = Suite(&snapmgrTestSuite{})
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -104,6 +107,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
+
+	s.o.AddManager(s.snapmgr)
 
 	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
 	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
@@ -7286,7 +7291,12 @@ func (s behindYourBackStore) SnapInfo(spec store.SnapSpec, user *auth.UserState)
 			s.chg.AddAll(state.NewTaskSet(t))
 		}
 		if s.chg != nil && !s.coreInstalled {
-			s.chg.SetStatus(state.DoneStatus)
+			// marks change ready but also
+			// tasks need to also be marked cleaned
+			for _, t := range s.chg.Tasks() {
+				t.SetStatus(state.DoneStatus)
+				t.SetClean()
+			}
 			snapstate.Set(s.state, "core", &snapstate.SnapState{
 				Active: true,
 				Sequence: []*snap.SideInfo{
@@ -7326,16 +7336,28 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
+	prereq := ts.Tasks()[0]
+	c.Assert(prereq.Kind(), Equals, "prerequisites")
+	c.Check(prereq.AtTime().IsZero(), Equals, true)
+
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
 
-	// run changes, this will trigger the prerequisites task, which
-	// will trigger the install of core and also call our mock store
-	// which will generate a parallel change
-	s.settle()
+	// start running the change, this will trigger the
+	// prerequisites task, which will trigger the install of core
+	// and also call our mock store which will generate a parallel
+	// change
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
 	// change is not ready yet, because the prerequists triggered
 	// a state.Retry{} because of the conflicting change
 	c.Assert(chg.IsReady(), Equals, false)
+	s.state.Lock()
+	// marked for retry
+	c.Check(prereq.AtTime().IsZero(), Equals, false)
+	c.Check(prereq.Status().Ready(), Equals, false)
+	s.state.Unlock()
 
 	// retry interval is 10ms so 20ms should be plenty of time
 	time.Sleep(20 * time.Millisecond)
