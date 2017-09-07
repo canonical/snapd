@@ -46,6 +46,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -55,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -292,6 +294,71 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	return d
 }
 
+func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
+	if s.d != nil {
+		panic("called daemon() twice")
+	}
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	d.addRoutes()
+
+	o := overlord.Mock()
+	d.overlord = o
+
+	st := d.overlord.State()
+	// adds an assertion db
+	assertstate.Manager(st)
+	st.Lock()
+	defer st.Unlock()
+	storestate.ReplaceStore(st, s)
+
+	s.d = d
+	return d
+}
+
+type fakeSnapManager struct {
+	runner *state.TaskRunner
+}
+
+func newFakeSnapManager(st *state.State) *fakeSnapManager {
+	runner := state.NewTaskRunner(st)
+
+	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("fake-install-snap-error errored")
+	}, nil)
+
+	return &fakeSnapManager{runner: runner}
+}
+
+func (m *fakeSnapManager) Ensure() error {
+	m.runner.Ensure()
+	return nil
+}
+
+func (m *fakeSnapManager) Wait() {
+	m.runner.Wait()
+}
+
+func (m *fakeSnapManager) Stop() {
+	m.runner.Stop()
+}
+
+func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
+	d := s.daemonWithOverlordMock(c)
+	st := d.overlord.State()
+	d.overlord.AddManager(newFakeSnapManager(st))
+	return d
+}
+
+func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
+	err := s.d.overlord.Settle(2 * time.Second)
+	c.Assert(err, check.IsNil)
+	c.Assert(chg.IsReady(), check.Equals, true)
+}
+
 func (s *apiBaseSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
 }
@@ -400,6 +467,9 @@ gadget: {store: {id: %q}}
 	snaptest.MockSnap(c, yamlText, contents, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
+
+// sanity
+var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 type apiSuite struct {
 	apiBaseSuite
@@ -1787,9 +1857,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
 	ensureStateSoon = func(st *state.State) {
@@ -1829,9 +1897,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
@@ -2009,9 +2075,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -2033,9 +2097,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -2050,9 +2112,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithOverlordMock(c)
 	// add the assertions first
 	st := d.overlord.State()
 	assertAdd(st, s.storeSigning.StoreAccountKey(""))
@@ -2129,9 +2189,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -2172,9 +2230,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 }
 
 func (s *apiSuite) TestTrySnap(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithFakeSnapManager(c)
 
 	var err error
 
@@ -2272,7 +2328,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		c.Assert(chg.Tasks(), check.HasLen, 1, check.Commentf(t.desc))
 
 		st.Unlock()
-		<-chg.Ready()
+		s.waitTrivialChange(c, chg)
 		st.Lock()
 
 		c.Check(chg.Kind(), check.Equals, "try-snap", check.Commentf(t.desc))
@@ -2311,9 +2367,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags) string {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithFakeSnapManager(c)
 
 	soon := 0
 	ensureStateSoon = func(st *state.State) {
@@ -2372,7 +2426,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	c.Assert(chg.Tasks(), check.HasLen, n)
 
 	st.Unlock()
-	<-chg.Ready()
+	s.waitTrivialChange(c, chg)
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "install-snap")
@@ -2540,14 +2594,7 @@ func (s *apiSuite) TestSetConfNumber(c *check.C) {
 }
 
 func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
-	d := s.daemon(c)
-
-	// Mock the hook runner
-	hookRunner := testutil.MockCommand(c, "snap", "")
-	defer hookRunner.Restore()
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	text, err := json.Marshal(map[string]interface{}{"key": "value"})
 	c.Assert(err, check.IsNil)
@@ -2688,10 +2735,7 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 		snapstateInstall = nil
 	}()
 
-	d := s.daemon(c)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithFakeSnapManager(c)
 
 	var buf bytes.Buffer
 	if revision.Unset() {
@@ -2716,7 +2760,7 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
 	st.Unlock()
-	<-chg.Ready()
+	s.waitTrivialChange(c, chg)
 	st.Lock()
 
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
@@ -2884,9 +2928,7 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
@@ -3057,10 +3099,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
-	d := s.daemon(c)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	d := s.daemonWithFakeSnapManager(c)
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
@@ -3079,7 +3118,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
 	st.Unlock()
-	<-chg.Ready()
+	s.waitTrivialChange(c, chg)
 	st.Lock()
 
 	c.Check(chg.Err(), check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
@@ -3514,9 +3553,6 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, differentProducerYaml)
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
@@ -3556,9 +3592,6 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "consumer", Name: "missingplug"}},
@@ -3597,9 +3630,6 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	// there is no producer, no slot defined
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
@@ -3699,14 +3729,11 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
@@ -3735,14 +3762,11 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	// there is no producer, no slot defined
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
@@ -3772,14 +3796,11 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
@@ -5638,9 +5659,7 @@ type postDebugSuite struct {
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemonWithOverlordMock(c)
 
 	soon := 0
 	ensureStateSoon = func(st *state.State) {
