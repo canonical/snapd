@@ -29,23 +29,14 @@ import (
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type servicesSuite struct {
-	systemctlArgs [][]string
+	coreCfgSuite
 }
 
 var _ = Suite(&servicesSuite{})
-
-func (s *servicesSuite) SetUpSuite(c *C) {
-	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
-		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		output := []byte("ActiveState=inactive")
-		return output, nil
-	}
-}
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
