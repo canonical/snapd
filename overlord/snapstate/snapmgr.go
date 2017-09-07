@@ -530,7 +530,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	return err
 }
 
-// ensureCatalogRefresh ensures that we refresh the cataloge
+// ensureCatalogRefresh ensures that we refresh the catalog
 // data periodically
 func (m *SnapManager) ensureCatalogRefresh() error {
 	// sneakily don't do anything if in testing
