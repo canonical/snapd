@@ -2683,9 +2683,6 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		if _, ok := err.(servicectl.ServiceActionConflict); ok {
 			return InternalError(err.Error())
 		}
-		if _, ok := err.(servicectl.UnknownAction); ok {
-			return BadRequest(err.Error())
-		}
 		return BadRequest(err.Error())
 	}
 	st.EnsureBefore(0)

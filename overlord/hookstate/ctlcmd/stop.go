@@ -20,18 +20,9 @@
 package ctlcmd
 
 import (
-	"fmt"
-	"strings"
-	"time"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicectl"
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type stopCommand struct {
@@ -48,74 +39,6 @@ var (
 
 func init() {
 	addCommand("stop", shortStopHelp, "", func() command { return &stopCommand{} })
-}
-
-func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*snap.AppInfo, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		return nil, err
-	}
-
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	var svcs []*snap.AppInfo
-	for _, svcName := range serviceNames {
-		if svcName == snapName {
-			// all the services
-			return info.Services(), nil
-		}
-		if !strings.HasPrefix(svcName, snapName+".") {
-			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
-		}
-		// this doesn't support service aliases
-		app, ok := info.Apps[svcName[1+len(snapName):]]
-		if !(ok && app.IsService()) {
-			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
-		}
-		svcs = append(svcs, app)
-	}
-
-	return svcs, nil
-}
-
-type ServiceControlFunc func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) (*state.Change, error)
-
-var runService ServiceControlFunc = servicectl.ServiceControl
-
-func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstruction, serviceNames []string) error {
-	if context == nil {
-		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
-	}
-
-	st := context.State()
-	appInfos, err := getServiceInfos(st, context.SnapName(), serviceNames)
-	if err != nil {
-		return err
-	}
-
-	chg, err := runService(st, appInfos, inst)
-	if err != nil {
-		return err
-	}
-
-	st.Lock()
-	st.EnsureBefore(0)
-	st.Unlock()
-
-	select {
-	case <-chg.Ready():
-		st.Lock()
-		defer st.Unlock()
-		return chg.Err()
-	case <-time.After(configstate.ConfigureHookTimeout() / 2):
-		return fmt.Errorf("%s command timed out", inst.Action)
-	}
 }
 
 func (c *stopCommand) Execute(args []string) error {
