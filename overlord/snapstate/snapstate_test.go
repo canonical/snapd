@@ -7225,11 +7225,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(err, IsNil)
 		chg2.AddAll(ts2)
 
-		s.state.Unlock()
 		// we use our own settle as we need a bigger timeout
+		s.state.Unlock()
 		err := s.o.Settle(15 * time.Second)
-		c.Assert(err, IsNil)
 		s.state.Lock()
+		c.Assert(err, IsNil)
 
 		// ensure expected change states
 		c.Check(chg1.Status(), Equals, state.ErrorStatus)
