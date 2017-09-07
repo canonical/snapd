@@ -412,12 +412,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if fields == nil {
 		fields = detailFields
 	}
-	fieldsEncoded := encodeFields(fields)
-
-	fieldsQuery := url.Values{}
-	if len(fields) > 0 {
-		fieldsQuery.Set("fields", fieldsEncoded)
-	}
 
 	architecture := arch.UbuntuArchitecture()
 	if cfg.Architecture != "" {
@@ -458,7 +452,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	// one at a time; so it's better to consider that as part of
 	// individual endpoint paths.
 	if cfg.StoreBaseURL != nil {
-		store.searchURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/search", fieldsQuery)
+		store.searchURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/search", nil)
 		store.detailsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/details", nil)
 		store.bulkURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/metadata", nil)
 		store.ordersURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/orders", nil)
@@ -1017,8 +1011,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, ErrBadQuery
 	}
 
-	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
+	q := url.Values{}
+
+	if len(s.detailFields) != 0 {
+		q.Set("fields", encodeFields(s.detailFields))
+	}
 
 	if search.Private {
 		if search.Prefix {
@@ -1044,11 +1041,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	} else {
 		q.Set("confinement", "strict")
 	}
-	u.RawQuery = q.Encode()
 
+	u := endpointURL(s.searchURI, "", q)
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    &u,
+		URL:    u,
 		Accept: halJsonContentType,
 	}
 

@@ -3911,10 +3911,9 @@ func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
 	aStore := New(nil, nil)
-	fields := strings.Join(detailFields, ",")
 	// check for fields
 	c.Check(aStore.detailFields, DeepEquals, detailFields)
-	c.Check(aStore.searchURI.Query().Get("fields"), Equals, fields)
+	c.Check(aStore.searchURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.detailsURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.bulkURI.Query(), DeepEquals, url.Values{})
 	c.Check(aStore.sectionsURI.Query(), DeepEquals, url.Values{})
