@@ -1,3 +1,12 @@
+snapd (2.27.6-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - interfaces: add udev netlink support to hardware-observe
+    - interfaces/network-{control,observe}: allow receiving
+      kobject_uevent() messages
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Fri, 08 Sep 2017 00:03:18 +0200
+
 snapd (2.27.5-1) unstable; urgency=medium
 
   * New upstream release.
