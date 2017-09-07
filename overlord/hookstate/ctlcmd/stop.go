@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -63,24 +64,21 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 		return nil, err
 	}
 
-	requested := make(map[string]bool)
-	for _, svc := range serviceNames {
-		requested[svc] = true
-	}
-
 	var svcs []*snap.AppInfo
-	for _, app := range info.Apps {
-		svcName := snapName + "." + app.Name
-		if _, ok := requested[svcName]; ok && app.IsService() {
-			svcs = append(svcs, app)
-			delete(requested, svcName)
+	for _, svcName := range serviceNames {
+		if svcName == snapName {
+			// all the services
+			return info.Services(), nil
 		}
-	}
-
-	if len(requested) > 0 {
-		for k := range requested {
-			return nil, fmt.Errorf(i18n.G("unknown service: %q"), k)
+		if !strings.HasPrefix(svcName, snapName+".") {
+			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
 		}
+		// this doesn't support service aliases
+		app, ok := info.Apps[svcName[1+len(snapName):]]
+		if !(ok && app.IsService()) {
+			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
+		}
+		svcs = append(svcs, app)
 	}
 
 	return svcs, nil
