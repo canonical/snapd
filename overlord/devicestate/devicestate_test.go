@@ -69,6 +69,8 @@ type deviceMgrSuite struct {
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
 
+	bootloader *boottest.MockBootloader
+
 	storeSigning *assertstest.StoreStack
 	brandSigning *assertstest.SigningDB
 
@@ -108,6 +110,9 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(s.bootloader)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
@@ -157,13 +162,15 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
+	partition.ForceBootloader(nil)
 	dirs.SetRootDir("")
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
 }
 
-func (s *deviceMgrSuite) settle() {
-	s.o.Settle(5 * time.Second)
+func (s *deviceMgrSuite) settle(c *C) {
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 const (
@@ -357,7 +364,7 @@ version: gadget
 
 	// runs the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange()
@@ -425,7 +432,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 
 	// runs the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -496,7 +503,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 
 	// runs the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange()
@@ -582,7 +589,7 @@ version: gadget
 
 	// runs the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -796,7 +803,7 @@ version: gadget
 
 	// runs the whole device registration process with polling
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -805,7 +812,7 @@ version: gadget
 	// needs 3 more Retry passes of polling
 	for i := 0; i < 3; i++ {
 		s.state.Unlock()
-		s.settle()
+		s.settle(c)
 		s.state.Lock()
 	}
 
@@ -898,7 +905,7 @@ hooks:
 
 	// runs the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -981,7 +988,7 @@ version: gadget
 
 	// try the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -1004,7 +1011,7 @@ version: gadget
 	s.reqID = "REQID-1"
 	s.mgr.SetLastBecomeOperationalAttempt(time.Now().Add(-15 * time.Minute))
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange(firstTryID)
@@ -1086,7 +1093,7 @@ version: gadget
 
 	// try the whole device registration process
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -1325,10 +1332,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",
 		"snap_try_core": "core_1.snap",
 	})
@@ -1348,18 +1352,14 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	m, err := bootloader.GetBootVars("snap_mode")
+	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]string{"snap_mode": ""})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-
 	// simulate that we have a new core_2, tried to boot it but that failed
-	bootloader.SetBootVars(map[string]string{
+	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "",
 		"snap_try_core": "core_2.snap",
 		"snap_core":     "core_1.snap",
@@ -1394,14 +1394,11 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.SetBootVars(map[string]string{
+	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",
 		"snap_try_core": "core_1.snap",
 	})
-	bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
+	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
 	s.mgr.SetBootOkRan(true)
 
@@ -1421,10 +1418,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	})
 	s.state.Unlock()
 
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.GetErr = fmt.Errorf("bootloader err")
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
+	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
 	s.mgr.SetBootOkRan(false)
 

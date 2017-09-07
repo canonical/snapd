@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -45,6 +46,7 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
+	o               *overlord.Overlord
 	state           *state.State
 	db              *asserts.Database
 	privateMgr      *ifacestate.InterfaceManager
@@ -65,8 +67,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
-	state := state.New(nil)
-	s.state = state
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
@@ -77,7 +79,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	assertstate.ReplaceDB(state, s.db)
+	assertstate.ReplaceDB(s.state, s.db)
 	s.state.Unlock()
 
 	s.privateHookMgr = nil
@@ -107,6 +109,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		c.Assert(err, IsNil)
 		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
+		s.o.AddManager(mgr)
 	}
 	return s.privateMgr
 }
@@ -116,17 +119,14 @@ func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
 		mgr, err := hookstate.Manager(s.state)
 		c.Assert(err, IsNil)
 		s.privateHookMgr = mgr
+		s.o.AddManager(mgr)
 	}
 	return s.privateHookMgr
 }
 
 func (s *interfaceManagerSuite) settle(c *C) {
-	for i := 0; i < 50; i++ {
-		s.hookManager(c).Ensure()
-		s.manager(c).Ensure()
-		s.hookManager(c).Wait()
-		s.manager(c).Wait()
-	}
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
