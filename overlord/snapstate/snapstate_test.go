@@ -72,7 +72,7 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle() {
-	err := s.o.Settle(15 * time.Second)
+	err := s.o.Settle(30 * time.Second)
 	if err != nil {
 		panic(fmt.Sprintf("Settle: %v", err))
 	}
