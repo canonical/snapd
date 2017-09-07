@@ -33,14 +33,18 @@ import (
 // snap-{confine,exec}(like SNAP_{NAME,REVISION} etc are all set).
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
-// overrides the any pre-existing environment variables.
+// overrides the any pre-existing environment variables. For a classic
+// snap, some environment variables usually stripped out by ld.so when
+// starting a setuid process are renamed by prepending
+// PreservedUnsafePrefix -- which snap-exec will remove, restoring the
+// variables to their original names.
 //
 // With the extra parameter additional environment variables can be
 // supplied which will be set in the execution environment.
 func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
-	env := envMap(os.Environ())
+	env := envMap(os.Environ(), info.Confinement == snap.ClassicConfinement)
 	snapEnv := snapEnv(info)
 	for k, v := range snapEnv {
 		env[k] = v
@@ -111,13 +115,14 @@ var unsafeEnv = map[string]bool{
 	"TMPDIR":      true,
 }
 
-const PreservedUnsafePrefix = "SNAPD_SAVED_"
+const PreservedUnsafePrefix = "SNAP_SAVED_"
 
 // envMap creates a map from the given environment string list,
-// e.g. the list returned from os.Environ(). It renames variables that
-// will be stripped out by the dynamic linker executing the setuid
-// snap-confine by prepending their names with PreservedUnsafePrefix.
-func envMap(env []string) map[string]string {
+// e.g. the list returned from os.Environ(). If preserveUnsafeVars
+// rename some variables that will be stripped out by the dynamic
+// linker executing the setuid snap-confine by prepending their names
+// with PreservedUnsafePrefix.
+func envMap(env []string, preserveUnsafeVars bool) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
 		l := strings.SplitN(kv, "=", 2)
@@ -125,7 +130,7 @@ func envMap(env []string) map[string]string {
 			continue // strange
 		}
 		k, v := l[0], l[1]
-		if unsafeEnv[k] {
+		if preserveUnsafeVars && unsafeEnv[k] {
 			k = PreservedUnsafePrefix + k
 		}
 		envMap[k] = v
