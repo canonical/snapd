@@ -72,7 +72,7 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle() {
-	err := s.o.Settle(30 * time.Second)
+	err := s.o.Settle(15 * time.Second)
 	if err != nil {
 		panic(fmt.Sprintf("Settle: %v", err))
 	}
@@ -7192,7 +7192,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	// slightly longer retry timeout to avoid deadlock when we
+	// trigger a retry quickly that the link snap for core does
+	// not have a chance to run
+	restore := snapstate.MockPrerequisitesRetryTimeout(40 * time.Millisecond)
 	defer restore()
 
 	// Two changes are created, the first will fails, the second will
@@ -7203,7 +7206,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	//
 	// It runs multiple times so that both possible cases get a chance
 	// to run
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		// start clean
 		snapstate.Set(s.state, "core", nil)
 		snapstate.Set(s.state, "snap2", nil)
