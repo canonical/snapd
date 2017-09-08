@@ -25,6 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -89,6 +92,40 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// On all-snaps systems, no mount entries are added
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Check(spec.MountEntries(), HasLen, 0)
+
+	// On classic systems, a number of font related directories
+	// are bind mounted from the host system if they exist.
+	release.OnClassic = true
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	expectedMountPoints := []string{
+		"/usr/share/fonts",
+		"/usr/local/share/fonts",
+		"/var/cache/fontconfig",
+	}
+	expected := 0
+	for _, dir := range expectedMountPoints {
+		if osutil.IsDirectory(dir) {
+			expected += 1
+		}
+	}
+	entries := spec.MountEntries()
+	c.Check(entries, HasLen, expected)
+	for _, entry := range entries {
+		c.Check(expectedMountPoints, testutil.Contains, entry.Dir)
+		c.Check(entry.Name, Equals, "/var/lib/snapd/hostfs"+entry.Dir)
+		c.Check(entry.Options, DeepEquals, []string{"bind", "ro"})
+	}
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {

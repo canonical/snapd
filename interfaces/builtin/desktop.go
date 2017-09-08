@@ -19,6 +19,14 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+)
+
 const desktopSummary = `allows access to basic graphical desktop resources`
 
 const desktopBaseDeclarationSlots = `
@@ -117,13 +125,58 @@ dbus (send)
 deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
+var desktopFontconfigDirs = []string{
+	"/usr/share/fonts",
+	"/usr/local/share/fonts",
+	"/var/cache/fontconfig",
+}
+
+type desktopInterface struct{}
+
+func (iface *desktopInterface) Name() string {
+	return "desktop"
+}
+
+func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              desktopSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: desktopBaseDeclarationSlots,
+	}
+}
+
+func (iface *desktopInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return sanitizeSlotReservedForOS(iface, slot)
+}
+
+func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	return true
+}
+
+func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	if !release.OnClassic {
+		// There is nothing to expose on an all-snaps system
+		return nil
+	}
+
+	for _, dir := range desktopFontconfigDirs {
+		if !osutil.IsDirectory(dir) {
+			continue
+		}
+		spec.AddMountEntry(mount.Entry{
+			Name:    "/var/lib/snapd/hostfs" + dir,
+			Dir:     dir,
+			Options: []string{"bind", "ro"},
+		})
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "desktop",
-		summary:               desktopSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  desktopBaseDeclarationSlots,
-		connectedPlugAppArmor: desktopConnectedPlugAppArmor,
-		reservedForOS:         true,
-	})
+	registerIface(&desktopInterface{})
 }
