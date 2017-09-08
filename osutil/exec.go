@@ -147,11 +147,11 @@ var (
 	cmdWaitTimeout = 5 * time.Second
 )
 
-// killProcessGroup kills the process group associated with the given command.
+// KillProcessGroup kills the process group associated with the given command.
 //
 // If the command hasn't had Setpgid set in its SysProcAttr, you'll probably end
 // up killing yourself.
-func killProcessGroup(cmd *exec.Cmd) error {
+func KillProcessGroup(cmd *exec.Cmd) error {
 	pgid, err := syscallGetpgid(cmd.Process.Pid)
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	// select above exited which means that aborted or killTimeout
 	// was reached. Kill the command and wait for command.Wait()
 	// to clean it up (but limit the wait with the cmdWaitTimer)
-	if err := killProcessGroup(command); err != nil {
+	if err := KillProcessGroup(command); err != nil {
 		return nil, fmt.Errorf("cannot abort: %s", err)
 	}
 	select {

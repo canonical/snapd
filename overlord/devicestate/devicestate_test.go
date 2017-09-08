@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -49,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -61,6 +63,7 @@ import (
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrSuite struct {
+	o       *overlord.Overlord
 	state   *state.State
 	hookMgr *hookstate.HookManager
 	mgr     *devicestate.DeviceManager
@@ -109,7 +112,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.restoreOnClassic = release.MockOnClassic(false)
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
@@ -137,10 +141,12 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.db = db
 	s.hookMgr = hookMgr
+	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
+	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	snapstate.ReplaceStore(s.state, &fakeStore{
+	storestate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
@@ -157,12 +163,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 }
 
 func (s *deviceMgrSuite) settle() {
-	for i := 0; i < 50; i++ {
-		s.hookMgr.Ensure()
-		s.mgr.Ensure()
-		s.hookMgr.Wait()
-		s.mgr.Wait()
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 const (
@@ -800,6 +801,13 @@ version: gadget
 
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
+
+	// needs 3 more Retry passes of polling
+	for i := 0; i < 3; i++ {
+		s.state.Unlock()
+		s.settle()
+		s.state.Lock()
+	}
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)

@@ -34,6 +34,8 @@ import (
 )
 
 type powerbtnSuite struct {
+	coreCfgSuite
+
 	mockPowerBtnCfg string
 }
 
