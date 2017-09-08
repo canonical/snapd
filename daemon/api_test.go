@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -201,11 +202,6 @@ func (s *apiBaseSuite) journalctl(svcs []string, n string, follow bool) (rc io.R
 	return rc, err
 }
 
-var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-)
-
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.sysctlArgses = nil
 	s.sysctlBufs = nil
@@ -235,7 +231,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.buyOptions = nil
 	s.buyResult = nil
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	assertstateRefreshSnapDeclarations = nil
@@ -283,9 +279,15 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	snapstate.ReplaceStore(st, s)
+	storestate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
 
 	s.d = d
 	return d
@@ -416,6 +418,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, `title: title
 description: description
 summary: summary
+license: GPL-3.0
 apps:
   cmd:
     command: some.cmd
@@ -531,6 +534,7 @@ UnitFileState=potatoes
 			},
 			"broken":  "",
 			"contact": "",
+			"license": "GPL-3.0",
 		},
 		Meta: meta,
 	}
@@ -633,12 +637,13 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateRefreshCandidates",
 		"snapstateRevert",
 		"snapstateRevertToRevision",
+		"snapstateSwitch",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
 		"setupLocalUser",
 		"storeUserInfo",
-		"postCreateUserUcrednetGetUID",
+		"postCreateUserUcrednetGet",
 		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -1890,6 +1895,7 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"revert", snapRevert},
 		{"enable", snapEnable},
 		{"disable", snapDisable},
+		{"switch", snapSwitch},
 		{"xyzzy", nil},
 	}
 
@@ -1900,8 +1906,8 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestPostSnapEnableDisableRevision(c *check.C) {
-	for _, action := range []string{"enable", "disable"} {
+func (s *apiSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
+	for _, action := range []string{"enable", "disable", "switch"} {
 		buf := bytes.NewBufferString(`{"action": "` + action + `", "revision": "42"}`)
 		req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 		c.Assert(err, check.IsNil)
@@ -2419,9 +2425,17 @@ func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
 }
 
-func (s *apiSuite) TestGetConfNoKey(c *check.C) {
-	result := s.runGetConf(c, nil, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": "cannot obtain configuration: no keys supplied"})
+func (s *apiSuite) TestGetRootDocument(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.State().Lock()
+	tr := config.NewTransaction(d.overlord.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Commit()
+	d.overlord.State().Unlock()
+
+	result := s.runGetConf(c, nil, 200)
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *apiSuite) TestGetConfBadKey(c *check.C) {
@@ -2476,6 +2490,50 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
+}
+
+func (s *apiSuite) TestSetConfNumber(c *check.C) {
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
+
+	// Mock the hook runner
+	hookRunner := testutil.MockCommand(c, "snap", "")
+	defer hookRunner.Restore()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	text, err := json.Marshal(map[string]interface{}{"key": 1234567890})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	d.overlord.State().Lock()
+	tr := config.NewTransaction(d.overlord.State())
+	var result interface{}
+	c.Assert(tr.Get("config-snap", "key", &result), check.IsNil)
+	c.Assert(result, check.DeepEquals, json.Number("1234567890"))
 }
 
 func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
@@ -4553,8 +4611,8 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
+		return 100, 0, nil
 	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
@@ -4563,7 +4621,7 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
-	postCreateUserUcrednetGetUID = ucrednetGetUID
+	postCreateUserUcrednetGet = ucrednetGet
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
 	storeUserInfo = store.UserInfo
@@ -4731,8 +4789,9 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	// create fake device
 	st.Lock()
 	err = auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserial",
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -4913,11 +4972,11 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
+		return 100, 0, nil
 	}
 	defer func() {
-		postCreateUserUcrednetGetUID = ucrednetGetUID
+		postCreateUserUcrednetGet = ucrednetGet
 	}()
 
 	// do it!

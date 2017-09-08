@@ -37,7 +37,7 @@ const physicalMemoryObserveConnectedPlugAppArmor = `
 /dev/mem r,
 `
 
-const physicalMemoryObserveConnectedPlugUDev = `KERNEL=="mem", TAG+="###SLOT_SECURITY_TAGS###"`
+const physicalMemoryObserveConnectedPlugUDev = `KERNEL=="mem", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

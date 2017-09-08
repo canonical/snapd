@@ -102,6 +102,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
+	info.License = d.License
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -173,6 +174,12 @@ type Config struct {
 	CustomersMeURI *url.URL
 	SectionsURI    *url.URL
 
+	// Device auth URLs:
+	// - DeviceNonceURI points to endpoint to get a nonce
+	// - DeviceSessionURI points to endpoint to get a device session
+	DeviceNonceURI   *url.URL
+	DeviceSessionURI *url.URL
+
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
 
@@ -183,9 +190,10 @@ type Config struct {
 	DeltaFormat  string
 }
 
-// SetAPI updates API URLs in the Config. Must not be used to change active config.
-func (cfg *Config) SetAPI(api *url.URL) error {
-	storeBaseURI, err := storeURL(api)
+// SetBaseURL updates the store API's base URL in the Config. Must not be used
+// to change active config.
+func (cfg *Config) SetBaseURL(u *url.URL) error {
+	storeBaseURI, err := storeURL(u)
 	if err != nil {
 		return err
 	}
@@ -210,6 +218,10 @@ func (cfg *Config) SetAPI(api *url.URL) error {
 
 	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
 
+	// Device auth endpoints.
+	cfg.DeviceNonceURI = urlJoin(storeBaseURI, "api/v1/snaps/auth/nonces")
+	cfg.DeviceSessionURI = urlJoin(storeBaseURI, "api/v1/snaps/auth/sessions")
+
 	return nil
 }
 
@@ -223,6 +235,10 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+
+	// Device auth endpoints.
+	deviceNonceURI   *url.URL
+	deviceSessionURI *url.URL
 
 	architecture string
 	series       string
@@ -385,7 +401,7 @@ func init() {
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	err = defaultConfig.SetAPI(storeBaseURI)
+	err = defaultConfig.SetBaseURL(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
@@ -466,21 +482,23 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		searchURI:       searchURI,
-		detailsURI:      detailsURI,
-		bulkURI:         cfg.BulkURI,
-		assertionsURI:   cfg.AssertionsURI,
-		ordersURI:       cfg.OrdersURI,
-		buyURI:          cfg.BuyURI,
-		customersMeURI:  cfg.CustomersMeURI,
-		sectionsURI:     sectionsURI,
-		series:          series,
-		architecture:    architecture,
-		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
-		fallbackStoreID: cfg.StoreID,
-		detailFields:    fields,
-		authContext:     authContext,
-		deltaFormat:     deltaFormat,
+		searchURI:        searchURI,
+		detailsURI:       detailsURI,
+		bulkURI:          cfg.BulkURI,
+		assertionsURI:    cfg.AssertionsURI,
+		ordersURI:        cfg.OrdersURI,
+		buyURI:           cfg.BuyURI,
+		customersMeURI:   cfg.CustomersMeURI,
+		sectionsURI:      sectionsURI,
+		deviceNonceURI:   cfg.DeviceNonceURI,
+		deviceSessionURI: cfg.DeviceSessionURI,
+		series:           series,
+		architecture:     architecture,
+		noCDN:            osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
+		fallbackStoreID:  cfg.StoreID,
+		detailFields:     fields,
+		authContext:      authContext,
+		deltaFormat:      deltaFormat,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
@@ -615,7 +633,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce(s.deviceNonceURI.String())
 	if err != nil {
 		return err
 	}
@@ -625,7 +643,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.deviceSessionURI.String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
