@@ -93,12 +93,12 @@ type apiBaseSuite struct {
 	sysctlBufs        [][]byte
 	sysctlErrs        []error
 
-	origJctlCmd func([]string, string, bool) (io.ReadCloser, error)
-	jctlSvcses  [][]string
-	jctlNs      []string
-	jctlFollows []bool
-	jctlRCs     []io.ReadCloser
-	jctlErrs    []error
+	journalctlRestorer func()
+	jctlSvcses         [][]string
+	jctlNs             []string
+	jctlFollows        []bool
+	jctlRCs            []io.ReadCloser
+	jctlErrs           []error
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -158,14 +158,14 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 
 	snapstate.CanAutoRefresh = nil
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
-	s.origJctlCmd = systemd.JournalctlCmd
-	systemd.JournalctlCmd = s.journalctl
+	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
 	s.systemctlRestorer()
+	s.journalctlRestorer()
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
