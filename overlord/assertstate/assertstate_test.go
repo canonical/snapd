@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 )
 
@@ -80,11 +79,7 @@ func (sto *fakeStore) pokeStateLock() {
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
 	sto.pokeStateLock()
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
-	a, err := ref.Resolve(sto.db.Find)
-	if err != nil {
-		return nil, &store.AssertionNotFoundError{Ref: ref}
-	}
-	return a, nil
+	return ref.Resolve(sto.db.Find)
 }
 
 func (s *assertMgrSuite) SetUpTest(c *C) {

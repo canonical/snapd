@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 // Add the given assertion to the system assertion database.
@@ -233,7 +232,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
 				}
 				err := f.Fetch(valref)
-				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+				if notFound, ok := err.(*asserts.NotFoundError); ok && notFound.Type == asserts.ValidationType {
 					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
 				}
 				if err != nil {
