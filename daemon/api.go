@@ -133,17 +133,19 @@ var (
 	}
 
 	snapsCmd = &Command{
-		Path:   "/v2/snaps",
-		UserOK: true,
-		GET:    getSnapsInfo,
-		POST:   postSnaps,
+		Path:     "/v2/snaps",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getSnapsInfo,
+		POST:     postSnaps,
 	}
 
 	snapCmd = &Command{
-		Path:   "/v2/snaps/{name}",
-		UserOK: true,
-		GET:    getSnapInfo,
-		POST:   postSnap,
+		Path:     "/v2/snaps/{name}",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getSnapInfo,
+		POST:     postSnap,
 	}
 
 	appsCmd = &Command{
