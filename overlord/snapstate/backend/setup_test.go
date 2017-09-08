@@ -64,7 +64,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 func (s *setupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
-	s.umount.SystemctlRestorer()
+	s.umount.Restore()
 	s.systemctlRestorer()
 }
 

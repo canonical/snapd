@@ -59,7 +59,7 @@ func (s *mountunitSuite) SetUpTest(c *C) {
 
 func (s *mountunitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.umount.SystemctlRestorer()
+	s.umount.Restore()
 	s.systemctlRestorer()
 }
 
