@@ -23,6 +23,7 @@ package devicestate
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -188,7 +189,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	return nil
 }
 
-func init() {
-	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+var once sync.Once
+
+func delayedCrossMgrInit() {
+	once.Do(func() {
+		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 }
