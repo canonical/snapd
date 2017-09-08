@@ -6104,7 +6104,6 @@ func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall [
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
