@@ -22,6 +22,7 @@ package daemon
 import (
 	"fmt"
 
+	"bytes"
 	"errors"
 	"io/ioutil"
 	"net"
@@ -38,10 +39,12 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -62,19 +65,20 @@ func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, deta
 
 func (s *daemonSuite) SetUpSuite(c *check.C) {
 	snapstate.CanAutoRefresh = nil
-	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
+	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
 	s.authorized = false
 	s.err = nil
+	logger.SetLogger(logger.NullLogger)
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {
@@ -237,17 +241,46 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
+func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
+	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
+
+	// polkit can grant authorisation for GET requests
+	s.authorized = true
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+
+	// for UserOK commands, polkit is not consulted
+	cmd.UserOK = true
+	polkitCheckAuthorizationForPid = func(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		panic("polkit.CheckAuthorizationForPid called")
+	}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+}
+
 func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
 	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;", Header: make(http.Header)}
 	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 	s.authorized = true
 
+	var logbuf bytes.Buffer
+	log, err := logger.New(&logbuf, logger.DefaultFlags)
+	c.Assert(err, check.IsNil)
+	logger.SetLogger(log)
+
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
+	c.Check(logbuf.String(), check.Equals, "")
 
 	put.Header.Set(client.AllowInteractionHeader, "true")
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
+	c.Check(logbuf.String(), check.Equals, "")
+
+	// bad values are logged and treated as false
+	put.Header.Set(client.AllowInteractionHeader, "garbage")
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
+	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
