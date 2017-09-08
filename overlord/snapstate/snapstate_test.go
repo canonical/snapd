@@ -6165,8 +6165,6 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 
 	makeInstalledMockCoreSnap(c)
 
-	makeInstalledMockCoreSnap(c)
-
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockReadInfo(snap.ReadInfo)
 
@@ -6197,8 +6195,6 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 	makeInstalledMockCoreSnap(c)
 
-	makeInstalledMockCoreSnap(c)
-
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockReadInfo(snap.ReadInfo)
 
@@ -6220,8 +6216,6 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
-	makeInstalledMockCoreSnap(c)
-
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk

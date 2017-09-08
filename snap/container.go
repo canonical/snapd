@@ -63,6 +63,7 @@ var formatHandlers = []snapFormat{
 
 // Open opens a given snap file with the right backend
 func Open(path string) (Container, error) {
+
 	if osutil.IsDirectory(path) {
 		if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
 			return snapdir.New(path), nil
