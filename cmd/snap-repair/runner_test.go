@@ -46,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type runnerSuite struct {
+type baseRunnerSuite struct {
 	tmpdir string
 
 	seedTime time.Time
@@ -68,9 +68,7 @@ type runnerSuite struct {
 	repairsSigning *assertstest.SigningDB
 }
 
-var _ = Suite(&runnerSuite{})
-
-func (s *runnerSuite) SetUpSuite(c *C) {
+func (s *baseRunnerSuite) SetUpSuite(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)
@@ -106,7 +104,7 @@ func (s *runnerSuite) SetUpSuite(c *C) {
 	s.repairsSigning = assertstest.NewSigningDB("canonical", repairsKey)
 }
 
-func (s *runnerSuite) SetUpTest(c *C) {
+func (s *baseRunnerSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 
@@ -130,6 +128,32 @@ func (s *runnerSuite) SetUpTest(c *C) {
 func (s *runnerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
+
+func (s *baseRunnerSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
+func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
+	var seq []string
+	for _, rpr := range repairs {
+		decoded, err := asserts.Decode([]byte(rpr))
+		c.Assert(err, IsNil)
+		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
+		c.Assert(err, IsNil)
+		buf := &bytes.Buffer{}
+		enc := asserts.NewEncoder(buf)
+		enc.Encode(signed)
+		enc.Encode(s.repairsAcctKey)
+		seq = append(seq, buf.String())
+	}
+	return seq
+}
+
+type runnerSuite struct {
+	baseRunnerSuite
+}
+
+var _ = Suite(&runnerSuite{})
 
 var (
 	testKey = `type: account-key
@@ -943,12 +967,12 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "1")
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "repair.r0")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "3")
-	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "repair.r2"))
+	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
 	c.Assert(err, IsNil)
 	c.Check(string(strm), Equals, seqRepairs[2])
 
@@ -1387,7 +1411,266 @@ AXNpZw==`}
 	c.Assert(err, IsNil)
 
 	rpr.Run()
-	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, "exit 0\n")
+}
+
+func makeMockRepair(script string) string {
+	return fmt.Sprintf(`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+series:
+  - 16
+timestamp: 2017-07-02T12:00:00Z
+body-length: %d
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+%s
+
+AXNpZw==`, len(script), script)
+}
+
+func verifyRepairStatus(c *C, status repair.RepairStatus) {
+	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Matches, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":\[{"sequence":1,"revision":0,"status":%d}.*`, status))
+}
+
+// tests related to correct execution of script
+type runScriptSuite struct {
+	baseRunnerSuite
+
+	seqRepairs []string
+
+	mockServer *httptest.Server
+	runner     *repair.Runner
+
+	runDir string
+
+	restoreErrTrackerReportRepair func()
+	errReport                     struct {
+		repair string
+		errMsg string
+		dupSig string
+		extra  map[string]string
+	}
+}
+
+var _ = Suite(&runScriptSuite{})
+
+func (s *runScriptSuite) SetUpTest(c *C) {
+	s.baseRunnerSuite.SetUpTest(c)
+
+	s.mockServer = makeMockServer(c, &s.seqRepairs, false)
+
+	s.runner = repair.NewRunner()
+	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
+	s.runner.LoadState()
+
+	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
+
+	s.restoreErrTrackerReportRepair = repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
+}
+
+func (s *runScriptSuite) TearDownTest(c *C) {
+	s.baseRunnerSuite.TearDownTest(c)
+
+	s.restoreErrTrackerReportRepair()
+	s.mockServer.Close()
+}
+
+func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
+	s.errReport.repair = repair
+	s.errReport.errMsg = errMsg
+	s.errReport.dupSig = dupSig
+	s.errReport.extra = extra
+
+	return "some-oops-id", nil
+}
+
+func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
+
+	rpr, err := s.runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
+	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.script"))
+	c.Assert(err, IsNil)
+	c.Check(string(scrpt), Equals, mockScript)
+
+	return rpr
+}
+
+func (s *runScriptSuite) verifyRundir(c *C, names []string) {
+	dirents, err := ioutil.ReadDir(s.runDir)
+	c.Assert(err, IsNil)
+	c.Assert(dirents, HasLen, len(names))
+	for i := range dirents {
+		c.Check(dirents[i].Name(), Matches, names[i])
+	}
+}
+
+type byMtime []os.FileInfo
+
+func (m byMtime) Len() int           { return len(m) }
+func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime()) }
+func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+
+func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
+	output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
+	c.Assert(err, IsNil)
+	c.Check(string(output), Equals, expectedOutput)
+	// ensure correct permissions
+	fi, err := os.Stat(filepath.Join(s.runDir, name))
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode(), Equals, os.FileMode(0600))
+}
+
+func (s *runScriptSuite) TestRepairBasicRunHappy(c *C) {
+	script := `#!/bin/sh
+echo "happy output"
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0.done$`,
+		`^r0.script$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.done", "happy output\n")
+	verifyRepairStatus(c, repair.DoneStatus)
+}
+
+func (s *runScriptSuite) TestRepairBasicRunUnhappy(c *C) {
+	script := `#!/bin/sh
+echo "unhappy output"
+exit 1
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0.retry$`,
+		`^r0.script$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
+	verifyRepairStatus(c, repair.RetryStatus)
+
+	c.Check(s.errReport.repair, Equals, "canonical/1")
+	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
+	c.Check(s.errReport.dupSig, Equals, `canonical/1
+"repair (1; brand-id:canonical)" failed: exit status 1
+output:
+unhappy output
+`)
+	c.Check(s.errReport.extra, DeepEquals, map[string]string{
+		"Revision": "0",
+		"RepairID": "1",
+		"BrandID":  "canonical",
+		"Status":   "retry",
+	})
+}
+
+func (s *runScriptSuite) TestRepairBasicSkip(c *C) {
+	script := `#!/bin/sh
+echo "other output"
+echo "skip" >&$SNAP_REPAIR_STATUS_FD
+exit 0
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.testScriptRun(c, script)
+	// verify
+	s.verifyRundir(c, []string{
+		`^r0.script$`,
+		`^r0.skip$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.skip", "other output\n")
+	verifyRepairStatus(c, repair.SkipStatus)
+}
+
+func (s *runScriptSuite) TestRepairBasicRunUnhappyThenHappy(c *C) {
+	script := `#!/bin/sh
+if [ -f zzz-ran-once ]; then
+    echo "happy now"
+    echo "done" >&$SNAP_REPAIR_STATUS_FD
+    exit 0
+fi
+echo "unhappy output"
+touch zzz-ran-once
+exit 1
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	rpr := s.testScriptRun(c, script)
+	s.verifyRundir(c, []string{
+		`^r0.retry$`,
+		`^r0.script$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
+	verifyRepairStatus(c, repair.RetryStatus)
+
+	// run again, it will be happy this time
+	err := rpr.Run()
+	c.Assert(err, IsNil)
+
+	s.verifyRundir(c, []string{
+		`^r0.done$`,
+		`^r0.retry$`,
+		`^r0.script$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.done", "happy now\n")
+	verifyRepairStatus(c, repair.DoneStatus)
+}
+
+func (s *runScriptSuite) TestRepairHitsTimeout(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	restore := repair.MockDefaultRepairTimeout(10 * time.Millisecond)
+	defer restore()
+
+	script := `#!/bin/sh
+echo "output before timeout"
+sleep 100
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
+
+	rpr, err := s.runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
+	s.verifyRundir(c, []string{
+		`^r0.retry$`,
+		`^r0.script$`,
+		`^work$`,
+	})
+	s.verifyOutput(c, "r0.retry", `output before timeout
+
+"repair (1; brand-id:canonical)" failed: repair did not finish within 10ms`)
+	verifyRepairStatus(c, repair.RetryStatus)
 }
