@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,6 +47,7 @@ func TestHookManager(t *testing.T) { TestingT(t) }
 type hookManagerSuite struct {
 	testutil.BaseTest
 
+	o           *overlord.Overlord
 	state       *state.State
 	manager     *hookstate.HookManager
 	context     *hookstate.Context
@@ -85,10 +87,12 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	manager, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
+	s.o.AddManager(s.manager)
 
 	hooksup := &hookstate.HookSetup{
 		Snap:     "test-snap",
@@ -138,10 +142,7 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 }
 
 func (s *hookManagerSuite) settle() {
-	for i := 0; i < 50; i++ {
-		s.manager.Ensure()
-		s.manager.Wait()
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
