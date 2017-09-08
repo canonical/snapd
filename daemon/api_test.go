@@ -87,12 +87,11 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
-	systemctlRestorer func()
 
-	origSysctlCmd func(...string) ([]byte, error)
-	sysctlArgses  [][]string
-	sysctlBufs    [][]byte
-	sysctlErrs    []error
+	systemctlRestorer func()
+	sysctlArgses      [][]string
+	sysctlBufs        [][]byte
+	sysctlErrs        []error
 
 	origJctlCmd func([]string, string, bool) (io.ReadCloser, error)
 	jctlSvcses  [][]string

@@ -67,8 +67,6 @@ type mgrsSuite struct {
 
 	snapDiscardNs *testutil.MockCmd
 
-	prevctlCmd func(...string) ([]byte, error)
-
 	storeSigning     *assertstest.StoreStack
 	restoreTrusted   func()
 	restore          func()

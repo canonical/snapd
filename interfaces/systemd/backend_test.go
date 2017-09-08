@@ -36,8 +36,8 @@ import (
 type backendSuite struct {
 	ifacetest.BackendSuite
 
-	systemctlArgs [][]string
-	restorer      func()
+	systemctlArgs     [][]string
+	systemctlRestorer func()
 }
 
 var _ = Suite(&backendSuite{})
@@ -53,14 +53,14 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &systemd.Backend{}
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
-	s.restorer = sysd.MockSystemctl(func(args ...string) ([]byte, error) {
+	s.systemctlRestorer = sysd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, append([]string{"systemctl"}, args...))
 		return []byte("ActiveState=inactive"), nil
 	})
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
-	s.restorer()
+	s.systemctlRestorer()
 	s.BackendSuite.TearDownTest(c)
 }
 

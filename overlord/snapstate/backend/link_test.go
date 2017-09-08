@@ -41,7 +41,7 @@ type linkSuite struct {
 	be           backend.Backend
 	nullProgress progress.NullProgress
 
-	restore func()
+	systemctlRestorer func()
 }
 
 var _ = Suite(&linkSuite{})
@@ -49,14 +49,14 @@ var _ = Suite(&linkSuite{})
 func (s *linkSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	s.restore = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 }
 
 func (s *linkSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.restore()
+	s.systemctlRestorer()
 }
 
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
