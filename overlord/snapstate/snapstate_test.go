@@ -71,11 +71,9 @@ type snapmgrTestSuite struct {
 	reset func()
 }
 
-func (s *snapmgrTestSuite) settle() {
+func (s *snapmgrTestSuite) settle(c *C) {
 	err := s.o.Settle(5 * time.Second)
-	if err != nil {
-		panic(fmt.Sprintf("Settle: %v", err))
-	}
+	c.Assert(err, IsNil)
 }
 
 var _ = Suite(&snapmgrTestSuite{})
@@ -463,7 +461,7 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	var snapst snapstate.SnapState
@@ -1142,7 +1140,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snap is in classic
@@ -1214,7 +1212,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snap is in classic
@@ -1400,7 +1398,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure all our tasks ran
@@ -1571,7 +1569,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -1750,7 +1748,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -1910,7 +1908,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -2113,7 +2111,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -2711,7 +2709,7 @@ version: 1.0`)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -2818,7 +2816,7 @@ version: 1.0`)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	ops := s.fakeBackend.ops
@@ -2911,7 +2909,7 @@ version: 1.0`)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -3009,7 +3007,7 @@ version: 1.0`)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
@@ -3075,7 +3073,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -3185,7 +3183,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -3319,7 +3317,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 2)
@@ -3384,7 +3382,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 5)
@@ -3591,7 +3589,7 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snaps in the system state
@@ -3644,7 +3642,7 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snaps in the system state
@@ -3685,7 +3683,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	cfgs = nil
@@ -3732,7 +3730,7 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	// config snapshot of rev. 2 has been made by 'revert'
@@ -3773,7 +3771,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure garbage collection runs as the last tasks
@@ -3935,7 +3933,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4019,7 +4017,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 6)
@@ -4063,7 +4061,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4144,7 +4142,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4240,7 +4238,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4357,7 +4355,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4419,7 +4417,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4473,7 +4471,7 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// switch is not really really doing anything backend related
@@ -4524,7 +4522,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	expected := fakeOps{
@@ -4617,7 +4615,7 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify we generated a failure report
@@ -4667,7 +4665,7 @@ run-hook: Hold`)
 	chg.AddAll(ts)
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 	// verify that we excluded this field from the bugreport
 	c.Check(n, Equals, 2)
@@ -4873,7 +4871,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 
 	// run the changes
 	s.state.Unlock()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	s.verifyRefreshLast(c)
@@ -5311,7 +5309,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snap is in TryMode
@@ -5389,7 +5387,7 @@ func (s *snapmgrTestSuite) testTryUndoRemovesTryFlag(flags snapstate.Flags, c *C
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// verify snap is not in try mode, the state got undone
@@ -5597,7 +5595,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	var snapst snapstate.SnapState
@@ -5901,7 +5899,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 	expected := fakeOps{
 		{
@@ -6349,7 +6347,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure all our tasks ran
@@ -6497,7 +6495,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure all our tasks ran
@@ -6568,7 +6566,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
@@ -6591,7 +6589,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 0)
@@ -6601,7 +6599,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 1)
 
@@ -6625,7 +6623,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
@@ -6689,7 +6687,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	var snapst2 snapstate.SnapState
@@ -6708,7 +6706,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
 
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -6743,7 +6741,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	var snapst2 snapstate.SnapState
@@ -6966,7 +6964,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure all our tasks ran
@@ -7161,10 +7159,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	for i := 0; i < 5; i++ {
-		s.settle()
-		time.Sleep(10 * time.Millisecond)
-	}
+	s.settle(c)
 	s.state.Lock()
 
 	// ensure all our tasks ran and core was only installed once
@@ -7192,9 +7187,13 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	// slightly longer retry timeout to avoid deadlock when we
+	// trigger a retry quickly that the link snap for core does
+	// not have a chance to run
+	restore := snapstate.MockPrerequisitesRetryTimeout(40 * time.Millisecond)
 	defer restore()
 
+	defer s.snapmgr.Stop()
 	// Two changes are created, the first will fails, the second will
 	// be fine. The order of what change runs first is random, the
 	// first change will also install core in its own lane. This test
@@ -7203,7 +7202,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 	//
 	// It runs multiple times so that both possible cases get a chance
 	// to run
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		// start clean
 		snapstate.Set(s.state, "core", nil)
 		snapstate.Set(s.state, "snap2", nil)
@@ -7226,13 +7225,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(err, IsNil)
 		chg2.AddAll(ts2)
 
+		// we use our own settle as we need a bigger timeout
 		s.state.Unlock()
-		defer s.snapmgr.Stop()
-		for i := 0; i < 5; i++ {
-			s.settle()
-			time.Sleep(10 * time.Millisecond)
-		}
+		err = s.o.Settle(15 * time.Second)
 		s.state.Lock()
+		c.Assert(err, IsNil)
 
 		// ensure expected change states
 		c.Check(chg1.Status(), Equals, state.ErrorStatus)
@@ -7361,7 +7358,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 
 	// retry interval is 10ms so 20ms should be plenty of time
 	time.Sleep(20 * time.Millisecond)
-	s.settle()
+	s.settle(c)
 	// chg got retried, core is now installed, things are good
 	c.Assert(chg.IsReady(), Equals, true)
 
