@@ -98,6 +98,20 @@ func (run *Runner) SetSequence(brand string, sequence []*RepairState) {
 	run.state.Sequences[brand] = sequence
 }
 
+func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
+	orig := defaultRepairTimeout
+	defaultRepairTimeout = d
+	return func() {
+		defaultRepairTimeout = orig
+	}
+}
+
+func MockErrtrackerReportRepair(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReportRepair
+	errtrackerReportRepair = mock
+	return func() { errtrackerReportRepair = prev }
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	origTimeNow := timeNow
 	timeNow = f
