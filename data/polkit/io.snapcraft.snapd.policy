@@ -17,7 +17,7 @@
     </defaults>
   </action>
 
-  <action id="io.snapcraft.snapd.manage-snaps">
+  <action id="io.snapcraft.snapd.manage">
     <description>Install, update, or remove packages</description>
     <message>Authentication is required to install, update, or remove packages</message>
     <defaults>
