@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -92,9 +93,6 @@ var (
 )
 
 var (
-	rootPrivKey, _  = assertstest.GenerateKey(1024)
-	storePrivKey, _ = assertstest.GenerateKey(752)
-
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 
 	develPrivKey, _ = assertstest.GenerateKey(752)
@@ -134,7 +132,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
 	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
-	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -159,6 +157,13 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
+
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "serialserial",
+	})
 
 	// add "core" snap declaration
 	headers := map[string]interface{}{
@@ -203,6 +208,8 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.snapSeccomp.Restore()
 }
 
+var settleTimeout = 10 * time.Second
+
 func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 }
@@ -225,7 +232,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -275,7 +282,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -485,7 +492,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	mStore := store.New(&storeCfg, nil)
 	st := ms.o.State()
 	st.Lock()
-	snapstate.ReplaceStore(ms.o.State(), mStore)
+	storestate.ReplaceStore(ms.o.State(), mStore)
 	st.Unlock()
 
 	return mockServer
@@ -541,7 +548,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -590,7 +597,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -654,7 +661,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -722,7 +729,7 @@ slots:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -759,7 +766,7 @@ version: @VERSION@
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -837,7 +844,7 @@ version: @VERSION@
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -877,7 +884,7 @@ type: os
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -897,7 +904,7 @@ type: os
 	bootloader.BootVars["snap_core"] = "core_x1.snap"
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -967,7 +974,7 @@ type: kernel`
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -999,7 +1006,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1018,7 +1025,7 @@ func (ms *mgrsSuite) removeSnap(c *C, name string) {
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1063,7 +1070,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1102,7 +1109,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1148,7 +1155,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1168,7 +1175,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1221,7 +1228,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1281,7 +1288,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1326,7 +1333,7 @@ apps:
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1386,7 +1393,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1427,7 +1434,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1499,7 +1506,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1513,7 +1520,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1575,7 +1582,7 @@ apps:
 	chg.AddAll(tss[2])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1714,14 +1721,14 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
+	captureAuthContext := func(_ *state.State, ac auth.AuthContext) error {
 		s.ac = ac
 		return nil
 	}
-	r := overlord.MockStoreNew(captureAuthContext)
+	r := overlord.MockSetupStore(captureAuthContext)
 	defer r()
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)

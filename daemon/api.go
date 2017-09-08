@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -58,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -107,8 +109,9 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path: "/v2/login",
-		POST: loginUser,
+		Path:     "/v2/login",
+		POST:     loginUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	logoutCmd = &Command{
@@ -522,12 +525,12 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-func getStore(c *Command) snapstate.StoreService {
+func getStore(c *Command) storestate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return storestate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -840,6 +843,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1066,6 +1070,19 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("switch takes no revision")
+	}
+	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -1075,6 +1092,7 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"revert":  snapRevert,
 	"enable":  snapEnable,
 	"disable": snapDisable,
+	"switch":  snapSwitch,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -1491,9 +1509,6 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	keys := splitQS(r.URL.Query().Get("keys"))
-	if len(keys) == 0 {
-		return BadRequest("cannot obtain configuration: no keys supplied")
-	}
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -1501,6 +1516,10 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
+	// Special case - return root document
+	if len(keys) == 0 {
+		keys = []string{""}
+	}
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
@@ -1509,6 +1528,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			} else {
 				return InternalError("%v", err)
 			}
+		}
+		if key == "" {
+			if len(keys) > 1 {
+				return BadRequest("keys contains zero-length string")
+			}
+			return SyncResponse(value, nil)
 		}
 
 		currentConfValues[key] = value
@@ -1522,8 +1547,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	var patchValues map[string]interface{}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&patchValues); err != nil {
+	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
@@ -1953,9 +1977,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGetUID = ucrednetGetUID
-	storeUserInfo                = store.UserInfo
-	osutilAddUser                = osutil.AddUser
+	postCreateUserUcrednetGet = ucrednetGet
+	storeUserInfo             = store.UserInfo
+	osutilAddUser             = osutil.AddUser
 )
 
 func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
@@ -2131,7 +2155,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2313,8 +2337,7 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapctlOptions client.SnapCtlOptions
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&snapctlOptions); err != nil {
+	if err := jsonutil.DecodeWithNumber(r.Body, &snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
@@ -2354,7 +2377,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}

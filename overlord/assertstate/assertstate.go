@@ -267,13 +267,6 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	return validated, nil
 }
 
-func init() {
-	// hook validation of refreshes into snapstate logic
-	snapstate.ValidateRefreshes = ValidateRefreshes
-	// hook auto refresh of assertions into snapstate
-	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
-}
-
 // BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
 func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
 	// TODO: switch keeping this in the DB and have it revisioned/updated
@@ -351,7 +344,11 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	return res, nil
 }
 
-func init() {
+func delayedCrossMgrInit() {
+	// hook validation of refreshes into snapstate logic
+	snapstate.ValidateRefreshes = ValidateRefreshes
+	// hook auto refresh of assertions into snapstate
+	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
 }

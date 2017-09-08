@@ -38,12 +38,20 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 /dev/linux-user-bde rw,
 /dev/linux-kernel-bde rw,
 /dev/linux-bcm-knet rw,
+
+# These are broader than they needs to be, but until we query udev
+# for specific devices, use a broader glob
+/sys/devices/pci[0-9]*/**/config r,
+/sys/devices/pci[0-9]*/**/{,subsystem_}device r,
+/sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
+
+/sys/bus/pci/devices/ r,
+/run/udev/data/+pci:[0-9]* r,
 `
 
 const broadcomAsicControlConnectedPlugUDev = `
-KERNEL=="linux-user-bde", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="linux-kernel-bde", TAG+="###SLOT_SECURITY_TAGS###"
-KERNEL=="linux-bcm-knet", TAG+="###SLOT_SECURITY_TAGS###"
+SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde", TAG+="###CONNECTED_SECURITY_TAGS###"
+SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 // The upstream linux kernel doesn't come with support for the

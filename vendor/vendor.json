@@ -13,6 +13,18 @@
 			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
+			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"path": "github.com/godbus/dbus",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
 			"path": "github.com/gorilla/context",
 			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
@@ -43,12 +55,6 @@
 			"revisionTime": "2017-06-14T13:46:31Z"
 		},
 		{
-			"checksumSHA1": "4ZkAtTGnZIVrA5hUBCN/5+XdHYU=",
-			"path": "github.com/mvo5/net/bpf",
-			"revision": "0c0cd2628b36f2b053b7cc1ec04b76aab4c5189c",
-			"revisionTime": "2017-05-27T09:53:06Z"
-		},
-		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
 			"path": "github.com/ojii/gettext.go",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
@@ -61,11 +67,70 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
-			"checksumSHA1": "E28iXtNf9DZVsymruqAnTFGNNnE=",
-			"path": "golang.org/x/crypto",
-			"revision": "351dc6a5bf92a5f2ae22fadeee08eb6a45aa2d93",
-			"revisionTime": "2016-08-24T13:50:57Z",
-			"tree": true
+			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
+			"path": "golang.org/x/crypto/cast5",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d"
+		},
+		{
+			"checksumSHA1": "Y/FcWB2/xSfX1rRp7HYhktHNw8s=",
+			"path": "golang.org/x/crypto/nacl/secretbox",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "olOKkhrdkYQHZ0lf1orrFQPQrv4=",
+			"path": "golang.org/x/crypto/openpgp/armor",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "eo/KtdjieJQXH7Qy+faXFcF70ME=",
+			"path": "golang.org/x/crypto/openpgp/elgamal",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "rlxVSaGgqdAgwblsErxTxIfuGfg=",
+			"path": "golang.org/x/crypto/openpgp/errors",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "LWdaR8Q9yn6eBCcnGl0HvJRDUBE=",
+			"path": "golang.org/x/crypto/openpgp/packet",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "s2qT4UwvzBSkzXuiuMkowif1Olw=",
+			"path": "golang.org/x/crypto/openpgp/s2k",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "kVKE0OX1Xdw5mG7XKT86DLLKE2I=",
+			"path": "golang.org/x/crypto/poly1305",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-07-23T04:49:35Z"
+		},
+		{
+			"checksumSHA1": "RUr1Owi1/hTpuAqKeeus6YuEyz8=",
+			"path": "golang.org/x/crypto/salsa20/salsa",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-07-23T04:49:35Z"
+		},
+		{
+			"checksumSHA1": "DDHnuGCrmkKSXdNzc8pmn6P5O28=",
+			"path": "golang.org/x/crypto/sha3",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "9C4Av3ypK5pi173F76ogJT/d8x4=",
+			"comment": "using revision before x/sys/unix/ was added to allow building on powerpc",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "a19fa444682e099bed1a53260e1d755754cd098a",
+			"revisionTime": "2015-11-02T21:41:26Z"
 		},
 		{
 			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",

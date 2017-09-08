@@ -244,6 +244,16 @@ socket AF_NETLINK - NETLINK_DNRTMSG
 socket AF_NETLINK - NETLINK_ISCSI
 socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
+
+# for receiving kobject_uevent() net messages from the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
+const networkControlConnectedPlugUDev = `
+KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###",
+KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
@@ -255,6 +265,8 @@ func init() {
 		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
+
 }

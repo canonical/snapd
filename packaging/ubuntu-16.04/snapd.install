@@ -7,10 +7,6 @@ usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 
-# etc/profile.d contains the PATH extension for snap packages
-etc/profile.d
-# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
-etc/X11
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
 data/completion/complete.sh /usr/lib/snapd/
@@ -19,6 +15,8 @@ data/completion/etelpmoc.sh /usr/lib/snapd/
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
 data/info /usr/lib/snapd/
+# polkit actions
+data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -118,9 +119,6 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
-// timeout for tasks to check if the prerequisites are ready
-var prerequisitesRetryTimeout = 1 * time.Minute
-
 func inFlight(st *state.State, name string) (bool, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
@@ -142,6 +140,9 @@ func inFlight(st *state.State, name string) (bool, error) {
 
 	return false, nil
 }
+
+// timeout for tasks to check if the prerequisites are ready
+var prerequisitesRetryTimeout = 30 * time.Second
 
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -194,6 +195,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if _, ok := err.(changeDuringInstallError); ok {
 		return &state.Retry{After: prerequisitesRetryTimeout}
 	}
+	if _, ok := err.(changeConflictError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
 	if err != nil {
 		return err
 	}
@@ -205,6 +209,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		t.WaitAll(ts)
 	}
 	chg.AddAll(ts)
+	// make sure that the new change is committed to the state
+	// together with marking this task done
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
@@ -317,7 +324,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -809,6 +816,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+
+	// If we are on classic and have no previous version of core
+	// we may have restarted from a distro package into the core
+	// snap. We need to undo that restart here. Instead of in
+	// doUnlinkCurrentSnap() like we usually do when going from
+	// core snap -> next core snap
+	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
+		t.Logf("Requested daemon restart (undo classic initial core install)")
+		st.RequestRestart(state.RestartDaemon)
+	}
 	return nil
 }
 
