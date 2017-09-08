@@ -36,13 +36,13 @@ import (
 type servicesSuite struct {
 	systemctlArgs [][]string
 
-	restorer func()
+	systemctlRestorer func()
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpSuite(c *C) {
-	s.restorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("ActiveState=inactive")
 		return output, nil
@@ -50,7 +50,7 @@ func (s *servicesSuite) SetUpSuite(c *C) {
 }
 
 func (s *servicesSuite) TearDownSuite(c *C) {
-	s.restorer()
+	s.systemctlRestorer()
 }
 
 func (s *servicesSuite) SetUpTest(c *C) {
