@@ -84,6 +84,7 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 
 %if ! 0%{?with_bundled}
+BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
@@ -99,7 +100,6 @@ BuildRequires: golang(golang.org/x/crypto/ssh/terminal)
 BuildRequires: golang(golang.org/x/net/context)
 BuildRequires: golang(golang.org/x/net/context/ctxhttp)
 BuildRequires: golang(gopkg.in/check.v1)
-BuildRequires: golang(gopkg.in/cheggaaa/pb.v1)
 BuildRequires: golang(gopkg.in/macaroon.v1)
 BuildRequires: golang(gopkg.in/mgo.v2/bson)
 BuildRequires: golang(gopkg.in/retry.v1)
@@ -171,6 +171,7 @@ BuildArch:     noarch
 %endif
 
 %if ! 0%{?with_bundled}
+Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
@@ -186,7 +187,6 @@ Requires:      golang(golang.org/x/crypto/ssh/terminal)
 Requires:      golang(golang.org/x/net/context)
 Requires:      golang(golang.org/x/net/context/ctxhttp)
 Requires:      golang(gopkg.in/check.v1)
-Requires:      golang(gopkg.in/cheggaaa/pb.v1)
 Requires:      golang(gopkg.in/macaroon.v1)
 Requires:      golang(gopkg.in/mgo.v2/bson)
 Requires:      golang(gopkg.in/retry.v1)
@@ -196,6 +196,7 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
+Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
@@ -211,7 +212,6 @@ Provides:      bundled(golang(golang.org/x/crypto/ssh/terminal))
 Provides:      bundled(golang(golang.org/x/net/context))
 Provides:      bundled(golang(golang.org/x/net/context/ctxhttp))
 Provides:      bundled(golang(gopkg.in/check.v1))
-Provides:      bundled(golang(gopkg.in/cheggaaa/pb.v1))
 Provides:      bundled(golang(gopkg.in/macaroon.v1))
 Provides:      bundled(golang(gopkg.in/mgo.v2/bson))
 Provides:      bundled(golang(gopkg.in/retry.v1))
@@ -333,6 +333,12 @@ providing packages with %{import_path} prefix.
 %if ! 0%{?with_bundled}
 # Ensure there's no bundled stuff accidentally leaking in...
 rm -rf vendor/*
+
+# XXX: HACK: Fake that we have the right import path because bad testing
+# did not verify that this path was actually valid on all supported systems.
+mkdir -p vendor/gopkg.in/cheggaaa
+ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
+
 %endif
 
 %build
