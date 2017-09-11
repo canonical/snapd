@@ -111,11 +111,11 @@ func (s *bootstrapSuite) TestFindArgv0Unterminated(c *C) {
 	c.Assert(result, Equals, (*string)(nil))
 }
 
-// Check that PartiallyValidateSnapName rejects "/" and "..".
-func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
-	c.Assert(update.PartiallyValidateSnapName("hello-world"), Equals, 0)
-	c.Assert(update.PartiallyValidateSnapName("hello/world"), Equals, -1)
-	c.Assert(update.PartiallyValidateSnapName("hello..world"), Equals, -1)
+// Check that ValidateSnapName rejects "/" and "..".
+func (s *bootstrapSuite) TestValidateSnapName(c *C) {
+	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
+	c.Assert(update.ValidateSnapName("hello/world"), Equals, -1)
+	c.Assert(update.ValidateSnapName("hello..world"), Equals, -1)
 }
 
 // Check that pre-go bootstrap code is disabled while testing.

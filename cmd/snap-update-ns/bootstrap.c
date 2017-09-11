@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sched.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -146,18 +147,88 @@ setns_into_snap(const char* snap_name)
     return err;
 }
 
-// partially_validate_snap_name performs partial validation of the given name.
-// The goal is to ensure that there are no / or .. in the name.
-int partially_validate_snap_name(const char* snap_name)
+static int skip_lowercase_letters(const char** p)
 {
-    // NOTE: neither set bootstrap_{msg,errno} but the return value means that
-    // bootstrap does nothing. The name is re-validated by golang.
-    if (strstr(snap_name, "..") != NULL) {
+    int skipped = 0;
+    for (const char* c = *p; *c >= 'a' && *c <= 'z'; ++c) {
+        skipped += 1;
+    }
+    *p = (*p) + skipped;
+    return skipped;
+}
+
+static int skip_digits(const char** p)
+{
+    int skipped = 0;
+    for (const char* c = *p; *c >= '0' && *c <= '9'; ++c) {
+        skipped += 1;
+    }
+    *p = (*p) + skipped;
+    return skipped;
+}
+
+static int skip_one_char(const char** p, char c)
+{
+    if (**p == c) {
+        *p += 1;
+        return 1;
+    }
+    return 0;
+}
+
+// validate_snap_name performs full validation of the given name.
+int validate_snap_name(const char* snap_name)
+{
+    // NOTE: This function should be synchronized with the two other
+    // implementations: sc_snap_name_validate and snap.ValidateName.
+
+    // Ensure that name is not NULL
+    if (snap_name == NULL) {
+        bootstrap_msg = "snap name cannot be NULL";
         return -1;
     }
-    if (strchr(snap_name, '/') != NULL) {
+    // This is a regexp-free routine hand-codes the following pattern:
+    //
+    // "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
+    //
+    // The only motivation for not using regular expressions is so that we
+    // don't run untrusted input against a potentially complex regular
+    // expression engine.
+    const char* p = snap_name;
+    if (skip_one_char(&p, '-')) {
+        bootstrap_msg = "snap name cannot start with a dash";
         return -1;
     }
+    bool got_letter = false;
+    for (; *p != '\0';) {
+        if (skip_lowercase_letters(&p) > 0) {
+            got_letter = true;
+            continue;
+        }
+        if (skip_digits(&p) > 0) {
+            continue;
+        }
+        if (skip_one_char(&p, '-') > 0) {
+            if (*p == '\0') {
+                bootstrap_msg = "snap name cannot end with a dash";
+                return -1;
+            }
+            if (skip_one_char(&p, '-') > 0) {
+                bootstrap_msg = "snap name cannot contain two consecutive dashes";
+                return -1;
+            }
+            continue;
+        }
+        bootstrap_msg = "snap name must use lower case letters, digits or dashes";
+        return -1;
+    }
+    if (!got_letter) {
+        bootstrap_msg = "snap name must contain at least one letter";
+        return -1;
+    }
+
+    bootstrap_msg = NULL;
+    return 0;
 }
 
 // bootstrap prepares snap-update-ns to work in the namespace of the snap given
@@ -203,11 +274,12 @@ void bootstrap(void)
         return;
     }
 
-    // Look for known offenders in the snap name (.. and /) and do nothing if
-    // those are found. The golang code will validate snap name and print a
-    // proper error message but this just ensures we don't try to open / setns
-    // anything unusual.
-    if (partially_validate_snap_name(snap_name) < 0) {
+    // Ensure that the snap name is valid so that we don't blindly setns into
+    // something that is controlled by a potential attacker. Note that this no
+    // longer does partial validation as it did before.
+    if (validate_snap_name(snap_name) < 0) {
+        bootstrap_errno = 0;
+        // bootstap_msg is set by validate_snap_name;
         return;
     }
 
