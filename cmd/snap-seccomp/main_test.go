@@ -232,8 +232,14 @@ faccessat
 	var syscallRunnerArgs [7]string
 	syscallNr, err := seccomp.GetSyscallFromName(l[0])
 	c.Assert(err, IsNil)
-	if syscallNr < 0 {
-		c.Skip(fmt.Sprintf("skipping %v because it resolves to negative %v", l[0], syscallNr))
+	switch {
+	case syscallNr == -101:
+		// "socket"
+		// see libseccomp: _s390x_sock_demux(), _x86_sock_demux()
+		// the -101 is translated to 359 (socket)
+		syscallNr = 359
+	case syscallNr < 0:
+		c.Errorf("failed to resolve %v: %v", l[0], syscallNr)
 		return
 	}
 
