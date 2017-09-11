@@ -55,10 +55,6 @@ func parseArgs(args []string) error {
 }
 
 func run() error {
-	if err := parseArgs(os.Args[1:]); err != nil {
-		return err
-	}
-
 	// There is some C code that runs before main() is started.
 	// That code always runs and sets an error condition if it fails.
 	// Here we just check for the error.
@@ -70,6 +66,11 @@ func run() error {
 		}
 		return err
 	}
+
+	if err := parseArgs(os.Args[1:]); err != nil {
+		return err
+	}
+
 	snapName := opts.Positionals.SnapName
 
 	// Lock the mount namespace so that any concurrently attempted invocations
