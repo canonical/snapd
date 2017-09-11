@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"io"
+	"os"
 	"os/exec"
 	"os/user"
 	"syscall"
@@ -82,4 +83,22 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
 	wr := r.(*waitingReader)
 	return wr.reader, wr.cmd
+}
+
+func MockChown(f func(*os.File, int, int) error) func() {
+	oldChown := chown
+	chown = f
+	return func() {
+		chown = oldChown
+	}
+}
+
+func SetAtomicFileRenamed(aw AtomicWriter, renamed bool) {
+	println("renamed", renamed)
+	aw.(*atomicFile).renamed = renamed
+}
+
+func GetAtomicFile(aw AtomicWriter) *os.File {
+	return aw.(*atomicFile).File
+
 }

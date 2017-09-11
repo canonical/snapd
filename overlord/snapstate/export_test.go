@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -95,11 +96,16 @@ func MockErrtrackerReport(mock func(string, string, string, map[string]string) (
 	return func() { errtrackerReport = prev }
 }
 
+func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
+	old := prerequisitesRetryTimeout
+	prerequisitesRetryTimeout = d
+	return func() { prerequisitesRetryTimeout = old }
+}
+
 var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
-	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )

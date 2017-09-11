@@ -40,6 +40,7 @@ var (
 	IsReexeced         = isReexeced
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
+	SortByPath         = sortByPath
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

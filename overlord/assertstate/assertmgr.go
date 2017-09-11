@@ -42,6 +42,8 @@ type AssertManager struct {
 
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
+	delayedCrossMgrInit()
+
 	runner := state.NewTaskRunner(s)
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)

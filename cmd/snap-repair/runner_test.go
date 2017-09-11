@@ -967,12 +967,12 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "1")
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "repair.r0")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, "3")
-	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "repair.r2"))
+	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
 	c.Assert(err, IsNil)
 	c.Check(string(strm), Equals, seqRepairs[2])
 
@@ -1411,7 +1411,7 @@ AXNpZw==`}
 	c.Assert(err, IsNil)
 
 	rpr.Run()
-	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, "exit 0\n")
 }
@@ -1449,9 +1449,9 @@ type runScriptSuite struct {
 
 	runDir string
 
-	restoreErrTrackerReport func()
-	errReport               struct {
-		snap   string
+	restoreErrTrackerReportRepair func()
+	errReport                     struct {
+		repair string
 		errMsg string
 		dupSig string
 		extra  map[string]string
@@ -1471,18 +1471,18 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
-	s.restoreErrTrackerReport = repair.MockErrtrackerReport(s.errtrackerReport)
+	s.restoreErrTrackerReportRepair = repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
 }
 
 func (s *runScriptSuite) TearDownTest(c *C) {
 	s.baseRunnerSuite.TearDownTest(c)
 
-	s.restoreErrTrackerReport()
+	s.restoreErrTrackerReportRepair()
 	s.mockServer.Close()
 }
 
-func (s *runScriptSuite) errtrackerReport(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
-	s.errReport.snap = snap
+func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
+	s.errReport.repair = repair
 	s.errReport.errMsg = errMsg
 	s.errReport.dupSig = dupSig
 	s.errReport.extra = extra
@@ -1490,7 +1490,7 @@ func (s *runScriptSuite) errtrackerReport(snap, errMsg, dupSig string, extra map
 	return "some-oops-id", nil
 }
 
-func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *repair.Repair {
+func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
@@ -1502,13 +1502,9 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript, expectedErr string) *re
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	if expectedErr == "" {
-		c.Assert(err, IsNil)
-	} else {
-		c.Assert(err, ErrorMatches, expectedErr)
-	}
+	c.Assert(err, IsNil)
 
-	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "script.r0"))
+	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.script"))
 	c.Assert(err, IsNil)
 	c.Check(string(scrpt), Equals, mockScript)
 
@@ -1547,11 +1543,11 @@ echo "done" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, "")
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", "happy output\n")
@@ -1564,24 +1560,30 @@ echo "unhappy output"
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
-	c.Check(s.errReport.snap, Equals, "repair (1; brand-id:canonical)")
+	c.Check(s.errReport.repair, Equals, "canonical/1")
 	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
-	c.Check(s.errReport.dupSig, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1
+	c.Check(s.errReport.dupSig, Equals, `canonical/1
+"repair (1; brand-id:canonical)" failed: exit status 1
 output:
 unhappy output
 `)
 	c.Check(s.errReport.extra, DeepEquals, map[string]string{
 		"Revision": "0",
+		"RepairID": "1",
+		"BrandID":  "canonical",
+		"Status":   "retry",
 	})
 }
 
@@ -1592,11 +1594,11 @@ echo "skip" >&$SNAP_REPAIR_STATUS_FD
 exit 0
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	s.testScriptRun(c, script, "")
+	s.testScriptRun(c, script)
 	// verify
 	s.verifyRundir(c, []string{
+		`^r0.script$`,
 		`^r0.skip$`,
-		`^script.r0$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.skip", "other output\n")
@@ -1615,13 +1617,15 @@ touch zzz-ran-once
 exit 1
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
-	rpr := s.testScriptRun(c, script, `"repair \(1; brand-id:canonical\)" failed: exit status 1`)
+	rpr := s.testScriptRun(c, script)
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "unhappy output\n")
+	s.verifyOutput(c, "r0.retry", `unhappy output
+
+"repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	// run again, it will be happy this time
@@ -1631,7 +1635,7 @@ exit 1
 	s.verifyRundir(c, []string{
 		`^r0.done$`,
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", "happy now\n")
@@ -1658,13 +1662,15 @@ sleep 100
 	c.Assert(err, IsNil)
 
 	err = rpr.Run()
-	c.Assert(err, ErrorMatches, `"repair \(1; brand-id:canonical\)" failed: repair did not finish within 10ms`)
+	c.Assert(err, IsNil)
 
 	s.verifyRundir(c, []string{
 		`^r0.retry$`,
-		`^script.r0$`,
+		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", "output before timeout\n")
+	s.verifyOutput(c, "r0.retry", `output before timeout
+
+"repair (1; brand-id:canonical)" failed: repair did not finish within 10ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }

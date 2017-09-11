@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.27.5
+Version:        2.27.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -86,6 +86,8 @@ Requires:       %{name}-selinux = %{version}-%{release}
 %if ! 0%{?with_bundled}
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
+BuildRequires: golang(github.com/godbus/dbus)
+BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
@@ -171,6 +173,8 @@ BuildArch:     noarch
 %if ! 0%{?with_bundled}
 Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
+Requires:      golang(github.com/godbus/dbus)
+Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/mvo5/uboot-go/uenv)
@@ -194,6 +198,8 @@ Requires:      golang(gopkg.in/yaml.v2)
 # *sigh*... I hate golang...
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
+Provides:      bundled(golang(github.com/godbus/dbus))
+Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
 Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
@@ -324,6 +330,16 @@ providing packages with %{import_path} prefix.
 %prep
 %setup -q
 
+%if ! 0%{?with_bundled}
+# Ensure there's no bundled stuff accidentally leaking in...
+rm -rf vendor/*
+
+# XXX: HACK: Fake that we have the right import path because bad testing
+# did not verify that this path was actually valid on all supported systems.
+mkdir -p vendor/gopkg.in/cheggaaa
+ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
+
+%endif
 
 %build
 # Generate version files
@@ -349,9 +365,10 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 # set tags.
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
-%gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+# build snap-exec completely static for base snaps
+CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
@@ -452,7 +469,7 @@ pushd ./data/
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
-rm -fv %{buildroot}%{_unitdir}/snap-repair.*
+rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 popd
 
@@ -641,6 +658,12 @@ fi
 
 
 %changelog
+* Thu Sep 07 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.6
+  - interfaces: add udev netlink support to hardware-observe
+  - interfaces/network-{control,observe}: allow receiving
+    kobject_uevent() messages
+
 * Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.5
   - interfaces: fix network-manager plug regression
