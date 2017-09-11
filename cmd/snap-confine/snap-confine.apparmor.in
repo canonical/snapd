@@ -385,13 +385,13 @@
 
     # Allow executing snap-update-ns when...
 
-    # ...snap-confine is not, conceptually, not re-executing and uses
-    # snap-update-ns from the distribution package. This is also the location
-    # used when using the core/base snap on all-snap systems. The variants here
-    # represent various locations of libexecdir across distributions.
+    # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
+    # from the distribution package. This is also the location used when using
+    # the core/base snap on all-snap systems. The variants here represent
+    # various locations of libexecdir across distributions.
     /usr/lib{,exec}/snapd/snap-update-ns Cxr -> snap_update_ns,
 
-    # ...snap-confine is, conceptually, not re-executing and uses
+    # ...snap-confine is not, conceptually, re-executing and uses
     # snap-update-ns from the distribution package but we are already inside
     # the constructed mount namespace so we must traverse "hostfs". The
     # variants here represent various locations of libexecdir across
