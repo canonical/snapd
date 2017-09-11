@@ -57,7 +57,7 @@ var (
 	defaultRepairTimeout = 30 * time.Minute
 )
 
-var errtrackerReport = errtracker.Report
+var errtrackerReportRepair = errtracker.ReportRepair
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -89,14 +89,15 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
+	baseName := fmt.Sprintf("r%d", r.Revision())
+
+	script := filepath.Join(rundir, baseName+".script")
 	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
 		return err
 	}
 
 	// the date may be broken so we use an additional counter
-	baseName := fmt.Sprintf("r%d", r.Revision())
 	logPath := filepath.Join(rundir, baseName+".output")
 	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -139,41 +140,47 @@ func (r *Repair) Run() error {
 	statusW.Close()
 
 	// wait for repair to finish or timeout
+	var scriptErr error
 	killTimerCh := time.After(defaultRepairTimeout)
 	doneCh := make(chan error)
 	go func() {
-		// ignore error, we only care about what we got via
-		// the status pipe
 		doneCh <- cmd.Wait()
 		close(doneCh)
 	}()
 	select {
-	case err = <-doneCh:
+	case scriptErr = <-doneCh:
 		// done
 	case <-killTimerCh:
 		if err := osutil.KillProcessGroup(cmd); err != nil {
 			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
 		}
-		err = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+		scriptErr = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
 	}
-	if err != nil {
-		err = fmt.Errorf("%q failed: %s", r.Ref(), err)
+	// read repair status pipe, use the last value
+	status := readStatus(statusR)
+	statusPath := filepath.Join(rundir, baseName+"."+status.String())
 
-		statusPath := filepath.Join(rundir, baseName+".retry")
-		if err := os.Rename(logPath, statusPath); err != nil {
-			logger.Noticef("cannot write stamp: %s", statusPath)
-		}
-
-		if err := r.errtrackerReport(err, statusPath); err != nil {
+	// if the script had an error exit status still honor what we
+	// read from the status-pipe, however report the error
+	if scriptErr != nil {
+		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
-
+		// ensure the error is present in the output log
+		fmt.Fprintf(logf, "\n%s", scriptErr)
+	}
+	if err := os.Rename(logPath, statusPath); err != nil {
 		return err
 	}
+	r.SetStatus(status)
 
-	// read repair status pipe, use the last value
+	return nil
+}
+
+func readStatus(r io.Reader) RepairStatus {
 	var status RepairStatus
-	scanner := bufio.NewScanner(statusR)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
@@ -183,39 +190,30 @@ func (r *Repair) Run() error {
 		}
 	}
 	if scanner.Err() != nil {
-		return err
+		return RetryStatus
 	}
-
-	statusPath := filepath.Join(rundir, baseName+"."+status.String())
-	if err := os.Rename(logPath, statusPath); err != nil {
-		return err
-	}
-	r.SetStatus(status)
-
-	return nil
+	return status
 }
 
 // errtrackerReport reports an repairErr with the given logPath to the
 // snap error tracker.
-func (r *Repair) errtrackerReport(repairErr error, logPath string) error {
-	// FIXME: instead of a pseudo snap we could also just use a
-	// different "ProblemType". Right now we always use
-	// "ProblemType: snap" but for repairs we could set it to
-	// "ProblemType: snap-repair" or similar
-	pseudoSnap := r.Ref().String()
-
+func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
 	errMsg := fmt.Sprintf("%s", repairErr)
 
 	scriptOutput, err := ioutil.ReadFile(logPath)
 	if err != nil {
 		logger.Noticef("cannot read %s", logPath)
 	}
-	dupSig := fmt.Sprintf("%s\noutput:\n%s", errMsg, scriptOutput)
+	s := fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID())
 
+	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
 	extra := map[string]string{
 		"Revision": strconv.Itoa(r.Revision()),
+		"BrandID":  r.BrandID(),
+		"RepairID": r.RepairID(),
+		"Status":   status.String(),
 	}
-	_, err = errtrackerReport(pseudoSnap, errMsg, dupSig, extra)
+	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
 	return err
 }
 
@@ -785,14 +783,14 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
 		}
 	}
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
 func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", revision))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
 	f, err := os.Open(p)
 	if err != nil {
 		return nil, nil, err

@@ -66,14 +66,6 @@ func MockTimeNow(f func() time.Time) (restorer func()) {
 	}
 }
 
-func MockSnapConfineApparmorProfile(path string) (restorer func()) {
-	old := snapConfineProfile
-	snapConfineProfile = path
-	return func() {
-		snapConfineProfile = old
-	}
-}
-
 func MockReExec(didReExec bool) (restorer func()) {
 	old := osutil.GetenvBool("SNAP_DID_REEXEC")
 	if didReExec {
