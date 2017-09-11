@@ -81,6 +81,8 @@ func (leaf memBSLeaf) put(assertType *AssertionType, key []string, assert Assert
 	return nil
 }
 
+// errNotFound is used internally by backends, it is converted to the richer
+// NotFoundError only at their public interface boundary
 var errNotFound = errors.New("assertion not found")
 
 func (br memBSBranch) get(key []string, maxFormat int) (Assertion, error) {

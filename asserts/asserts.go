@@ -191,7 +191,9 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 	return find(ref.Type, headers)
 }
 
-// primaryKeyFromHeaders extracts the tuple of values from headers corresponding to the primary key, it errors if there are missing headers.
+// primaryKeyFromHeaders extracts the tuple of values from headers
+// corresponding to the primary key, it errors if there are missing
+// headers.
 func primaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
 	primaryKey = make([]string, len(assertType.PrimaryKey))
 	for i, k := range assertType.PrimaryKey {
@@ -204,7 +206,9 @@ func primaryKeyFromHeaders(assertType *AssertionType, headers map[string]string)
 	return primaryKey, nil
 }
 
-// headersFromPrimaryKey construct an headers mapping from the primaryKey values for an assertion type, it errors if primaryKey has the wrong length.
+// headersFromPrimaryKey construct an headers mapping from the
+// primaryKey values for an assertion type, it errors if primaryKey
+// has the wrong length.
 func headersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
 	if len(primaryKey) != len(assertType.PrimaryKey) {
 		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
