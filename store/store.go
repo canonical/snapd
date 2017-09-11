@@ -469,8 +469,12 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	return store
 }
 
-func encodeFields(fields []string) string {
-	return strings.Join(fields, ",")
+func (s *Store) defaultSnapQuery() url.Values {
+	q := url.Values{}
+	if len(s.detailFields) != 0 {
+		q.Set("fields", strings.Join(s.detailFields, ","))
+	}
+	return q
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -922,11 +926,7 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := url.Values{}
-
-	if len(s.detailFields) != 0 {
-		query.Set("fields", encodeFields(s.detailFields))
-	}
+	query := s.defaultSnapQuery()
 
 	channel := snapSpec.Channel
 	var sel string
@@ -1011,11 +1011,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, ErrBadQuery
 	}
 
-	q := url.Values{}
-
-	if len(s.detailFields) != 0 {
-		q.Set("fields", encodeFields(s.detailFields))
-	}
+	q := s.defaultSnapQuery()
 
 	if search.Private {
 		if search.Prefix {
