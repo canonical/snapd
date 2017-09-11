@@ -39,11 +39,16 @@ var opts struct {
 	} `positional-args:"true"`
 }
 
+// IMPORTANT: all the code in main() until bootstrap is finished may be run
+// with elevated privileges when invoking snap-update-ns from the setuid
+// snap-confine.
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Printf("cannot update snap namespace: %s\n", err)
 		os.Exit(1)
 	}
+	// END IMPORTANT
 }
 
 func parseArgs(args []string) error {
@@ -53,6 +58,10 @@ func parseArgs(args []string) error {
 	}
 	return snap.ValidateName(opts.Positionals.SnapName)
 }
+
+// IMPORTANT: all the code in run() until BootStrapError() is finished may
+// be run with elevated privileges when invoking snap-update-ns from
+// the setuid snap-confine.
 
 func run() error {
 	// There is some C code that runs before main() is started.
@@ -66,6 +75,7 @@ func run() error {
 		}
 		return err
 	}
+	// END IMPORTANT
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
