@@ -45,8 +45,8 @@ var (
 	stopNotifyDelay = 20 * time.Second
 )
 
-// run calls systemctl with the given args, returning its standard output (and wrapped error)
-func run(args ...string) ([]byte, error) {
+// systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
+var systemctlCmd = func(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
@@ -56,9 +56,20 @@ func run(args ...string) ([]byte, error) {
 	return bs, nil
 }
 
-// SystemctlCmd is called from the commands to actually call out to
+// MockSystemctl is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
-var SystemctlCmd = run
+func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+	oldSystemctlCmd := systemctlCmd
+	systemctlCmd = f
+	return func() {
+		systemctlCmd = oldSystemctlCmd
+	}
+}
+
+func Available() error {
+	_, err := systemctlCmd("--version")
+	return err
+}
 
 var osutilStreamCommand = osutil.StreamCommand
 
@@ -126,25 +137,25 @@ type systemd struct {
 
 // DaemonReload reloads systemd's configuration.
 func (*systemd) DaemonReload() error {
-	_, err := SystemctlCmd("daemon-reload")
+	_, err := systemctlCmd("daemon-reload")
 	return err
 }
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
+	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
+	_, err := systemctlCmd("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Start the given service
 func (*systemd) Start(serviceName string) error {
-	_, err := SystemctlCmd("start", serviceName)
+	_, err := systemctlCmd("start", serviceName)
 	return err
 }
 
@@ -168,7 +179,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 	cmd[0] = "show"
 	cmd[1] = "--property=" + strings.Join(expected, ",")
 	copy(cmd[2:], serviceNames)
-	bs, err := SystemctlCmd(cmd...)
+	bs, err := systemctlCmd(cmd...)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +253,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
-	if _, err := SystemctlCmd("stop", serviceName); err != nil {
+	if _, err := systemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
 
@@ -260,7 +271,7 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
+			bs, err := systemctlCmd("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -282,7 +293,7 @@ loop:
 
 // Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := SystemctlCmd("kill", serviceName, "-s", signal)
+	_, err := systemctlCmd("kill", serviceName, "-s", signal)
 	return err
 }
 

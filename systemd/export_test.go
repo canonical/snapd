@@ -25,8 +25,7 @@ import (
 )
 
 var (
-	SystemdRun = run // NOTE: plain Run clashes with check.v1
-	Jctl       = jctl
+	Jctl = jctl
 )
 
 func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
