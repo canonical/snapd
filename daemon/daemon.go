@@ -97,32 +97,6 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	isUser := false
 	pid, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
-		if uid == 0 {
-			// Superuser does anything.
-			return true
-		}
-
-		if c.PolkitOK != "" {
-			allow, err := strconv.ParseBool(r.Header.Get(client.AllowInteractionHeader))
-			if err != nil {
-				// default behaviour if the header
-				// cannot be parsed
-				allow = false
-			}
-			var flags polkit.CheckFlags
-			if allow {
-				flags |= polkit.CheckAllowInteraction
-			}
-			if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
-				if authorized {
-					// polkit says user is authorised
-					return true
-				}
-			} else if err != polkit.ErrDismissed {
-				logger.Noticef("polkit error: %s", err)
-			}
-		}
-
 		isUser = true
 	} else if err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
@@ -131,16 +105,45 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		return true
 	}
 
-	if r.Method != "GET" {
+	if r.Method == "GET" {
+		// Guest and user access restricted to GET requests
+		if c.GuestOK {
+			return true
+		}
+
+		if isUser && c.UserOK {
+			return true
+		}
+	}
+
+	// Remaining admin checks rely on identifying peer uid
+	if !isUser {
 		return false
 	}
 
-	if isUser && c.UserOK {
+	if uid == 0 {
+		// Superuser does anything.
 		return true
 	}
 
-	if c.GuestOK {
-		return true
+	if c.PolkitOK != "" {
+		var flags polkit.CheckFlags
+		allowHeader := r.Header.Get(client.AllowInteractionHeader)
+		if allowHeader != "" {
+			if allow, err := strconv.ParseBool(allowHeader); err != nil {
+				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+			} else if allow {
+				flags |= polkit.CheckAllowInteraction
+			}
+		}
+		if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
+			if authorized {
+				// polkit says user is authorised
+				return true
+			}
+		} else if err != polkit.ErrDismissed {
+			logger.Noticef("polkit error: %s", err)
+		}
 	}
 
 	return false
