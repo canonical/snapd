@@ -1,4 +1,5 @@
 summary: Check that base snaps work
+systems: [-opensuse-*]
 
 execute: |
     . $TESTSLIB/snaps.sh
