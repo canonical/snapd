@@ -65,7 +65,8 @@ type SystemdTestSuite struct {
 
 	rep *testreporter
 
-	restore func()
+	restoreSystemctl  func()
+	restoreJournalctl func()
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -78,13 +79,13 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	s.restore = MockSystemctl(s.myRun)
+	s.restoreSystemctl = MockSystemctl(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
 
-	JournalctlCmd = s.myJctl
+	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
 	s.jns = nil
 	s.jsvcs = nil
@@ -96,8 +97,8 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
-	JournalctlCmd = Jctl
-	s.restore()
+	s.restoreSystemctl()
+	s.restoreJournalctl()
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
