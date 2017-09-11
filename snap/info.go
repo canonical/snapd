@@ -441,6 +441,12 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 }
 
+// SocketInfo provides information on application sockets.
+type SocketInfo struct {
+	ListenStream string
+	SocketMode   string
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -462,8 +468,9 @@ type AppInfo struct {
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
-	Plugs map[string]*PlugInfo
-	Slots map[string]*SlotInfo
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
+	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
 }
@@ -545,9 +552,22 @@ func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
-// ServiceSocketFile returns the systemd socket file path for the daemon app.
-func (app *AppInfo) ServiceSocketFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
+// ServiceSocketFiles returns the list of  systemd socket file paths for the daemon app.
+func (app *AppInfo) ServiceSocketFiles() []string {
+	socketPaths := make([]string, 0, len(app.Sockets))
+	for name := range app.Sockets {
+		socketPaths = append(socketPaths, app.SocketFile(name))
+	}
+	sort.Strings(socketPaths)
+	return socketPaths
+}
+
+// SocketFile returns the systemd socket file path for the specified app socket.
+func (app *AppInfo) SocketFile(name string) string {
+	if _, ok := app.Sockets[name]; !ok {
+		return ""
+	}
+	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+"."+name+".socket")
 }
 
 // Env returns the app specific environment overrides

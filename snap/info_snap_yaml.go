@@ -75,6 +75,8 @@ type appYaml struct {
 	BusName string `yaml:"bus-name,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+
+	Sockets map[string]socketsYaml `yaml:"sockets,omitempty"`
 }
 
 type hookYaml struct {
@@ -88,6 +90,11 @@ type layoutYaml struct {
 	Group   string `yaml:"group,omitempty"`
 	Mode    string `yaml:"mode,omitempty"`
 	Symlink string `yaml:"symlink,omitempty"`
+}
+
+type socketsYaml struct {
+	ListenStream string `yaml:"listen-stream,omitempty"`
+	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -285,6 +292,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 		if len(y.Slots) > 0 || len(yApp.SlotNames) > 0 {
 			app.Slots = make(map[string]*SlotInfo)
 		}
+		if len(yApp.Sockets) > 0 {
+			app.Sockets = make(map[string]*SocketInfo)
+		}
+
 		snap.Apps[appName] = app
 		for _, alias := range app.LegacyAliases {
 			if snap.LegacyAliases[alias] != nil {
@@ -321,6 +332,21 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			}
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
+		}
+		for name, data := range yApp.Sockets {
+			var socketMode string
+			if data.SocketMode != "" {
+				if _, err := strconv.ParseUint(data.SocketMode, 8, 32); err != nil {
+					return err
+				}
+				socketMode = data.SocketMode
+			}
+
+			socketInfo := &SocketInfo{
+				ListenStream: data.ListenStream,
+				SocketMode:   socketMode,
+			}
+			app.Sockets[name] = socketInfo
 		}
 	}
 	return nil

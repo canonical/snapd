@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
@@ -149,6 +150,23 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 	return nil
 }
 
+func validateAppSocket(name string, socket *SocketInfo) error {
+	if socket.ListenStream == "" {
+		return fmt.Errorf("app socket '%s' has empty ListenStream", name)
+	}
+
+	if socket.SocketMode != "" {
+		invalidErr := fmt.Errorf("app socket '%s' has invalid SocketMode %q", name, socket.SocketMode)
+		if !strings.HasPrefix(socket.SocketMode, "0") {
+			return invalidErr
+		}
+		if _, err := strconv.ParseUint(socket.SocketMode, 8, 32); err != nil {
+			return invalidErr
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -183,6 +201,14 @@ func ValidateApp(app *AppInfo) error {
 			return err
 		}
 	}
+
+	for name, socket := range app.Sockets {
+		err := validateAppSocket(name, socket)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

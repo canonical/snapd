@@ -1336,6 +1336,10 @@ apps:
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
    bus-name: busName
+   sockets:
+     sock1:
+       listen-stream: sock1.socket
+       socket-mode: "0666"
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1350,6 +1354,12 @@ apps:
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",
 			BusName:         "busName",
+			Sockets: map[string]*snap.SocketInfo{
+				"sock1": {
+					ListenStream: "sock1.socket",
+					SocketMode:   "0666",
+				},
+			},
 		},
 	})
 }

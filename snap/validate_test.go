@@ -132,6 +132,70 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppSockets(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {
+				ListenStream: "/a/path",
+				SocketMode:   "0600",
+			},
+		},
+	}
+	c.Check(ValidateApp(&app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {
+				ListenStream: "/a/socket",
+			},
+		},
+	}
+	c.Check(ValidateApp(&app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsEmptyName(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {},
+		},
+	}
+	err := ValidateApp(&app)
+	c.Assert(err, ErrorMatches, `app socket 'sock' has empty ListenStream`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidSocketMode(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {
+				ListenStream: "/a/socket",
+				SocketMode:   "wrong",
+			},
+		},
+	}
+	err := ValidateApp(&app)
+	c.Assert(err, ErrorMatches, `app socket 'sock' has invalid SocketMode "wrong"`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidSocketModeNoOctal(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {
+				ListenStream: "/a/socket",
+				SocketMode:   "123",
+			},
+		},
+	}
+	err := ValidateApp(&app)
+	c.Assert(err, ErrorMatches, `app socket 'sock' has invalid SocketMode "123"`)
+}
+
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo"}), IsNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo"}), IsNil)

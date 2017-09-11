@@ -701,6 +701,11 @@ func (s *infoSuite) TestInfoServices(c *C) {
 apps:
   svc1:
     daemon: potato
+    sockets:
+      sock1:
+        listen-stream: s1.socket
+      sock2:
+        listen-stream: s2.socket
   svc2:
     daemon: no
   app1:
@@ -735,11 +740,32 @@ apps:
 	c.Check(svc.IsService(), Equals, true)
 	c.Check(svc.ServiceName(), Equals, "snap.pans.svc1.service")
 	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.service")
-	c.Check(svc.ServiceSocketFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.socket")
+	c.Check(svc.ServiceSocketFiles(), DeepEquals,
+		[]string{
+			dirs.GlobalRootDir + "/etc/systemd/system/snap.pans.svc1.sock1.socket",
+			dirs.GlobalRootDir + "/etc/systemd/system/snap.pans.svc1.sock2.socket",
+		})
 
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
+}
+
+func (s *infoSuite) TestSocketfile(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  app1:
+    daemon: true
+    sockets:
+      sock1:
+        listen-stream: sock1.socket
+`))
+
+	c.Assert(err, IsNil)
+
+	app := info.Apps["app1"]
+	c.Check(app.SocketFile("sock1"), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
+	c.Check(app.SocketFile("unknown"), Equals, "")
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
