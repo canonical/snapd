@@ -408,9 +408,9 @@
     # from the core snap but we are already inside the constructed mount
     # namespace. Here the apparmor kernel module re-constructs the path to
     # snap-update-ns using the "hostfs" mount entry rather than the more
-    # "natural" /snap mount entry but we have no control over that. The
-    # variants here represent different locations of snap mount directory
-    # across distributions.
+    # "natural" /snap mount entry but we have no control over that.  This is
+    # reported as (LP: #1716339). The variants here represent different
+    # locations of snap mount directory across distributions.
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     profile snap_update_ns (attach_disconnected) {
