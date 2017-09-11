@@ -65,7 +65,7 @@ func makeMockRepairState(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r3.retry"), []byte("retry output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r3"), []byte("#!/bin/sh\necho retry output"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r3.script"), []byte("#!/bin/sh\necho retry output"), 0700)
 	c.Assert(err, IsNil)
 
 	// my-brand
@@ -74,7 +74,7 @@ func makeMockRepairState(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r1.done"), []byte("done output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho done output"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.script"), []byte("#!/bin/sh\necho done output"), 0700)
 	c.Assert(err, IsNil)
 
 	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/2")
@@ -82,7 +82,7 @@ func makeMockRepairState(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r2.skip"), []byte("skip output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "script.r1"), []byte("#!/bin/sh\necho skip output"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.script"), []byte("#!/bin/sh\necho skip output"), 0700)
 	c.Assert(err, IsNil)
 }
 
@@ -117,11 +117,11 @@ my-brand  1    1    done
   #!/bin/sh
   echo done output
 my-brand  2    2    skip
- output:
-  skip output
  script:
   #!/bin/sh
   echo skip output
+ output:
+  skip output
 `)
 
 }

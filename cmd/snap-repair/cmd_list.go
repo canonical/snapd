@@ -79,7 +79,7 @@ func showRepairOutput(w io.Writer, issuer, seq, rev string) error {
 			fmt.Fprintf(w, " output:\n")
 			outputIndented(w, filepath.Join(basedir, name))
 		}
-		if strings.HasPrefix(name, "script.") {
+		if strings.HasSuffix(name, ".script") {
 			fmt.Fprintf(w, " script:\n")
 			outputIndented(w, filepath.Join(basedir, name))
 		}
@@ -120,12 +120,12 @@ func (c *cmdList) Execute(args []string) error {
 	//  canonical/
 	//    1/
 	//      r0.retry
-	//      script.r0
+	//      r0.script
 	//      r1.done
-	//      script.r0
+	//      r1.script
 	//    2/
 	//      r3.done
-	//      script.r3
+	//      r3.script
 	var repairTraces []repairTrace
 	issuersContent, err := ioutil.ReadDir(dirs.SnapRepairRunDir)
 	if os.IsNotExist(err) {
