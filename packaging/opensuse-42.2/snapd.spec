@@ -147,7 +147,9 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snapctl
 # build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild cmd/snap-exec
-%gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
+# gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
+# FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
+%gobuild bin/snap-update-ns
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
