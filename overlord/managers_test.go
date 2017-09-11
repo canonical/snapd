@@ -68,11 +68,10 @@ type mgrsSuite struct {
 
 	snapDiscardNs *testutil.MockCmd
 
-	prevctlCmd func(...string) ([]byte, error)
-
-	storeSigning   *assertstest.StoreStack
-	restoreTrusted func()
-	restore        func()
+	storeSigning     *assertstest.StoreStack
+	restoreTrusted   func()
+	restore          func()
+	restoreSystemctl func()
 
 	devAcct *asserts.Account
 
@@ -122,10 +121,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
-	ms.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	ms.restoreSystemctl = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
@@ -198,8 +197,8 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	ms.restoreTrusted()
 	ms.restore()
+	ms.restoreSystemctl()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
