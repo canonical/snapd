@@ -45,7 +45,7 @@ const hardwareRandomControlConnectedPlugAppArmor = `
 /sys/devices/virtual/misc/hw_random/rng_current w,
 `
 
-const hardwareRandomControlConnectedPlugUDev = `KERNEL=="hwrng", TAG+="###SLOT_SECURITY_TAGS###"`
+const hardwareRandomControlConnectedPlugUDev = `KERNEL=="hwrng", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{

@@ -20,7 +20,12 @@
 package main
 
 import (
+	"time"
+
 	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
@@ -53,6 +58,14 @@ func MockMaxRepairScriptSize(maxSize int) (restore func()) {
 	}
 }
 
+func MockTrustedRepairRootKeys(keys []*asserts.AccountKey) (restore func()) {
+	original := trustedRepairRootKeys
+	trustedRepairRootKeys = keys
+	return func() {
+		trustedRepairRootKeys = original
+	}
+}
+
 func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
@@ -66,6 +79,14 @@ func (run *Runner) SetBrandModel(brand, model string) {
 	run.state.Device.Model = model
 }
 
+func (run *Runner) TimeLowerBound() time.Time {
+	return run.state.TimeLowerBound
+}
+
+func (run *Runner) TLSTime() time.Time {
+	return httputil.BaseTransport(run.cli).TLSClientConfig.Time()
+}
+
 func (run *Runner) Sequence(brand string) []*RepairState {
 	return run.state.Sequences[brand]
 }
@@ -75,4 +96,24 @@ func (run *Runner) SetSequence(brand string, sequence []*RepairState) {
 		run.state.Sequences = make(map[string][]*RepairState)
 	}
 	run.state.Sequences[brand] = sequence
+}
+
+func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
+	orig := defaultRepairTimeout
+	defaultRepairTimeout = d
+	return func() {
+		defaultRepairTimeout = orig
+	}
+}
+
+func MockErrtrackerReportRepair(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReportRepair
+	errtrackerReportRepair = mock
+	return func() { errtrackerReportRepair = prev }
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	origTimeNow := timeNow
+	timeNow = f
+	return func() { timeNow = origTimeNow }
 }

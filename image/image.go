@@ -244,9 +244,6 @@ func installCloudConfig(gadgetDir string) error {
 	if osutil.FileExists(cloudConfig) {
 		dst := filepath.Join(cloudDir, "cloud.cfg")
 		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
-	} else {
-		dst := filepath.Join(cloudDir, "cloud-init.disabled")
-		err = osutil.AtomicWriteFile(dst, nil, 0644, 0)
 	}
 	return err
 }

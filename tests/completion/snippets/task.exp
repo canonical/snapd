@@ -4,14 +4,14 @@ next
 send "source /usr/share/bash-completion/bash_completion\n"
 next
 # compared to indirect/, this one does not source complete.sh
-chat "complexion \t\t" $::env(_OUT0)
+chat "test-snapd-complexion \t\t" $::env(_OUT0)
 cancel
 # completion when the cursor is not at the end of the line:
 set back1 [string repeat "\b" [string length $::env(_KEY1)]]
-chat "complexion $::env(_KEY1)$back1\t\t" $::env(_OUT0)
+chat "test-snapd-complexion $::env(_KEY1)$back1\t\t" $::env(_OUT0)
 cancel
-chat "complexion $::env(_KEY1)\t" $::env(_OUT1)
+chat "test-snapd-complexion $::env(_KEY1)\t" $::env(_OUT1)
 cancel
-chat "complexion $::env(_KEY2)\t\t" $::env(_OUT2)
+chat "test-snapd-complexion $::env(_KEY2)\t\t" $::env(_OUT2)
 cancel
 brexit

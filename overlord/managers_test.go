@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -140,14 +141,6 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err = ms.storeSigning.Add(ms.devAcct)
 	c.Assert(err, IsNil)
 
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-	ms.o = o
-	st := ms.o.State()
-	st.Lock()
-	st.Set("seeded", true)
-	st.Unlock()
-
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
@@ -156,6 +149,49 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
 	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+	ms.o = o
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+	st.Set("seeded", true)
+	// registered
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "serialserial",
+	})
+
+	// add "core" snap declaration
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	err = assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	a, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, a)
+	c.Assert(err, IsNil)
+	ms.serveRevision["core"] = "1"
+	ms.serveIDtoName[fakeSnapID("core")] = "core"
+	err = ms.storeSigning.Add(a)
+	c.Assert(err, IsNil)
+
+	// add core itself
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -170,6 +206,8 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.snapDiscardNs.Restore()
 	ms.snapSeccomp.Restore()
 }
+
+var settleTimeout = 10 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
@@ -193,7 +231,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -243,7 +281,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -453,7 +491,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	mStore := store.New(&storeCfg, nil)
 	st := ms.o.State()
 	st.Lock()
-	snapstate.ReplaceStore(ms.o.State(), mStore)
+	storestate.ReplaceStore(ms.o.State(), mStore)
 	st.Unlock()
 
 	return mockServer
@@ -509,7 +547,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -558,7 +596,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -611,9 +649,7 @@ apps:
 	defer st.Unlock()
 
 	// have the snap-declaration in the system db
-	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, ms.devAcct)
+	err := assertstate.Add(st, ms.devAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
@@ -624,7 +660,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -681,9 +717,7 @@ slots:
 	defer st.Unlock()
 
 	// have the snap-declaration in the system db
-	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, ms.devAcct)
+	err := assertstate.Add(st, ms.devAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
@@ -694,7 +728,7 @@ slots:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -731,7 +765,7 @@ version: @VERSION@
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -809,7 +843,7 @@ version: @VERSION@
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -849,7 +883,7 @@ type: os
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -869,7 +903,7 @@ type: os
 	bootloader.BootVars["snap_core"] = "core_x1.snap"
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -922,8 +956,6 @@ type: kernel`
 	defer st.Unlock()
 
 	// setup model assertion
-	err = assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAcct)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
@@ -941,7 +973,7 @@ type: kernel`
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -973,7 +1005,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -992,7 +1024,7 @@ func (ms *mgrsSuite) removeSnap(c *C, name string) {
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1037,7 +1069,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1076,7 +1108,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1122,7 +1154,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1142,7 +1174,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1195,7 +1227,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1255,7 +1287,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1300,7 +1332,7 @@ apps:
 	chg.AddAll(tss[0])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1360,7 +1392,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1401,7 +1433,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1473,7 +1505,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1487,7 +1519,7 @@ apps:
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1549,7 +1581,7 @@ apps:
 	chg.AddAll(tss[2])
 
 	st.Unlock()
-	err = ms.o.Settle()
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1688,11 +1720,11 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
+	captureAuthContext := func(_ *state.State, ac auth.AuthContext) error {
 		s.ac = ac
 		return nil
 	}
-	r := overlord.MockStoreNew(captureAuthContext)
+	r := overlord.MockSetupStore(captureAuthContext)
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)

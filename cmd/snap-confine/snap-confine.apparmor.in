@@ -19,15 +19,19 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl-[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -170,6 +174,14 @@
 
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+
+    # allow making host snap-exec available inside base snaps
+    mount options=(rw bind) @LIBEXECDIR@/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+
+    mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
+
     # /etc/alternatives (classic)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
@@ -346,15 +358,19 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl-[0-9]*.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 
