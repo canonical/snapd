@@ -15,6 +15,13 @@
  *
  */
 
+// IMPORTANT: all the code in this file may be run with elevated privileges
+// when invoking snap-update-ns from the setuid snap-confine.
+//
+// This file is a preprocessor for snap-update-ns' main() function. It will
+// perform input validation and clear the environment so that snap-update-ns'
+// go code runs with safe inputs when called by the setuid() snap-confine.
+
 #include "bootstrap.h"
 
 #include <errno.h>

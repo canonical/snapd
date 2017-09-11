@@ -48,6 +48,9 @@ var (
 	ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
 )
 
+// IMPORTANT: all the code in this section may be run with elevated privileges
+// when invoking snap-update-ns from the setuid snap-confine.
+
 // BootstrapError returns error (if any) encountered in pre-main C code.
 func BootstrapError() error {
 	if C.bootstrap_msg == nil {
@@ -63,6 +66,8 @@ func BootstrapError() error {
 	}
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
 }
+
+// END IMPORTANT
 
 // readCmdline is a wrapper around the C function read_cmdline.
 func readCmdline(buf []byte) C.ssize_t {
