@@ -166,7 +166,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
-	// be overriden by its own env var.
+	// be overridden by its own env var.
 	StoreBaseURL      *url.URL
 	AssertionsBaseURL *url.URL
 
