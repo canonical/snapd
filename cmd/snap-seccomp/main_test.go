@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -164,11 +165,25 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
+
 	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	c.Assert(err, IsNil)
+
+	// build again, this time syscall-runner -m32 multilib runner
+	cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
+	cmd.Args = append(cmd.Args, "-m32")
+	for i, k := range cmd.Args {
+		if k == s.seccompSyscallRunner {
+			cmd.Args[i] = s.seccompSyscallRunner + ".m32"
+		}
+	}
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("cannot build multi-lib syscall runner: %v", err)
+	}
 }
 
 // Runs the policy through the kernel:
@@ -217,26 +232,34 @@ set_tls
 # arm64
 readlinkat
 faccessat
+# i386 from amd64
+restart_syscall
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
+	syscallRunner := s.seccompSyscallRunner
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
-	if len(l) > 1 && l[1] != "native" {
-		c.Logf("cannot use non-native in runBpfInKernel")
-		return
-	}
-
-	var syscallRunnerArgs [7]string
 	syscallNr, err := seccomp.GetSyscallFromName(l[0])
 	c.Assert(err, IsNil)
+	if len(l) > 1 && l[1] != "native" {
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(l[0], main.UbuntuArchToScmpArch(l[1]))
+		c.Assert(err, IsNil)
+		syscallRunner = s.seccompSyscallRunner + ".m32"
+	}
 	if syscallNr < 0 {
 		c.Skip(fmt.Sprintf("skipping %v because it resolves to negative %v", l[0], syscallNr))
 		return
 	}
+	if !osutil.FileExists(syscallRunner) {
+		println(syscallRunner)
+		c.Skip(fmt.Sprintf("skipping %q because runner %q does not exist", seccompWhitelist, syscallRunner))
+		return
+	}
 
+	var syscallRunnerArgs [7]string
 	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
@@ -253,7 +276,7 @@ faccessat
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
