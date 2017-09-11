@@ -1676,7 +1676,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
 				}
 				if svcErr.Status == 404 {
-					return &asserts.NotFoundError{Type: assertType, PrimaryKey: primaryKey}
+					return asserts.NewNotFoundErrorPrimaryKey(assertType, primaryKey)
 				}
 				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 			}

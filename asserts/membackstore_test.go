@@ -59,8 +59,10 @@ func (mbss *memBackstoreSuite) TestPutAndGet(c *C) {
 func (mbss *memBackstoreSuite) TestGetNotFound(c *C) {
 	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"}, 0)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.TestOnlyType,
-		PrimaryKey: []string{"foo"},
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "foo",
+		},
 	})
 	c.Check(a, IsNil)
 
@@ -69,8 +71,10 @@ func (mbss *memBackstoreSuite) TestGetNotFound(c *C) {
 
 	a, err = mbss.bs.Get(asserts.TestOnlyType, []string{"bar"}, 0)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.TestOnlyType,
-		PrimaryKey: []string{"bar"},
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "bar",
+		},
 	})
 	c.Check(a, IsNil)
 }

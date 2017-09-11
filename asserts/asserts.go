@@ -184,14 +184,36 @@ func (ref *Ref) Unique() string {
 
 // Resolve resolves the reference using the given find function.
 func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
-	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {
+	headers, err := headersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+	if err != nil {
 		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
 	}
-	headers := make(map[string]string, len(ref.PrimaryKey))
-	for i, name := range ref.Type.PrimaryKey {
-		headers[name] = ref.PrimaryKey[i]
-	}
 	return find(ref.Type, headers)
+}
+
+// primaryKeyFromHeaders extracts the tuple of values from headers corresponding to the primary key, it errors if there are missing headers.
+func primaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
+	primaryKey = make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			return nil, fmt.Errorf("must provide primary key: %v", k)
+		}
+		primaryKey[i] = keyVal
+	}
+	return primaryKey, nil
+}
+
+// headersFromPrimaryKey construct an headers mapping from the primaryKey values for an assertion type, it errors if primaryKey has the wrong length.
+func headersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
+	if len(primaryKey) != len(assertType.PrimaryKey) {
+		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
+	}
+	headers = make(map[string]string, len(assertType.PrimaryKey))
+	for i, name := range assertType.PrimaryKey {
+		headers[name] = primaryKey[i]
+	}
+	return headers, nil
 }
 
 // Assertion represents an assertion through its general elements.

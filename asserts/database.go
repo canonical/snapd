@@ -29,19 +29,27 @@ import (
 
 // NotFoundError is returned when an assertion can not be found.
 type NotFoundError struct {
-	Type       *AssertionType
-	PrimaryKey []string
+	Type    *AssertionType
+	Headers map[string]string
 }
 
-func (e *NotFoundError) ref() *Ref {
-	return &Ref{Type: e.Type, PrimaryKey: e.PrimaryKey}
+// NewNotFoundErrorPrimaryKey builds a NotFoundError for a unique assertion of given assertType and primaryKey.
+func NewNotFoundErrorPrimaryKey(assertType *AssertionType, primaryKey []string) *NotFoundError {
+	headers, err := headersFromPrimaryKey(assertType, primaryKey)
+	if err != nil {
+		panic(err)
+	}
+	return &NotFoundError{Type: assertType, Headers: headers}
 }
 
 func (e *NotFoundError) Error() string {
-	if len(e.PrimaryKey) == 0 {
+	pk, err := primaryKeyFromHeaders(e.Type, e.Headers)
+	if err != nil || len(e.Headers) != len(pk) {
+		// TODO: worth conveying more information?
 		return fmt.Sprintf("%s(s) not found", e.Type.Name)
 	}
-	return fmt.Sprintf("%v not found", e.ref())
+
+	return fmt.Sprintf("%v not found", &Ref{Type: e.Type, PrimaryKey: pk})
 }
 
 // IsNotFound returns whether err is an assertion not found error.
@@ -74,7 +82,7 @@ func (nbs nullBackstore) Put(t *AssertionType, a Assertion) error {
 }
 
 func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Assertion, error) {
-	return nil, &NotFoundError{Type: t, PrimaryKey: k}
+	return nil, NewNotFoundErrorPrimaryKey(t, k)
 }
 
 func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
@@ -320,7 +328,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 			return nil, err
 		}
 	}
-	return nil, &NotFoundError{Type: AccountKeyType, PrimaryKey: key}
+	return nil, NewNotFoundErrorPrimaryKey(AccountKeyType, key)
 }
 
 // IsTrustedAccount returns whether the account is part of the trusted set.
@@ -434,13 +442,10 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 			return nil, fmt.Errorf("cannot find %q assertions for format %d higher than supported format %d", assertionType.Name, maxFormat, maxSupp)
 		}
 	}
-	keyValues := make([]string, len(assertionType.PrimaryKey))
-	for i, k := range assertionType.PrimaryKey {
-		keyVal := headers[k]
-		if keyVal == "" {
-			return nil, fmt.Errorf("must provide primary key: %v", k)
-		}
-		keyValues[i] = keyVal
+
+	keyValues, err := primaryKeyFromHeaders(assertionType, headers)
+	if err != nil {
+		return nil, err
 	}
 
 	var assert Assertion
@@ -456,11 +461,7 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 	}
 
 	if assert == nil || !searchMatch(assert, headers) {
-		notFound := &NotFoundError{Type: assertionType}
-		if len(headers) == len(assertionType.PrimaryKey) {
-			notFound.PrimaryKey = keyValues
-		}
-		return nil, notFound
+		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
 
 	return assert, nil
@@ -516,7 +517,7 @@ func (db *Database) findMany(backstores []Backstore, assertionType *AssertionTyp
 	}
 
 	if len(res) == 0 {
-		return nil, &NotFoundError{Type: assertionType}
+		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
 	return res, nil
 }

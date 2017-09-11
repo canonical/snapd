@@ -638,8 +638,11 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 
 func (safs *signAddFindSuite) TestNotFoundError(c *C) {
 	err1 := &asserts.NotFoundError{
-		Type:       asserts.SnapDeclarationType,
-		PrimaryKey: []string{"16", "snap-id"},
+		Type: asserts.SnapDeclarationType,
+		Headers: map[string]string{
+			"series":  "16",
+			"snap-id": "snap-id",
+		},
 	}
 	c.Check(asserts.IsNotFound(err1), Equals, true)
 	c.Check(err1.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
@@ -649,6 +652,10 @@ func (safs *signAddFindSuite) TestNotFoundError(c *C) {
 	}
 	c.Check(asserts.IsNotFound(err1), Equals, true)
 	c.Check(err2.Error(), Equals, "snap-revision(s) not found")
+
+	err3 := asserts.NewNotFoundErrorPrimaryKey(asserts.SnapDeclarationType, []string{"16", "snap-id"})
+	c.Check(asserts.IsNotFound(err3), Equals, true)
+	c.Check(err3.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
@@ -662,22 +669,25 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	err = safs.db.Add(a1)
 	c.Assert(err, IsNil)
 
-	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+	hdrs := map[string]string{
 		"primary-key": "b",
-	})
+	}
+	retrieved1, err := safs.db.Find(asserts.TestOnlyType, hdrs)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.TestOnlyType,
-		PrimaryKey: []string{"b"},
+		Type:    asserts.TestOnlyType,
+		Headers: hdrs,
 	})
 	c.Check(retrieved1, IsNil)
 
 	// checking also extra headers
-	retrieved1, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+	hdrs = map[string]string{
 		"primary-key":  "a",
 		"authority-id": "other-auth-id",
-	})
+	}
+	retrieved1, err = safs.db.Find(asserts.TestOnlyType, hdrs)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.TestOnlyType,
+		Type:    asserts.TestOnlyType,
+		Headers: hdrs,
 	})
 	c.Check(retrieved1, IsNil)
 }
@@ -746,13 +756,15 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(res, HasLen, 1)
 
-	res, err = safs.db.FindMany(asserts.TestOnlyType, map[string]string{
+	hdrs := map[string]string{
 		"primary-key": "b",
 		"other":       "other-x",
-	})
+	}
+	res, err = safs.db.FindMany(asserts.TestOnlyType, hdrs)
 	c.Assert(res, HasLen, 0)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.TestOnlyType,
+		Type:    asserts.TestOnlyType,
+		Headers: hdrs,
 	})
 }
 
@@ -832,20 +844,23 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
 
 	// doesn't find not trusted assertions
-	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
+	hdrs := map[string]string{
 		"account-id": acct1.AccountID(),
-	})
+	}
+	_, err = safs.db.FindTrusted(asserts.AccountType, hdrs)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.AccountType,
-		PrimaryKey: []string{acct1.AccountID()},
+		Type:    asserts.AccountType,
+		Headers: hdrs,
 	})
 
-	_, err = safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
+	hdrs = map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
-	})
+	}
+	_, err = safs.db.FindTrusted(asserts.AccountKeyType, hdrs)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.AccountKeyType,
+		Type:    asserts.AccountKeyType,
+		Headers: hdrs,
 	})
 
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
@@ -895,20 +910,23 @@ func (safs *signAddFindSuite) TestFindPredefined(c *C) {
 	c.Assert(predefAcct.(*asserts.Account).DisplayName(), Equals, "Predef")
 
 	// doesn't find not trusted or predefined assertions
-	_, err = safs.db.FindPredefined(asserts.AccountType, map[string]string{
+	hdrs := map[string]string{
 		"account-id": acct1.AccountID(),
-	})
+	}
+	_, err = safs.db.FindPredefined(asserts.AccountType, hdrs)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.AccountType,
-		PrimaryKey: []string{acct1.AccountID()},
+		Type:    asserts.AccountType,
+		Headers: hdrs,
 	})
 
-	_, err = safs.db.FindPredefined(asserts.AccountKeyType, map[string]string{
+	hdrs = map[string]string{
 		"account-id":          acct1.AccountID(),
 		"public-key-sha3-384": acct1Key.PublicKeyID(),
-	})
+	}
+	_, err = safs.db.FindPredefined(asserts.AccountKeyType, hdrs)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.AccountKeyType,
+		Type:    asserts.AccountKeyType,
+		Headers: hdrs,
 	})
 }
 
@@ -988,11 +1006,13 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 	})
 
 	// doesn't find not predefined assertions
-	_, err = db.FindManyPredefined(asserts.AccountType, map[string]string{
+	hdrs := map[string]string{
 		"account-id": acct1.AccountID(),
-	})
+	}
+	_, err = db.FindManyPredefined(asserts.AccountType, hdrs)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.AccountType,
+		Type:    asserts.AccountType,
+		Headers: hdrs,
 	})
 
 	_, err = db.FindManyPredefined(asserts.AccountKeyType, map[string]string{
@@ -1074,8 +1094,11 @@ func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 	}
 	_, err = ref.Resolve(safs.db.Find)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
-		Type:       ref.Type,
-		PrimaryKey: ref.PrimaryKey,
+		Type: ref.Type,
+		Headers: map[string]string{
+			"pk1": "kb",
+			"pk2": "ka",
+		},
 	})
 }
 

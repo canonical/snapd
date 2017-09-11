@@ -66,7 +66,7 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 		case 1:
 			return as[0], nil
 		case 0:
-			return nil, &asserts.NotFoundError{Type: ref.Type, PrimaryKey: ref.PrimaryKey}
+			return nil, &asserts.NotFoundError{Type: ref.Type, Headers: headers}
 		default:
 			panic(fmt.Sprintf("multiple assertions when retrieving by primary key: %v", ref))
 		}

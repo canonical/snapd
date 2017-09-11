@@ -3984,8 +3984,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Check(asserts.IsNotFound(err), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type:       asserts.SnapDeclarationType,
-		PrimaryKey: []string{"16", "snapidfoo"},
+		Type: asserts.SnapDeclarationType,
+		Headers: map[string]string{
+			"series":  "16",
+			"snap-id": "snapidfoo",
+		},
 	})
 }
 
