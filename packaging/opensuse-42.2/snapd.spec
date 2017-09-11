@@ -32,8 +32,8 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27.3
-Release:        1
+Version:        2.27.6
+Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
 Group:          System/Packages
@@ -144,9 +144,10 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %endif
 
 %gobuild cmd/snap
-%gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
+# build snap-exec completely static for base snaps
+CGO_ENABLED=0 %gobuild cmd/snap-exec
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
@@ -174,8 +175,8 @@ mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
-install -m 755 -d %{buildroot}/etc/profile.d/
-install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
+#   and XDG_DATA_DIRS for /var/lib/snapd/desktop
+make -C data/env install DESTDIR=%{buildroot}
 
 # Generate and install man page for snap command
 install -m 755 -d %{buildroot}%{_mandir}/man1
@@ -206,8 +207,8 @@ install -d %buildroot/snap/bin
 install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/permissions.d/snapd
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
-make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
+make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
+for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
     rm -f %buildroot/%{_unitdir}/$s
 done
 # Remove snappy core specific scripts
@@ -292,6 +293,7 @@ esac
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
+/usr/share/dbus-1/services/io.snapcraft.Launcher.service
 
 %changelog
 

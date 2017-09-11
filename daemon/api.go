@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -132,17 +133,19 @@ var (
 	}
 
 	snapsCmd = &Command{
-		Path:   "/v2/snaps",
-		UserOK: true,
-		GET:    getSnapsInfo,
-		POST:   postSnaps,
+		Path:     "/v2/snaps",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getSnapsInfo,
+		POST:     postSnaps,
 	}
 
 	snapCmd = &Command{
-		Path:   "/v2/snaps/{name}",
-		UserOK: true,
-		GET:    getSnapInfo,
-		POST:   postSnap,
+		Path:     "/v2/snaps/{name}",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getSnapInfo,
+		POST:     postSnap,
 	}
 
 	appsCmd = &Command{
@@ -524,12 +527,12 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-func getStore(c *Command) snapstate.StoreService {
+func getStore(c *Command) storestate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return storestate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -832,7 +835,6 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 }
 
 var (
-	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
@@ -843,6 +845,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -854,42 +857,6 @@ func ensureStateSoonImpl(st *state.State) {
 var ensureStateSoon = ensureStateSoonImpl
 
 var errNothingToInstall = errors.New("nothing to install")
-
-const oldDefaultSnapCoreName = "ubuntu-core"
-const defaultCoreSnapName = "core"
-
-func ensureCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	if targetSnap == defaultCoreSnapName || targetSnap == oldDefaultSnapCoreName {
-		return nil, errNothingToInstall
-	}
-
-	_, err := snapstateCoreInfo(st)
-	if err != state.ErrNoState {
-		return nil, err
-	}
-
-	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.Flags{})
-}
-
-func withEnsureCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
-	ubuCoreTs, err := ensureCore(st, targetSnap, userID)
-	if err != nil && err != errNothingToInstall {
-		return nil, err
-	}
-
-	ts, err := install()
-	if err != nil {
-		return nil, err
-	}
-
-	// ensure main install waits on ubuntu core install
-	if ubuCoreTs != nil {
-		ts.WaitAll(ubuCoreTs)
-		return []*state.TaskSet{ubuCoreTs, ts}, nil
-	}
-
-	return []*state.TaskSet{ts}, nil
-}
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
@@ -988,11 +955,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 
-	tsets, err := withEnsureCore(st, inst.Snaps[0], inst.userID,
-		func() (*state.TaskSet, error) {
-			return snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
-		},
-	)
+	tset, err := snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1001,7 +964,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	if inst.Channel != "stable" && inst.Channel != "" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.Snaps[0], inst.Channel)
 	}
-	return msg, tsets, nil
+	return msg, []*state.TaskSet{tset}, nil
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -1109,6 +1072,19 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("switch takes no revision")
+	}
+	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -1118,6 +1094,7 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"revert":  snapRevert,
 	"enable":  snapEnable,
 	"disable": snapDisable,
+	"switch":  snapSwitch,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -1246,21 +1223,13 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
-	}
-	tsets, err := withEnsureCore(st, info.Name(), userID,
-		func() (*state.TaskSet, error) {
-			return snapstateTryPath(st, info.Name(), trydir, flags)
-		},
-	)
+	tset, err := snapstateTryPath(st, info.Name(), trydir, flags)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, tsets, []string{info.Name()})
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
 	ensureStateSoon(st)
@@ -1471,21 +1440,12 @@ out:
 		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
-	}
-
-	tsets, err := withEnsureCore(st, snapName, userID,
-		func() (*state.TaskSet, error) {
-			return snapstateInstallPath(st, sideInfo, tempPath, "", flags)
-		},
-	)
+	tset, err := snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
 	}
 
-	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
+	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	ensureStateSoon(st)
@@ -1551,9 +1511,6 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := vars["name"]
 
 	keys := splitQS(r.URL.Query().Get("keys"))
-	if len(keys) == 0 {
-		return BadRequest("cannot obtain configuration: no keys supplied")
-	}
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -1561,6 +1518,10 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
+	// Special case - return root document
+	if len(keys) == 0 {
+		keys = []string{""}
+	}
 	for _, key := range keys {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
@@ -1569,6 +1530,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			} else {
 				return InternalError("%v", err)
 			}
+		}
+		if key == "" {
+			if len(keys) > 1 {
+				return BadRequest("keys contains zero-length string")
+			}
+			return SyncResponse(value, nil)
 		}
 
 		currentConfValues[key] = value

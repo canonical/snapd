@@ -81,5 +81,5 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 
 	buf, err := ioutil.ReadFile(stdout.Name())
 	c.Assert(err, IsNil)
-	c.Check(string(buf), testutil.Contains, "\rmy-snap 50.00 KB / 100.00 KB")
+	c.Check(string(buf), testutil.Contains, "\rmy-snap 0 B / 100.00 KB")
 }

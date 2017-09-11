@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -133,6 +134,13 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 	snippets := seccompSpec.Snippets()
 	// no permanent seccomp snippet for the slot
 	c.Assert(len(snippets), Equals, 0)
+}
+
+func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {
