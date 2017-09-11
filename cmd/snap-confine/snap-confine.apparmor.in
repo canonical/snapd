@@ -401,7 +401,7 @@
     # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the core snap. Note that the location of the core snap varies from
     # distribution to distribution. The variants here represent different
-    # location of snap mount directory across distributions.
+    # locations of snap mount directory across distributions.
     /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
@@ -409,8 +409,8 @@
     # namespace. Here the apparmor kernel module re-constructs the path to
     # snap-update-ns using the "hostfs" mount entry rather than the more
     # "natural" /snap mount entry but we have no control over that. The
-    # variants here represent different location of snap mount directory across
-    # distributions.
+    # variants here represent different locations of snap mount directory
+    # across distributions.
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns Cxr -> snap_update_ns,
 
     profile snap_update_ns (attach_disconnected) {
