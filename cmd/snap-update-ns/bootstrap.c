@@ -167,7 +167,10 @@ void bootstrap(void)
     // We may have been started via a setuid-root snap-confine. In order to
     // prevent environment-based attacks we start by erasing all environment
     // variables.
-    clearenv();
+    if (clearenv() != 0) {
+        bootstrap_errno = 0;
+        bootstrap_msg = "bootstrap could not clear the environment";
+    }
     // We don't have argc/argv so let's imitate that by reading cmdline
     char cmdline[1024];
     memset(cmdline, 0, sizeof cmdline);
