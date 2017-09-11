@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -50,6 +51,7 @@ import (
 func TestAssertManager(t *testing.T) { TestingT(t) }
 
 type assertMgrSuite struct {
+	o     *overlord.Overlord
 	state *state.State
 	mgr   *assertstate.AssertManager
 
@@ -103,10 +105,12 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	mgr, err := assertstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.mgr = mgr
+	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
 	storestate.ReplaceStore(s.state, &fakeStore{
@@ -408,11 +412,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 }
 
 func (s *assertMgrSuite) settle() {
-	// XXX: would like to use Overlord.Settle but not enough control there
-	for i := 0; i < 50; i++ {
-		s.mgr.Ensure()
-		s.mgr.Wait()
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {

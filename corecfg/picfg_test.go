@@ -35,9 +35,9 @@ import (
 )
 
 type piCfgSuite struct {
-	mockConfigPath string
+	coreCfgSuite
 
-	mockSystemctl *testutil.MockCmd
+	mockConfigPath string
 }
 
 var _ = Suite(&piCfgSuite{})
@@ -59,13 +59,10 @@ func (s *piCfgSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
 	c.Assert(err, IsNil)
 	s.mockConfig(c, mockConfigTxt)
-
-	s.mockSystemctl = testutil.MockCommand(c, "systemctl", "")
 }
 
 func (s *piCfgSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
-	s.mockSystemctl.Restore()
 }
 
 func (s *piCfgSuite) mockConfig(c *C, txt string) {
