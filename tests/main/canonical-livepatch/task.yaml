@@ -6,6 +6,7 @@ systems: [ubuntu-16.04-64]
 execute: |
     echo "Ensure canonical-livepatch can be installed"
     snap install canonical-livepatch
+    wait_for_service snap.canonical-livepatch.canonical-livepatchd.service
 
     echo "Ensure canonical-livepatch can be used"
     canonical-livepatch status | MATCH "Machine is not enabled"
