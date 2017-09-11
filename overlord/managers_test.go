@@ -206,7 +206,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.snapSeccomp.Restore()
 }
 
-var settleTimeout = 10 * time.Second
+var settleTimeout = 15 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)

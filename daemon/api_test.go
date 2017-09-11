@@ -1816,6 +1816,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
@@ -1823,7 +1824,6 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"foo"})
-	st.Unlock()
 
 	c.Check(soon, check.Equals, 1)
 }
@@ -1873,10 +1873,10 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "<install by user 1>")
-	st.Unlock()
 }
 
 func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
@@ -2222,6 +2222,10 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		return req
 	}
 
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	for _, t := range []struct {
 		flags snapstate.Flags
 		desc  string
@@ -2256,12 +2260,12 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		}
 
 		// try the snap (without an installed core)
+		st.Unlock()
 		rsp := postSnaps(snapsCmd, reqForFlags(t.flags), nil).(*resp)
+		st.Lock()
 		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync, check.Commentf(t.desc))
 		c.Assert(tryWasCalled, check.Equals, true, check.Commentf(t.desc))
 
-		st := d.overlord.State()
-		st.Lock()
 		chg := st.Change(rsp.Change)
 		c.Assert(chg, check.NotNil, check.Commentf(t.desc))
 
@@ -2285,7 +2289,6 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		}, check.Commentf(t.desc))
 
 		c.Check(soon, check.Equals, 1, check.Commentf(t.desc))
-		st.Unlock()
 	}
 }
 
@@ -2528,7 +2531,8 @@ func (s *apiSuite) TestSetConfNumber(c *check.C) {
 
 	<-chg.Ready()
 
-	d.overlord.State().Lock()
+	st.Lock()
+	defer st.Unlock()
 	tr := config.NewTransaction(d.overlord.State())
 	var result interface{}
 	c.Assert(tr.Get("config-snap", "key", &result), check.IsNil)
@@ -6097,11 +6101,14 @@ func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall [
 
 	st := s.d.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Tasks(), check.HasLen, 1)
+
 	st.Unlock()
 	<-chg.Ready()
+	st.Lock()
 
 	c.Check(s.cmd.Calls(), check.DeepEquals, [][]string{systemctlCall})
 	return chg
