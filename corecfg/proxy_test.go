@@ -34,6 +34,8 @@ import (
 )
 
 type proxySuite struct {
+	coreCfgSuite
+
 	mockEtcEnvironment string
 }
 
