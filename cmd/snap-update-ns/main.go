@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap"
 )
 
 var opts struct {
@@ -53,10 +52,8 @@ func main() {
 
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	if _, err := parser.ParseArgs(args); err != nil {
-		return err
-	}
-	return snap.ValidateName(opts.Positionals.SnapName)
+	_, err := parser.ParseArgs(args)
+	return err
 }
 
 // IMPORTANT: all the code in run() until BootStrapError() is finished may
