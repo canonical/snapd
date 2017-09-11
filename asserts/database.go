@@ -46,7 +46,7 @@ func (e *NotFoundError) Error() string {
 	pk, err := primaryKeyFromHeaders(e.Type, e.Headers)
 	if err != nil || len(e.Headers) != len(pk) {
 		// TODO: worth conveying more information?
-		return fmt.Sprintf("%s(s) not found", e.Type.Name)
+		return fmt.Sprintf("%s assertion not found", e.Type.Name)
 	}
 
 	return fmt.Sprintf("%v not found", &Ref{Type: e.Type, PrimaryKey: pk})
