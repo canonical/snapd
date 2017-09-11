@@ -116,7 +116,6 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
-	snapstate.CanAutoRefresh = nil
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
@@ -191,6 +190,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
+	snapstate.CanAutoRefresh = nil
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {

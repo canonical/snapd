@@ -191,7 +191,7 @@ func SetRootDir(rootdir string) {
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
-	SnapCacheDir = filepath.Join(rootdir, snappyDir, "cache")
+	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")
 	SnapNamesFile = filepath.Join(SnapCacheDir, "names")
 	SnapSectionsFile = filepath.Join(SnapCacheDir, "sections")
 

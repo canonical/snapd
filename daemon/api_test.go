@@ -156,8 +156,6 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
 	s.restoreRelease = release.MockForcedDevmode(false)
-
-	snapstate.CanAutoRefresh = nil
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 }
@@ -287,6 +285,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 		Model:  "pc",
 		Serial: "serialserial",
 	})
+
+	snapstate.CanAutoRefresh = nil
 
 	s.d = d
 	return d
