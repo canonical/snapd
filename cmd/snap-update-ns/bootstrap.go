@@ -87,9 +87,9 @@ func findSnapName(buf []byte) *string {
 	return nil
 }
 
-// partiallyValidateSnapName checks if snap name is seemingly valid.
-// The real part of the validation happens on the go side.
-func partiallyValidateSnapName(snapName string) int {
+// validateSnapName checks if snap name is valid.
+// This also sets bootstrap_msg on failure.
+func validateSnapName(snapName string) int {
 	cStr := C.CString(snapName)
-	return int(C.partially_validate_snap_name(cStr))
+	return int(C.validate_snap_name(cStr))
 }
