@@ -62,6 +62,10 @@ type AtomicWriter interface {
 	// successful Commit does nothing beyond returning error--so it's always safe
 	// to defer a Cancel().
 	Cancel() error
+
+	// BackingFile returns the underlying writable os.File or nil
+	// if the file is already commited or closed.
+	BackingFile() *os.File
 }
 
 type atomicFile struct {
@@ -128,6 +132,13 @@ var ErrCannotCancel = errors.New("cannot cancel: file has already been renamed")
 func (aw *atomicFile) Close() error {
 	aw.closed = true
 	return aw.File.Close()
+}
+
+func (aw *atomicFile) BackingFile() *os.File {
+	if aw.closed || aw.renamed {
+		return nil
+	}
+	return aw.File
 }
 
 func (aw *atomicFile) Cancel() error {

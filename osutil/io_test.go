@@ -250,3 +250,52 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	c.Check(aw.Cancel(), IsNil)
 	c.Check(osutil.FileExists(fn), Equals, false)
 }
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileBackingFileHappy(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	// simulate something that really needs an os.File to
+	// write to
+	canary := "ni ni ni!"
+	sillyLegacyFunctionThatNeedsOsFile := func(f *os.File) {
+		f.Write([]byte(canary))
+	}
+
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+
+	sillyLegacyFunctionThatNeedsOsFile(aw.BackingFile())
+	err = aw.Commit()
+	c.Check(err, IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, canary)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileBackingCanceled(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+
+	err = aw.Cancel()
+	c.Check(err, IsNil)
+
+	c.Check(aw.BackingFile(), IsNil)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileBackingCommited(c *C) {
+	d := c.MkDir()
+	p := filepath.Join(d, "foo")
+
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	c.Assert(err, IsNil)
+
+	err = aw.Commit()
+	c.Check(err, IsNil)
+
+	c.Check(aw.BackingFile(), IsNil)
+}
