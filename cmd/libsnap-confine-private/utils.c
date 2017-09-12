@@ -98,9 +98,9 @@ static int str2bool(const char *text, bool * value, bool default_value)
  * Get an environment variable and convert it to a boolean.
  *
  * Supported values are those of str2bool(), namely "yes", "no" as well as "1"
- * and "0". If the given environment variable is unset a default value is used.
- * All other values are treated as false and a diagnostic message is printed to
- * stderr.
+ * and "0". All other values are treated as false and a diagnostic message is
+ * printed to stderr. If the environment variable is unset, set value to the
+ * default_value as if the environment variable was set to default_value.
  **/
 static bool getenv_bool(const char *name, bool default_value)
 {
