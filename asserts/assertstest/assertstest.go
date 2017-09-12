@@ -415,7 +415,7 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 		"account-id":          ss.AuthorityID,
 		"public-key-sha3-384": keyID,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil
 	}
 	if err != nil {

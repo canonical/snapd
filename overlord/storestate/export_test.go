@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,19 @@
  *
  */
 
-package store
+package storestate
 
 import (
-	"github.com/snapcore/snapd/testutil"
-
-	"gopkg.in/retry.v1"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
-// MockDefaultRetryStrategy mocks the retry strategy used by several store requests
-func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
-	originalDefaultRetryStrategy := defaultRetryStrategy
-	defaultRetryStrategy = strategy
-	t.AddCleanup(func() {
-		defaultRetryStrategy = originalDefaultRetryStrategy
-	})
+// MockStoreNew mocks store.New as called by storestate.SetupStore.
+func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) func() {
+	storeNew = new
+	return func() {
+		storeNew = store.New
+	}
 }
+
+var CachedAuthContext = cachedAuthContext
