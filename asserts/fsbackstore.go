@@ -139,10 +139,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 	fsbs.mu.Lock()
 	defer fsbs.mu.Unlock()
 
-	primaryPath := make([]string, len(assertType.PrimaryKey))
-	for i, k := range assertType.PrimaryKey {
-		primaryPath[i] = assert.HeaderString(k)
-	}
+	primaryPath := assert.Ref().PrimaryKey
 
 	curAssert, err := fsbs.currentAssertion(assertType, primaryPath, assertType.MaxSupportedFormat())
 	if err == nil {
