@@ -72,7 +72,7 @@ static const struct sc_bool_name sc_bool_names[] = {
  * converted correctly. In such case errno is set to indicate the problem and
  * the value is not written back to the caller-supplied pointer.
  *
- * If the text cannot be recognized the default value is used.
+ * If the text cannot be recognized, the default value is used.
  **/
 static int str2bool(const char *text, bool * value, bool default_value)
 {
