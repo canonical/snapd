@@ -152,6 +152,10 @@ EOF
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
+        # reset seeding data that is likely tainted with production keys
+        systemctl stop snapd.service snapd.socket
+        rm -rf /var/lib/snapd/assertions/*
+        rm -f /var/lib/snapd/state.json
         setup_staging_store
     fi
 

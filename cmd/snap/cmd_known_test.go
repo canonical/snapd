@@ -57,15 +57,15 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 		if cfg == nil {
 			cfg = store.DefaultConfig()
 		}
-		serverURL, err := url.Parse(server.URL + "/assertions/")
-		c.Assert(err, check.IsNil)
-		cfg.AssertionsURI = serverURL
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
 		return store.New(cfg, auth)
 	})
 	defer restorer()
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
