@@ -147,5 +147,5 @@ func MockForcedDevmode(isDevmode bool) (restore func()) {
 	if isDevmode {
 		level = apparmor.NoSupport
 	}
-	return apparmor.MockFeatureLevel(level)
+	return apparmor.MockSupportLevel(level)
 }

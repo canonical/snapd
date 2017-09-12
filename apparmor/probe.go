@@ -28,12 +28,12 @@ import (
 	"strings"
 )
 
-// FeatureLevel encodes the kind of support for apparmor found on this system.
-type FeatureLevel int
+// SupportLevel encodes the kind of support for apparmor found on this system.
+type SupportLevel int
 
 const (
 	// NoSupport indicates that apparmor is not enabled.
-	NoSupport FeatureLevel = iota
+	NoSupport SupportLevel = iota
 	// PartialSupport indicates that apparmor is enabled but some features are missing.
 	PartialSupport
 	// FullSupport indicates that all features are supported.
@@ -96,7 +96,7 @@ func (ks *KernelSupport) SupportsFeature(feature string) bool {
 }
 
 // SupportLevel checks if the apparmor module is enabled and if all the required features are available.
-func (ks *KernelSupport) SupportLevel() (level FeatureLevel, summary string) {
+func (ks *KernelSupport) SupportLevel() (level SupportLevel, summary string) {
 	if !ks.IsEnabled() {
 		return NoSupport, fmt.Sprintf("apparmor is not enabled")
 	}
@@ -113,8 +113,8 @@ func (ks *KernelSupport) SupportLevel() (level FeatureLevel, summary string) {
 	return FullSupport, "apparmor is enabled and all features are available"
 }
 
-// MockFeatureLevel fakes the desired apparmor feature level.
-func MockFeatureLevel(level FeatureLevel) (restore func()) {
+// MockSupportLevel fakes the desired apparmor feature level.
+func MockSupportLevel(level SupportLevel) (restore func()) {
 	oldFeaturesSysPath := featuresSysPath
 
 	temp, err := ioutil.TempDir("", "mock-apparmor-feature-level")
