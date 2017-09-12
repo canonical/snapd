@@ -908,7 +908,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	_, err := devicestate.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
+	c.Assert(err, ErrorMatches, "cannot find account-key .*")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {

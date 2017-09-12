@@ -193,7 +193,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
@@ -476,19 +476,9 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
-func isAssertNotFound(err error) bool {
-	if err == asserts.ErrNotFound {
-		return true
-	}
-	if _, ok := err.(*store.AssertionNotFoundError); ok {
-		return true
-	}
-	return false
-}
-
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
 	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
-	if err == asserts.ErrNotFound && s.assertFallback {
+	if asserts.IsNotFound(err) && s.assertFallback {
 		return s.fallback.Assertion(assertType, primaryKey, nil)
 	}
 	return a, err
@@ -523,7 +513,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	a, err := s.retrieveAssertion(bs, typ, comps[1:])
-	if isAssertNotFound(err) {
+	if asserts.IsNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))
