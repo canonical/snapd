@@ -56,6 +56,9 @@ dbus send
 
 @{PROC}/sys/net/core/somaxconn r,
 @{PROC}/sys/net/ipv4/tcp_fastopen r,
+
+# Allow using netcat as client
+/bin/nc.openbsd ixr,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
