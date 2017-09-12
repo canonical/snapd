@@ -168,8 +168,10 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.restoreOnClassic()
 }
 
+var settleTimeout = 15 * time.Second
+
 func (s *deviceMgrSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
+	err := s.o.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 }
 

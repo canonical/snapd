@@ -375,7 +375,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 
 	st := s.overlord.State()
 	chg := s.makeBecomeOperationalChange(c, st)
-	err := s.overlord.Settle(5 * time.Second)
+	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -559,7 +559,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(5 * time.Second)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -743,7 +743,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(5 * time.Second)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
