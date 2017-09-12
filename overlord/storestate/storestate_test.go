@@ -130,7 +130,7 @@ func (ss *storeStateSuite) TestSetupStoreDefaultBaseURL(c *C) {
 	err := storestate.SetupStore(st, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
+	c.Check(config.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 }
 
 func (ss *storeStateSuite) TestSetupStoreBaseURLFromState(c *C) {
@@ -147,7 +147,7 @@ func (ss *storeStateSuite) TestSetupStoreBaseURLFromState(c *C) {
 	err := storestate.SetupStore(st, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(config.SearchURI.Host, Equals, "example.com")
+	c.Check(config.StoreBaseURL.String(), Equals, "http://example.com/")
 }
 
 func (ss *storeStateSuite) TestSetupStoreBadEnvironURLOverride(c *C) {
@@ -178,7 +178,7 @@ func (ss *storeStateSuite) TestSetupStoreEmptyBaseURLFromState(c *C) {
 	err := storestate.SetupStore(st, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(config.SearchURI.Host, Equals, "api.snapcraft.io")
+	c.Check(config.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 }
 
 func (ss *storeStateSuite) TestSetupStoreInvalidBaseURLFromState(c *C) {
