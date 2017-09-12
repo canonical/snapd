@@ -239,7 +239,9 @@ restart_syscall
 	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
+	// default syscall runner
 	syscallRunner := s.seccompSyscallRunner
+
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
 	syscallNr, err := seccomp.GetSyscallFromName(l[0])
@@ -247,16 +249,19 @@ restart_syscall
 	if len(l) > 1 && l[1] != "native" {
 		syscallNr, err = seccomp.GetSyscallFromNameByArch(l[0], main.UbuntuArchToScmpArch(l[1]))
 		c.Assert(err, IsNil)
+		// switch to the 32bit version of the syscall runner
 		syscallRunner = s.seccompSyscallRunner + ".m32"
 	}
+
 	if syscallNr < 0 {
 		c.Skip(fmt.Sprintf("skipping %v because it resolves to negative %v", l[0], syscallNr))
-		return
 	}
+
+	// meh, no syscall runner for this secondary architecture, this
+	// happens e.g. on ppc64el -> powerpc because there is no gcc-multilib
+	// that we can install as build-depends
 	if !osutil.FileExists(syscallRunner) {
-		println(syscallRunner)
 		c.Skip(fmt.Sprintf("skipping %q because runner %q does not exist", seccompWhitelist, syscallRunner))
-		return
 	}
 
 	var syscallRunnerArgs [7]string
