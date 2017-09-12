@@ -248,6 +248,7 @@ void bootstrap(void)
     if (clearenv() != 0) {
         bootstrap_errno = 0;
         bootstrap_msg = "bootstrap could not clear the environment";
+        return;
     }
     // We don't have argc/argv so let's imitate that by reading cmdline
     char cmdline[1024];
