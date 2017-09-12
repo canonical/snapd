@@ -379,7 +379,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 }
 
 func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
-	var baseURL string
+	var baseURL *url.URL
 	fillHit := func(name string) string {
 		snapf, err := snap.Open(ms.serveSnapPath[name])
 		if err != nil {
@@ -389,26 +389,29 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 		if err != nil {
 			panic(err)
 		}
-		hit := strings.Replace(searchHit, "@URL@", baseURL+"/snap/"+name, -1)
+		hit := strings.Replace(searchHit, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", baseURL+"/icon", -1)
+		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", ms.serveRevision[name], -1)
 		return hit
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// all URLS are /api/v1/snaps/... so check the url is sane and discard
+		// the common prefix to simplify indexing into the comps slice.
 		comps := strings.Split(r.URL.Path, "/")
-		if len(comps) == 0 {
+		if len(comps) <= 4 {
 			panic("unexpected url path: " + r.URL.Path)
-
 		}
-		switch comps[1] {
+		comps = comps[4:]
+
+		switch comps[0] {
 		case "assertions":
 			ref := &asserts.Ref{
-				Type:       asserts.Type(comps[2]),
-				PrimaryKey: comps[3:],
+				Type:       asserts.Type(comps[1]),
+				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(ms.storeSigning.Find)
 			if err == asserts.ErrNotFound {
@@ -426,7 +429,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			return
 		case "details":
 			w.WriteHeader(200)
-			io.WriteString(w, fillHit(comps[2]))
+			io.WriteString(w, fillHit(comps[1]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
 			var input struct {
@@ -457,12 +460,12 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				panic(err)
 			}
 			w.Write(output)
-		case "snap":
+		case "download":
 			if ms.hijackServeSnap != nil {
 				ms.hijackServeSnap(w)
 				return
 			}
-			snapR, err := os.Open(ms.serveSnapPath[comps[2]])
+			snapR, err := os.Open(ms.serveSnapPath[comps[1]])
 			if err != nil {
 				panic(err)
 			}
@@ -473,18 +476,11 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	}))
 	c.Assert(mockServer, NotNil)
 
-	baseURL = mockServer.URL
-
-	detailsURL, err := url.Parse(baseURL + "/details/")
-	c.Assert(err, IsNil)
-	bulkURL, err := url.Parse(baseURL + "/metadata")
-	c.Assert(err, IsNil)
-	assertionsURL, err := url.Parse(baseURL + "/assertions/")
-	c.Assert(err, IsNil)
+	baseURL, _ = url.Parse(mockServer.URL)
+	assertionsBaseURL, _ := baseURL.Parse("api/v1/snaps")
 	storeCfg := store.Config{
-		DetailsURI:    detailsURL,
-		BulkURI:       bulkURL,
-		AssertionsURI: assertionsURL,
+		StoreBaseURL:      baseURL,
+		AssertionsBaseURL: assertionsBaseURL,
 	}
 
 	mStore := store.New(&storeCfg, nil)
