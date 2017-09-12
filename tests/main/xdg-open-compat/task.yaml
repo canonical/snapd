@@ -1,0 +1,73 @@
+summary: Ensure the xdg-open still works in compatibility mode
+
+description: |
+    The core snap has a xdg-open binary that sends both to the
+    new io.snapcraft.Launcher and the old com.canonical.SafeLauncher
+    dbus session bus. This test ensures the compatibility with
+    the old launcher is still there for distros that do not re-exec
+    and still get a new core but still have the old snapd-xdg-open
+    pacakge.
+
+# we must have snapd-xdg-open available
+systems: [ubuntu-16.04-*]
+
+environment:
+    DISPLAY: :0
+
+restore: |
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/pkgdb.sh"
+    rm -f /usr/bin/xdg-open
+    dpkg -r snapd-xdg-open
+
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/dirs.sh"
+
+    # echo apt-get is ok as we only run this test on ubuntu
+    apt download snapd-xdg-open
+    dpkg -i --force-all snapd-xdg-open_*.deb
+    
+    echo "Launch user dbus session"
+    export $(dbus-launch)
+
+    echo "Ensure snapd-xdg-open is available"
+    ping_launcher() {
+        dbus-send --session                                        \
+            --dest=com.canonical.SafeLauncher                      \
+            --type=method_call                                     \
+            --print-reply                                          \
+            /                                                      \
+            org.freedesktop.DBus.Peer.Ping
+    }
+    while ! ping_launcher ; do
+        sleep .5
+    done
+
+    # Create a small helper which will tell us if snap passes
+    # the URL correctly to the right handler
+    cat << 'EOF' > /usr/bin/xdg-open
+    #!/bin/sh
+    echo "$@" > /tmp/xdg-open-output
+    EOF
+    chmod +x /usr/bin/xdg-open
+
+    ensure_xdg_open_output() {
+        rm -f /tmp/xdg-open-output
+        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+        $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open $1
+        test -e /tmp/xdg-open-output
+        test "$(cat /tmp/xdg-open-output)" = $1
+    }
+
+    # Ensure http, https and mailto work
+    ensure_xdg_open_output "https://snapcraft.io"
+    ensure_xdg_open_output "http://snapcraft.io"
+    ensure_xdg_open_output "mailto:talk@snapcraft.io"
+
+    # Ensure other schemes are not passed through
+    rm /tmp/xdg-open-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
+    test ! -e /tmp/xdg-open-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
+    test ! -e /tmp/xdg-open-output
