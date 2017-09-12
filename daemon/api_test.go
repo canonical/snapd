@@ -354,7 +354,7 @@ func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 }
 
 func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
-	err := s.d.overlord.Settle(2 * time.Second)
+	err := s.d.overlord.Settle(5 * time.Second)
 	c.Assert(err, check.IsNil)
 	c.Assert(chg.IsReady(), check.Equals, true)
 }
