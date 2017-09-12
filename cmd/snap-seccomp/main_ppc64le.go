@@ -1,7 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//
+// +build ppc64le,go1.7,!go1.8
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +19,13 @@
  *
  */
 
-package store
+package main
 
-import (
-	"github.com/snapcore/snapd/testutil"
+/*
+#cgo LDFLAGS: -no-pie
 
-	"gopkg.in/retry.v1"
-)
-
-// MockDefaultRetryStrategy mocks the retry strategy used by several store requests
-func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
-	originalDefaultRetryStrategy := defaultRetryStrategy
-	defaultRetryStrategy = strategy
-	t.AddCleanup(func() {
-		defaultRetryStrategy = originalDefaultRetryStrategy
-	})
-}
+// we need "-no-pie" for ppc64le,go1.7 to work around build failure on
+// ppc64el with go1.7, see
+// https://forum.snapcraft.io/t/snapd-master-fails-on-zesty-ppc64el-with-r-ppc64-addr16-ha-for-symbol-out-of-range/
+*/
+import "C"

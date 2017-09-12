@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
@@ -30,9 +31,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -41,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -48,12 +52,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	// TODO: move inside the repairs themselves?
+	defaultRepairTimeout = 30 * time.Minute
+)
+
+var errtrackerReportRepair = errtracker.ReportRepair
+
 // Repair is a runnable repair.
 type Repair struct {
 	*asserts.Repair
 
 	run      *Runner
 	sequence int
+}
+
+func (r *Repair) RunDir() string {
+	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
 }
 
 // SetStatus sets the status of the repair in the state and saves the latter.
@@ -67,22 +82,139 @@ func (r *Repair) SetStatus(status RepairStatus) {
 
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
-	// XXX initial skeleton...
 	// write the script to disk
-	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	rundir := r.RunDir()
 	err := os.MkdirAll(rundir, 0775)
 	if err != nil {
 		return err
 	}
-	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
-	err = osutil.AtomicWriteFile(script, r.Body(), 0600, 0)
+
+	baseName := fmt.Sprintf("r%d", r.Revision())
+
+	script := filepath.Join(rundir, baseName+".script")
+	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
 		return err
 	}
 
-	// XXX actually run things and captures output etc
+	// the date may be broken so we use an additional counter
+	logPath := filepath.Join(rundir, baseName+".output")
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer logf.Close()
+
+	statusR, statusW, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer statusR.Close()
+	defer statusW.Close()
+
+	// run the script
+	env := os.Environ()
+	// we need to hardcode FD=3 because this is the FD after
+	// exec.Command() forked. there is no way in go currently
+	// to run something right after fork() in the child to
+	// know the fd. However because go will close all fds
+	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
+	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
+	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
+
+	workdir := filepath.Join(rundir, "work")
+	if err := os.MkdirAll(workdir, 0700); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Env = env
+	cmd.Dir = workdir
+	cmd.ExtraFiles = []*os.File{statusW}
+	cmd.Stdout = logf
+	cmd.Stderr = logf
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+	statusW.Close()
+
+	// wait for repair to finish or timeout
+	var scriptErr error
+	killTimerCh := time.After(defaultRepairTimeout)
+	doneCh := make(chan error)
+	go func() {
+		doneCh <- cmd.Wait()
+		close(doneCh)
+	}()
+	select {
+	case scriptErr = <-doneCh:
+		// done
+	case <-killTimerCh:
+		if err := osutil.KillProcessGroup(cmd); err != nil {
+			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
+		}
+		scriptErr = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+	}
+	// read repair status pipe, use the last value
+	status := readStatus(statusR)
+	statusPath := filepath.Join(rundir, baseName+"."+status.String())
+
+	// if the script had an error exit status still honor what we
+	// read from the status-pipe, however report the error
+	if scriptErr != nil {
+		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
+			logger.Noticef("cannot report error to errtracker: %s", err)
+		}
+		// ensure the error is present in the output log
+		fmt.Fprintf(logf, "\n%s", scriptErr)
+	}
+	if err := os.Rename(logPath, statusPath); err != nil {
+		return err
+	}
+	r.SetStatus(status)
 
 	return nil
+}
+
+func readStatus(r io.Reader) RepairStatus {
+	var status RepairStatus
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		switch strings.TrimSpace(scanner.Text()) {
+		case "done":
+			status = DoneStatus
+		case "skip":
+			status = SkipStatus
+		}
+	}
+	if scanner.Err() != nil {
+		return RetryStatus
+	}
+	return status
+}
+
+// errtrackerReport reports an repairErr with the given logPath to the
+// snap error tracker.
+func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
+	errMsg := fmt.Sprintf("%s", repairErr)
+
+	scriptOutput, err := ioutil.ReadFile(logPath)
+	if err != nil {
+		logger.Noticef("cannot read %s", logPath)
+	}
+	s := fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID())
+
+	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
+	extra := map[string]string{
+		"Revision": strconv.Itoa(r.Revision()),
+		"BrandID":  r.BrandID(),
+		"RepairID": r.RepairID(),
+		"Status":   status.String(),
+	}
+	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
+	return err
 }
 
 // Runner implements fetching, tracking and running repairs.
@@ -312,6 +444,19 @@ const (
 	DoneStatus
 )
 
+func (rs RepairStatus) String() string {
+	switch rs {
+	case RetryStatus:
+		return "retry"
+	case SkipStatus:
+		return "skip"
+	case DoneStatus:
+		return "done"
+	default:
+		return "unknown"
+	}
+}
+
 // RepairState holds the current revision and status of a repair in a sequence of repairs.
 type RepairState struct {
 	Sequence int          `json:"sequence"`
@@ -405,10 +550,10 @@ func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
 	// a trusted authority
 	acctID := a.AuthorityID()
 	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		return err
 	}
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return fmt.Errorf("%v not signed by trusted authority: %s", a.Ref(), acctID)
 	}
 	return nil
@@ -430,17 +575,17 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 		seen[u] = true
 		signKey := []string{a.SignKeyID()}
 		key, err := trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
-		if err != nil && err != asserts.ErrNotFound {
+		if err != nil && !asserts.IsNotFound(err) {
 			return err
 		}
 		if err == nil {
 			bottom = true
 		} else {
 			key, err = workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
-			if err != nil && err != asserts.ErrNotFound {
+			if err != nil && !asserts.IsNotFound(err) {
 				return err
 			}
-			if err == asserts.ErrNotFound {
+			if asserts.IsNotFound(err) {
 				return fmt.Errorf("cannot find public key %q", signKey[0])
 			}
 			if err := checkAuthorityID(key, trusted); err != nil {
@@ -638,14 +783,14 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
 		}
 	}
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
 func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	repairID := strconv.Itoa(seq)
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", revision))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
 	f, err := os.Open(p)
 	if err != nil {
 		return nil, nil, err

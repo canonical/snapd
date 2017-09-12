@@ -38,8 +38,7 @@ var (
 // ensureSupportInterface checks that the system has the core-support
 // interface. An error is returned if this is not the case
 func ensureSupportInterface() error {
-	_, err := systemd.SystemctlCmd("--version")
-	return err
+	return systemd.Available()
 }
 
 func snapctlGet(key string) (string, error) {

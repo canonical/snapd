@@ -56,7 +56,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 		sideInfo.RealName = sn.Name
 	} else {
 		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
-		if err == asserts.ErrNotFound {
+		if asserts.IsNotFound(err) {
 			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
 		if err != nil {
