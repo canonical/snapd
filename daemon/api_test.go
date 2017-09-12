@@ -346,6 +346,9 @@ func (m *fakeSnapManager) Stop() {
 	m.runner.Stop()
 }
 
+// sanity
+var _ overlord.StateManager = (*fakeSnapManager)(nil)
+
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 	d := s.daemonWithOverlordMock(c)
 	st := d.overlord.State()
@@ -467,9 +470,6 @@ gadget: {store: {id: %q}}
 	snaptest.MockSnap(c, yamlText, contents, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
-
-// sanity
-var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 type apiSuite struct {
 	apiBaseSuite
