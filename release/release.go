@@ -56,7 +56,7 @@ var (
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
 	level, _ := apparmor.ProbeKernel().Evaluate()
-	return level != apparmor.Full
+	return level != apparmor.FullSupport
 }
 
 var (
@@ -143,7 +143,7 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := apparmor.Full
+	level := apparmor.FullSupport
 	if isDevmode {
 		level = apparmor.None
 	}

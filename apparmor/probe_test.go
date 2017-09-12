@@ -62,8 +62,8 @@ func (s *probeSuite) TestMockProbePartialSupport(c *C) {
 	c.Assert(summary, Equals, "apparmor is enabled but some features are missing: dbus, mount, namespaces, ptrace, signal")
 }
 
-func (s *probeSuite) TestMockProbeFull(c *C) {
-	restore := apparmor.MockFeatureLevel(apparmor.Full)
+func (s *probeSuite) TestMockProbeFullSupport(c *C) {
+	restore := apparmor.MockFeatureLevel(apparmor.FullSupport)
 	defer restore()
 
 	ks := apparmor.ProbeKernel()
@@ -72,6 +72,6 @@ func (s *probeSuite) TestMockProbeFull(c *C) {
 	c.Assert(ks.SupportsFeature("file"), Equals, true)
 
 	level, summary := ks.Evaluate()
-	c.Assert(level, Equals, apparmor.Full)
+	c.Assert(level, Equals, apparmor.FullSupport)
 	c.Assert(summary, Equals, "apparmor is enabled and all features are available")
 }

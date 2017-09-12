@@ -36,8 +36,8 @@ const (
 	None FeatureLevel = iota
 	// PartialSupport indicates that apparmor is enabled but some features are missing.
 	PartialSupport
-	// Full indicates that all features are supported.
-	Full
+	// FullSupport indicates that all features are supported.
+	FullSupport
 )
 
 var (
@@ -110,7 +110,7 @@ func (ks *KernelSupport) Evaluate() (level FeatureLevel, summary string) {
 		sort.Strings(missing)
 		return PartialSupport, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
 	}
-	return Full, "apparmor is enabled and all features are available"
+	return FullSupport, "apparmor is enabled and all features are available"
 }
 
 // MockFeatureLevel fakes the desired apparmor feature level.
@@ -133,7 +133,7 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 				panic(err)
 			}
 		}
-	case Full:
+	case FullSupport:
 		// create all the feature directories, matching Ubuntu kernels.
 		for _, feature := range requiredFeatures {
 			if err := os.MkdirAll(filepath.Join(featuresSysPath, feature), 0755); err != nil {
