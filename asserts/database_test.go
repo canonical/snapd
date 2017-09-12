@@ -652,10 +652,6 @@ func (safs *signAddFindSuite) TestNotFoundError(c *C) {
 	}
 	c.Check(asserts.IsNotFound(err1), Equals, true)
 	c.Check(err2.Error(), Equals, "snap-revision assertion not found")
-
-	err3 := asserts.NewNotFoundErrorPrimaryKey(asserts.SnapDeclarationType, []string{"16", "snap-id"})
-	c.Check(asserts.IsNotFound(err3), Equals, true)
-	c.Check(err3.Error(), Equals, "snap-declaration (snap-id; series:16) not found")
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {

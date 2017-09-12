@@ -174,7 +174,7 @@ func (fsbs *filesystemBackstore) Get(assertType *AssertionType, key []string, ma
 
 	a, err := fsbs.currentAssertion(assertType, key, maxFormat)
 	if err == errNotFound {
-		return nil, NewNotFoundErrorPrimaryKey(assertType, key)
+		return nil, &NotFoundError{Type: assertType}
 	}
 	return a, err
 }

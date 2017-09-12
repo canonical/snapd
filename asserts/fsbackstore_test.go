@@ -152,9 +152,7 @@ func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 0)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
-		Headers: map[string]string{
-			"primary-key": "zoo",
-		},
+		// Headers can be omitted by Backstores
 	})
 	c.Check(a, IsNil)
 
@@ -164,9 +162,6 @@ func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 1)
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
-		Headers: map[string]string{
-			"primary-key": "zoo",
-		},
 	})
 	c.Check(a, IsNil)
 

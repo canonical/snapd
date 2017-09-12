@@ -167,7 +167,7 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxForm
 
 	a, err := mbs.top.get(internalKey, maxFormat)
 	if err == errNotFound {
-		return nil, NewNotFoundErrorPrimaryKey(assertType, key)
+		return nil, &NotFoundError{Type: assertType}
 	}
 	return a, err
 }

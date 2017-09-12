@@ -33,17 +33,8 @@ type NotFoundError struct {
 	Headers map[string]string
 }
 
-// NewNotFoundErrorPrimaryKey builds a NotFoundError for a unique assertion of given assertType and primaryKey.
-func NewNotFoundErrorPrimaryKey(assertType *AssertionType, primaryKey []string) *NotFoundError {
-	headers, err := headersFromPrimaryKey(assertType, primaryKey)
-	if err != nil {
-		panic(err)
-	}
-	return &NotFoundError{Type: assertType, Headers: headers}
-}
-
 func (e *NotFoundError) Error() string {
-	pk, err := primaryKeyFromHeaders(e.Type, e.Headers)
+	pk, err := PrimaryKeyFromHeaders(e.Type, e.Headers)
 	if err != nil || len(e.Headers) != len(pk) {
 		// TODO: worth conveying more information?
 		return fmt.Sprintf("%s assertion not found", e.Type.Name)
@@ -67,8 +58,9 @@ type Backstore interface {
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision with the same primary key headers.
 	Put(assertType *AssertionType, assert Assertion) error
-	// Get returns the assertion with the given unique key for its primary key headers.
-	// If none is present it returns a NotFoundError.
+	// Get returns the assertion with the given unique key for its
+	// primary key headers.  If none is present it returns a
+	// NotFoundError, usually with omitted Headers.
 	Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error)
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
@@ -82,7 +74,7 @@ func (nbs nullBackstore) Put(t *AssertionType, a Assertion) error {
 }
 
 func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Assertion, error) {
-	return nil, NewNotFoundErrorPrimaryKey(t, k)
+	return nil, &NotFoundError{Type: t}
 }
 
 func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
@@ -328,7 +320,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 			return nil, err
 		}
 	}
-	return nil, NewNotFoundErrorPrimaryKey(AccountKeyType, key)
+	return nil, &NotFoundError{Type: AccountKeyType}
 }
 
 // IsTrustedAccount returns whether the account is part of the trusted set.
@@ -443,7 +435,7 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 		}
 	}
 
-	keyValues, err := primaryKeyFromHeaders(assertionType, headers)
+	keyValues, err := PrimaryKeyFromHeaders(assertionType, headers)
 	if err != nil {
 		return nil, err
 	}
