@@ -173,7 +173,8 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if err == nil {
 		return nil
 	}
-	if err != nil && err != state.ErrNoState {
+	// if it is a real error, report
+	if err != state.ErrNoState {
 		return err
 	}
 

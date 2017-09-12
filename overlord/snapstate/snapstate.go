@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
@@ -452,11 +453,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		instFlags |= skipConfigure
 	}
 
-	snapf, err := snap.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	// It is ok do open the snap file here because we either
+	// have side info or the user passed --dangerous
+	info, _, err := backend.OpenSnapFile(path, si)
 	if err != nil {
 		return nil, err
 	}
