@@ -35,7 +35,7 @@ type probeSuite struct{}
 var _ = Suite(&probeSuite{})
 
 func (s *probeSuite) TestMockProbeNoSupport(c *C) {
-	restore := apparmor.MockFeatureLevel(apparmor.NoSupport)
+	restore := apparmor.MockSupportLevel(apparmor.NoSupport)
 	defer restore()
 
 	ks := apparmor.ProbeKernel()
@@ -49,7 +49,7 @@ func (s *probeSuite) TestMockProbeNoSupport(c *C) {
 }
 
 func (s *probeSuite) TestMockProbePartialSupport(c *C) {
-	restore := apparmor.MockFeatureLevel(apparmor.PartialSupport)
+	restore := apparmor.MockSupportLevel(apparmor.PartialSupport)
 	defer restore()
 
 	ks := apparmor.ProbeKernel()
@@ -63,7 +63,7 @@ func (s *probeSuite) TestMockProbePartialSupport(c *C) {
 }
 
 func (s *probeSuite) TestMockProbeFullSupport(c *C) {
-	restore := apparmor.MockFeatureLevel(apparmor.FullSupport)
+	restore := apparmor.MockSupportLevel(apparmor.FullSupport)
 	defer restore()
 
 	ks := apparmor.ProbeKernel()
