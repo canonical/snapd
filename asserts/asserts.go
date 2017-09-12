@@ -153,7 +153,7 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 	return formatnum, nil
 }
 
-// HeadersFromPrimaryKey construct a headers mapping from the
+// HeadersFromPrimaryKey constructs a headers mapping from the
 // primaryKey values and the assertion type, it errors if primaryKey
 // has the wrong length.
 func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
