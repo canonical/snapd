@@ -41,7 +41,7 @@ const (
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
 // all unit tests in genreal.
-var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO")
+var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO", true)
 
 // An AtomicWriter is an io.WriteCloser that has a Commit() method that does
 // whatever needs to be done so the modification is "atomic": an AtomicWriter
