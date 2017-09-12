@@ -102,3 +102,11 @@ func GetAtomicFile(aw AtomicWriter) *os.File {
 	return aw.(*atomicFile).File
 
 }
+
+func SetUnsafeIO(b bool) func() {
+	oldSnapdUnsafeIO := snapdUnsafeIO
+	snapdUnsafeIO = b
+	return func() {
+		snapdUnsafeIO = oldSnapdUnsafeIO
+	}
+}

@@ -299,3 +299,21 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileBackingCommited(c *C) {
 
 	c.Check(aw.BackingFile(), IsNil)
 }
+
+// SafeIoAtomicWriteTestSuite runs all AtomicWrite with safe
+// io enabled
+type SafeIoAtomicWriteTestSuite struct {
+	AtomicWriteTestSuite
+
+	restoreUnsafeIO func()
+}
+
+var _ = Suite(&SafeIoAtomicWriteTestSuite{})
+
+func (s *SafeIoAtomicWriteTestSuite) SetUpSuite(c *C) {
+	s.restoreUnsafeIO = osutil.SetUnsafeIO(false)
+}
+
+func (s *SafeIoAtomicWriteTestSuite) TearDownSuite(c *C) {
+	s.restoreUnsafeIO()
+}
