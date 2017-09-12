@@ -56,7 +56,7 @@ func backends() []interfaces.SecurityBackend {
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	if featureLevel != aa.Full {
+	if featureLevel != aa.FullSupport {
 		fmt.Printf("WARNING: %s\n", summary)
 	}
 
