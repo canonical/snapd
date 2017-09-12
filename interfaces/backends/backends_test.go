@@ -36,7 +36,7 @@ type backendsSuite struct{}
 var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
-	for _, level := range []apparmor.FeatureLevel{apparmor.None, apparmor.Partial, apparmor.Full} {
+	for _, level := range []apparmor.FeatureLevel{apparmor.None, apparmor.PartialSupport, apparmor.Full} {
 		restore := apparmor.MockFeatureLevel(level)
 		defer restore()
 

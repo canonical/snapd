@@ -221,7 +221,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
 	level, _ := aa.ProbeKernel().Evaluate()
-	if level == aa.Partial || (opts.Classic && !opts.JailMode) {
+	if level == aa.PartialSupport || (opts.Classic && !opts.JailMode) {
 		policy = classicTemplate
 	} else {
 		policy = defaultTemplate
@@ -242,7 +242,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
-			} else if level == aa.Partial || (opts.Classic && !opts.JailMode) {
+			} else if level == aa.PartialSupport || (opts.Classic && !opts.JailMode) {
 				// When classic confinement (without jailmode) is in effect we
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.

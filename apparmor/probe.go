@@ -34,8 +34,8 @@ type FeatureLevel int
 const (
 	// None indicates that apparmor is not enabled.
 	None FeatureLevel = iota
-	// Partial indicates that apparmor is enabled but some features are missing.
-	Partial
+	// PartialSupport indicates that apparmor is enabled but some features are missing.
+	PartialSupport
 	// Full indicates that all features are supported.
 	Full
 )
@@ -108,7 +108,7 @@ func (ks *KernelSupport) Evaluate() (level FeatureLevel, summary string) {
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		return Partial, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
+		return PartialSupport, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
 	}
 	return Full, "apparmor is enabled and all features are available"
 }
@@ -126,7 +126,7 @@ func MockFeatureLevel(level FeatureLevel) (restore func()) {
 	switch level {
 	case None:
 		// create no directory at all (apparmor not available).
-	case Partial:
+	case PartialSupport:
 		// create several feature directories, matching vanilla 4.12 kernel.
 		for _, feature := range []string{"caps", "domain", "file", "network", "policy", "rlimit"} {
 			if err := os.MkdirAll(filepath.Join(featuresSysPath, feature), 0755); err != nil {
