@@ -294,7 +294,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
-	restore := aa.MockSupportLevel(aa.FullSupport)
+	restore := release.MockAppArmorSupportLevel(aa.FullSupport)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -370,7 +370,7 @@ snippet
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := aa.MockSupportLevel(aa.FullSupport)
+	restore := release.MockAppArmorSupportLevel(aa.FullSupport)
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
