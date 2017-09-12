@@ -283,8 +283,7 @@ void bootstrap(void)
     }
 
     // Ensure that the snap name is valid so that we don't blindly setns into
-    // something that is controlled by a potential attacker. Note that this no
-    // longer does partial validation as it did before.
+    // something that is controlled by a potential attacker.
     if (validate_snap_name(snap_name) < 0) {
         bootstrap_errno = 0;
         // bootstap_msg is set by validate_snap_name;
