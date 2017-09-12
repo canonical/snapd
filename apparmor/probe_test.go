@@ -34,8 +34,8 @@ type probeSuite struct{}
 
 var _ = Suite(&probeSuite{})
 
-func (s *probeSuite) TestMockProbeNone(c *C) {
-	restore := apparmor.MockFeatureLevel(apparmor.None)
+func (s *probeSuite) TestMockProbeNoSupport(c *C) {
+	restore := apparmor.MockFeatureLevel(apparmor.NoSupport)
 	defer restore()
 
 	ks := apparmor.ProbeKernel()
@@ -44,7 +44,7 @@ func (s *probeSuite) TestMockProbeNone(c *C) {
 	c.Assert(ks.SupportsFeature("file"), Equals, false)
 
 	level, summary := ks.Evaluate()
-	c.Assert(level, Equals, apparmor.None)
+	c.Assert(level, Equals, apparmor.NoSupport)
 	c.Assert(summary, Equals, "apparmor is not enabled")
 }
 

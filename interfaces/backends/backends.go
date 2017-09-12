@@ -67,7 +67,7 @@ func backends() []interfaces.SecurityBackend {
 	//
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
-	if featureLevel != aa.None {
+	if featureLevel != aa.NoSupport {
 		all = append(all, &apparmor.Backend{})
 	}
 	return all

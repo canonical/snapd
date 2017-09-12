@@ -145,7 +145,7 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 func MockForcedDevmode(isDevmode bool) (restore func()) {
 	level := apparmor.FullSupport
 	if isDevmode {
-		level = apparmor.None
+		level = apparmor.NoSupport
 	}
 	return apparmor.MockFeatureLevel(level)
 }
