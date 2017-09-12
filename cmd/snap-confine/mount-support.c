@@ -171,7 +171,7 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 		fexecve(snap_update_ns_fd, argv, envp);
 		die("cannot execute snap-update-ns");
 	}
-	// Wait for snap-update-ns to finish.
+	// We are the parent, so wait for snap-update-ns to finish.
 	int status = 0;
 	debug("waiting for snap-update-ns to finish...");
 	if (waitpid(child, &status, 0) < 0) {
