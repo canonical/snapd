@@ -1405,11 +1405,11 @@ out:
 
 	if !dangerousOK {
 		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		switch err {
-		case nil:
+		switch {
+		case err == nil:
 			snapName = si.RealName
 			sideInfo = si
-		case asserts.ErrNotFound:
+		case asserts.IsNotFound(err):
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
 			if !isTrue(form, "devmode") {
@@ -1780,7 +1780,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	state.Unlock()
 
 	assertions, err := db.FindMany(assertType, headers)
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return AssertResponse(nil, true)
 	} else if err != nil {
 		return InternalError("searching assertions failed: %v", err)
@@ -2018,7 +2018,7 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 	st.Lock()
 	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		return BadRequest("cannot find system-user assertion: %s", err)
 	}
 

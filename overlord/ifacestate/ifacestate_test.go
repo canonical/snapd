@@ -564,7 +564,7 @@ func (s *interfaceManagerSuite) mockSnapDecl(c *C, name, publisher string, extra
 	_, err := s.db.Find(asserts.AccountType, map[string]string{
 		"account-id": publisher,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		acct := assertstest.NewAccount(s.storeSigning, publisher, map[string]interface{}{
 			"account-id": publisher,
 		}, "")
@@ -604,7 +604,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		decl := a[0].(*asserts.SnapDeclaration)
 		snapInfo.SnapID = decl.SnapID()
 		sideInfo.SnapID = decl.SnapID()
-	} else if err == asserts.ErrNotFound {
+	} else if asserts.IsNotFound(err) {
 		err = nil
 	}
 	c.Assert(err, IsNil)

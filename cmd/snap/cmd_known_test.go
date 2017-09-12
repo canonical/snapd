@@ -87,7 +87,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
-	c.Assert(err, check.ErrorMatches, `missing primary header "model" to query remote assertion`)
+	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
 }
 
 func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
