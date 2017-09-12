@@ -44,7 +44,7 @@ func backends() []interfaces.SecurityBackend {
 		&mount.Backend{},
 		&kmod.Backend{},
 	}
-	featureLevel, summary := aa.ProbeKernel().Evaluate()
+	featureLevel, summary := aa.ProbeKernel().SupportLevel()
 
 	// This should be logger.Noticef but due to ordering of initialization
 	// calls, the logger is not ready at this point yet and the message goes
