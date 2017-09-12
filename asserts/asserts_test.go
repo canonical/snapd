@@ -94,6 +94,9 @@ func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
 	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar"})
 	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only-2" assertion`)
 
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"", "baz"})
+	c.Check(err, ErrorMatches, `primary key "pk1" header cannot be empty`)
+
 	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
 	c.Assert(err, IsNil)
 	c.Check(pk, DeepEquals, []string{"bar", "baz"})
