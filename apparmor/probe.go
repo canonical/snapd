@@ -95,8 +95,8 @@ func (ks *KernelSupport) SupportsFeature(feature string) bool {
 	return ks != nil && ks.features[feature]
 }
 
-// Evaluate checks if the apparmor module is enabled and if all the required features are available.
-func (ks *KernelSupport) Evaluate() (level FeatureLevel, summary string) {
+// SupportLevel checks if the apparmor module is enabled and if all the required features are available.
+func (ks *KernelSupport) SupportLevel() (level FeatureLevel, summary string) {
 	if !ks.IsEnabled() {
 		return NoSupport, fmt.Sprintf("apparmor is not enabled")
 	}

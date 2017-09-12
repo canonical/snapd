@@ -220,7 +220,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	level, _ := aa.ProbeKernel().Evaluate()
+	level, _ := aa.ProbeKernel().SupportLevel()
 	if level == aa.PartialSupport || (opts.Classic && !opts.JailMode) {
 		policy = classicTemplate
 	} else {
