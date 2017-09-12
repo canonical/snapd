@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
 var All []interfaces.SecurityBackend = backends()
@@ -44,7 +45,6 @@ func backends() []interfaces.SecurityBackend {
 		&mount.Backend{},
 		&kmod.Backend{},
 	}
-	featureLevel, summary := aa.ProbeKernel().SupportLevel()
 
 	// This should be logger.Noticef but due to ordering of initialization
 	// calls, the logger is not ready at this point yet and the message goes
@@ -56,9 +56,7 @@ func backends() []interfaces.SecurityBackend {
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	if featureLevel != aa.FullSupport {
-		fmt.Printf("WARNING: %s\n", summary)
-	}
+	fmt.Printf("AppArmor status: %s\n", release.AppArmorSupportSummary())
 
 	// Enable apparmor backend if there is any level of apparmor support,
 	// including partial feature set. This will allow snap-confine to always
@@ -67,7 +65,8 @@ func backends() []interfaces.SecurityBackend {
 	//
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
-	if featureLevel != aa.NoSupport {
+	switch release.AppArmorSupportLevel() {
+	case aa.FullSupport, aa.PartialSupport:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all

@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/apparmor"
 	"github.com/snapcore/snapd/interfaces/backends"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,7 +38,7 @@ var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 	for _, level := range []apparmor.SupportLevel{apparmor.NoSupport, apparmor.PartialSupport, apparmor.FullSupport} {
-		restore := apparmor.MockSupportLevel(level)
+		restore := release.MockAppArmorSupportLevel(level)
 		defer restore()
 
 		all := backends.Backends()
