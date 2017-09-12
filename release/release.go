@@ -55,8 +55,24 @@ var (
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	level, _ := apparmor.ProbeKernel().SupportLevel()
-	return level != apparmor.FullSupport
+	return AppArmorSupportLevel() != apparmor.FullSupport
+}
+
+// AppArmorSupportLevel quantifies how well apparmor is supported on the current kernel.
+func AppArmorSupportLevel() apparmor.SupportLevel {
+	level, _ := aa.SupportLevel()
+	return level
+}
+
+// AppArmorSupportSummary describes how well apparmor is supported on the current kernel.
+func AppArmorSupportSummary() string {
+	_, summary := aa.SupportLevel()
+	return summary
+}
+
+// AppArmorSupports returns true if the given apparmor feature is supported.
+func AppArmorSupports(feature string) bool {
+	return aa.SupportsFeature(feature)
 }
 
 var (
@@ -118,10 +134,15 @@ var OnClassic bool
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
 var ReleaseInfo OS
 
+// aa contains information about available apparmor feature set.
+var aa *apparmor.KernelSupport
+
 func init() {
 	ReleaseInfo = readOSRelease()
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
+
+	aa = apparmor.ProbeKernel()
 }
 
 // MockOnClassic forces the process to appear inside a classic
@@ -147,5 +168,16 @@ func MockForcedDevmode(isDevmode bool) (restore func()) {
 	if isDevmode {
 		level = apparmor.NoSupport
 	}
-	return apparmor.MockSupportLevel(level)
+	return MockAppArmorSupportLevel(level)
+}
+
+// MockAppArmorSupportLevel makes the system believe it has certain level of apparmor support.
+func MockAppArmorSupportLevel(level apparmor.SupportLevel) (restore func()) {
+	r := apparmor.MockSupportLevel(level)
+	old := aa
+	aa = apparmor.ProbeKernel()
+	return func() {
+		r()
+		aa = old
+	}
 }
