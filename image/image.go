@@ -105,7 +105,7 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			local[snapName] = info
 
 			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
-			if err != nil && err != asserts.ErrNotFound {
+			if err != nil && !asserts.IsNotFound(err) {
 				return nil, err
 			}
 			if err == nil {

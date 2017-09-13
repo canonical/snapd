@@ -213,8 +213,10 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 	p := filepath.Join(d, "foo")
 	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
 	c.Assert(err, IsNil)
+
 	c.Assert(aw.File.Close(), IsNil)
-	c.Check(aw.Cancel(), ErrorMatches, "invalid argument")
+	// Depending on golang version the error is one of the two.
+	c.Check(aw.Cancel(), ErrorMatches, "invalid argument|file already closed")
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {

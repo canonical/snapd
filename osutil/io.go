@@ -59,7 +59,7 @@ type AtomicFile struct {
 	renamed bool
 }
 
-// NewAtomicFile builds an AtomicWriter backed by an *os.File that will have
+// NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
 //   It _might_ be implemented using O_TMPFILE (see open(2)).

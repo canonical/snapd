@@ -94,13 +94,7 @@ func MockChown(f func(*os.File, int, int) error) func() {
 }
 
 func SetAtomicFileRenamed(aw *AtomicFile, renamed bool) {
-	println("renamed", renamed)
 	aw.renamed = renamed
-}
-
-func GetAtomicFile(aw AtomicFile) *os.File {
-	return aw.File
-
 }
 
 func SetUnsafeIO(b bool) func() {
