@@ -1526,6 +1526,11 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		var value interface{}
 		if err := tr.Get(snapName, key, &value); err != nil {
 			if config.IsNoOption(err) {
+				if key == "" {
+					// no configuration - return empty document
+					currentConfValues = make(map[string]interface{})
+					break
+				}
 				return BadRequest("%v", err)
 			} else {
 				return InternalError("%v", err)
