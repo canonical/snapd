@@ -1648,7 +1648,7 @@ func (s *runScriptSuite) TestRepairHitsTimeout(c *C) {
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
 	defer r2()
 
-	restore := repair.MockDefaultRepairTimeout(10 * time.Millisecond)
+	restore := repair.MockDefaultRepairTimeout(100 * time.Millisecond)
 	defer restore()
 
 	script := `#!/bin/sh
@@ -1671,6 +1671,6 @@ sleep 100
 	})
 	s.verifyOutput(c, "r0.retry", `output before timeout
 
-"repair (1; brand-id:canonical)" failed: repair did not finish within 10ms`)
+"repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }
