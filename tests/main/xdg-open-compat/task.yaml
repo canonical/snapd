@@ -6,7 +6,7 @@ description: |
     dbus session bus. This test ensures the compatibility with
     the old launcher is still there for distros that do not re-exec
     and still get a new core but still have the old snapd-xdg-open
-    pacakge.
+    package.
 
 # we must have snapd-xdg-open available
 systems: [ubuntu-16.04-*]
