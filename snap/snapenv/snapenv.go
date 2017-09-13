@@ -149,6 +149,13 @@ const PreservedUnsafePrefix = "SNAP_SAVED_"
 func envMap(env []string, preserveUnsafeVars bool) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
+		// snap-exec unconditionally renames variables
+		// starting with PreservedUnsafePrefix so skip any
+		// that are already present in the environment to
+		// avoid confusion.
+		if strings.HasPrefix(kv, PreservedUnsafePrefix) {
+			continue
+		}
 		l := strings.SplitN(kv, "=", 2)
 		if len(l) < 2 {
 			continue // strange
