@@ -157,6 +157,8 @@ type remoteRepoTestSuite struct {
 
 	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
+
+	restoreLogger func()
 }
 
 var _ = Suite(&remoteRepoTestSuite{})
@@ -338,10 +340,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	os.Setenv("SNAPD_DEBUG", "1")
 	t.AddCleanup(func() { os.Unsetenv("SNAPD_DEBUG") })
 
-	t.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.New(t.logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	t.logbuf, t.restoreLogger = logger.MockLogger()
 
 	root, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
@@ -368,10 +367,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
 	t.mockXDelta.Restore()
-}
-
-func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
-	logger.SimpleSetup()
+	t.restoreLogger()
 }
 
 func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
@@ -4057,10 +4053,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	repo := New(&cfg, nil)
 
 	_, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(err, DeepEquals, &AssertionNotFoundError{
-		Ref: &asserts.Ref{
-			Type:       asserts.SnapDeclarationType,
-			PrimaryKey: []string{"16", "snapidfoo"},
+	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.SnapDeclarationType,
+		Headers: map[string]string{
+			"series":  "16",
+			"snap-id": "snapidfoo",
 		},
 	})
 }

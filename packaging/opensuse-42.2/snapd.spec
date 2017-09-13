@@ -128,11 +128,11 @@ export CXXFLAGS
 %goprep %{import_path}
 
 %if 0%{?with_test_keys}
-# The %gobuild macro doesn't allow us to pass any additional parameters
+# The gobuild macro doesn't allow us to pass any additional parameters
 # so we we have to invoke `go install` here manually.
 export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
 export GOBIN=%{_builddir}/go/bin
-# Options used are the same as the %gobuild macro does but as it
+# Options used are the same as the gobuild macro does but as it
 # doesn't allow us to amend new flags we have to repeat them here:
 # -s: tell long running tests to shorten their build time
 # -v: be verbose

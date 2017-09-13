@@ -62,20 +62,20 @@ import (
 type mgrsSuite struct {
 	tempdir string
 
-	aa     *testutil.MockCmd
-	udev   *testutil.MockCmd
-	umount *testutil.MockCmd
+	restore func()
 
-	snapDiscardNs *testutil.MockCmd
-
-	storeSigning     *assertstest.StoreStack
-	restoreTrusted   func()
-	restore          func()
+	aa               *testutil.MockCmd
+	udev             *testutil.MockCmd
+	umount           *testutil.MockCmd
 	restoreSystemctl func()
 
-	devAcct *asserts.Account
+	snapDiscardNs *testutil.MockCmd
+	snapSeccomp   *testutil.MockCmd
 
-	o *overlord.Overlord
+	storeSigning   *assertstest.StoreStack
+	restoreTrusted func()
+
+	devAcct *asserts.Account
 
 	serveIDtoName map[string]string
 	serveSnapPath map[string]string
@@ -83,7 +83,7 @@ type mgrsSuite struct {
 
 	hijackServeSnap func(http.ResponseWriter)
 
-	snapSeccomp *testutil.MockCmd
+	o *overlord.Overlord
 }
 
 var (
@@ -414,7 +414,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(ms.storeSigning.Find)
-			if err == asserts.ErrNotFound {
+			if asserts.IsNotFound(err) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(404)
 				w.Write([]byte(`{"status": 404}`))
