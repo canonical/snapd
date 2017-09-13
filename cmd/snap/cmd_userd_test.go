@@ -27,15 +27,32 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type userdSuite struct {
 	BaseSnapSuite
 	testutil.DBusTest
+
+	restoreLogger func()
 }
 
 var _ = Suite(&userdSuite{})
+
+func (s *userdSuite) SetUpTest(c *C) {
+	s.BaseSnapSuite.SetUpTest(c)
+	s.DBusTest.SetUpTest(c)
+
+	_, s.restoreLogger = logger.MockLogger()
+}
+
+func (s *userdSuite) TearDownTest(c *C) {
+	s.BaseSnapSuite.TearDownTest(c)
+	s.DBusTest.TearDownTest(c)
+
+	s.restoreLogger()
+}
 
 func (s *userdSuite) TestUserdBadCommandline(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"userd", "extra-arg"})
