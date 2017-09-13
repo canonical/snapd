@@ -90,7 +90,7 @@ func Debugf(format string, v ...interface{}) {
 // MockLogger replaces the exiting logger with a buffer and returns
 // the log buffer and a restore function.
 func MockLogger() (buf *bytes.Buffer, restore func()) {
-	buf = bytes.NewBuffer(nil)
+	buf = &bytes.Buffer{}
 	oldLogger := logger
 	l, err := New(buf, DefaultFlags)
 	if err != nil {
@@ -98,7 +98,6 @@ func MockLogger() (buf *bytes.Buffer, restore func()) {
 	}
 	SetLogger(l)
 	return buf, func() {
-		logger = oldLogger
 		SetLogger(oldLogger)
 	}
 }
