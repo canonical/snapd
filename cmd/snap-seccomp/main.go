@@ -795,7 +795,7 @@ func compile(content []byte, out string) error {
 	}
 	defer fout.Close()
 
-	if err := secFilter.ExportBPF(fout.BackingFile()); err != nil {
+	if err := secFilter.ExportBPF(fout.File); err != nil {
 		return err
 	}
 	return fout.Commit()
