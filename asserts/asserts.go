@@ -162,7 +162,11 @@ func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (head
 	}
 	headers = make(map[string]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
-		headers[name] = primaryKey[i]
+		keyVal := primaryKey[i]
+		if keyVal == "" {
+			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		}
+		headers[name] = keyVal
 	}
 	return headers, nil
 }
