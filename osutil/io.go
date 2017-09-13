@@ -64,7 +64,7 @@ type AtomicWriter interface {
 	Cancel() error
 
 	// BackingFile returns the underlying writable os.File or nil
-	// if the file is already commited or closed.
+	// if the file is already committed or closed.
 	BackingFile() *os.File
 }
 
