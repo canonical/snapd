@@ -34,8 +34,8 @@ import (
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
 // overrides the any pre-existing environment variables. For a classic
-// snap, some environment variables usually stripped out by ld.so when
-// starting a setuid process are renamed by prepending
+// snap, environment variables that are usually stripped out by ld.so
+// when starting a setuid process are renamed by prepending
 // PreservedUnsafePrefix -- which snap-exec will remove, restoring the
 // variables to their original names.
 //
@@ -110,18 +110,42 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	return result
 }
 
+// Environment variables glibc strips out when running a setuid binary.
+// Taken from https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=sysdeps/generic/unsecvars.h;hb=HEAD
 var unsafeEnv = map[string]bool{
-	"HOSTALIASES": true,
-	"TMPDIR":      true,
+	"GCONV_PATH":       true,
+	"GETCONF_DIR":      true,
+	"GLIBC_TUNABLES":   true,
+	"HOSTALIASES":      true,
+	"LD_AUDIT":         true,
+	"LD_DEBUG":         true,
+	"LD_DEBUG_OUTPUT":  true,
+	"LD_DYNAMIC_WEAK":  true,
+	"LD_HWCAP_MASK":    true,
+	"LD_LIBRARY_PATH":  true,
+	"LD_ORIGIN_PATH":   true,
+	"LD_PRELOAD":       true,
+	"LD_PROFILE":       true,
+	"LD_SHOW_AUXV":     true,
+	"LD_USE_LOAD_BIAS": true,
+	"LOCALDOMAIN":      true,
+	"LOCPATH":          true,
+	"MALLOC_TRACE":     true,
+	"NIS_PATH":         true,
+	"NLSPATH":          true,
+	"RESOLV_HOST_CONF": true,
+	"RES_OPTIONS":      true,
+	"TMPDIR":           true,
+	"TZDIR":            true,
 }
 
 const PreservedUnsafePrefix = "SNAP_SAVED_"
 
 // envMap creates a map from the given environment string list,
 // e.g. the list returned from os.Environ(). If preserveUnsafeVars
-// rename some variables that will be stripped out by the dynamic
-// linker executing the setuid snap-confine by prepending their names
-// with PreservedUnsafePrefix.
+// rename variables that will be stripped out by the dynamic linker
+// executing the setuid snap-confine by prepending their names with
+// PreservedUnsafePrefix.
 func envMap(env []string, preserveUnsafeVars bool) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
