@@ -2305,12 +2305,10 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		}
 
-		installSnap := ""
 		snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 			if name != "core" {
 				c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
 			}
-			installSnap = name
 			t := s.NewTask("fake-install-snap", "Doing a fake install")
 			return state.NewTaskSet(t), nil
 		}
