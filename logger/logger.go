@@ -87,9 +87,11 @@ func Debugf(format string, v ...interface{}) {
 	logger.Debug(msg)
 }
 
-func MockLogger() (r io.Reader, restore func()) {
+// MockLogger replaces the exiting logger with a buffer and returns
+// the log buffer and a restore function.
+func MockLogger() (buf *bytes.Buffer, restore func()) {
+	buf = bytes.NewBuffer(nil)
 	oldLogger := logger
-	buf := &bytes.Buffer{}
 	l, err := New(buf, DefaultFlags)
 	if err != nil {
 		panic(err)
