@@ -282,9 +282,6 @@ func Manager(st *state.State) (*SnapManager, error) {
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
-	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
-		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
-	}
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -553,7 +550,7 @@ func (m *SnapManager) ensureCatalogRefresh() error {
 		return nil
 	}
 	m.state.Lock()
-	aStore := storestate.Store(m.state)
+	theStore := storestate.Store(m.state)
 	now := time.Now()
 	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
 
@@ -566,9 +563,9 @@ func (m *SnapManager) ensureCatalogRefresh() error {
 	// catalog refresh does not carry on trying on error
 	m.nextCatalogRefresh = next
 	m.state.Unlock()
-	logger.Debugf("Next catalog refresh scheduled for %s.", next)
+	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	return refreshCatalogs(aStore)
+	return refreshCatalogs(theStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode

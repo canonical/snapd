@@ -105,6 +105,9 @@ purge() {
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+
+    echo "Removing snapd cache"
+    rm -rf /var/cache/snapd/
 }
 
 while [ -n "$1" ]; do

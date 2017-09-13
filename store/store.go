@@ -1147,11 +1147,9 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	return sectionNames, nil
 }
 
-// WriteCommandsCatalogs queries the "commands" endpoint and writes
-// the command names into the given io.Writer [and at some point the
-// CNF catalog to another io.Writer; adding now to minimise interface
-// churn].
-func (s *Store) WriteCommandsCatalogs(names io.Writer, _ io.Writer) error {
+// WriteCatalogs queries the "commands" endpoint and writes the
+// command names into the given io.Writer.
+func (s *Store) WriteCatalogs(names io.Writer) error {
 	u := *s.commandsURI
 
 	q := u.Query()
@@ -1168,11 +1166,14 @@ func (s *Store) WriteCommandsCatalogs(names io.Writer, _ io.Writer) error {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+	doRequest := func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
-	}, func(resp *http.Response) error {
+	}
+	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names)
-	}, defaultRetryStrategy)
+	}
+
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
 	if err != nil {
 		return err
 	}

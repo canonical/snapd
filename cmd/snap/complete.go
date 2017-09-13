@@ -31,26 +31,33 @@ func (s installedSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
-func completeFromSortedFile(fn, match string) ([]flags.Completion, error) {
-	fd, err := os.Open(fn)
+func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer fd.Close()
+	defer file.Close()
 
 	var ret []flags.Completion
 
 	// TODO: look into implementing binary search
 	//       e.g. https://github.com/pts/pts-line-bisect/
-	scanner := bufio.NewScanner(fd)
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line >= match {
-			if strings.HasPrefix(line, match) {
-				ret = append(ret, flags.Completion{Item: line})
-			} else {
-				break
-			}
+		if line < match {
+			continue
+		}
+		if !strings.HasPrefix(line, match) {
+			break
+		}
+		ret = append(ret, flags.Completion{Item: line})
+		if len(ret) > 10000 {
+			// too many matches; slow machines could take too long to process this
+			// e.g. the bbb takes ~1s to process ~2M entries (i.e. to reach the
+			// point of asking the user if they actually want to see that many
+			// results). 10k ought to be enough for anybody.
+			break
 		}
 	}
 

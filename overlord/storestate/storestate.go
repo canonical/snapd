@@ -69,7 +69,7 @@ type StoreService interface {
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
-	WriteCommandsCatalogs(names io.Writer, commands io.Writer) error
+	WriteCatalogs(names io.Writer) error
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)

@@ -2612,12 +2612,10 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	repo := New(&Config{StoreBaseURL: serverURL}, nil)
 	c.Assert(repo, NotNil)
 
-	var bufNames, bufCommands bytes.Buffer
-	err := repo.WriteCommandsCatalogs(&bufNames, &bufCommands)
+	var bufNames bytes.Buffer
+	err := repo.WriteCatalogs(&bufNames)
 	c.Check(err, IsNil)
-	// NOTE no actual commands just yet
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
-	c.Check(bufCommands.String(), Equals, "")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {

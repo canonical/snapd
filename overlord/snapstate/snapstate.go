@@ -23,6 +23,7 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -1699,8 +1700,12 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	return defaults, nil
 }
 
-func refreshCatalogs(aStore storestate.StoreService) error {
-	sections, err := aStore.Sections(nil)
+func refreshCatalogs(theStore storestate.StoreService) error {
+	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
+	}
+
+	sections, err := theStore.Sections(nil)
 	if err != nil {
 		return err
 	}
@@ -1710,14 +1715,14 @@ func refreshCatalogs(aStore storestate.StoreService) error {
 		return err
 	}
 
-	namesFd, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
 	if err != nil {
 		return err
 	}
-	defer namesFd.Cancel()
-	if err := aStore.WriteCommandsCatalogs(namesFd, nil); err != nil {
+	defer namesFile.Cancel()
+	if err := theStore.WriteCatalogs(namesFile); err != nil {
 		return err
 	}
 
-	return namesFd.Commit()
+	return namesFile.Commit()
 }
