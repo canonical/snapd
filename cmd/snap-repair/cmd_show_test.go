@@ -31,7 +31,7 @@ func (r *repairSuite) TestListRepairsVerbose(c *C) {
 	err := repair.ParseArgs([]string{"show", "canonical-1"})
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, ""+
-		"canonical\t1\t3\tretry"+"\n"+
+		"canonical-1\t3\tretry"+"\n"+
 		" output:"+"\n"+
 		"  retry output"+"\n"+
 		" script:"+"\n"+

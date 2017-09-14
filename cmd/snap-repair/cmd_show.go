@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/snapcore/snapd/dirs"
 )
@@ -68,8 +67,15 @@ func outputIndented(w io.Writer, path string) {
 
 }
 
-func showRepairOutput(w io.Writer, issuer, seq string) error {
-	basedir := filepath.Join(dirs.SnapRepairRunDir, issuer, seq)
+func showRepairOutput(w io.Writer, repair string) error {
+	i := strings.LastIndex(repair, "-")
+	if i < 0 {
+		return fmt.Errorf("cannot parse repair %q", repair)
+	}
+	brand := repair[:i]
+	seq := repair[i+1:]
+
+	basedir := filepath.Join(dirs.SnapRepairRunDir, brand, seq)
 	dirents, err := ioutil.ReadDir(basedir)
 	if err != nil {
 		return err
@@ -79,7 +85,7 @@ func showRepairOutput(w io.Writer, issuer, seq string) error {
 		rev := revFromFilename(name)
 		if strings.HasSuffix(name, ".retry") || strings.HasSuffix(name, ".done") || strings.HasSuffix(name, ".skip") {
 			status := filepath.Ext(name)[1:]
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", issuer, seq, rev, status)
+			fmt.Fprintf(w, "%s\t%s\t%s\n", repair, rev, status)
 			fmt.Fprintf(w, " output:\n")
 			outputIndented(w, filepath.Join(basedir, name))
 		}
@@ -93,17 +99,8 @@ func showRepairOutput(w io.Writer, issuer, seq string) error {
 }
 
 func (c *cmdShow) Execute([]string) error {
-	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
-	defer w.Flush()
-
 	for _, repair := range c.Positional.Repair {
-		i := strings.LastIndex(repair, "-")
-		if i < 0 {
-			continue
-		}
-		brand := repair[:i]
-		seq := repair[i+1:]
-		showRepairOutput(Stdout, brand, seq)
+		showRepairOutput(Stdout, repair)
 		fmt.Fprintf(Stdout, "\n")
 	}
 
