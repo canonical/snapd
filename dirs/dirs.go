@@ -87,6 +87,10 @@ var (
 	CompletionHelper string
 	CompletersDir    string
 	CompleteSh       string
+
+	SystemFontsDir           string
+	SystemLocalFontsDir      string
+	SystemFontconfigCacheDir string
 )
 
 const (
@@ -224,4 +228,8 @@ func SetRootDir(rootdir string) {
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
+
+	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
+	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 }
