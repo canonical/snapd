@@ -199,6 +199,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %buildroot/var/cache/snapd
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
