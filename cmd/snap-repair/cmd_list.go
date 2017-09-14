@@ -20,9 +20,7 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,7 +33,7 @@ import (
 
 func init() {
 	const (
-		short = "List repairs run on this device"
+		short = "Lists repairs run on this device"
 		long  = ""
 	)
 
@@ -45,48 +43,7 @@ func init() {
 
 }
 
-type cmdList struct {
-	Verbose bool `long:"verbose"`
-}
-
-func outputIndented(w io.Writer, path string) {
-	f, err := os.Open(path)
-	if err != nil {
-		fmt.Fprintf(w, "  error: %s\n", err)
-		return
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fmt.Fprintf(w, "  %s\n", scanner.Text())
-	}
-	if scanner.Err() != nil {
-		fmt.Fprintf(w, "  error: %s\n", scanner.Err())
-	}
-
-}
-
-func showRepairOutput(w io.Writer, issuer, seq, rev string) error {
-	basedir := filepath.Join(dirs.SnapRepairRunDir, issuer, seq)
-	dirents, err := ioutil.ReadDir(basedir)
-	if err != nil {
-		return err
-	}
-	for _, dent := range dirents {
-		name := dent.Name()
-		if strings.HasSuffix(name, ".retry") || strings.HasSuffix(name, ".done") || strings.HasSuffix(name, ".skip") {
-			fmt.Fprintf(w, " output:\n")
-			outputIndented(w, filepath.Join(basedir, name))
-		}
-		if strings.HasSuffix(name, ".script") {
-			fmt.Fprintf(w, " script:\n")
-			outputIndented(w, filepath.Join(basedir, name))
-		}
-	}
-
-	return nil
-}
+type cmdList struct{}
 
 type repairTrace struct {
 	issuer string
@@ -96,20 +53,23 @@ type repairTrace struct {
 }
 
 func newRepairTrace(artifactName, issuerName, seqName, status string) repairTrace {
-	t := repairTrace{
+	return repairTrace{
 		issuer: issuerName,
 		seq:    seqName,
-		rev:    "?",
+		rev:    revFromFilename(artifactName),
 		status: status,
 	}
-	var rev int
-	if _, err := fmt.Sscanf(artifactName, "r%d.", &rev); err == nil {
-		t.rev = strconv.Itoa(rev)
-	}
-	return t
 }
 
-func (c *cmdList) Execute(args []string) error {
+func revFromFilename(name string) string {
+	var rev int
+	if _, err := fmt.Sscanf(name, "r%d.", &rev); err == nil {
+		return strconv.Itoa(rev)
+	}
+	return "?"
+}
+
+func (c *cmdList) Execute([]string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	defer w.Flush()
 
@@ -171,12 +131,6 @@ func (c *cmdList) Execute(args []string) error {
 	fmt.Fprintf(w, "Issuer\tSeq\tRev\tStatus\n")
 	for _, t := range repairTraces {
 		fmt.Fprintf(w, "%s\t%v\t%v\t%s\n", t.issuer, t.seq, t.rev, t.status)
-		if c.Verbose {
-			if err := showRepairOutput(w, t.issuer, t.seq, t.rev); err != nil {
-				fmt.Fprintf(w, " no details: %s\n", err)
-			}
-		}
-
 	}
 
 	return nil

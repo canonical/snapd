@@ -37,31 +37,9 @@ func (r *repairSuite) TestListNoRepairsYet(c *C) {
 }
 
 func makeMockRepairState(c *C) {
-	// FIXME: we don't use the state
-	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(`
-{
-  "device": {
-    "brand": "my-brand",
-    "model": "my-model"
-  },
-  "sequences": {
-    "canonical": [
-      {"sequence":1,"revision":3,"status":0}
-    ],
-    "my-brand": [
-      {"sequence":1,"revision":1,"status":2},
-      {"sequence":2,"revision":2,"status":1}
-    ]
-  }
-}
-`), 0600)
-	c.Assert(err, IsNil)
-
 	// the canonical script dir content
 	basedir := filepath.Join(dirs.SnapRepairRunDir, "canonical/1")
-	err = os.MkdirAll(basedir, 0700)
+	err := os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r3.retry"), []byte("retry output"), 0600)
 	c.Assert(err, IsNil)
@@ -96,32 +74,4 @@ canonical  1    3    retry
 my-brand   1    1    done
 my-brand   2    2    skip
 `)
-}
-
-func (r *repairSuite) TestListRepairsVerbose(c *C) {
-	makeMockRepairState(c)
-
-	err := repair.ParseArgs([]string{"list", "--verbose"})
-	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, `Issuer     Seq  Rev  Status
-canonical  1    3    retry
- output:
-  retry output
- script:
-  #!/bin/sh
-  echo retry output
-my-brand  1    1    done
- output:
-  done output
- script:
-  #!/bin/sh
-  echo done output
-my-brand  2    2    skip
- script:
-  #!/bin/sh
-  echo skip output
- output:
-  skip output
-`)
-
 }
