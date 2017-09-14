@@ -32,6 +32,7 @@ const networkBaseDeclarationSlots = `
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
