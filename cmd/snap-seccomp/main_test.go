@@ -244,13 +244,32 @@ restart_syscall
 
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
-	syscallNr, err := seccomp.GetSyscallFromName(l[0])
+	syscallName := l[0]
+	syscallArch := "native"
+	if len(l) > 1 {
+		syscallArch = l[1]
+	}
+
+	syscallNr, err := seccomp.GetSyscallFromName(syscallName)
 	c.Assert(err, IsNil)
-	if len(l) > 1 && l[1] != "native" {
-		syscallNr, err = seccomp.GetSyscallFromNameByArch(l[0], main.UbuntuArchToScmpArch(l[1]))
+
+	// Check if we want to test non-native architecture
+	// handling. Doing this via the in-kernel tests is tricky as
+	// we need a kernel that can run the architecture and a
+	// compiler that can produce the required binaries. Currently
+	// we only test amd64 running i386 here.
+	if syscallArch != "native" {
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
 		c.Assert(err, IsNil)
-		// switch to the 32bit version of the syscall runner
-		syscallRunner = s.seccompSyscallRunner + ".m32"
+
+		switch syscallArch {
+		case "amd64":
+			// default syscallRunner
+		case "i386":
+			syscallRunner = s.seccompSyscallRunner + ".m32"
+		default:
+			c.Errorf("unsupported non-native arch: %s", syscallArch)
+		}
 	}
 
 	if syscallNr < 0 {
@@ -729,12 +748,6 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// on amd64 we add compat i386
 		{"amd64", "read", "read;i386", main.SeccompRetAllow},
 		{"amd64", "read", "read;amd64", main.SeccompRetAllow},
-		// on arm64 we add compat armhf
-		{"arm64", "read", "read;armhf", main.SeccompRetAllow},
-		{"arm64", "read", "read;arm64", main.SeccompRetAllow},
-		// on ppc64 we add compat powerpc
-		{"ppc64", "read", "read;powerpc", main.SeccompRetAllow},
-		{"ppc64", "read", "read;ppc64", main.SeccompRetAllow},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp
