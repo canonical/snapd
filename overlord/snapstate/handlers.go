@@ -119,19 +119,19 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
-func inFlight(st *state.State, name string) (bool, error) {
+func changeInFlight(st *state.State, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
-			if tc.Kind() == "link-snap" {
+			if tc.Kind() == "link-snap" || tc.Kind() == "discard-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
 					return false, err
 				}
 				// some other change aleady inflight
-				if snapsup.Name() == name {
+				if snapsup.Name() == snapName {
 					return true, nil
 				}
 			}
@@ -179,7 +179,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// check that there is no task that installs the prereq already
-	prereqPending, err := inFlight(st, prereqName)
+	prereqPending, err := changeInFlight(st, prereqName)
 	if err != nil {
 		return err
 	}
