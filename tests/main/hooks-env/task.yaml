@@ -1,0 +1,19 @@
+summary: Check that environment variables are interpolated when running hooks.
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snap install --dangerous snapctl-hooks_1.0_all.snap
+
+restore: |
+    rm snapctl-hooks_1.0_all.snap
+
+environment:
+    ENVDUMP: /var/snap/snapctl-hooks/current/hooks-env
+
+execute: |
+    snap set snapctl-hooks command=dump-env
+
+    echo "Test that environment variables were interpolated"
+    cat $ENVDUMP | MATCH "^TEST_COMMON=/var/snap/snapctl-hooks/common$"
+    cat $ENVDUMP | MATCH "^TEST_DATA=/var/snap/snapctl-hooks/.*$"
+    cat $ENVDUMP | MATCH "^TEST_SNAP=/snap/snapctl-hooks/.*$"
