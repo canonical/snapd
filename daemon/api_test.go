@@ -288,6 +288,9 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 		Serial: "serialserial",
 	})
 
+	// don't actually try to talk to the store on snapstate.Ensure
+	// needs doing after the call to devicestate.Manager (which
+	// happens in daemon.New via overlord.New)
 	snapstate.CanAutoRefresh = nil
 
 	s.d = d

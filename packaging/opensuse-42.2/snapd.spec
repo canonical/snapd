@@ -244,6 +244,9 @@ esac
 
 %preun
 %service_del_preun %{systemd_services_list}
+if [ $1 -eq 0 ]; then
+    rm -f /var/cache/snapd/*
+fi
 
 %postun
 %service_del_postun %{systemd_services_list}

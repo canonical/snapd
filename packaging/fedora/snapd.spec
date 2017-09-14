@@ -573,6 +573,7 @@ popd
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
+%dir /var/cache/snapd
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
