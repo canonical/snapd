@@ -105,7 +105,8 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
-	release.OnClassic = true
+	restore = release.MockOnClassic(true)
+	defer restore()
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	expectedMountPoints := []string{
