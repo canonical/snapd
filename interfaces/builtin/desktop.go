@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -125,12 +126,6 @@ dbus (send)
 deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
-var desktopFontconfigDirs = []string{
-	"/usr/share/fonts",
-	"/usr/local/share/fonts",
-	"/var/cache/fontconfig",
-}
-
 type desktopInterface struct{}
 
 func (iface *desktopInterface) Name() string {
@@ -165,13 +160,19 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		return nil
 	}
 
-	for _, dir := range desktopFontconfigDirs {
+	fontconfigDirs := []string{
+		dirs.SystemFontsDir,
+		dirs.SystemLocalFontsDir,
+		dirs.SystemFontconfigCacheDir,
+	}
+
+	for _, dir := range fontconfigDirs {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
 		spec.AddMountEntry(mount.Entry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
-			Dir:     dir,
+			Dir:     dirs.StripRootDir(dir),
 			Options: []string{"bind", "ro"},
 		})
 	}
