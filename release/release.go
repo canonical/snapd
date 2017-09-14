@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/apparmor"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -37,42 +35,10 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
-var (
-	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
-	requiredApparmorFeatures = []string{
-		"caps",
-		"dbus",
-		"domain",
-		"file",
-		"mount",
-		"namespaces",
-		"network",
-		"ptrace",
-		"signal",
-	}
-)
-
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	return AppArmorSupportLevel() != apparmor.FullSupport
-}
-
-// AppArmorSupportLevel quantifies how well apparmor is supported on the current kernel.
-func AppArmorSupportLevel() apparmor.SupportLevel {
-	level, _ := aa.SupportLevel()
-	return level
-}
-
-// AppArmorSupportSummary describes how well apparmor is supported on the current kernel.
-func AppArmorSupportSummary() string {
-	_, summary := aa.SupportLevel()
-	return summary
-}
-
-// AppArmorSupports returns true if the given apparmor feature is supported.
-func AppArmorSupports(feature string) bool {
-	return aa.SupportsFeature(feature)
+	return AppArmorLevel() != FullAppArmor
 }
 
 var (
@@ -134,15 +100,10 @@ var OnClassic bool
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
 var ReleaseInfo OS
 
-// aa contains information about available apparmor feature set.
-var aa *apparmor.KernelSupport
-
 func init() {
 	ReleaseInfo = readOSRelease()
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
-
-	aa = apparmor.ProbeKernel()
 }
 
 // MockOnClassic forces the process to appear inside a classic
@@ -164,20 +125,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := apparmor.FullSupport
+	level := FullAppArmor
 	if isDevmode {
-		level = apparmor.NoSupport
+		level = NoAppArmor
 	}
-	return MockAppArmorSupportLevel(level)
-}
-
-// MockAppArmorSupportLevel makes the system believe it has certain level of apparmor support.
-func MockAppArmorSupportLevel(level apparmor.SupportLevel) (restore func()) {
-	r := apparmor.MockSupportLevel(level)
-	old := aa
-	aa = apparmor.ProbeKernel()
-	return func() {
-		r()
-		aa = old
-	}
+	return MockAppArmorLevel(level)
 }

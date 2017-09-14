@@ -22,7 +22,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/apparmor"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
@@ -37,8 +36,8 @@ type backendsSuite struct{}
 var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
-	for _, level := range []apparmor.SupportLevel{apparmor.NoSupport, apparmor.PartialSupport, apparmor.FullSupport} {
-		restore := release.MockAppArmorSupportLevel(level)
+	for _, level := range []release.AppArmorLevelType{release.NoAppArmor, release.PartialAppArmor, release.FullAppArmor} {
+		restore := release.MockAppArmorLevel(level)
 		defer restore()
 
 		all := backends.Backends()
@@ -47,7 +46,7 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 			names[i] = string(backend.Name())
 		}
 
-		if level == apparmor.NoSupport {
+		if level == release.NoAppArmor {
 			c.Assert(names, Not(testutil.Contains), "apparmor")
 		} else {
 			c.Assert(names, testutil.Contains, "apparmor")

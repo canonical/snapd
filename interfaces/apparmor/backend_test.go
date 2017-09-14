@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	aa "github.com/snapcore/snapd/apparmor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -294,7 +293,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
-	restore := release.MockAppArmorSupportLevel(aa.FullSupport)
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -370,7 +369,7 @@ snippet
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := release.MockAppArmorSupportLevel(aa.FullSupport)
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
