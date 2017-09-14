@@ -127,15 +127,15 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 3)
 
 	const hostfs = "/var/lib/snapd/hostfs"
-	c.Check(entries[0].Name, Equals, hostfs + dirs.SystemFontsDir)
+	c.Check(entries[0].Name, Equals, hostfs+dirs.SystemFontsDir)
 	c.Check(entries[0].Dir, Equals, "/usr/share/fonts")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
 
-	c.Check(entries[1].Name, Equals, hostfs + dirs.SystemLocalFontsDir)
+	c.Check(entries[1].Name, Equals, hostfs+dirs.SystemLocalFontsDir)
 	c.Check(entries[1].Dir, Equals, "/usr/local/share/fonts")
 	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
 
-	c.Check(entries[2].Name, Equals, hostfs + dirs.SystemFontconfigCacheDir)
+	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
 	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
 }
