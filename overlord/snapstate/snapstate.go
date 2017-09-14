@@ -1700,7 +1700,10 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	return defaults, nil
 }
 
-func refreshCatalogs(theStore storestate.StoreService) error {
+func refreshCatalogs(st *state.State, theStore storestate.StoreService) error {
+	st.Unlock()
+	defer st.Lock()
+
 	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}

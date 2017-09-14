@@ -542,22 +542,23 @@ func (m *SnapManager) ensureCatalogRefresh() error {
 		return nil
 	}
 	m.state.Lock()
+	defer m.state.Unlock()
+
 	theStore := storestate.Store(m.state)
 	now := time.Now()
 	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
 
 	if !needsRefresh {
-		m.state.Unlock()
 		return nil
 	}
 
 	next := now.Add(catalogRefreshDelay)
 	// catalog refresh does not carry on trying on error
 	m.nextCatalogRefresh = next
-	m.state.Unlock()
+
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	return refreshCatalogs(theStore)
+	return refreshCatalogs(m.state, theStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
