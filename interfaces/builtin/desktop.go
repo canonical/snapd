@@ -150,6 +150,7 @@ func (iface *desktopInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
 	return true
 }
 
