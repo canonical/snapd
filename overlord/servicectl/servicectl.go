@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type AppInstruction struct {
+type Instruction struct {
 	Action string   `json:"action"`
 	Names  []string `json:"names"`
 	client.StartOptions
@@ -37,10 +37,9 @@ type AppInstruction struct {
 	client.RestartOptions
 }
 
-type UnknownAction struct{ error }
-type ServiceActionConflict struct{ error }
+type ServiceActionConflictError struct{ error }
 
-func ServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *AppInstruction) (*state.Change, error) {
+func ServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.Change, error) {
 	// the argv to call systemctl will need at most one entry per appInfo,
 	// plus one for "systemctl", one for the action, and sometimes one for
 	// an option. That's a maximum of 3+len(appInfos).
@@ -64,7 +63,7 @@ func ServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *AppInstruct
 			argv[1] = "reload-or-restart"
 		}
 	default:
-		return nil, UnknownAction{fmt.Errorf("unknown action %q", inst.Action)}
+		return nil, fmt.Errorf("unknown action %q", inst.Action)
 	}
 
 	snapNames := make([]string, 0, len(appInfos))
@@ -85,7 +84,7 @@ func ServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *AppInstruct
 	st.Lock()
 	defer st.Unlock()
 	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
-		return nil, ServiceActionConflict{err}
+		return nil, &ServiceActionConflictError{err}
 	}
 
 	ts := cmdstate.Exec(st, desc, argv)

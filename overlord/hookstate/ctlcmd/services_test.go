@@ -65,8 +65,8 @@ apps:
   reload-command: bin/reload
 `
 
-func mockServiceControlFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction)) {
-	ctlcmd.SetServiceControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) (*state.Change, error) {
+func mockServiceControlFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicectl.Instruction)) func() {
+	return ctlcmd.MockServiceControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.Instruction) (*state.Change, error) {
 		testServiceControlInputs(appInfos, inst)
 		st.Lock()
 		defer st.Unlock()
@@ -79,10 +79,8 @@ func mockServiceControlFunc(testServiceControlInputs func(appInfos []*snap.AppIn
 func (s *servicectlSuite) SetUpTest(c *C) {
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
-	oldServiceCtlFunc := ctlcmd.GetServiceControlFunc()
 	s.restore = func() {
 		dirs.SetRootDir(oldRoot)
-		ctlcmd.SetServiceControlFunc(oldServiceCtlFunc)
 	}
 
 	s.mockHandler = hooktest.NewMockHandler()
@@ -135,11 +133,11 @@ func (s *servicectlSuite) TearDownTest(c *C) {
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
 	var serviceCtlFuncCalled bool
-	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+	restore := mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.Instruction) {
 		serviceCtlFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
-		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
+		c.Assert(inst, DeepEquals, &servicectl.Instruction{
 			Action: "stop",
 			Names:  []string{"test-snap.test-service"},
 			StopOptions: client.StopOptions{
@@ -148,6 +146,7 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 		},
 		)
 	})
+	defer restore()
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.test-service"})
 	c.Check(err, IsNil)
 	c.Check(string(stderr), Equals, "")
@@ -157,9 +156,10 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 
 func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 	var serviceCtlFuncCalled bool
-	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+	restore := mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.Instruction) {
 		serviceCtlFuncCalled = true
 	})
+	defer restore()
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.fooservice"})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `unknown service: "test-snap.fooservice"`)
@@ -168,9 +168,10 @@ func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 
 func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
 	var serviceCtlFuncCalled bool
-	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+	restore := mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.Instruction) {
 		serviceCtlFuncCalled = true
 	})
+	defer restore()
 	// verify that snapctl is not allowed to control services of other snaps (only the one of its hook)
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "other-snap.test-service"})
 	c.Check(err, NotNil)
@@ -180,11 +181,11 @@ func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
 
 func (s *servicectlSuite) TestStartCommand(c *C) {
 	var serviceCtlFuncCalled bool
-	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+	restore := mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.Instruction) {
 		serviceCtlFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
-		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
+		c.Assert(inst, DeepEquals, &servicectl.Instruction{
 			Action: "start",
 			Names:  []string{"test-snap.test-service"},
 			StartOptions: client.StartOptions{
@@ -193,6 +194,7 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 		},
 		)
 	})
+	defer restore()
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
 	c.Check(err, IsNil)
 	c.Check(string(stderr), Equals, "")
@@ -202,11 +204,11 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 
 func (s *servicectlSuite) TestRestartCommand(c *C) {
 	var serviceCtlFuncCalled bool
-	mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) {
+	restore := mockServiceControlFunc(func(appInfos []*snap.AppInfo, inst *servicectl.Instruction) {
 		serviceCtlFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
-		c.Assert(inst, DeepEquals, &servicectl.AppInstruction{
+		c.Assert(inst, DeepEquals, &servicectl.Instruction{
 			Action: "restart",
 			Names:  []string{"test-snap.test-service"},
 			RestartOptions: client.RestartOptions{
@@ -215,6 +217,7 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 		},
 		)
 	})
+	defer restore()
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"})
 	c.Check(err, IsNil)
 	c.Check(string(stderr), Equals, "")

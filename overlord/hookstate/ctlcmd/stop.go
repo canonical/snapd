@@ -28,7 +28,7 @@ import (
 type stopCommand struct {
 	baseCommand
 	Positional struct {
-		ServiceNames []string `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
 	Disable bool `long:"disable"`
 }
@@ -42,7 +42,7 @@ func init() {
 }
 
 func (c *stopCommand) Execute(args []string) error {
-	inst := servicectl.AppInstruction{
+	inst := servicectl.Instruction{
 		Action: "stop",
 		Names:  c.Positional.ServiceNames,
 		StopOptions: client.StopOptions{

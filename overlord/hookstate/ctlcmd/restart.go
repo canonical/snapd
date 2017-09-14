@@ -26,23 +26,23 @@ import (
 )
 
 var (
-	shortRestartHelp = i18n.G("Start services")
+	shortRestartHelp = i18n.G("Restart services")
 )
 
 func init() {
-	addCommand("restart", shortStartHelp, "", func() command { return &restartCommand{} })
+	addCommand("restart", shortRestartHelp, "", func() command { return &restartCommand{} })
 }
 
 type restartCommand struct {
 	baseCommand
 	Positional struct {
-		ServiceNames []string `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
 	Reload bool `long:"reload"`
 }
 
 func (c *restartCommand) Execute(args []string) error {
-	inst := servicectl.AppInstruction{
+	inst := servicectl.Instruction{
 		Action: "restart",
 		Names:  c.Positional.ServiceNames,
 		RestartOptions: client.RestartOptions{

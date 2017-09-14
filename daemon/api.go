@@ -2605,7 +2605,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	var inst servicectl.AppInstruction
+	var inst servicectl.Instruction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
@@ -2628,8 +2628,8 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	chg, err := servicectl.ServiceControl(st, appInfos, &inst)
 	if err != nil {
-		if _, ok := err.(servicectl.ServiceActionConflict); ok {
-			return InternalError(err.Error())
+		if _, ok := err.(servicectl.ServiceActionConflictError); ok {
+			return Conflict(err.Error())
 		}
 		return BadRequest(err.Error())
 	}
