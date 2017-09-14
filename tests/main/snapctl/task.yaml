@@ -11,6 +11,7 @@ execute: |
     echo "Verify that snapctl -h runs without a context"
     if ! snapctl -h; then
         echo "Expected snapctl -h to be successful"
+        exit 1
     fi
 
     echo "Verify that the snapd API is only available via the snapd socket"
