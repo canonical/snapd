@@ -36,13 +36,13 @@ func init() {
 type startCommand struct {
 	baseCommand
 	Positional struct {
-		ServiceNames []string `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
 	Enable bool `long:"enable"`
 }
 
 func (c *startCommand) Execute(args []string) error {
-	inst := servicectl.AppInstruction{
+	inst := servicectl.Instruction{
 		Action: "start",
 		Names:  c.Positional.ServiceNames,
 		StartOptions: client.StartOptions{

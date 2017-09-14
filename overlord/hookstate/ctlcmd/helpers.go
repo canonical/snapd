@@ -67,11 +67,9 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	return svcs, nil
 }
 
-type ServiceControlFunc func(st *state.State, appInfos []*snap.AppInfo, inst *servicectl.AppInstruction) (*state.Change, error)
+var servicectlImpl = servicectl.ServiceControl
 
-var runService ServiceControlFunc = servicectl.ServiceControl
-
-func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstruction, serviceNames []string) error {
+func runServiceCommand(context *hookstate.Context, inst *servicectl.Instruction, serviceNames []string) error {
 	if context == nil {
 		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
 	}
@@ -82,7 +80,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstructi
 		return err
 	}
 
-	chg, err := runService(st, appInfos, inst)
+	chg, err := servicectlImpl(st, appInfos, inst)
 	if err != nil {
 		return err
 	}
@@ -97,6 +95,6 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.AppInstructi
 		defer st.Unlock()
 		return chg.Err()
 	case <-time.After(configstate.ConfigureHookTimeout() / 2):
-		return fmt.Errorf("%s command timed out", inst.Action)
+		return fmt.Errorf("%s command is taking too long", inst.Action)
 	}
 }

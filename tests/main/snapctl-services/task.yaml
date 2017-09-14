@@ -30,5 +30,5 @@ execute: |
     echo "And then restart"
     snap set test-snapd-service command=restart
 
-    echo "It's is running"
+    echo "It's running"
     snap services test-snapd-service.test-snapd-service|MATCH " active"
