@@ -22,7 +22,6 @@ package backends
 import (
 	"fmt"
 
-	aa "github.com/snapcore/snapd/apparmor"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -56,7 +55,7 @@ func backends() []interfaces.SecurityBackend {
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	fmt.Printf("AppArmor status: %s\n", release.AppArmorSupportSummary())
+	fmt.Printf("AppArmor status: %s\n", release.AppArmorSummary())
 
 	// Enable apparmor backend if there is any level of apparmor support,
 	// including partial feature set. This will allow snap-confine to always
@@ -65,8 +64,8 @@ func backends() []interfaces.SecurityBackend {
 	//
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
-	switch release.AppArmorSupportLevel() {
-	case aa.FullSupport, aa.PartialSupport:
+	switch release.AppArmorLevel() {
+	case release.FullAppArmor, release.PartialAppArmor:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all

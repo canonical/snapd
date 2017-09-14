@@ -47,7 +47,6 @@ import (
 	"sort"
 	"strings"
 
-	aa "github.com/snapcore/snapd/apparmor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -220,8 +219,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	level := release.AppArmorSupportLevel()
-	if level == aa.PartialSupport || (opts.Classic && !opts.JailMode) {
+	level := release.AppArmorLevel()
+	if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
 		policy = classicTemplate
 	} else {
 		policy = defaultTemplate
@@ -242,7 +241,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
-			} else if level == aa.PartialSupport || (opts.Classic && !opts.JailMode) {
+			} else if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
 				// When classic confinement (without jailmode) is in effect we
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.
