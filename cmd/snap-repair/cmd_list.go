@@ -46,16 +46,14 @@ func init() {
 type cmdList struct{}
 
 type repairTrace struct {
-	issuer string
-	seq    string
+	repair string
 	rev    string
 	status string
 }
 
-func newRepairTrace(artifactName, issuerName, seqName, status string) repairTrace {
+func newRepairTrace(artifactName, repair, status string) repairTrace {
 	return repairTrace{
-		issuer: issuerName,
-		seq:    seqName,
+		repair: repair,
 		rev:    revFromFilename(artifactName),
 		status: status,
 	}
@@ -109,6 +107,7 @@ func (c *cmdList) Execute([]string) error {
 		for _, seq := range sequences {
 			seqName := seq.Name()
 
+			repair := fmt.Sprintf("%s-%s", issuerName, seqName)
 			artifactsDir := filepath.Join(dirs.SnapRepairRunDir, issuerName, seqName)
 			artifacts, err := ioutil.ReadDir(artifactsDir)
 			if err != nil {
@@ -118,19 +117,19 @@ func (c *cmdList) Execute([]string) error {
 				artifactName := artifact.Name()
 				switch {
 				case strings.HasSuffix(artifactName, ".retry"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "retry"))
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "retry"))
 				case strings.HasSuffix(artifactName, ".skip"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "skip"))
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "skip"))
 				case strings.HasSuffix(artifactName, ".done"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, issuerName, seqName, "done"))
+					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "done"))
 				}
 			}
 		}
 	}
 
-	fmt.Fprintf(w, "Issuer\tSeq\tRev\tStatus\n")
+	fmt.Fprintf(w, "Repair\tRev\tStatus\n")
 	for _, t := range repairTraces {
-		fmt.Fprintf(w, "%s\t%v\t%v\t%s\n", t.issuer, t.seq, t.rev, t.status)
+		fmt.Fprintf(w, "%s\t%v\t%s\n", t.repair, t.rev, t.status)
 	}
 
 	return nil

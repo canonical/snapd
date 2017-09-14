@@ -69,9 +69,9 @@ func (r *repairSuite) TestListRepairsSimple(c *C) {
 
 	err := repair.ParseArgs([]string{"list"})
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, `Issuer     Seq  Rev  Status
-canonical  1    3    retry
-my-brand   1    1    done
-my-brand   2    2    skip
+	c.Check(r.Stdout(), Equals, `Repair       Rev  Status
+canonical-1  3    retry
+my-brand-1   1    done
+my-brand-2   2    skip
 `)
 }
