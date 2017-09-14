@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
