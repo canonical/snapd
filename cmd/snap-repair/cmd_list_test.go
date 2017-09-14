@@ -60,7 +60,7 @@ func makeMockRepairState(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r2.skip"), []byte("skip output"), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r1.script"), []byte("#!/bin/sh\necho skip output"), 0700)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r2.script"), []byte("#!/bin/sh\necho skip output"), 0700)
 	c.Assert(err, IsNil)
 }
 
