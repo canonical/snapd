@@ -83,8 +83,9 @@ dbus (send)
     member=Introspect
     peer=(label=unconfined),
 
-# Allow clients to enumerate DBus connection names on any bus
+# Allow clients to enumerate DBus connection names on common buses
 dbus (send)
+    bus={session,system}
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member=ListNames
