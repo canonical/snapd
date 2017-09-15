@@ -244,6 +244,9 @@ socket AF_NETLINK - NETLINK_DNRTMSG
 socket AF_NETLINK - NETLINK_ISCSI
 socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
+
+# for receiving kobject_uevent() net messages from the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const networkControlConnectedPlugUDev = `
