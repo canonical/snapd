@@ -150,7 +150,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -790,27 +789,16 @@ func compile(content []byte, out string) error {
 	}
 
 	// write atomically
-	dir, err := os.Open(filepath.Dir(out))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	fout, err := os.Create(out + ".tmp")
+	fout, err := osutil.NewAtomicFile(out, 0644, 0, -1, -1)
 	if err != nil {
 		return err
 	}
 	defer fout.Close()
-	if err := secFilter.ExportBPF(fout); err != nil {
+
+	if err := secFilter.ExportBPF(fout.File); err != nil {
 		return err
 	}
-	if err := fout.Sync(); err != nil {
-		return err
-	}
-	if err := os.Rename(out+".tmp", out); err != nil {
-		return err
-	}
-	return dir.Sync()
+	return fout.Commit()
 }
 
 func showSeccompLibraryVersion() error {
