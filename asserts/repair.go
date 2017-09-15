@@ -54,6 +54,11 @@ func (r *Repair) RepairID() int {
 	return r.id
 }
 
+// Summary returns the mandatory summary description of the repair.
+func (r *Repair) Summary() string {
+	return r.HeaderString("summary")
+}
+
 // Architectures returns the architectures that this assertions applies to.
 func (r *Repair) Architectures() []string {
 	return r.architectures
@@ -108,6 +113,10 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		// given it matched it can likely only be too large
 		return nil, fmt.Errorf("repair-id too large: %s", repairID)
+	}
+
+	if _, err := checkNotEmptyString(assert.headers, "summary"); err != nil {
+		return nil, err
 	}
 
 	series, err := checkStringList(assert.headers, "series")
