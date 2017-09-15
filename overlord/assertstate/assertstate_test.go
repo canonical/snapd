@@ -262,6 +262,7 @@ func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
 		"authority-id": "can0nical",
 		"brand-id":     "can0nical",
 		"repair-id":    "2",
+		"summary":      "repair two",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}
 	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
