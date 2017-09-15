@@ -1,11 +1,8 @@
 summary: Check that environment variables are interpolated when running hooks.
 
 prepare: |
-    snapbuild $TESTSLIB/snaps/snapctl-hooks .
-    snap install --dangerous snapctl-hooks_1.0_all.snap
-
-restore: |
-    rm snapctl-hooks_1.0_all.snap
+    . "$TESTSLIB/snaps.sh"
+    install_local snapctl-hooks
 
 environment:
     ENVDUMP: /var/snap/snapctl-hooks/current/hooks-env
