@@ -34,17 +34,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 // coreCfgSuite is the base for all the corecfg tests
 type coreCfgSuite struct {
-	systemctlArgs [][]string
+	systemctlArgs     [][]string
+	systemctlRestorer func()
 }
 
 var _ = Suite(&coreCfgSuite{})
 
 func (s *coreCfgSuite) SetUpSuite(c *C) {
-	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("ActiveState=inactive")
 		return output, nil
-	}
+	})
+}
+
+func (s *coreCfgSuite) TearDownSuite(c *C) {
+	s.systemctlRestorer()
 }
 
 // runCfgSuite tests corecfg.Run()
@@ -66,13 +71,10 @@ func (s *runCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	oldSystemdSystemctlCmd := systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(args ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("simulate missing core-support")
-	}
-	defer func() {
-		systemd.SystemctlCmd = oldSystemdSystemctlCmd
-	}()
+	})
+	defer r()
 
 	err := corecfg.Run()
 	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: simulate missing core-support`)
