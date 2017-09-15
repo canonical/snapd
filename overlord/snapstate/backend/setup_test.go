@@ -40,10 +40,10 @@ import (
 )
 
 type setupSuite struct {
-	be           backend.Backend
-	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
-	umount       *testutil.MockCmd
+	be                backend.Backend
+	nullProgress      progress.NullProgress
+	umount            *testutil.MockCmd
+	systemctlRestorer func()
 }
 
 var _ = Suite(&setupSuite{})
@@ -54,18 +54,18 @@ func (s *setupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+
 	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
-	systemd.SystemctlCmd = s.prevctlCmd
 	s.umount.Restore()
+	s.systemctlRestorer()
 }
 
 func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
