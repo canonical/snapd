@@ -82,6 +82,13 @@ dbus (send)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
+
+# Allow clients to enumerate DBus connection names on any bus
+dbus (send)
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=ListNames
+    peer=(label=unconfined),
 `
 
 const systemObserveConnectedPlugSecComp = `
