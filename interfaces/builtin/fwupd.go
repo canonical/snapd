@@ -106,6 +106,7 @@ const fwupdConnectedPlugAppArmor = `
   #Can access the network
   #include <abstractions/nameservice>
   #include <abstractions/ssl_certs>
+  /run/systemd/resolve/stub-resolv.conf r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>
