@@ -59,7 +59,6 @@ func (s *piCfgSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
 	c.Assert(err, IsNil)
 	s.mockConfig(c, mockConfigTxt)
-
 }
 
 func (s *piCfgSuite) TearDownTest(c *C) {

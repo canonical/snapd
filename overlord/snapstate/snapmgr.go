@@ -328,14 +328,6 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
 
-	// test handlers
-	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
-		return fmt.Errorf("fake-install-snap-error errored")
-	}, nil)
-
 	return m, nil
 }
 
