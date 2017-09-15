@@ -86,6 +86,8 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// then the /root user
+	found = append(found, snap.UserDataDir("/root/"))
 	// then system data
 	found = append(found, snap.DataDir())
 

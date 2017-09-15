@@ -41,7 +41,6 @@ import (
 
 var (
 	syscallExec = syscall.Exec
-	userCurrent = user.Current
 	osGetenv    = os.Getenv
 )
 
@@ -167,7 +166,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 }
 
 func createUserDataDirs(info *snap.Info) error {
-	usr, err := userCurrent()
+	usr, err := user.Current()
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
@@ -231,7 +230,7 @@ func isReexeced() bool {
 }
 
 func migrateXauthority(info *snap.Info) (string, error) {
-	u, err := userCurrent()
+	u, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
 	}

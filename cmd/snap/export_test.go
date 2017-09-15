@@ -20,7 +20,6 @@
 package main
 
 import (
-	"os/user"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -64,14 +63,6 @@ func MockSyscallExec(f func(string, []string, []string) error) (restore func()) 
 	syscallExec = f
 	return func() {
 		syscallExec = syscallExecOrig
-	}
-}
-
-func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
-	userCurrentOrig := userCurrent
-	userCurrent = f
-	return func() {
-		userCurrent = userCurrentOrig
 	}
 }
 

@@ -201,16 +201,13 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	fakeHome := c.MkDir()
-	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
-	})
-	defer restorer()
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
 
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, u.HomeDir, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, u.HomeDir, "/snap/snapname/common")), check.Equals, true)
 }
 
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
