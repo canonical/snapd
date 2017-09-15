@@ -1,5 +1,8 @@
 summary: Test that snap-confine errors in the right way
 
+# the error message can only happen on classic systems
+systems: [-ubuntu-core-16-*]
+
 prepare: |
     echo "Install test snap"
     snap install test-snapd-tools
