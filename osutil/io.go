@@ -41,30 +41,14 @@ const (
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
 // all unit tests in genreal.
-var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO")
+var snapdUnsafeIO bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") && GetenvBool("SNAPD_UNSAFE_IO", true)
 
-// An AtomicWriter is an io.WriteCloser that has a Commit() method that does
-// whatever needs to be done so the modification is "atomic": an AtomicWriter
-// will do its best to leave either the previous content or the new content in
-// permanent storage. It also has a Cancel() method to abort and clean up.
-type AtomicWriter interface {
-	io.WriteCloser
-
-	// Commit the modification; make it permanent.
-	//
-	// If Commit succeeds, the writer is closed and further attempts to write will
-	// fail. If Commit fails, the writer _might_ be closed; Cancel() needs to be
-	// called to clean up.
-	Commit() error
-
-	// Cancel closes the AtomicWriter, and cleans up any artifacts. Cancel can fail
-	// if Commit() was (even partially) successful, but calling Cancel after a
-	// successful Commit does nothing beyond returning error--so it's always safe
-	// to defer a Cancel().
-	Cancel() error
-}
-
-type atomicFile struct {
+// An AtomicFile is similar to an os.File but it has an additional
+// Commit() method that does whatever needs to be done so the
+// modification is "atomic": an AtomicFile will do its best to leave
+// either the previous content or the new content in permanent
+// storage. It also has a Cancel() method to abort and clean up.
+type AtomicFile struct {
 	*os.File
 
 	target  string
@@ -75,7 +59,7 @@ type atomicFile struct {
 	renamed bool
 }
 
-// NewAtomicFile builds an AtomicWriter backed by an *os.File that will have
+// NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
 //   It _might_ be implemented using O_TMPFILE (see open(2)).
@@ -91,7 +75,7 @@ type atomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (aw AtomicWriter, err error) {
+func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (aw *AtomicFile, err error) {
 	if (uid < 0) != (gid < 0) {
 		return nil, errors.New("internal error: AtomicFile needs none or both of uid and gid set")
 	}
@@ -112,7 +96,7 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 		return nil, err
 	}
 
-	return &atomicFile{
+	return &AtomicFile{
 		File:    fd,
 		target:  filename,
 		tmpname: tmp,
@@ -125,12 +109,16 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 // your luck has run out.
 var ErrCannotCancel = errors.New("cannot cancel: file has already been renamed")
 
-func (aw *atomicFile) Close() error {
+func (aw *AtomicFile) Close() error {
 	aw.closed = true
 	return aw.File.Close()
 }
 
-func (aw *atomicFile) Cancel() error {
+// Cancel closes the AtomicWriter, and cleans up any artifacts. Cancel
+// can fail if Commit() was (even partially) successful, but calling
+// Cancel after a successful Commit does nothing beyond returning
+// error--so it's always safe to defer a Cancel().
+func (aw *AtomicFile) Cancel() error {
 	if aw.renamed {
 		return ErrCannotCancel
 	}
@@ -150,7 +138,12 @@ func (aw *atomicFile) Cancel() error {
 
 var chown = (*os.File).Chown
 
-func (aw *atomicFile) Commit() error {
+// Commit the modification; make it permanent.
+//
+// If Commit succeeds, the writer is closed and further attempts to
+// write will fail. If Commit fails, the writer _might_ be closed;
+// Cancel() needs to be called to clean up.
+func (aw *AtomicFile) Commit() error {
 	if aw.uid > -1 && aw.gid > -1 {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
 			return err

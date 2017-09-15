@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 // Add the given assertion to the system assertion database.
@@ -105,12 +104,12 @@ func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if err == asserts.ErrNotFound {
+		if asserts.IsNotFound(err) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
+			return nil, findError("cannot find %s", ref, err)
 		}
 		return a, nil
 	}
@@ -127,6 +126,14 @@ func (b *Batch) Commit(st *state.State) error {
 	// (but try to save as much possible still),
 	// or err is a check error
 	return f.commit()
+}
+
+func findError(format string, ref *asserts.Ref, err error) error {
+	if asserts.IsNotFound(err) {
+		return fmt.Errorf(format, ref)
+	} else {
+		return fmt.Errorf(format+": %v", ref, err)
+	}
 }
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
@@ -194,7 +201,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			"snap-id": gatingID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id %q): err", snapName, gatingID)
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", snapName, err)
 		}
 		decl := a.(*asserts.SnapDeclaration)
 		control := decl.RefreshControl()
@@ -225,7 +232,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
 				}
 				err := f.Fetch(valref)
-				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+				if notFound, ok := err.(*asserts.NotFoundError); ok && notFound.Type == asserts.ValidationType {
 					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
 				}
 				if err != nil {
@@ -245,7 +252,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		for _, valref := range validationRefs {
 			a, err := valref.Resolve(db.Find)
 			if err != nil {
-				return nil, fmt.Errorf("internal error: cannot find just fetched %v: %v", valref, err)
+				return nil, findError("internal error: cannot find just fetched %v", valref, err)
 			}
 			if val := a.(*asserts.Validation); val.Revoked() {
 				revoked = val
@@ -273,7 +280,7 @@ func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
 	// via the store
 	baseDecl := asserts.BuiltinBaseDeclaration()
 	if baseDecl == nil {
-		return nil, asserts.ErrNotFound
+		return nil, &asserts.NotFoundError{Type: asserts.BaseDeclarationType}
 	}
 	return baseDecl, nil
 }

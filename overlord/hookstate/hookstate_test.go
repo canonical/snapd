@@ -141,8 +141,9 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *hookManagerSuite) settle() {
-	s.o.Settle(5 * time.Second)
+func (s *hookManagerSuite) settle(c *C) {
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -727,7 +728,7 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	}
 	s.state.Unlock()
 
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -829,7 +830,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 
 	s.state.Unlock()
 
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
