@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -172,17 +171,21 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	err = cmd.Run()
 	c.Assert(err, IsNil)
 
-	// build again, this time syscall-runner -m32 multilib runner
-	cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
-	cmd.Args = append(cmd.Args, "-m32")
-	for i, k := range cmd.Args {
-		if k == s.seccompSyscallRunner {
-			cmd.Args[i] = s.seccompSyscallRunner + ".m32"
+	// Build 32bit runner on amd64 to test non-native syscall handling.
+	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
+	// it seems tricky to find the right gcc-multilib for this.
+	if arch.UbuntuArchitecture() == "amd64" {
+		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
+		cmd.Args = append(cmd.Args, "-m32")
+		for i, k := range cmd.Args {
+			if k == s.seccompSyscallRunner {
+				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
+			}
 		}
-	}
-	err = cmd.Run()
-	if err != nil {
-		fmt.Printf("cannot build multi-lib syscall runner: %v", err)
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf("cannot build multi-lib syscall runner: %v", err)
+		}
 	}
 }
 
@@ -268,7 +271,7 @@ restart_syscall
 		case "i386":
 			syscallRunner = s.seccompSyscallRunner + ".m32"
 		default:
-			c.Errorf("unsupported non-native arch: %s", syscallArch)
+			c.Errorf("unexpected non-native arch: %s", syscallArch)
 		}
 	}
 	switch {
@@ -286,13 +289,6 @@ restart_syscall
 	case syscallNr < 0:
 		c.Errorf("failed to resolve %v: %v", l[0], syscallNr)
 		return
-	}
-
-	// meh, no syscall runner for this secondary architecture, this
-	// happens e.g. on ppc64el -> powerpc because there is no gcc-multilib
-	// that we can install as build-depends
-	if !osutil.FileExists(syscallRunner) {
-		c.Skip(fmt.Sprintf("skipping %q because runner %q does not exist", seccompWhitelist, syscallRunner))
 	}
 
 	var syscallRunnerArgs [7]string
