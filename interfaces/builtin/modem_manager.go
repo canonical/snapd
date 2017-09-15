@@ -69,6 +69,7 @@ unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
 /sys/devices/**/usb**/descriptors r,
 
 include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # DBus accesses
 include <abstractions/dbus-strict>

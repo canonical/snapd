@@ -111,6 +111,14 @@ dbus (send)
     interface=com.canonical.SafeLauncher
     member=OpenURL
     peer=(label=unconfined),
+# ... and this allows access to the new xdg-open service which
+# is now part of snapd itself.
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Launcher
+    interface=io.snapcraft.Launcher
+    member=OpenURL
+    peer=(label=unconfined),
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
