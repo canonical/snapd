@@ -1,0 +1,19 @@
+summary: Test that snap-confine errors in the right way
+
+prepare: |
+    echo "Install test snap"
+    snap install test-snapd-tools
+
+restore: |
+    echo "Restore current symlink"
+    mv /snap/core/current.renamed /snap/core/current ||  true
+    rm -f snap-confine.stderr
+
+execute: |
+    echo "Simulating broken current symlink for core"
+    mv /snap/core/current /snap/core/current.renamed
+
+    if test-snapd-tools.echo hello 2>snap-confine.stderr; then
+        echo "test-snapd-tools.echo should fail to run, test broken"
+    fi
+    cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
