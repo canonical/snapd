@@ -40,9 +40,11 @@ var _ = Suite(&TimeControlInterfaceSuite{
 	iface: builtin.MustInterface("time-control"),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "time-control",
-			Interface: "time-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "time-control",
+				Interface: "time-control",
+			},
 		},
 	},
 	plug: nil,
@@ -72,10 +74,11 @@ func (s *TimeControlInterfaceSuite) TestName(c *C) {
 func (s *TimeControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "time-control",
-		Interface: "time-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "time-control",
+			Interface: "time-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"time-control slots are reserved for the core snap")
 }

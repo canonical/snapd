@@ -98,10 +98,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedPlug(c *C) {
@@ -116,10 +117,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticPlug(c *C) {
@@ -135,10 +137,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompletePlug(c *C) {
@@ -155,11 +158,12 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"ipv6-aware": true},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandalonePlugWithIntAndListAndMap(c *C) {
@@ -180,13 +184,15 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["iface"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "iface",
-		Interface: "complex",
-		Attrs: map[string]interface{}{
-			"i": int64(3),
-			"l": []interface{}{int64(1), int64(2), int64(3)},
-			"m": map[string]interface{}{"a": "A", "b": "B"},
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "iface",
+			Interface: "complex",
+			Attrs: map[string]interface{}{
+				"i": int64(3),
+				"l": []interface{}{int64(1), int64(2), int64(3)},
+				"m": map[string]interface{}{"a": "A", "b": "B"},
+			},
 		},
 	})
 }
@@ -208,11 +214,12 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": int64(2)},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"attr": int64(2)},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
@@ -233,11 +240,12 @@ apps:
 	plug := info.Plugs["network-client"]
 	app := info.Apps["app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -266,11 +274,12 @@ apps:
 	withPlugApp := info.Apps["with-plug"]
 	withoutPlugApp := info.Apps["without-plug"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
+		}})
 	c.Assert(withPlugApp, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "with-plug",
@@ -301,11 +310,12 @@ apps:
 	plug := info.Plugs["net"]
 	app := info.Apps["app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -329,11 +339,12 @@ apps:
 	plug := info.Plugs["network-client"]
 	app := info.Apps["app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -355,11 +366,12 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"ipv6-aware": true},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugWithLabel(c *C) {
@@ -376,11 +388,12 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["bool-file"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "bool-file",
-		Interface: "bool-file",
-		Label:     "Disk I/O indicator",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "bool-file",
+			Interface: "bool-file",
+			Label:     "Disk I/O indicator",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringInterfaceName(c *C) {
@@ -479,10 +492,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedSlot(c *C) {
@@ -497,10 +511,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticSlot(c *C) {
@@ -516,10 +531,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompleteSlot(c *C) {
@@ -536,11 +552,12 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"ipv6-aware": true},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneSlotWithIntAndListAndMap(c *C) {
@@ -560,15 +577,16 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["iface"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "iface",
-		Interface: "complex",
-		Attrs: map[string]interface{}{
-			"i": int64(3),
-			"l": []interface{}{int64(1), int64(2)},
-			"m": map[string]interface{}{"a": "A"},
-		},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "iface",
+			Interface: "complex",
+			Attrs: map[string]interface{}{
+				"i": int64(3),
+				"l": []interface{}{int64(1), int64(2)},
+				"m": map[string]interface{}{"a": "A"},
+			},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalLastSlotDefinitionWins(c *C) {
@@ -588,11 +606,12 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": int64(2)},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"attr": int64(2)},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalSlotsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
@@ -612,11 +631,12 @@ apps:
 	slot := info.Slots["network-client"]
 	app := info.Apps["app"]
 	c.Assert(slot, DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -642,11 +662,12 @@ apps:
 	slot := info.Slots["net"]
 	app := info.Apps["app"]
 	c.Assert(slot, DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "net",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -670,11 +691,12 @@ apps:
 	slot := info.Slots["network-client"]
 	app := info.Apps["app"]
 	c.Assert(slot, DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Apps:      map[string]*snap.AppInfo{app.Name: app},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Apps:      map[string]*snap.AppInfo{app.Name: app},
+		}})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
 		Name:  "app",
@@ -696,11 +718,12 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "network-client",
+			Interface: "network-client",
+			Attrs:     map[string]interface{}{"ipv6-aware": true},
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalSlotWithLabel(c *C) {
@@ -718,11 +741,12 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["led0"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "led0",
-		Interface: "bool-file",
-		Label:     "Front panel LED (red)",
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "led0",
+			Interface: "bool-file",
+			Label:     "Front panel LED (red)",
+		}})
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringInterfaceName(c *C) {
@@ -886,11 +910,12 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "test-plug",
-		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "test-plug",
+			Interface: "test-plug",
+			Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		}})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "test-hook",
@@ -920,11 +945,12 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "test-plug",
-		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "test-plug",
+			Interface: "test-plug",
+			Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		}})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "test-hook",
@@ -954,11 +980,12 @@ hooks:
 	withPlugHook := info.Hooks["with-plug"]
 	withoutPlugHook := info.Hooks["without-plug"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "test-plug",
-		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "test-plug",
+			Interface: "test-plug",
+			Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
+		}})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "with-plug",
@@ -994,11 +1021,12 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "test-plug",
-		Interface: "test-interface",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "test-plug",
+			Interface: "test-interface",
+			Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		}})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "test-hook",
@@ -1029,12 +1057,13 @@ apps:
 	hook := info.Hooks["test-hook"]
 	app := info.Apps["test-app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "test-plug",
-		Interface: "test-plug",
-		Apps:      map[string]*snap.AppInfo{},
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
-	})
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      info,
+			Name:      "test-plug",
+			Interface: "test-plug",
+			Apps:      map[string]*snap.AppInfo{},
+			Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		}})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "test-hook",

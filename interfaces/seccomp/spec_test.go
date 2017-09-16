@@ -57,28 +57,32 @@ var _ = Suite(&specSuite{
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap1"},
-			Name:      "name",
-			Interface: "test",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "snap1",
-					},
-					Name: "app1"}},
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap1"},
+				Name:      "name",
+				Interface: "test",
+				Apps: map[string]*snap.AppInfo{
+					"app1": {
+						Snap: &snap.Info{
+							SuggestedName: "snap1",
+						},
+						Name: "app1"}},
+			},
 		},
 	},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap2"},
-			Name:      "name",
-			Interface: "test",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "snap2",
-					},
-					Name: "app2"}},
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap2"},
+				Name:      "name",
+				Interface: "test",
+				Apps: map[string]*snap.AppInfo{
+					"app2": {
+						Snap: &snap.Info{
+							SuggestedName: "snap2",
+						},
+						Name: "app2"}},
+			},
 		},
 	},
 })

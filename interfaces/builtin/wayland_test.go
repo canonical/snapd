@@ -64,10 +64,11 @@ func (s *WaylandInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
 	// wayland slot currently only used with core
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "wayland",
-		Interface: "wayland",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "wayland",
+			Interface: "wayland",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"wayland slots are reserved for the core snap")
 }

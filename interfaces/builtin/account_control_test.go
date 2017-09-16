@@ -52,15 +52,17 @@ apps:
 func (s *AccountControlSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "account-control",
-			Interface: "account-control",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "core",
-					},
-					Name: "app1"}},
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "account-control",
+				Interface: "account-control",
+				Apps: map[string]*snap.AppInfo{
+					"app1": {
+						Snap: &snap.Info{
+							SuggestedName: "core",
+						},
+						Name: "app1"}},
+			},
 		},
 	}
 
@@ -75,10 +77,11 @@ func (s *AccountControlSuite) TestName(c *C) {
 func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "account-control",
-		Interface: "account-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "account-control",
+			Interface: "account-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"account-control slots are reserved for the core snap")
 }

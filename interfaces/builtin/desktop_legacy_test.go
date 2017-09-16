@@ -64,10 +64,11 @@ func (s *DesktopLegacyInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
 	// desktop-legacy slot currently only used with core
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "desktop-legacy",
-		Interface: "desktop-legacy",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "desktop-legacy",
+			Interface: "desktop-legacy",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"desktop-legacy slots are reserved for the core snap")
 }

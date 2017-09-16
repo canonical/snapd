@@ -67,9 +67,11 @@ var _ = Suite(&ModemManagerInterfaceSuite{
 func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
 	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "modem-manager"},
-			Name:      "mmcli",
-			Interface: "modem-manager",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "modem-manager"},
+				Name:      "mmcli",
+				Interface: "modem-manager",
+			},
 		},
 	}
 	slotSnap := snaptest.MockInfo(c, modemmgrMockSlotSnapInfoYaml, nil)
@@ -86,13 +88,15 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c 
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "modem-manager-prod",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "modem-manager-prod",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "modem-manager",
+				Interface: "modem-manager",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "modem-manager",
-			Interface: "modem-manager",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -114,13 +118,15 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "modem-manager",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "modem-manager",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "modem-manager",
+				Interface: "modem-manager",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "modem-manager",
-			Interface: "modem-manager",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -140,13 +146,15 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c 
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "modem-manager",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "modem-manager",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "modem-manager",
+				Interface: "modem-manager",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "modem-manager",
-			Interface: "modem-manager",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	release.OnClassic = false

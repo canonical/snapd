@@ -49,9 +49,11 @@ hooks:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "core-support",
-			Interface: "core-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "core-support",
+				Interface: "core-support",
+			},
 		},
 	}
 
@@ -66,10 +68,11 @@ func (s *CoreSupportInterfaceSuite) TestName(c *C) {
 func (s *CoreSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "core-support",
-		Interface: "core-support",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "core-support",
+			Interface: "core-support",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"core-support slots are reserved for the core snap")
 }

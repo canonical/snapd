@@ -74,10 +74,11 @@ func (s *AvahiControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.appSlot.Sanitize(s.iface), IsNil)
 	// avahi-control slot can now be used on snap other than core.
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "avahi-control",
-		Interface: "avahi-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "avahi-control",
+			Interface: "avahi-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 

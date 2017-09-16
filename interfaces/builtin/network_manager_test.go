@@ -81,13 +81,15 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "network-manager",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "network-manager",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "network-manager",
+				Interface: "network-manager",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "network-manager",
-			Interface: "network-manager",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -107,13 +109,15 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "network-manager",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "network-manager",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "network-manager",
+				Interface: "network-manager",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "network-manager",
-			Interface: "network-manager",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -130,13 +134,15 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "network-manager",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "network-manager",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "network-manager",
+				Interface: "network-manager",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "network-manager",
-			Interface: "network-manager",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	release.OnClassic = false

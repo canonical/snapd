@@ -52,9 +52,11 @@ var _ = Suite(&BrowserSupportInterfaceSuite{
 func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "browser-support",
-			Interface: "browser-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "browser-support",
+				Interface: "browser-support",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, browserMockPlugSnapInfoYaml, nil)

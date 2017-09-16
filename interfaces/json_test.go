@@ -36,16 +36,18 @@ type JSONSuite struct {
 var _ = Suite(&JSONSuite{
 	plug: &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap-name"},
-			Name:      "plug-name",
-			Interface: "interface",
-			Attrs:     map[string]interface{}{"key": "value"},
-			Apps: map[string]*snap.AppInfo{
-				"app-name": {
-					Name: "app-name",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap-name"},
+				Name:      "plug-name",
+				Interface: "interface",
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps: map[string]*snap.AppInfo{
+					"app-name": {
+						Name: "app-name",
+					},
 				},
+				Label: "label",
 			},
-			Label: "label",
 		},
 		Connections: []SlotRef{{
 			Snap: "other-snap-name",
@@ -54,16 +56,18 @@ var _ = Suite(&JSONSuite{
 	},
 	slot: &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap-name"},
-			Name:      "slot-name",
-			Interface: "interface",
-			Attrs:     map[string]interface{}{"key": "value"},
-			Apps: map[string]*snap.AppInfo{
-				"app-name": {
-					Name: "app-name",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap-name"},
+				Name:      "slot-name",
+				Interface: "interface",
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps: map[string]*snap.AppInfo{
+					"app-name": {
+						Name: "app-name",
+					},
 				},
+				Label: "label",
 			},
-			Label: "label",
 		},
 		Connections: []PlugRef{{
 			Snap: "other-snap-name",

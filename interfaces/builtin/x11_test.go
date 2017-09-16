@@ -52,9 +52,11 @@ var _ = Suite(&X11InterfaceSuite{
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "x11",
-			Interface: "x11",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "x11",
+				Interface: "x11",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, x11MockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *X11InterfaceSuite) TestName(c *C) {
 func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "x11",
-		Interface: "x11",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "x11",
+			Interface: "x11",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"x11 slots are reserved for the core snap")
 }

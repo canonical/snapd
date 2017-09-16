@@ -56,16 +56,20 @@ var _ = Suite(&SpecificationSuite{
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap"},
+				Name:      "name",
+				Interface: "test",
+			},
 		},
 	},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap"},
+				Name:      "name",
+				Interface: "test",
+			},
 		},
 	},
 })

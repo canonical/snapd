@@ -52,11 +52,13 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "core",
-				Type:          snap.TypeOS},
-			Name:      "docker-support",
-			Interface: "docker-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "core",
+					Type:          snap.TypeOS},
+				Name:      "docker-support",
+				Interface: "docker-support",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, dockerSupportMockPlugSnapInfoYaml, nil)

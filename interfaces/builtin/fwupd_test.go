@@ -75,13 +75,15 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "uefi-fw-tools",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "uefi-fw-tools",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "fwupd",
+				Interface: "fwupd",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "fwupd",
-			Interface: "fwupd",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -100,13 +102,15 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "uefi-fw-tools",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "uefi-fw-tools",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "fwupd",
+				Interface: "fwupd",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "fwupd",
-			Interface: "fwupd",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 

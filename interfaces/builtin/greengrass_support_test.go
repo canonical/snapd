@@ -52,9 +52,11 @@ var _ = Suite(&GreengrassSupportInterfaceSuite{
 func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "greengrass-support",
-			Interface: "greengrass-support",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "greengrass-support",
+				Interface: "greengrass-support",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, ggMockPlugSnapInfoYaml, nil)
@@ -68,10 +70,11 @@ func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {
 func (s *GreengrassSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "greengrass-support",
-		Interface: "greengrass-support",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "greengrass-support",
+			Interface: "greengrass-support",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"greengrass-support slots are reserved for the core snap")
 }

@@ -126,7 +126,7 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 
 // Plug.Ref works as expected
 func (s *CoreSuite) TestPlugRef(c *C) {
-	plug := &Plug{PlugInfo: &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{PlugSlotData: snap.PlugSlotData{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}}}
 	ref := plug.Ref()
 	c.Check(ref.Snap, Equals, "consumer")
 	c.Check(ref.Name, Equals, "plug")
@@ -142,7 +142,7 @@ func (s *CoreSuite) TestPlugRefString(c *C) {
 
 // Slot.Ref works as expected
 func (s *CoreSuite) TestSlotRef(c *C) {
-	slot := &Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{PlugSlotData: snap.PlugSlotData{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}}
 	ref := slot.Ref()
 	c.Check(ref.Snap, Equals, "producer")
 	c.Check(ref.Name, Equals, "slot")

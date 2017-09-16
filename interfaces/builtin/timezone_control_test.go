@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "timezone-control",
-			Interface: "timezone-control",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "timezone-control",
+				Interface: "timezone-control",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
@@ -66,10 +68,11 @@ func (s *TimezoneControlInterfaceSuite) TestName(c *C) {
 func (s *TimezoneControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "timezone-control",
-		Interface: "timezone-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "timezone-control",
+			Interface: "timezone-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"timezone-control slots are reserved for the core snap")
 }

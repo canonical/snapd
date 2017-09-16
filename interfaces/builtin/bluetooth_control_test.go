@@ -53,15 +53,17 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "bluetooth-control",
-			Interface: "bluetooth-control",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "core",
-					},
-					Name: "app1"}},
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "bluetooth-control",
+				Interface: "bluetooth-control",
+				Apps: map[string]*snap.AppInfo{
+					"app1": {
+						Snap: &snap.Info{
+							SuggestedName: "core",
+						},
+						Name: "app1"}},
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, btcontrolMockPlugSnapInfoYaml, nil)
@@ -75,10 +77,11 @@ func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
 func (s *BluetoothControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "bluetooth-control",
-		Interface: "bluetooth-control",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "bluetooth-control",
+			Interface: "bluetooth-control",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"bluetooth-control slots are reserved for the core snap")
 }

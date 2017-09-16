@@ -50,9 +50,11 @@ apps:
 `
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "system-trace",
-			Interface: "system-trace",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "system-trace",
+				Interface: "system-trace",
+			},
 		},
 	}
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
@@ -66,10 +68,11 @@ func (s *SystemTraceInterfaceSuite) TestName(c *C) {
 func (s *SystemTraceInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "system-trace",
-		Interface: "system-trace",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "system-trace",
+			Interface: "system-trace",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "system-trace slots are reserved for the core snap")
 }
 

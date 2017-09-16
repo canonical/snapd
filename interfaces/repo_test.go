@@ -202,14 +202,18 @@ func (s *RepositorySuite) TestAddPlugClashingPlug(c *C) {
 func (s *RepositorySuite) TestAddPlugClashingSlot(c *C) {
 	snapInfo := &snap.Info{SuggestedName: "snap"}
 	plug := &Plug{PlugInfo: &snap.PlugInfo{
-		Snap:      snapInfo,
-		Name:      "clashing",
-		Interface: "interface",
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      snapInfo,
+			Name:      "clashing",
+			Interface: "interface",
+		},
 	}}
 	slot := &Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      snapInfo,
-		Name:      "clashing",
-		Interface: "interface",
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      snapInfo,
+			Name:      "clashing",
+			Interface: "interface",
+		},
 	}}
 	err := s.testRepo.AddSlot(slot)
 	c.Assert(err, IsNil)
@@ -222,9 +226,11 @@ func (s *RepositorySuite) TestAddPlugClashingSlot(c *C) {
 func (s *RepositorySuite) TestAddPlugFailsWithInvalidSnapName(c *C) {
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "bad-snap-"},
-			Name:      "interface",
-			Interface: "interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "bad-snap-"},
+				Name:      "interface",
+				Interface: "interface",
+			},
 		},
 	}
 	err := s.testRepo.AddPlug(plug)
@@ -235,9 +241,11 @@ func (s *RepositorySuite) TestAddPlugFailsWithInvalidSnapName(c *C) {
 func (s *RepositorySuite) TestAddPlugFailsWithInvalidPlugName(c *C) {
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "bad-name-",
-			Interface: "interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap"},
+				Name:      "bad-name-",
+				Interface: "interface",
+			},
 		},
 	}
 	err := s.testRepo.AddPlug(plug)
@@ -474,9 +482,11 @@ func (s *RepositorySuite) TestAddSlotFailsWhenInterfaceIsUnknown(c *C) {
 func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "bad-name-",
-			Interface: "interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "snap"},
+				Name:      "bad-name-",
+				Interface: "interface",
+			},
 		},
 	}
 	err := s.emptyRepo.AddSlot(slot)
@@ -487,9 +497,11 @@ func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "bad-snap-"},
-			Name:      "slot",
-			Interface: "interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "bad-snap-"},
+				Name:      "slot",
+				Interface: "interface",
+			},
 		},
 	}
 	err := s.emptyRepo.AddSlot(slot)
@@ -509,14 +521,18 @@ func (s *RepositorySuite) TestAddSlotClashingSlot(c *C) {
 func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
 	snapInfo := &snap.Info{SuggestedName: "snap"}
 	plug := &Plug{PlugInfo: &snap.PlugInfo{
-		Snap:      snapInfo,
-		Name:      "clashing",
-		Interface: "interface",
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      snapInfo,
+			Name:      "clashing",
+			Interface: "interface",
+		},
 	}}
 	slot := &Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      snapInfo,
-		Name:      "clashing",
-		Interface: "interface",
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      snapInfo,
+			Name:      "clashing",
+			Interface: "interface",
+		},
 	}}
 	err := s.testRepo.AddPlug(plug)
 	c.Assert(err, IsNil)
@@ -746,9 +762,11 @@ func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
 	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"}), IsNil)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "consumer"},
-			Name:      "plug",
-			Interface: "other-interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "consumer"},
+				Name:      "plug",
+				Interface: "other-interface",
+			},
 		},
 	}
 	c.Assert(s.testRepo.AddPlug(plug), IsNil)
@@ -1111,9 +1129,11 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
 	err := s.testRepo.AddInterface(otherInterface)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "consumer"},
-			Name:      "plug",
-			Interface: "other-interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "consumer"},
+				Name:      "plug",
+				Interface: "other-interface",
+			},
 		},
 	}
 	c.Assert(err, IsNil)
@@ -1232,9 +1252,11 @@ func (s *RepositorySuite) TestConnectedFindsConnections(c *C) {
 func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "slot",
-			Interface: "interface",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "slot",
+				Interface: "interface",
+			},
 		},
 	}
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)

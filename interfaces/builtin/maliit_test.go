@@ -73,13 +73,15 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -97,13 +99,15 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -126,13 +130,15 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 
@@ -149,13 +155,15 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	app2 := &snap.AppInfo{Name: "app2"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -173,13 +181,15 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 	app3 := &snap.AppInfo{Name: "app3"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 
@@ -196,13 +206,15 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "maliit",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "maliit",
+				Interface: "maliit",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 

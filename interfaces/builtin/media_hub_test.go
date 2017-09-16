@@ -76,14 +76,16 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps: map[string]*snap.AppInfo{"app1": app1,
-					"app2": app2},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "media-hub",
+					Apps: map[string]*snap.AppInfo{"app1": app1,
+						"app2": app2},
+				},
+				Name:      "media-hub",
+				Interface: "media-hub",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -103,15 +105,17 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps: map[string]*snap.AppInfo{"app1": app1,
-					"app2": app2,
-					"app3": app3},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "media-hub",
+					Apps: map[string]*snap.AppInfo{"app1": app1,
+						"app2": app2,
+						"app3": app3},
+				},
+				Name:      "media-hub",
+				Interface: "media-hub",
+				Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	release.OnClassic = false
@@ -129,13 +133,15 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps:          map[string]*snap.AppInfo{"app": app},
+			PlugSlotData: snap.PlugSlotData{
+				Snap: &snap.Info{
+					SuggestedName: "media-hub",
+					Apps:          map[string]*snap.AppInfo{"app": app},
+				},
+				Name:      "media-hub",
+				Interface: "media-hub",
+				Apps:      map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	release.OnClassic = false

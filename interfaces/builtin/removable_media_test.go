@@ -50,9 +50,11 @@ apps:
 `, nil)
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "removable-media",
-			Interface: "removable-media",
+			PlugSlotData: snap.PlugSlotData{
+				Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+				Name:      "removable-media",
+				Interface: "removable-media",
+			},
 		},
 	}
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["removable-media"]}
@@ -65,10 +67,11 @@ func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
 func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(s.slot.Sanitize(s.iface), IsNil)
 	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "removable-media",
-		Interface: "removable-media",
-	}}
+		PlugSlotData: snap.PlugSlotData{
+			Snap:      &snap.Info{SuggestedName: "some-snap"},
+			Name:      "removable-media",
+			Interface: "removable-media",
+		}}}
 	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
 		"removable-media slots are reserved for the core snap")
 }
