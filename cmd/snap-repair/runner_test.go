@@ -175,6 +175,7 @@ AXNpZw==
 authority-id: canonical
 brand-id: canonical
 repair-id: 2
+summary: repair two
 architectures:
   - amd64
   - arm64
@@ -779,6 +780,7 @@ var (
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-01T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -791,6 +793,7 @@ AXNpZw==`,
 authority-id: canonical
 brand-id: canonical
 repair-id: 2
+summary: repair two
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -806,6 +809,7 @@ revision: 2
 authority-id: canonical
 brand-id: canonical
 repair-id: 3
+summary: repair three rev2
 series:
   - 16
 timestamp: 2017-07-03T12:00:00Z
@@ -823,6 +827,7 @@ revision: 4
 authority-id: canonical
 brand-id: canonical
 repair-id: 3
+summary: repair three rev4
 series:
   - 16
 timestamp: 2017-07-03T12:00:00Z
@@ -839,6 +844,7 @@ AXNpZw==
 authority-id: canonical
 brand-id: canonical
 repair-id: 4
+summary: repair four
 timestamp: 2017-07-03T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -913,6 +919,7 @@ func (s *runnerSuite) TestVerify(c *C) {
 	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]interface{}{
 		"brand-id":  "canonical",
 		"repair-id": "2",
+		"summary":   "repair two",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, []byte("#script"), "")
 	c.Assert(err, IsNil)
@@ -1044,6 +1051,7 @@ func (s *runnerSuite) TestNextImmediateSkip(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1080,6 +1088,7 @@ func (s *runnerSuite) TestNextRefetchSkip(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
@@ -1122,6 +1131,7 @@ authority-id: canonical
 revision: 1
 brand-id: canonical
 repair-id: 1
+summary: repair one rev1
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1208,6 +1218,7 @@ func (s *runnerSuite) TestNextSaveStateError(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1240,6 +1251,7 @@ func (s *runnerSuite) TestNextVerifyNoKey(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1280,6 +1292,7 @@ func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
 	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]interface{}{
 		"brand-id":  "canonical",
 		"repair-id": "1",
+		"summary":   "repair one",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, []byte("scriptB\n"), "")
 	c.Assert(err, IsNil)
@@ -1340,6 +1353,7 @@ func (s *runnerSuite) TestRepairSetStatus(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1382,6 +1396,7 @@ func (s *runnerSuite) TestRepairBasicRun(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
@@ -1421,6 +1436,7 @@ func makeMockRepair(script string) string {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
