@@ -232,12 +232,12 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	repair, aux, err := runner.Fetch("canonical", "2", -1)
+	repair, aux, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, IsNil)
 	c.Check(repair, NotNil)
 	c.Check(aux, HasLen, 0)
 	c.Check(repair.BrandID(), Equals, "canonical")
-	c.Check(repair.RepairID(), Equals, "2")
+	c.Check(repair.RepairID(), Equals, 2)
 	c.Check(repair.Body(), DeepEquals, []byte("script\n"))
 
 	s.checkBrokenTimeNowMitigated(c, runner)
@@ -261,7 +261,7 @@ func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, `assertion body length 7 exceeds maximum body size 4 for "repair".*`)
 	c.Assert(n, Equals, 1)
 }
@@ -291,7 +291,7 @@ func (s *runnerSuite) TestFetch500(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, "cannot fetch repair, unexpected status 500")
 	c.Assert(n, Equals, 5)
 }
@@ -312,7 +312,7 @@ func (s *runnerSuite) TestFetchEmpty(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -334,7 +334,7 @@ func (s *runnerSuite) TestFetchBroken(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -358,7 +358,7 @@ func (s *runnerSuite) TestFetchNotFound(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
@@ -385,7 +385,7 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, _, err := runner.Fetch("canonical", "2", 0)
+	_, _, err := runner.Fetch("canonical", 2, 0)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 	c.Assert(n, Equals, 1)
 
@@ -403,7 +403,7 @@ func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", 2)
+	_, _, err := runner.Fetch("canonical", 2, 2)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 }
 
@@ -419,7 +419,7 @@ func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "4", -1)
+	_, _, err := runner.Fetch("canonical", 4, -1)
 	c.Assert(err, ErrorMatches, `cannot fetch repair, repair id mismatch canonical/2 != canonical/4`)
 }
 
@@ -436,7 +436,7 @@ func (s *runnerSuite) TestFetchWrongFirstType(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
 }
 
@@ -455,7 +455,7 @@ func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	repair, aux, err := runner.Fetch("canonical", "2", -1)
+	repair, aux, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, IsNil)
 	c.Check(repair, NotNil)
 	c.Check(aux, HasLen, 1)
@@ -479,7 +479,7 @@ func (s *runnerSuite) TestPeek(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	h, err := runner.Peek("canonical", "2")
+	h, err := runner.Peek("canonical", 2)
 	c.Assert(err, IsNil)
 	c.Check(h["series"], DeepEquals, []interface{}{"16"})
 	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
@@ -504,7 +504,7 @@ func (s *runnerSuite) TestPeek500(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
 	c.Assert(n, Equals, 5)
 }
@@ -526,7 +526,7 @@ func (s *runnerSuite) TestPeekInvalid(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -547,7 +547,7 @@ func (s *runnerSuite) TestPeekNotFound(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
@@ -566,7 +566,7 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "4")
+	_, err := runner.Peek("canonical", 4)
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
@@ -966,12 +966,12 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "3")
+	c.Check(rpr.RepairID(), Equals, 3)
 	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
 	c.Assert(err, IsNil)
 	c.Check(string(strm), Equals, seqRepairs[2])
@@ -1002,11 +1002,11 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "3")
+	c.Check(rpr.RepairID(), Equals, 3)
 	// refetched new revision!
 	c.Check(rpr.Revision(), Equals, 4)
 	c.Check(rpr.Body(), DeepEquals, []byte("scriptC2\n"))
@@ -1014,7 +1014,7 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	// new repair
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "4")
+	c.Check(rpr.RepairID(), Equals, 4)
 	c.Check(rpr.Body(), DeepEquals, []byte("scriptD\n"))
 
 	// no more
@@ -1332,7 +1332,7 @@ func (s *runnerSuite) TestNextVerifyAllKeysOK(c *C) {
 
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 }
 
 func (s *runnerSuite) TestRepairSetStatus(c *C) {

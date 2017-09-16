@@ -97,7 +97,7 @@ func (s *repairSuite) TestDecodeOK(c *C) {
 	repair := a.(*asserts.Repair)
 	c.Check(repair.Timestamp(), Equals, s.ts)
 	c.Check(repair.BrandID(), Equals, "acme")
-	c.Check(repair.RepairID(), Equals, "42")
+	c.Check(repair.RepairID(), Equals, 42)
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Architectures(), DeepEquals, []string{"amd64", "arm64"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
@@ -143,6 +143,7 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 		{"repair-id: 42\n", "repair-id: no-number\n", `"repair-id" header contains invalid characters: "no-number"`},
 		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" header contains invalid characters: "0"`},
 		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header contains invalid characters: "01"`},
+		{"repair-id: 42\n", "repair-id: 99999999999999999999\n", `repair-id too large:.*`},
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
