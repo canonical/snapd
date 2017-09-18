@@ -1567,6 +1567,7 @@ exit 0
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 happy output
@@ -1588,6 +1589,7 @@ exit 1
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 unhappy output
@@ -1601,6 +1603,7 @@ unhappy output
 "repair (1; brand-id:canonical)" failed: exit status 1
 output:
 repair: canonical-1
+revision: 0
 summary: repair one
 output:
 unhappy output
@@ -1628,6 +1631,7 @@ exit 0
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.skip", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 other output
@@ -1654,6 +1658,7 @@ exit 1
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 unhappy output
@@ -1672,6 +1677,7 @@ unhappy output
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.done", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 happy now
@@ -1707,6 +1713,7 @@ sleep 100
 		`^work$`,
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
 summary: repair one
 output:
 output before timeout

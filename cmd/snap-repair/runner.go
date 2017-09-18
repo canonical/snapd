@@ -109,6 +109,7 @@ func (r *Repair) Run() error {
 	defer logf.Close()
 
 	fmt.Fprintf(logf, "repair: %s\n", r)
+	fmt.Fprintf(logf, "revision: %d\n", r.Revision())
 	fmt.Fprintf(logf, "summary: %s\n", r.Summary())
 	fmt.Fprintf(logf, "output:\n")
 
