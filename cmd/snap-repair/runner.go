@@ -71,6 +71,10 @@ func (r *Repair) RunDir() string {
 	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), strconv.Itoa(r.RepairID()))
 }
 
+func (r *Repair) String() string {
+	return fmt.Sprintf("%s-%v", r.BrandID(), r.RepairID())
+}
+
 // SetStatus sets the status of the repair in the state and saves the latter.
 func (r *Repair) SetStatus(status RepairStatus) {
 	brandID := r.BrandID()
@@ -103,6 +107,9 @@ func (r *Repair) Run() error {
 		return err
 	}
 	defer logf.Close()
+
+	fmt.Fprintf(logf, "repair: %s\n", r)
+	fmt.Fprintf(logf, "summary: %s\n\n", r.Summary())
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
