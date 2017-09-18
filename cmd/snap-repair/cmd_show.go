@@ -77,8 +77,11 @@ func showRepairOutput(w io.Writer, repair string) error {
 
 	basedir := filepath.Join(dirs.SnapRepairRunDir, brand, seq)
 	dirents, err := ioutil.ReadDir(basedir)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("cannot find repair %q", fmt.Sprintf("%s-%s", brand, seq))
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read snap repair directory: %v", err)
 	}
 	for _, dent := range dirents {
 		name := dent.Name()
@@ -99,7 +102,9 @@ func showRepairOutput(w io.Writer, repair string) error {
 
 func (c *cmdShow) Execute([]string) error {
 	for _, repair := range c.Positional.Repair {
-		showRepairOutput(Stdout, repair)
+		if err := showRepairOutput(Stdout, repair); err != nil {
+			return err
+		}
 		fmt.Fprintf(Stdout, "\n")
 	}
 
