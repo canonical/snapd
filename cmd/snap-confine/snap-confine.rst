@@ -48,11 +48,12 @@ Apparmor profiles
 `snap-confine` switches to the apparmor profile `$SECURITY_TAG`. The profile is
 **mandatory** and `snap-confine` will refuse to run without it.
 
-has to be loaded into the kernel prior to using `snap-confine`. Typically this
-is arranged for by `snapd`. The profile contains rich description of what the
-application process is allowed to do, this includes system calls, file paths,
-access patterns, linux capabilities, etc. The apparmor profile can also do
-extensive dbus mediation. Refer to apparmor documentation for more details.
+The profile has to be loaded into the kernel prior to using `snap-confine`.
+Typically this is arranged for by `snapd`. The profile contains rich
+description of what the application process is allowed to do, this includes
+system calls, file paths, access patterns, linux capabilities, etc. The
+apparmor profile can also do extensive dbus mediation. Refer to apparmor
+documentation for more details.
 
 Seccomp profiles
 ----------------
