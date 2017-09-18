@@ -157,7 +157,8 @@ setns_into_snap(const char* snap_name)
 static int skip_lowercase_letters(const char** p)
 {
     int skipped = 0;
-    for (const char* c = *p; *c >= 'a' && *c <= 'z'; ++c) {
+    const char* c;
+    for (c = *p; *c >= 'a' && *c <= 'z'; ++c) {
         skipped += 1;
     }
     *p = (*p) + skipped;
@@ -167,7 +168,8 @@ static int skip_lowercase_letters(const char** p)
 static int skip_digits(const char** p)
 {
     int skipped = 0;
-    for (const char* c = *p; *c >= '0' && *c <= '9'; ++c) {
+    const char* c;
+    for (c = *p; *c >= '0' && *c <= '9'; ++c) {
         skipped += 1;
     }
     *p = (*p) + skipped;
