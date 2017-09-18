@@ -117,3 +117,9 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	timeNow = f
 	return func() { timeNow = origTimeNow }
 }
+
+func NewCmdShow(args ...string) *cmdShow {
+	cmdShow := &cmdShow{}
+	cmdShow.Positional.Repair = args
+	return cmdShow
+}

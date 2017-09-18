@@ -20,15 +20,37 @@
 package main_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
+	"github.com/snapcore/snapd/dirs"
 )
+
+func (r *repairSuite) TestShowRepairSingle(c *C) {
+	makeMockRepairState(c)
+
+	err := repair.ParseArgs([]string{"show", "canonical-1"})
+	c.Check(err, IsNil)
+	c.Check(r.Stdout(), Equals, `canonical-1  3  retry
+ output:
+  retry output
+ script:
+  #!/bin/sh
+  echo retry output
+
+`)
+
+}
 
 func (r *repairSuite) TestShowRepairMultiple(c *C) {
 	makeMockRepairState(c)
 
-	err := repair.ParseArgs([]string{"show", "canonical-1", "my-brand-1", "my-brand-2"})
+	// repair.ParseArgs() always appends to its internal slice:
+	// cmdShow.Positional.Repair. To workaround this we create a
+	// new cmdShow here
+	err := repair.NewCmdShow("canonical-1", "my-brand-1", "my-brand-2").Execute(nil)
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `canonical-1  3  retry
  output:
@@ -52,4 +74,22 @@ my-brand-2  2  skip
   echo skip output
 
 `)
+}
+
+func (r *repairSuite) TestShowRepairErrorNoRepairDir(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	err := repair.NewCmdShow("canonical-1").Execute(nil)
+	c.Check(err, ErrorMatches, `cannot find repair "canonical-1"`)
+}
+
+func (r *repairSuite) TestShowRepairErrorRepairDirNotReadable(c *C) {
+	makeMockRepairState(c)
+
+	err := os.Chmod(dirs.SnapRepairRunDir, 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(dirs.SnapRepairRunDir, 0755)
+
+	err = repair.NewCmdShow("canonical-1").Execute(nil)
+	c.Check(err, ErrorMatches, `cannot read snap repair directory: open /.*: permission denied`)
 }
