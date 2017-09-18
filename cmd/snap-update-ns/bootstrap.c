@@ -267,7 +267,7 @@ void bootstrap(void)
         return;
     }
 
-    // Find the name of the called program. If it is ending with "-test" then do nothing.
+    // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
     // of the code automatically. In snapd we can just set the required
     // environment variable.
