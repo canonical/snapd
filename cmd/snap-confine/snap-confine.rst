@@ -64,11 +64,10 @@ Seccomp profiles
 file contains the seccomp bpf binary program that is loaded into the
 kernel by snap-confine.
 
-The file is generated with the /usr/lib/snapd/snap-seccomp compiler
-from the `$SECURITY_TAG.src` file that uses a custom syntax that
-describes the set of allowed system calls and optionally their
-arguments. The profile is then used to confine the started
-application.
+The file is generated with the `/usr/lib/snapd/snap-seccomp` compiler from the
+`$SECURITY_TAG.src` file that uses a custom syntax that describes the set of
+allowed system calls and optionally their arguments. The profile is then used
+to confine the started application.
 
 As a security precaution disallowed system calls cause the started application
 executable to be killed by the kernel. In the future this restriction may be
