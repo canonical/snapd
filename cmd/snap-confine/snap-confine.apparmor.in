@@ -447,8 +447,8 @@
         # the second rule is generic to allow our tmpfile-rename approach to
         # writing them. Those are written by snap-update-ns and represent the
         # actual layout at a given moment.
-        /run/snapd/ns/*.fstab wr,
-        /run/snapd/ns/*.fstab.* wr,
+        /run/snapd/ns/*.fstab rw,
+        /run/snapd/ns/*.fstab.* rw,
 
         # NOTE: at this stage the /snap directory is stable as we have called
         # pivot_root already.
