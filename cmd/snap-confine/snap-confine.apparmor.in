@@ -428,13 +428,7 @@
         # Allow reading and mapping various parts of the standard library and
         # dynamically loaded nss modules and what not.
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
 
         # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
         @{PROC}/@{pid}/cmdline r,
