@@ -135,7 +135,7 @@ setns_into_snap(const char* snap_name)
     char buf[PATH_MAX];
     int n = snprintf(buf, sizeof buf, "/run/snapd/ns/%s.mnt", snap_name);
     if (n >= sizeof buf || n < 0) {
-        bootstrap_errno = errno;
+        bootstrap_errno = 0;
         bootstrap_msg = "cannot format mount namespace file name";
         return -1;
     }
