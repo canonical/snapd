@@ -20,8 +20,6 @@
 package main_test
 
 import (
-	"os"
-
 	. "gopkg.in/check.v1"
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
@@ -93,15 +91,4 @@ func (r *repairSuite) TestShowRepairErrorNoRepairDir(c *C) {
 
 	err := repair.NewCmdShow("canonical-1").Execute(nil)
 	c.Check(err, ErrorMatches, `cannot find repair "canonical-1"`)
-}
-
-func (r *repairSuite) TestShowRepairErrorRepairDirNotReadable(c *C) {
-	makeMockRepairState(c)
-
-	err := os.Chmod(dirs.SnapRepairRunDir, 0000)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapRepairRunDir, 0755)
-
-	err = repair.NewCmdShow("canonical-1").Execute(nil)
-	c.Check(err, ErrorMatches, `cannot read snap repair directory: open /.*: permission denied`)
 }
