@@ -101,7 +101,7 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	logPath := filepath.Join(rundir, baseName+".output")
+	logPath := filepath.Join(rundir, baseName+".running")
 	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err

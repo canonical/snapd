@@ -100,13 +100,7 @@ func (rt *repairTrace) Summary() string {
 
 // Status returns the status of the given repair {done,skip,retry,running}
 func (rt *repairTrace) Status() string {
-	ext := filepath.Ext(rt.path)
-	switch ext {
-	case ".output":
-		return "running"
-	default:
-		return ext[1:]
-	}
+	return filepath.Ext(rt.path)[1:]
 }
 
 func indentPrefix(level int) string {
@@ -166,7 +160,7 @@ func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) {
 // validSuffix returns true if the given traceName is something repairTrace
 // understands.
 func (rt *repairTrace) validSuffix(traceName string) bool {
-	for _, valid := range []string{".retry", ".skip", ".done", ".output"} {
+	for _, valid := range []string{".retry", ".skip", ".done", ".running"} {
 		if strings.HasSuffix(traceName, valid) {
 			return true
 		}
