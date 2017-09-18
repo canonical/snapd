@@ -1674,3 +1674,29 @@ sleep 100
 "repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }
+
+func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	restore := repair.MockDefaultRepairTimeout(100 * time.Millisecond)
+	defer restore()
+
+	script := `#!/bin/sh
+echo PATH=$PATH
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
+
+	rpr, err := s.runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
+	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
+	c.Assert(err, IsNil)
+	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:.*/usr/lib/snapd"))
+}
