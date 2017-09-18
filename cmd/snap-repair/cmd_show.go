@@ -89,11 +89,13 @@ func showRepairOutput(w io.Writer, repair string) error {
 		if strings.HasSuffix(name, ".retry") || strings.HasSuffix(name, ".done") || strings.HasSuffix(name, ".skip") {
 			status := filepath.Ext(name)[1:]
 			fmt.Fprintf(w, "%s  %s  %s\n", repair, rev, status)
-			fmt.Fprintf(w, " output:\n")
-			outputIndented(w, filepath.Join(basedir, name))
+
 			fmt.Fprintf(w, " script:\n")
 			scriptName := filepath.Join(basedir, name[:strings.LastIndex(name, ".")]+".script")
 			outputIndented(w, scriptName)
+
+			fmt.Fprintf(w, " output:\n")
+			outputIndented(w, filepath.Join(basedir, name))
 		}
 	}
 
