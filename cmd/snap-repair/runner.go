@@ -80,6 +80,21 @@ func (r *Repair) SetStatus(status RepairStatus) {
 	r.run.SaveState()
 }
 
+//
+func makeRepairSymlink() (tmpdir string, err error) {
+	// make "repair" binary available to the reapir scripts via symlink
+	// to the real snap-repair
+	dir, err := ioutil.TempDir("", "repair-")
+	if err != nil {
+		return "", err
+	}
+	if err := os.Symlink(filepath.Join(dirs.CoreLibExecDir, "snap-repair"), filepath.Join(dir, "repair")); err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
 	// write the script to disk
@@ -88,6 +103,13 @@ func (r *Repair) Run() error {
 	if err != nil {
 		return err
 	}
+
+	// ensure the script can use "repair done"
+	repairBinaryDir, err := makeRepairSymlink()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(repairBinaryDir)
 
 	baseName := fmt.Sprintf("r%d", r.Revision())
 
@@ -125,7 +147,7 @@ func (r *Repair) Run() error {
 	// `snap-repair done`
 	for i, envStr := range env {
 		if strings.HasPrefix(envStr, "PATH=") {
-			newEnv := fmt.Sprintf("%s:%s", strings.TrimSuffix(envStr, ":"), dirs.CoreLibExecDir)
+			newEnv := fmt.Sprintf("%s:%s", strings.TrimSuffix(envStr, ":"), repairBinaryDir)
 			env[i] = newEnv
 		}
 	}

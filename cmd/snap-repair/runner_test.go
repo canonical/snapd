@@ -1686,6 +1686,7 @@ func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
 
 	script := `#!/bin/sh
 echo PATH=$PATH
+ls -l ${PATH##*:}/repair
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
 	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
@@ -1698,5 +1699,6 @@ echo PATH=$PATH
 
 	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
 	c.Assert(err, IsNil)
-	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:.*/usr/lib/snapd"))
+	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:/tmp/repair-.*"))
+	c.Check(string(output), Matches, "(?ms).*/repair -> /usr/lib/snapd/snap-repair")
 }
