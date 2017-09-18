@@ -132,7 +132,9 @@ static int
 setns_into_snap(const char* snap_name)
 {
     // Construct the name of the .mnt file to open.
-    char buf[PATH_MAX];
+    char buf[PATH_MAX] = {
+        0,
+    };
     int n = snprintf(buf, sizeof buf, "/run/snapd/ns/%s.mnt", snap_name);
     if (n >= sizeof buf || n < 0) {
         bootstrap_errno = 0;
