@@ -8,9 +8,7 @@ execute: |
     cd /
     echo "Clear udev tags and cgroups with non-test device and running snapd-hacker-toolbelt.busybox"
     echo 'KERNEL=="uinput", TAG+="snap_snapd-hacker-toolbelt_busybox"' > /etc/udev/rules.d/70-spread-test.rules
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
     snapd-hacker-toolbelt.busybox echo "Hello World" | grep Hello
     echo "Verify no tags for snapd-hacker-toolbelt.busybox for kmsg"
@@ -18,9 +16,7 @@ execute: |
     echo "Manually add udev tags for snapd-hacker-toolbelt.busybox for kmsg"
     echo 'KERNEL=="kmsg", TAG+="snap_snapd-hacker-toolbelt_busybox"' > /etc/udev/rules.d/70-spread-test.rules
     echo "Simulate snapd udev triggers"
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
     echo "Verify udev has tag for kmsg"
     if ! udevadm info /sys/devices/virtual/mem/kmsg | grep snap_snapd-hacker-toolbelt_busybox; then exit 1; fi
@@ -30,8 +26,6 @@ execute: |
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -f /etc/udev/rules.d/70-spread-test.rules
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
     # no way to clear cgroup for snapd-hacker-toolbelt atm

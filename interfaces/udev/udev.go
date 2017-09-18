@@ -26,14 +26,9 @@ import (
 
 // ReloadRules runs two commands that reload udev rule database.
 //
-// The commands are: udevadm control --reload-rules
-//                   udevadm trigger
+// The commands are: udevadm trigger --action=change
 func ReloadRules() error {
-	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
-	}
-	output, err = exec.Command("udevadm", "trigger").CombinedOutput()
+	output, err := exec.Command("udevadm", "trigger", "--action=change").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}
