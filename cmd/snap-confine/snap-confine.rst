@@ -16,18 +16,28 @@ internal tool for confining snappy applications
 SYNOPSIS
 ========
 
-	snap-confine SECURITY_TAG COMMAND [...ARGUMENTS]
+	snap-confine [--classic] [--base BASE] SECURITY_TAG COMMAND [...ARGUMENTS]
 
 DESCRIPTION
 ===========
 
-The `snap-confine` is a program used internally by `snapd` to construct a
-confined execution environment for snap applications.
+The `snap-confine` is a program used internally by `snapd` to construct the
+execution environment for snap applications.
 
 OPTIONS
 =======
 
-The `snap-confine` program does not support any options.
+The `snap-confine` program accepts two options:
+
+    `--classic` requests the so-called _classic_ _confinement_ in which
+    applications are not confined at all (like in classic systems, hence the
+    name). This disables disables the use of a dedicated, per-snap mount
+    namespace. The `snapd` service generates permissive apparmor and seccomp
+    profiles that allow everything.
+
+    `--base BASE` directs snap-confine to use the given base snap as the root
+    filesystem. If omitted it defaults to the `core` snap. This is derived from
+    snap meta-data by `snapd` when starting the application process.
 
 FEATURES
 ========
