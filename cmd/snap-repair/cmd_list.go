@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -46,22 +47,43 @@ func init() {
 type cmdList struct{}
 
 type repairTrace struct {
-	repair string
-	rev    string
-	status string
+	repair  string
+	rev     string
+	status  string
+	summary string
 }
 
-func newRepairTrace(artifactName, repair, status string) repairTrace {
+func summaryFromRepairOutput(artifactPath string) string {
+	f, err := os.Open(artifactPath)
+	if err != nil {
+		return "cannot read summary"
+	}
+	defer f.Close()
+
+	needle := "summary: "
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		s := scanner.Text()
+		if strings.HasPrefix(s, needle) {
+			return s[len(needle):]
+		}
+	}
+
+	return "cannot find summary"
+}
+
+func newRepairTrace(artifactPath, repair, status string) repairTrace {
 	return repairTrace{
-		repair: repair,
-		rev:    revFromFilename(artifactName),
-		status: status,
+		repair:  repair,
+		rev:     revFromFilename(artifactPath),
+		status:  status,
+		summary: summaryFromRepairOutput(artifactPath),
 	}
 }
 
 func revFromFilename(name string) string {
 	var rev int
-	if _, err := fmt.Sscanf(name, "r%d.", &rev); err == nil {
+	if _, err := fmt.Sscanf(filepath.Base(name), "r%d.", &rev); err == nil {
 		return strconv.Itoa(rev)
 	}
 	return "?"
@@ -114,22 +136,22 @@ func (c *cmdList) Execute([]string) error {
 				continue
 			}
 			for _, artifact := range artifacts {
-				artifactName := artifact.Name()
+				artifactPath := filepath.Join(artifactsDir, artifact.Name())
 				switch {
-				case strings.HasSuffix(artifactName, ".retry"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "retry"))
-				case strings.HasSuffix(artifactName, ".skip"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "skip"))
-				case strings.HasSuffix(artifactName, ".done"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactName, repair, "done"))
+				case strings.HasSuffix(artifactPath, ".retry"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "retry"))
+				case strings.HasSuffix(artifactPath, ".skip"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "skip"))
+				case strings.HasSuffix(artifactPath, ".done"):
+					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "done"))
 				}
 			}
 		}
 	}
 
-	fmt.Fprintf(w, "Repair\tRev\tStatus\n")
+	fmt.Fprintf(w, "Repair\tRev\tStatus\tSummary\n")
 	for _, t := range repairTraces {
-		fmt.Fprintf(w, "%s\t%v\t%s\n", t.repair, t.rev, t.status)
+		fmt.Fprintf(w, "%s\t%v\t%s\t%s\n", t.repair, t.rev, t.status, t.summary)
 	}
 
 	return nil

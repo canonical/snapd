@@ -38,6 +38,9 @@ func (r *repairSuite) TestShowRepairSingle(c *C) {
   #!/bin/sh
   echo retry output
  output:
+  repair: canonical-1
+  summary: repair one
+  
   retry output
 
 `)
@@ -57,6 +60,9 @@ func (r *repairSuite) TestShowRepairMultiple(c *C) {
   #!/bin/sh
   echo retry output
  output:
+  repair: canonical-1
+  summary: repair one
+  
   retry output
 
 my-brand-1  1  done
@@ -64,6 +70,9 @@ my-brand-1  1  done
   #!/bin/sh
   echo done output
  output:
+  repair: my-brand-1
+  summary: my-brand repair one
+  
   done output
 
 my-brand-2  2  skip
@@ -71,6 +80,9 @@ my-brand-2  2  skip
   #!/bin/sh
   echo skip output
  output:
+  repair: my-brand-2
+  summary: my-brand repair two
+  
   skip output
 
 `)
