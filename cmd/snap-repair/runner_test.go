@@ -1566,7 +1566,11 @@ exit 0
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.done", "happy output\n")
+	s.verifyOutput(c, "r0.done", `repair: canonical-1
+summary: repair one
+
+happy output
+`)
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1583,7 +1587,10 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `unhappy output
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+summary: repair one
+
+unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -1593,6 +1600,9 @@ exit 1
 	c.Check(s.errReport.dupSig, Equals, `canonical/1
 "repair (1; brand-id:canonical)" failed: exit status 1
 output:
+repair: canonical-1
+summary: repair one
+
 unhappy output
 `)
 	c.Check(s.errReport.extra, DeepEquals, map[string]string{
@@ -1617,7 +1627,11 @@ exit 0
 		`^r0.skip$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.skip", "other output\n")
+	s.verifyOutput(c, "r0.skip", `repair: canonical-1
+summary: repair one
+
+other output
+`)
 	verifyRepairStatus(c, repair.SkipStatus)
 }
 
@@ -1639,7 +1653,10 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `unhappy output
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+summary: repair one
+
+unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -1654,7 +1671,11 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.done", "happy now\n")
+	s.verifyOutput(c, "r0.done", `repair: canonical-1
+summary: repair one
+
+happy now
+`)
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1685,7 +1706,10 @@ sleep 100
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `output before timeout
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+summary: repair one
+
+output before timeout
 
 "repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
