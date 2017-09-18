@@ -10,7 +10,7 @@ description: |
 # boards because the (wifi) network is already managed by netplan
 # there and when n-m gets installed/removed it will hang when
 # trying to deconfigure the wifi network which is already owned.
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-32]
 
 execute: |
     echo "Install network-manager and do basic smoke test"
