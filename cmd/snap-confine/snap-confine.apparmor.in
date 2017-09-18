@@ -96,9 +96,6 @@
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
-    # reading mount profiles
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
-
     # ensuring correct permissions in sc_quirk_create_writable_mimic
     /{tmp/snap.rootfs_*/,}var/lib/ rw,
 
@@ -305,7 +302,6 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
-    /run/snapd/ns/*.fstab rw,
     ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,
