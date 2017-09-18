@@ -140,8 +140,7 @@ setns_into_snap(const char* snap_name)
         return -1;
     }
 
-    // Open the mount namespace file, note that we don't specify O_NOFOLLOW as
-    // that file is always a special, broken symbolic link.
+    // Open the mount namespace file.
     int fd = open(buf, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
         bootstrap_errno = errno;
