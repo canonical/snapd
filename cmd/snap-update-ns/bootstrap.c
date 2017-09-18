@@ -301,11 +301,14 @@ void bootstrap(void)
         return;
     }
 
-    // When we are running under "--from-snap-confine" option skip the setns
-    // call as snap-confine has already placed us in the right namespace.
     const char* option = find_1st_option(cmdline, (size_t)num_read);
-    if (option != NULL && strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
-        return;
+    if (option != NULL) {
+        // When we are running under "--from-snap-confine" option skip the
+        // setns call as snap-confine has already placed us in the right
+        // namespace.
+        if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
+            return;
+        }
     }
 
     // Switch the mount namespace to that of the snap given on command line.
