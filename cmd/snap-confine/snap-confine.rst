@@ -7,10 +7,10 @@ internal tool for confining snappy applications
 -----------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
-:Date:   2016-10-05
+:Date:   2017-09-18
 :Copyright: Canonical Ltd.
-:Version: 1.0.43
-:Manual section: 5
+:Version: 2.28
+:Manual section: 1
 :Manual group: snappy
 
 SYNOPSIS
