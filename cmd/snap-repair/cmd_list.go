@@ -20,16 +20,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"text/tabwriter"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 func init() {
@@ -46,49 +38,6 @@ func init() {
 
 type cmdList struct{}
 
-type repairTrace struct {
-	repair  string
-	rev     string
-	status  string
-	summary string
-}
-
-func summaryFromRepairOutput(artifactPath string) string {
-	f, err := os.Open(artifactPath)
-	if err != nil {
-		return "cannot read summary"
-	}
-	defer f.Close()
-
-	needle := "summary: "
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		s := scanner.Text()
-		if strings.HasPrefix(s, needle) {
-			return s[len(needle):]
-		}
-	}
-
-	return "cannot find summary"
-}
-
-func newRepairTrace(artifactPath, repair, status string) repairTrace {
-	return repairTrace{
-		repair:  repair,
-		rev:     revFromFilename(artifactPath),
-		status:  status,
-		summary: summaryFromRepairOutput(artifactPath),
-	}
-}
-
-func revFromFilename(name string) string {
-	var rev int
-	if _, err := fmt.Sscanf(filepath.Base(name), "r%d.", &rev); err == nil {
-		return strconv.Itoa(rev)
-	}
-	return "?"
-}
-
 func (c *cmdList) Execute([]string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	defer w.Flush()
@@ -97,6 +46,7 @@ func (c *cmdList) Execute([]string) error {
 	//        skipped because of e.g. wrong architecture
 
 	// directory structure is:
+	// var/lib/snapd/run/repairs/
 	//  canonical/
 	//    1/
 	//      r0.retry
@@ -106,52 +56,18 @@ func (c *cmdList) Execute([]string) error {
 	//    2/
 	//      r3.done
 	//      r3.script
-	var repairTraces []repairTrace
-	issuersContent, err := ioutil.ReadDir(dirs.SnapRepairRunDir)
-	if os.IsNotExist(err) {
-		fmt.Fprintf(Stdout, "no repairs yet\n")
-		return nil
-	}
+	repairTraces, err := newRepairTraces("*", "*")
 	if err != nil {
 		return err
 	}
-	for _, issuer := range issuersContent {
-		if !issuer.IsDir() {
-			continue
-		}
-		issuerName := issuer.Name()
-
-		seqDir := filepath.Join(dirs.SnapRepairRunDir, issuerName)
-		sequences, err := ioutil.ReadDir(seqDir)
-		if err != nil {
-			continue
-		}
-		for _, seq := range sequences {
-			seqName := seq.Name()
-
-			repair := fmt.Sprintf("%s-%s", issuerName, seqName)
-			artifactsDir := filepath.Join(dirs.SnapRepairRunDir, issuerName, seqName)
-			artifacts, err := ioutil.ReadDir(artifactsDir)
-			if err != nil {
-				continue
-			}
-			for _, artifact := range artifacts {
-				artifactPath := filepath.Join(artifactsDir, artifact.Name())
-				switch {
-				case strings.HasSuffix(artifactPath, ".retry"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "retry"))
-				case strings.HasSuffix(artifactPath, ".skip"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "skip"))
-				case strings.HasSuffix(artifactPath, ".done"):
-					repairTraces = append(repairTraces, newRepairTrace(artifactPath, repair, "done"))
-				}
-			}
-		}
+	if len(repairTraces) == 0 {
+		fmt.Fprintf(w, "no repairs yet\n")
+		return nil
 	}
 
 	fmt.Fprintf(w, "Repair\tRev\tStatus\tSummary\n")
 	for _, t := range repairTraces {
-		fmt.Fprintf(w, "%s\t%v\t%s\t%s\n", t.repair, t.rev, t.status, t.summary)
+		fmt.Fprintf(w, "%s\t%v\t%s\t%s\n", t.Repair(), t.Rev(), t.Status(), t.Summary())
 	}
 
 	return nil
