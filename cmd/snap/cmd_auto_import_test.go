@@ -85,9 +85,8 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	l, err := logger.New(s.stderr, 0)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
@@ -96,7 +95,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	// matches because we may get a:
 	//   "WARNING: cannot create syslog logger\n"
 	// in the output
-	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
+	c.Check(logbuf.String(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }
 
@@ -187,9 +186,8 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	l, err := logger.New(s.stderr, 0)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	fakeAssertData := []byte("good-assertion")
 
@@ -197,7 +195,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := `
@@ -213,7 +211,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	// matches because we may get a:
 	//   "WARNING: cannot create syslog logger\n"
 	// in the output
-	c.Check(s.Stderr(), Matches, "(?ms).*queuing for later.*\n")
+	c.Check(logbuf.String(), Matches, "(?ms).*queuing for later.*\n")
 
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	c.Assert(err, IsNil)
@@ -260,9 +258,8 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
-	l, err := logger.New(s.stderr, 0)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
@@ -271,7 +268,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	// matches because we may get a:
 	//   "WARNING: cannot create syslog logger\n"
 	// in the output
-	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
+	c.Check(logbuf.String(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 
 	c.Check(osutil.FileExists(fakeAssertsFn), Equals, false)
@@ -281,9 +278,8 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	l, err := logger.New(s.stderr, 0)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
 
 	// fake data is bigger than the default assertion limit
 	fakeAssertData := make([]byte, 641*1024)
@@ -292,7 +288,7 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := `

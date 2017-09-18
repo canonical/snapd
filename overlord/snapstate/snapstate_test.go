@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -4697,11 +4696,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
-	logbuf := bytes.NewBuffer(nil)
-	l, err := logger.New(logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
-	defer logger.SetLogger(logger.NullLogger)
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)

@@ -74,7 +74,7 @@ func Available() error {
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
 	args := make([]string, 0, 2*len(svcs)+6)
@@ -90,8 +90,13 @@ func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-// JournalctlCmd is called from Logs to run journalctl; exported for testing.
-var JournalctlCmd = jctl
+func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser, error)) func() {
+	oldJctl := jctl
+	jctl = f
+	return func() {
+		jctl = oldJctl
+	}
+}
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
@@ -161,7 +166,7 @@ func (*systemd) Start(serviceName string) error {
 
 // LogReader for the given services
 func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
-	return JournalctlCmd(serviceNames, n, follow)
+	return jctl(serviceNames, n, follow)
 }
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)

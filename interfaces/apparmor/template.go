@@ -153,6 +153,7 @@ var defaultTemplate = `
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
+  /{,usr/}bin/nohup ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
