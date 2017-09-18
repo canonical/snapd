@@ -32,6 +32,42 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
+void _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
+				    const char *path, unsigned major,
+				    unsigned minor)
+{
+	int status = 0;
+	pid_t pid = fork();
+	if (pid < 0) {
+		die("could not fork");
+	}
+	if (pid == 0) {
+		uid_t real_uid, effective_uid, saved_uid;
+		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+			die("could not find user IDs");
+		// can't update the cgroup unless the real_uid is 0, euid as
+		// 0 is not enough
+		if (real_uid != 0 && effective_uid == 0)
+			if (setuid(0) != 0)
+				die("setuid failed");
+		char buf[64];
+		// pass snappy-add-dev an empty environment so the
+		// user-controlled environment can't be used to subvert
+		// snappy-add-dev
+		char *env[] = { NULL };
+		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
+		       "add", udev_s->tagname, path, buf, NULL, env);
+		die("execl failed");
+	}
+	if (waitpid(pid, &status, 0) < 0)
+		die("waitpid failed");
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+		die("child exited with status %i", WEXITSTATUS(status));
+	else if (WIFSIGNALED(status))
+		die("child died with signal %i", WTERMSIG(status));
+}
+
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {
 	if (udev_s == NULL)
@@ -53,38 +89,9 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	int status = 0;
-	pid_t pid = fork();
-	if (pid < 0) {
-		die("could not fork");
-	}
-	if (pid == 0) {
-		uid_t real_uid, effective_uid, saved_uid;
-		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-			die("could not find user IDs");
-		// can't update the cgroup unless the real_uid is 0, euid as
-		// 0 is not enough
-		if (real_uid != 0 && effective_uid == 0)
-			if (setuid(0) != 0)
-				die("setuid failed");
-		char buf[64];
-		// pass snappy-add-dev an empty environment so the
-		// user-controlled environment can't be used to subvert
-		// snappy-add-dev
-		char *env[] = { NULL };
-		unsigned major = MAJOR(devnum);
-		unsigned minor = MINOR(devnum);
-		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
-		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
-		       "add", udev_s->tagname, path, buf, NULL, env);
-		die("execl failed");
-	}
-	if (waitpid(pid, &status, 0) < 0)
-		die("waitpid failed");
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-		die("child exited with status %i", WEXITSTATUS(status));
-	else if (WIFSIGNALED(status))
-		die("child died with signal %i", WTERMSIG(status));
+	unsigned major = MAJOR(devnum);
+	unsigned minor = MINOR(devnum);
+	_run_snappy_app_dev_add_majmin(udev_s, path, major, minor);
 }
 
 /*
@@ -196,6 +203,33 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// add the common devices
 	for (int i = 0; static_devices[i] != NULL; i++)
 		run_snappy_app_dev_add(udev_s, static_devices[i]);
+
+	// nvidia modules are proprietary and therefore aren't in sysfs and
+	// can't be udev tagged. For now, just add existing nvidia devices to
+	// the cgroup unconditionally (AppArmor will still mediate the access).
+	// We'll want to rethink this if snapd needs to mediate access to other
+	// proprietary devices.
+	struct stat sbuf;
+	char nvpath[16] = { 0 };	// /dev/nvidiaXXX, ctl and -uvm
+	for (unsigned minor = 0; minor < 256; minor++) {
+		// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+		// /dev/nvidia0 through /dev/nvidia254 and /dev/nvidiactl
+		if (minor < 255)
+			sc_must_snprintf(nvpath, sizeof(nvpath),
+					 "/dev/nvidia%u", minor);
+		else
+			sc_must_snprintf(nvpath, sizeof(nvpath),
+					 "/dev/nvidia%s", "ctl");
+
+		if (stat(nvpath, &sbuf) == 0) {
+			_run_snappy_app_dev_add_majmin(udev_s, nvpath, 195,
+						       minor);
+		}
+	}
+
+	sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%s", "-uvm");
+	if (stat(nvpath, &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, nvpath, 247, 0);
 
 	// add the assigned devices
 	while (udev_s->assigned != NULL) {

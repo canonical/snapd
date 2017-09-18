@@ -68,9 +68,10 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
+// The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
+// will be added by snap-confine.
 const openglConnectedPlugUDev = `
 SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="nvidia*", TAG+="###CONNECTED_SECURITY_TAGS###"
 KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 

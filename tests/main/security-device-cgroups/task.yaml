@@ -23,8 +23,15 @@ prepare: |
     if [ ! -e /sys/devices/virtual/misc/uinput ]; then
         modprobe uinput
     fi
+    if [ ! -e /dev/nvidia0 ]; then
+        mknod /dev/nvidia0 c 195 0
+        touch /dev/nvidia0.spread
+    fi
 
 restore: |
+    if [ -e /dev/nvidia0.spread ]; then
+        rm -f /dev/nvidia0 /dev/nvidia0.spread
+    fi
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
     udevadm trigger
@@ -69,5 +76,11 @@ execute: |
 
     echo "And other devices are not shown in the snap device list"
     MATCH -v "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But existing nvidia devices are in the snap's device cgroup"
+    MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But nonexisting nvidia devices are not"
+    MATCH -v "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     # TODO: check device unassociated after removing the udev file and rebooting
