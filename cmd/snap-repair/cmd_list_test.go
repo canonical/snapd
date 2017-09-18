@@ -41,7 +41,7 @@ func makeMockRepairState(c *C) {
 	basedir := filepath.Join(dirs.SnapRepairRunDir, "canonical/1")
 	err := os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r3.retry"), []byte("retry output"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r3.retry"), []byte("repair: canonical-1\nsummary: repair one\n\nretry output"), 0600)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r3.script"), []byte("#!/bin/sh\necho retry output"), 0700)
 	c.Assert(err, IsNil)
@@ -50,7 +50,7 @@ func makeMockRepairState(c *C) {
 	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/1")
 	err = os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r1.done"), []byte("done output"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r1.done"), []byte("repair: my-brand-1\nsummary: my-brand repair one\n\ndone output"), 0600)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r1.script"), []byte("#!/bin/sh\necho done output"), 0700)
 	c.Assert(err, IsNil)
@@ -58,7 +58,7 @@ func makeMockRepairState(c *C) {
 	basedir = filepath.Join(dirs.SnapRepairRunDir, "my-brand/2")
 	err = os.MkdirAll(basedir, 0700)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(basedir, "r2.skip"), []byte("skip output"), 0600)
+	err = ioutil.WriteFile(filepath.Join(basedir, "r2.skip"), []byte("repair: my-brand-2\nsummary: my-brand repair two\n\nskip output"), 0600)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(basedir, "r2.script"), []byte("#!/bin/sh\necho skip output"), 0700)
 	c.Assert(err, IsNil)
@@ -69,9 +69,9 @@ func (r *repairSuite) TestListRepairsSimple(c *C) {
 
 	err := repair.ParseArgs([]string{"list"})
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, `Repair       Rev  Status
-canonical-1  3    retry
-my-brand-1   1    done
-my-brand-2   2    skip
+	c.Check(r.Stdout(), Equals, `Repair       Rev  Status  Summary
+canonical-1  3    retry   repair one
+my-brand-1   1    done    my-brand repair one
+my-brand-2   2    skip    my-brand repair two
 `)
 }
