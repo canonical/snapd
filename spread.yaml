@@ -297,6 +297,12 @@ prepare: |
         echo "Tests cannot run inside a container"
         exit 1
     fi
+    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
+        # There's a packaging bug in Debian sid lately where some packages
+        # conflict on manual page file. To work around it simply remove the
+        # manpages package.
+        apt-get remove --purge -y manpages
+    fi
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
     cat <<EOF > gai.conf
