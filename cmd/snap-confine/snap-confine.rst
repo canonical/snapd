@@ -76,14 +76,19 @@ lifted to return `EPERM` instead.
 Mount profiles
 --------------
 
-`snap-confine` looks for the `/var/lib/snapd/mount/$SECURITY_TAG.fstab` file.
-If present it is read, parsed and treated like a typical `fstab(5)` file.
-The mount directives listed there are executed in order. All directives must
-succeed as any failure will abort execution.
+`snap-confine` uses a helper process, `snap-update-ns`, to apply the mount
+namespace profile to freshly constructed mount namespace. That tool looks for
+the `/var/lib/snapd/mount/snap.$SNAP_NAME.fstab` file.  If present it is read,
+parsed and treated like a mostly-typical `fstab(5)` file.  The mount directives
+listed there are executed in order. All directives must succeed as any failure
+will abort execution.
 
 By default all mount entries start with the following flags: `bind`, `ro`,
 `nodev`, `nosuid`.  Some of those flags can be reversed by an appropriate
 option (e.g. `rw` can cause the mount point to be writable).
+
+Certain additional features are enabled and conveyed through the use of mount
+options prefixed with `x-snapd-`.
 
 As a security precaution only `bind` mounts are supported at this time.
 
@@ -137,9 +142,9 @@ This is only applicable when testing the program itself.
 FILES
 =====
 
-`snap-confine` uses the following files:
+`snap-confine` and `snap-update-ns` use the following files:
 
-`/var/lib/snapd/mount/*.fstab`:
+`/var/lib/snapd/mount/snap.*.fstab`:
 
 	Description of the mount profile.
 
