@@ -97,9 +97,8 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	// the date may be broken so we use an additional counter
 	logPath := filepath.Join(rundir, baseName+".output")
-	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -198,7 +197,7 @@ func readStatus(r io.Reader) RepairStatus {
 // errtrackerReport reports an repairErr with the given logPath to the
 // snap error tracker.
 func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
-	errMsg := fmt.Sprintf("%s", repairErr)
+	errMsg := repairErr.Error()
 
 	scriptOutput, err := ioutil.ReadFile(logPath)
 	if err != nil {
