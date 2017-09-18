@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,13 @@ import (
 )
 
 func runSnapRepair(cmdStr string, args []string) error {
-	snapRepairPath := filepath.Join(dirs.DistroLibExecDir, "snap-repair")
+	// do not even try to run snap-repair on classic, some distros
+	// may not even package it
+	if release.OnClassic {
+		return fmt.Errorf(i18n.G("repairs are not available on a classic system"))
+	}
+
+	snapRepairPath := filepath.Join(dirs.CoreLibExecDir, "snap-repair")
 	args = append([]string{cmdStr}, args...)
 	cmd := exec.Command(snapRepairPath, args...)
 	cmd.Stdin = os.Stdin
@@ -41,11 +48,15 @@ func runSnapRepair(cmdStr string, args []string) error {
 	return cmd.Run()
 }
 
-type cmdShowRepair struct{}
+type cmdShowRepair struct {
+	Positional struct {
+		Repair []string `positional-arg-name:"<repair>"`
+	} `positional-args:"yes"`
+}
 
-var shortRepairHelp = i18n.G("Shows a specific repair")
+var shortRepairHelp = i18n.G("Shows specific repairs")
 var longRepairHelp = i18n.G(`
-The repair command shows the details about a specific repair
+The repair command shows the details about one or multiple repairs.
 `)
 
 func init() {
@@ -58,7 +69,7 @@ func init() {
 }
 
 func (x *cmdShowRepair) Execute(args []string) error {
-	return runSnapRepair("show", args)
+	return runSnapRepair("show", x.Positional.Repair)
 }
 
 type cmdListRepairs struct{}

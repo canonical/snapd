@@ -27,6 +27,7 @@ import (
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -37,6 +38,9 @@ func mockSnapRepair(c *C) *testutil.MockCmd {
 }
 
 func (s *SnapSuite) TestSnapShowRepair(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
@@ -48,6 +52,9 @@ func (s *SnapSuite) TestSnapShowRepair(c *C) {
 }
 
 func (s *SnapSuite) TestSnapListRepairs(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
