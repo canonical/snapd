@@ -33,13 +33,13 @@ func init() {
 	}
 	cmd.Hidden = true
 
-	cmd, err = parser.AddCommand("skip", "Signal repair is done", "", &cmdSkip{})
+	cmd, err = parser.AddCommand("skip", "Signal repair should be skipped", "", &cmdSkip{})
 	if err != nil {
 		panic(err)
 	}
 	cmd.Hidden = true
 
-	cmd, err = parser.AddCommand("retry", "Signal repair is done", "", &cmdRetry{})
+	cmd, err = parser.AddCommand("retry", "Signal repair must be retried next time", "", &cmdRetry{})
 	if err != nil {
 		panic(err)
 	}
