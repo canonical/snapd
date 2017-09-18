@@ -437,7 +437,7 @@
         /{etc/,usr/lib/}os-release r,
 
         # Allow creating/grabbing various snapd lock files.
-        /run/snapd/lock/*.lock wrk,
+        /run/snapd/lock/*.lock rwk,
 
         # Allow reading stored mount namespaces,
         /run/snapd/ns/ r,
