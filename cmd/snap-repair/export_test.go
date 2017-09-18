@@ -20,6 +20,7 @@
 package main
 
 import (
+	"net/url"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -33,6 +34,18 @@ var (
 	ParseArgs = parseArgs
 	Run       = run
 )
+
+func MockBaseURL(baseurl string) (restore func()) {
+	orig := baseURL
+	u, err := url.Parse(baseurl)
+	if err != nil {
+		panic(err)
+	}
+	baseURL = u
+	return func() {
+		baseURL = orig
+	}
+}
 
 func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
 	originalFetchRetryStrategy := fetchRetryStrategy

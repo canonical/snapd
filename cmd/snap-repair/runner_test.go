@@ -125,10 +125,6 @@ func (s *baseRunnerSuite) SetUpTest(c *C) {
 	s.t0 = time.Now().UTC().Truncate(time.Minute)
 }
 
-func (s *runnerSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-}
-
 func (s *baseRunnerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
@@ -147,6 +143,15 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 		seq = append(seq, buf.String())
 	}
 	return seq
+}
+
+const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+
+func (s *baseRunnerSuite) freshState(c *C) {
+	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
+	c.Assert(err, IsNil)
 }
 
 type runnerSuite struct {
@@ -569,15 +574,6 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 
 	_, err := runner.Peek("canonical", 4)
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
-}
-
-const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
-
-func (s *runnerSuite) freshState(c *C) {
-	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
-	c.Assert(err, IsNil)
 }
 
 func (s *runnerSuite) TestLoadState(c *C) {
