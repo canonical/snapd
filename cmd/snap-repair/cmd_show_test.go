@@ -33,14 +33,14 @@ func (r *repairSuite) TestShowRepairSingle(c *C) {
 
 	err := repair.ParseArgs([]string{"show", "canonical-1"})
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, `canonical-1  3  retry
- script:
+	c.Check(r.Stdout(), Equals, `repair: canonical-1
+status: retry
+summary: repair one
+rev: 3
+script:
   #!/bin/sh
   echo retry output
- output:
-  repair: canonical-1
-  summary: repair one
-  
+output:
   retry output
 
 `)
@@ -55,34 +55,34 @@ func (r *repairSuite) TestShowRepairMultiple(c *C) {
 	// new cmdShow here
 	err := repair.NewCmdShow("canonical-1", "my-brand-1", "my-brand-2").Execute(nil)
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, `canonical-1  3  retry
- script:
+	c.Check(r.Stdout(), Equals, `repair: canonical-1
+status: retry
+summary: repair one
+rev: 3
+script:
   #!/bin/sh
   echo retry output
- output:
-  repair: canonical-1
-  summary: repair one
-  
+output:
   retry output
 
-my-brand-1  1  done
- script:
+repair: my-brand-1
+status: done
+summary: my-brand repair one
+rev: 1
+script:
   #!/bin/sh
   echo done output
- output:
-  repair: my-brand-1
-  summary: my-brand repair one
-  
+output:
   done output
 
-my-brand-2  2  skip
- script:
+repair: my-brand-2
+status: skip
+summary: my-brand repair two
+rev: 2
+script:
   #!/bin/sh
   echo skip output
- output:
-  repair: my-brand-2
-  summary: my-brand repair two
-  
+output:
   skip output
 
 `)

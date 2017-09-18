@@ -49,15 +49,8 @@ type cmdShow struct {
 	} `positional-args:"yes"`
 }
 
-func outputIndented(w io.Writer, path string) {
-	f, err := os.Open(path)
-	if err != nil {
-		fmt.Fprintf(w, "  error: %s\n", err)
-		return
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
+func outputIndented(r io.Reader, w io.Writer) {
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		fmt.Fprintf(w, "  %s\n", scanner.Text())
 	}
@@ -67,7 +60,7 @@ func outputIndented(w io.Writer, path string) {
 
 }
 
-func showRepairOutput(w io.Writer, repair string) error {
+func showRepairDetails(w io.Writer, repair string) error {
 	i := strings.LastIndex(repair, "-")
 	if i < 0 {
 		return fmt.Errorf("cannot parse repair %q", repair)
@@ -88,14 +81,43 @@ func showRepairOutput(w io.Writer, repair string) error {
 		rev := revFromFilename(name)
 		if strings.HasSuffix(name, ".retry") || strings.HasSuffix(name, ".done") || strings.HasSuffix(name, ".skip") {
 			status := filepath.Ext(name)[1:]
-			fmt.Fprintf(w, "%s  %s  %s\n", repair, rev, status)
+			fmt.Fprintf(w, "repair: %s\n", repair)
+			fmt.Fprintf(w, "status: %s\n", status)
+			fmt.Fprintf(w, "summary: %s\n", summaryFromRepairOutput(filepath.Join(basedir, name)))
+			fmt.Fprintf(w, "rev: %s\n", rev)
 
-			fmt.Fprintf(w, " script:\n")
+			// script
+			fmt.Fprintf(w, "script:\n")
 			scriptName := filepath.Join(basedir, name[:strings.LastIndex(name, ".")]+".script")
-			outputIndented(w, scriptName)
+			script, err := os.Open(scriptName)
+			if err != nil {
+				fmt.Fprintf(w, "  error: %s\n", err)
+			} else {
+				defer script.Close()
+				outputIndented(script, w)
+			}
 
-			fmt.Fprintf(w, " output:\n")
-			outputIndented(w, filepath.Join(basedir, name))
+			// output
+			fmt.Fprintf(w, "output:\n")
+			log, err := os.Open(filepath.Join(basedir, name))
+			if err != nil {
+				fmt.Fprintf(w, "  error: %s\n", err)
+			} else {
+				defer log.Close()
+
+				// move forward to the output
+				r := bufio.NewReader(log)
+				for {
+					s, err := r.ReadString('\n')
+					if err != nil {
+						break
+					}
+					if s == "output:\n" {
+						break
+					}
+				}
+				outputIndented(r, w)
+			}
 		}
 	}
 
@@ -104,7 +126,7 @@ func showRepairOutput(w io.Writer, repair string) error {
 
 func (c *cmdShow) Execute([]string) error {
 	for _, repair := range c.Positional.Repair {
-		if err := showRepairOutput(Stdout, repair); err != nil {
+		if err := showRepairDetails(Stdout, repair); err != nil {
 			return err
 		}
 		fmt.Fprintf(Stdout, "\n")

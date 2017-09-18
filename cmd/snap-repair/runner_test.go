@@ -1568,7 +1568,7 @@ exit 0
 	})
 	s.verifyOutput(c, "r0.done", `repair: canonical-1
 summary: repair one
-
+output:
 happy output
 `)
 	verifyRepairStatus(c, repair.DoneStatus)
@@ -1589,7 +1589,7 @@ exit 1
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
 summary: repair one
-
+output:
 unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
@@ -1602,7 +1602,7 @@ unhappy output
 output:
 repair: canonical-1
 summary: repair one
-
+output:
 unhappy output
 `)
 	c.Check(s.errReport.extra, DeepEquals, map[string]string{
@@ -1629,7 +1629,7 @@ exit 0
 	})
 	s.verifyOutput(c, "r0.skip", `repair: canonical-1
 summary: repair one
-
+output:
 other output
 `)
 	verifyRepairStatus(c, repair.SkipStatus)
@@ -1655,7 +1655,7 @@ exit 1
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
 summary: repair one
-
+output:
 unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
@@ -1673,7 +1673,7 @@ unhappy output
 	})
 	s.verifyOutput(c, "r0.done", `repair: canonical-1
 summary: repair one
-
+output:
 happy now
 `)
 	verifyRepairStatus(c, repair.DoneStatus)
@@ -1708,7 +1708,7 @@ sleep 100
 	})
 	s.verifyOutput(c, "r0.retry", `repair: canonical-1
 summary: repair one
-
+output:
 output before timeout
 
 "repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)

@@ -109,7 +109,8 @@ func (r *Repair) Run() error {
 	defer logf.Close()
 
 	fmt.Fprintf(logf, "repair: %s\n", r)
-	fmt.Fprintf(logf, "summary: %s\n\n", r.Summary())
+	fmt.Fprintf(logf, "summary: %s\n", r.Summary())
+	fmt.Fprintf(logf, "output:\n")
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
