@@ -51,7 +51,13 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
         bootstrap_msg = "cannot open /proc/self/cmdline";
         return -1;
     }
-    memset(buf, 0, buf_size);
+    // Ensure buf is initialized to all NULLs since our parsing of cmdline with
+    // its embedded NULLs depends on this. Use for loop instead of memset() to
+    // guarantee this initialization won't be optimized away.
+    size_t i;
+    for (i = 0; i < buf_size; ++i) {
+        buf[i] = '\0';
+    }
     ssize_t num_read = read(fd, buf, buf_size);
     if (num_read < 0) {
         bootstrap_errno = errno;
@@ -253,8 +259,10 @@ void bootstrap(void)
         return;
     }
     // We don't have argc/argv so let's imitate that by reading cmdline
-    char cmdline[1024];
-    memset(cmdline, 0, sizeof cmdline);
+    // NOTE: use explicit initialization to avoid optimizing-out memset.
+    char cmdline[1024] = {
+        0,
+    };
     ssize_t num_read;
     if ((num_read = read_cmdline(cmdline, sizeof cmdline)) < 0) {
         return;
