@@ -23,14 +23,29 @@ prepare: |
     if [ ! -e /sys/devices/virtual/misc/uinput ]; then
         modprobe uinput
     fi
+    # create nvidia devices if they don't exist
     if [ ! -e /dev/nvidia0 ]; then
         mknod /dev/nvidia0 c 195 0
         touch /dev/nvidia0.spread
+    fi
+    if [ ! -e /dev/nvidia-uvm ]; then
+        mknod /dev/nvidia-uvm c 247 0
+        touch /dev/nvidia-uvm.spread
+    fi
+    # move aside an existing nvidia device
+    if [ -e /dev/nvidia254 ]; then
+        mv /dev/nvidia254 /dev/nvidia254.spread
     fi
 
 restore: |
     if [ -e /dev/nvidia0.spread ]; then
         rm -f /dev/nvidia0 /dev/nvidia0.spread
+    fi
+    if [ -e /dev/nvidia-uvm.spread ]; then
+        rm -f /dev/nvidia-uvm /dev/nvidia-uvm.spread
+    fi
+    if [ -e /dev/nvidia254.spread ]; then
+        mv /dev/nvidia254.spread /dev/nvidia254
     fi
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
@@ -79,6 +94,7 @@ execute: |
 
     echo "But existing nvidia devices are in the snap's device cgroup"
     MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "c 247:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     echo "But nonexisting nvidia devices are not"
     MATCH -v "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
