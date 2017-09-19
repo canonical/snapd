@@ -62,7 +62,7 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
     if (num_read < 0) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot read /proc/self/cmdline";
-    } else if (num_read == buf_size) {
+    } else if (num_read == buf_size && buf_size > 0 && buf[buf_size - 1] != '\0') {
         bootstrap_errno = 0;
         bootstrap_msg = "cannot fit all of /proc/self/cmdline, buffer too small";
         num_read = -1;
