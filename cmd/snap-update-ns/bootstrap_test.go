@@ -116,9 +116,49 @@ func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
 	c.Assert(update.ValidateSnapName("hello/world"), Equals, -1)
 	c.Assert(update.ValidateSnapName("hello..world"), Equals, -1)
+	c.Assert(update.ValidateSnapName("INVALID"), Equals, -1)
+	c.Assert(update.ValidateSnapName("-invalid"), Equals, -1)
 }
 
-// Check that pre-go bootstrap code is disabled while testing.
-func (s *bootstrapSuite) TestBootstrapDisabled(c *C) {
-	c.Assert(update.BootstrapError(), ErrorMatches, "bootstrap is not enabled while testing")
+// Test various cases of command line handling.
+func (s *bootstrapSuite) TestProcessArguments(c *C) {
+	cases := []struct {
+		cmdline     string
+		snapName    string
+		shouldSetNs bool
+		errPattern  string
+	}{
+		// Corrupted buffer is dealt with.
+		{"argv0", "", false, "argv0 is corrupted"},
+		// When testing real bootstrap is identified and disabled.
+		{"argv0.test\x00", "", false, "bootstrap is not enabled while testing"},
+		// Snap name is mandatory.
+		{"argv0\x00", "", false, "snap name not provided"},
+		// Snap name is parsed correctly.
+		{"argv0\x00snapname\x00", "snapname", true, ""},
+		// Snap name is validated correctly.
+		{"argv0\x00in--valid\x00", "", false, "snap name cannot contain two consecutive dashes"},
+		{"argv0\x00invalid-\x00", "", false, "snap name cannot end with a dash"},
+		{"argv0\x00@invalid\x00", "", false, "snap name must use lower case letters, digits or dashes"},
+		{"argv0\x00INVALID\x00", "", false, "snap name must use lower case letters, digits or dashes"},
+		// The option --from-snap-confine disables setns.
+		{"argv0\x00--from-snap-confine\x00snapname\x00", "snapname", false, ""},
+		// Unknown options are reported.
+		{"argv0\x00-invalid\x00", "", false, "unsupported option"},
+		{"argv0\x00--option\x00", "", false, "unsupported option"},
+	}
+	for _, tc := range cases {
+		buf := []byte(tc.cmdline)
+		snapName, shouldSetNs := update.ProcessArguments(buf)
+		err := update.BootstrapError()
+		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",
+			tc.cmdline, tc.errPattern, err)
+		if tc.errPattern != "" {
+			c.Assert(err, ErrorMatches, tc.errPattern, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+		c.Check(snapName, Equals, tc.snapName)
+		c.Check(shouldSetNs, Equals, tc.shouldSetNs)
+	}
 }

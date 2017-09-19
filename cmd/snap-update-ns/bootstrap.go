@@ -98,3 +98,17 @@ func validateSnapName(snapName string) int {
 	cStr := C.CString(snapName)
 	return int(C.validate_snap_name(cStr))
 }
+
+// processArguments parses commnad line arguments.
+// The argument cmdline is a string with embedded
+// NUL bytes, separating particular arguments.
+func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
+	var snapNameOut *C.char
+	var shouldSetNsOut C.bool
+	C.process_arguments((*C.char)(unsafe.Pointer(&cmdline[0])), C.size_t(len(cmdline)), &snapNameOut, &shouldSetNsOut)
+	if snapNameOut != nil {
+		snapName = C.GoString(snapNameOut)
+	}
+	shouldSetNs = bool(shouldSetNsOut)
+	return
+}

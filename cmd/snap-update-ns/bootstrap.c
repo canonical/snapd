@@ -247,6 +247,66 @@ int validate_snap_name(const char* snap_name)
     return 0;
 }
 
+void process_arguments(const char* cmdline, size_t num_read, const char** snap_name_out, bool* should_setns_out)
+{
+    // Find the name of the called program. If it is ending with ".test" then do nothing.
+    // NOTE: This lets us use cgo/go to write tests without running the bulk
+    // of the code automatically. In snapd we can just set the required
+    // environment variable.
+    const char* argv0 = find_argv0(cmdline, num_read);
+    if (argv0 == NULL) {
+        bootstrap_errno = 0;
+        bootstrap_msg = "argv0 is corrupted";
+        return;
+    }
+    const char* argv0_suffix_maybe = strstr(argv0, ".test");
+    if (argv0_suffix_maybe != NULL && argv0_suffix_maybe[strlen(".test")] == '\0') {
+        bootstrap_errno = 0;
+        bootstrap_msg = "bootstrap is not enabled while testing";
+        return;
+    }
+
+    // When we are running under "--from-snap-confine" option skip the setns
+    // call as snap-confine has already placed us in the right namespace.
+    const char* option = find_1st_option(cmdline, (size_t)num_read);
+    bool should_setns = true;
+    if (option != NULL) {
+        if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
+            should_setns = false;
+        } else {
+            bootstrap_errno = 0;
+            bootstrap_msg = "unsupported option";
+            return;
+        }
+    }
+
+    // Find the name of the snap by scanning the cmdline.  If there's no snap
+    // name given, just bail out. The go parts will scan this too.
+    const char* snap_name = find_snap_name(cmdline, num_read);
+    if (snap_name == NULL) {
+        bootstrap_errno = 0;
+        bootstrap_msg = "snap name not provided";
+        return;
+    }
+
+    // Ensure that the snap name is valid so that we don't blindly setns into
+    // something that is controlled by a potential attacker.
+    if (validate_snap_name(snap_name) < 0) {
+        bootstrap_errno = 0;
+        // bootstap_msg is set by validate_snap_name;
+        return;
+    }
+    // We have a valid snap name now so let's store it.
+    if (snap_name_out != NULL) {
+        *snap_name_out = snap_name;
+    }
+    if (should_setns_out != NULL) {
+        *should_setns_out = should_setns;
+    }
+    bootstrap_errno = 0;
+    bootstrap_msg = NULL;
+}
+
 // bootstrap prepares snap-update-ns to work in the namespace of the snap given
 // on command line.
 void bootstrap(void)
@@ -269,54 +329,14 @@ void bootstrap(void)
         return;
     }
 
-    // Find the name of the called program. If it is ending with ".test" then do nothing.
-    // NOTE: This lets us use cgo/go to write tests without running the bulk
-    // of the code automatically. In snapd we can just set the required
-    // environment variable.
-    const char* argv0 = find_argv0(cmdline, (size_t)num_read);
-    if (argv0 == NULL) {
-        bootstrap_errno = 0;
-        bootstrap_msg = "argv0 is corrupted";
-        return;
-    }
-    const char* argv0_suffix_maybe = strstr(argv0, ".test");
-    if (argv0_suffix_maybe != NULL && argv0_suffix_maybe[strlen(".test")] == '\0') {
-        bootstrap_errno = 0;
-        bootstrap_msg = "bootstrap is not enabled while testing";
-        return;
-    }
-
-    // Find the name of the snap by scanning the cmdline.  If there's no snap
-    // name given, just bail out. The go parts will scan this too.
-    const char* snap_name = find_snap_name(cmdline, (size_t)num_read);
-    if (snap_name == NULL) {
-        return;
-    }
-
-    // Ensure that the snap name is valid so that we don't blindly setns into
-    // something that is controlled by a potential attacker.
-    if (validate_snap_name(snap_name) < 0) {
-        bootstrap_errno = 0;
-        // bootstap_msg is set by validate_snap_name;
-        return;
-    }
-
-    const char* option = find_1st_option(cmdline, (size_t)num_read);
-    if (option != NULL) {
-        // When we are running under "--from-snap-confine" option skip the
-        // setns call as snap-confine has already placed us in the right
-        // namespace.
-        if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
-            return;
-        } else {
-            bootstrap_errno = 0;
-            bootstrap_msg = "unsupported option";
-            return;
-        }
-    }
-
-    // Switch the mount namespace to that of the snap given on command line.
-    if (setns_into_snap(snap_name) < 0) {
-        return;
+    // Analyze the read process cmdline to find the snap name and decide if we
+    // should use setns to jump into the mount namespace of a particular snap.
+    // This is spread out for easier testability.
+    const char* snap_name = NULL;
+    bool should_setns = false;
+    process_arguments(cmdline, (size_t)num_read, &snap_name, &should_setns);
+    if (snap_name != NULL && should_setns) {
+        setns_into_snap(snap_name);
+        // setns_into_snap sets bootstrap_{errno,msg}
     }
 }
