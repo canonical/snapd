@@ -74,7 +74,7 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 // find_snap_name scans the command line buffer and looks for the 1st argument.
 // if the 1st argument exists but is empty NULL is returned.
 const char*
-find_snap_name(const char* buf, size_t num_read)
+find_snap_name(const char* buf)
 {
     // Skip the zeroth argument as well as any options. We know buf is NULL
     // padded and terminated from read_cmdline().
@@ -91,7 +91,7 @@ find_snap_name(const char* buf, size_t num_read)
 }
 
 const char*
-find_1st_option(const char* buf, size_t num_read)
+find_1st_option(const char* buf)
 {
     size_t pos = strlen(buf) + 1;
     if (buf[pos] == '-') {
@@ -224,7 +224,7 @@ int validate_snap_name(const char* snap_name)
 }
 
 // process_arguments parses given cmdline which must be list of strings separated with NUL bytes.
-void process_arguments(const char* cmdline, size_t num_read, const char** snap_name_out, bool* should_setns_out)
+void process_arguments(const char* cmdline, const char** snap_name_out, bool* should_setns_out)
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
@@ -247,7 +247,7 @@ void process_arguments(const char* cmdline, size_t num_read, const char** snap_n
 
     // When we are running under "--from-snap-confine" option skip the setns
     // call as snap-confine has already placed us in the right namespace.
-    const char* option = find_1st_option(cmdline, (size_t)num_read);
+    const char* option = find_1st_option(cmdline);
     bool should_setns = true;
     if (option != NULL) {
         if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
@@ -261,7 +261,7 @@ void process_arguments(const char* cmdline, size_t num_read, const char** snap_n
 
     // Find the name of the snap by scanning the cmdline.  If there's no snap
     // name given, just bail out. The go parts will scan this too.
-    const char* snap_name = find_snap_name(cmdline, num_read);
+    const char* snap_name = find_snap_name(cmdline);
     if (snap_name == NULL) {
         bootstrap_errno = 0;
         bootstrap_msg = "snap name not provided";
@@ -314,7 +314,7 @@ void bootstrap(void)
     // This is spread out for easier testability.
     const char* snap_name = NULL;
     bool should_setns = false;
-    process_arguments(cmdline, (size_t)num_read, &snap_name, &should_setns);
+    process_arguments(cmdline, &snap_name, &should_setns);
     if (snap_name != NULL && should_setns) {
         setns_into_snap(snap_name);
         // setns_into_snap sets bootstrap_{errno,msg}
