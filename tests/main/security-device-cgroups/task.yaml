@@ -28,6 +28,10 @@ prepare: |
         mknod /dev/nvidia0 c 195 0
         touch /dev/nvidia0.spread
     fi
+    if [ ! -e /dev/nvidiactl ]; then
+        mknod /dev/nvidiactl c 195 255
+        touch /dev/nvidiactl.spread
+    fi
     if [ ! -e /dev/nvidia-uvm ]; then
         mknod /dev/nvidia-uvm c 247 0
         touch /dev/nvidia-uvm.spread
@@ -40,6 +44,9 @@ prepare: |
 restore: |
     if [ -e /dev/nvidia0.spread ]; then
         rm -f /dev/nvidia0 /dev/nvidia0.spread
+    fi
+    if [ -e /dev/nvidiactl.spread ]; then
+        rm -f /dev/nvidiactl /dev/nvidiactl.spread
     fi
     if [ -e /dev/nvidia-uvm.spread ]; then
         rm -f /dev/nvidia-uvm /dev/nvidia-uvm.spread
