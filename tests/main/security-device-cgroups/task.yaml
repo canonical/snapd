@@ -26,8 +26,7 @@ prepare: |
 
 restore: |
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
-    udevadm control --reload-rules
-    udevadm trigger
+    udevadm trigger --action=change
 
 execute: |
     echo "Given a snap is installed"
@@ -48,9 +47,7 @@ execute: |
     echo "When a udev rule assigning the device to the snap is added"
     content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-tools_env\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
 
     echo "Then the device is shown as assigned to the snap"

@@ -96,10 +96,9 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
-		// udevadm was used to reload rules and re-run triggers
+		// udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -124,10 +123,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
-		// Verify that udevadm was used to reload rules and re-run triggers.
+		// Verify that udevadm was used to re-run triggers.
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -164,10 +162,9 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		// file called "70-snap.sambda.rules" was removed
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// udevadm was used to reload rules and re-run triggers
+		// udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 	}
 }
@@ -186,10 +183,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
-		// udevadm was used to reload rules and re-run triggers
+		// udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -215,10 +211,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
-		// Verify that udevadm was used to reload rules and re-run triggers
+		// Verify that udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -238,10 +233,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
-		// udevadm was used to reload rules and re-run triggers
+		// udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -265,10 +259,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
-		// Verify that udevadm was used to reload rules and re-run triggers
+		// Verify that udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -356,10 +349,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 		// file called "70-snap.sambda.rules" was removed
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// Verify that udevadm was used to reload rules and re-run triggers
+		// Verify that udevadm was used to re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--action=change"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -383,7 +375,7 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 		// file called "70-snap.sambda.rules" still does not exist
 		_, err = os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// Verify that udevadm was used to reload rules and re-run triggers
+		// Verify that udevadm was used to re-run triggers
 		c.Check(len(s.udevadmCmd.Calls()), Equals, 0)
 		s.RemoveSnap(c, snapInfo)
 	}

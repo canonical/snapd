@@ -44,26 +44,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	err := udev.ReloadRules()
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
-		{"udevadm", "trigger"},
-	})
-}
-
-func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromReloadRules(c *C) {
-	cmd := testutil.MockCommand(c, "udevadm", `
-if [ "$1" = "control" ]; then
-	echo "failure 1"
-	exit 1
-fi
-	`)
-	defer cmd.Restore()
-	err := udev.ReloadRules()
-	c.Assert(err.Error(), Equals, ""+
-		"cannot reload udev rules: exit status 1\n"+
-		"udev output:\n"+
-		"failure 1\n")
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger", "--action=change"},
 	})
 }
 
@@ -81,7 +62,6 @@ fi
 		"udev output:\n"+
 		"failure 2\n")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
-		{"udevadm", "trigger"},
+		{"udevadm", "trigger", "--action=change"},
 	})
 }

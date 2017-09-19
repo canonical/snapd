@@ -37,9 +37,7 @@ execute: |
     cd /
     echo "Add a udev tag so affected code branch is exercised"
     echo 'KERNEL=="uinput", TAG+="snap_hello-world_env"' > /etc/udev/rules.d/70-spread-test.rules
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
     PATH=/foo:$PATH TESTVAR=bar hello-world.env | grep PATH
     cat /run/udev/spread-test.out
@@ -62,8 +60,6 @@ restore: |
     rm -rf /squashfs-root
     rm -f /run/udev/spread-test.out
     rm -f /etc/udev/rules.d/70-spread-test.rules
-    udevadm control --reload-rules
-    udevadm settle
-    udevadm trigger
+    udevadm trigger --action=change
     udevadm settle
     systemctl start snapd.refresh.timer snapd.service snapd.socket
