@@ -65,7 +65,7 @@ func (c *cmdList) Execute([]string) error {
 		return nil
 	}
 
-	fmt.Fprintf(w, "Repair\tRevision\tStatus\tSummary\n")
+	fmt.Fprintf(w, "Repair\tRev\tStatus\tSummary\n")
 	for _, t := range repairTraces {
 		fmt.Fprintf(w, "%s\t%v\t%s\t%s\n", t.Repair(), t.Revision(), t.Status(), t.Summary())
 	}
