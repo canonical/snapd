@@ -76,7 +76,7 @@ func readCmdline(buf []byte) C.ssize_t {
 
 // findSnapName parses the argv-like array and finds the 1st argument.
 func findSnapName(buf []byte) *string {
-	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))); ptr != nil {
+	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
 		str := C.GoString(ptr)
 		return &str
 	}
@@ -100,7 +100,7 @@ func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
 	if len(cmdline) > 0 {
 		buf = (*C.char)(unsafe.Pointer(&cmdline[0]))
 	}
-	C.process_arguments(buf, C.size_t(len(cmdline)), &snapNameOut, &shouldSetNsOut)
+	C.process_arguments(buf, &snapNameOut, &shouldSetNsOut)
 	if snapNameOut != nil {
 		snapName = C.GoString(snapNameOut)
 	}
