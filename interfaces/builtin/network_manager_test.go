@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -189,6 +190,13 @@ func (s *NetworkManagerInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager.nm"})
 	c.Check(seccompSpec.SnippetForTag("snap.network-manager.nm"), testutil.Contains, "listen\n")
+}
+
+func (s *NetworkManagerInterfaceSuite) TestUDevPermanentSlot(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
 }
 
 func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {

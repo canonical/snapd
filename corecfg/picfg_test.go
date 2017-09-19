@@ -35,6 +35,8 @@ import (
 )
 
 type piCfgSuite struct {
+	coreCfgSuite
+
 	mockConfigPath string
 }
 

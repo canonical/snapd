@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -109,13 +107,4 @@ func (e InvalidAuthDataError) Error() string {
 	//      full sentences (with periods and capitalization)
 	//      (empirically this checks out)
 	return strings.Join(es, "  ")
-}
-
-// AssertionNotFoundError is returned when an assertion can not be found
-type AssertionNotFoundError struct {
-	Ref *asserts.Ref
-}
-
-func (e *AssertionNotFoundError) Error() string {
-	return fmt.Sprintf("%v not found", e.Ref)
 }

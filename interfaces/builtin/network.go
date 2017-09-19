@@ -32,6 +32,7 @@ const networkBaseDeclarationSlots = `
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
@@ -56,6 +57,9 @@ dbus send
 
 @{PROC}/sys/net/core/somaxconn r,
 @{PROC}/sys/net/ipv4/tcp_fastopen r,
+
+# Allow using netcat as client
+/{,usr/}bin/nc{,.openbsd} ixr,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network

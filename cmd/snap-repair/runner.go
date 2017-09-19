@@ -20,7 +20,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,9 +31,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -40,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -47,12 +52,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	// TODO: move inside the repairs themselves?
+	defaultRepairTimeout = 30 * time.Minute
+)
+
+var errtrackerReportRepair = errtracker.ReportRepair
+
 // Repair is a runnable repair.
 type Repair struct {
 	*asserts.Repair
 
 	run      *Runner
 	sequence int
+}
+
+func (r *Repair) RunDir() string {
+	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), strconv.Itoa(r.RepairID()))
 }
 
 // SetStatus sets the status of the repair in the state and saves the latter.
@@ -66,22 +82,139 @@ func (r *Repair) SetStatus(status RepairStatus) {
 
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
-	// XXX initial skeleton...
 	// write the script to disk
-	rundir := filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	rundir := r.RunDir()
 	err := os.MkdirAll(rundir, 0775)
 	if err != nil {
 		return err
 	}
-	script := filepath.Join(rundir, fmt.Sprintf("script.r%d", r.Revision()))
-	err = osutil.AtomicWriteFile(script, r.Body(), 0600, 0)
+
+	baseName := fmt.Sprintf("r%d", r.Revision())
+
+	script := filepath.Join(rundir, baseName+".script")
+	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
 		return err
 	}
 
-	// XXX actually run things and captures output etc
+	// the date may be broken so we use an additional counter
+	logPath := filepath.Join(rundir, baseName+".output")
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer logf.Close()
+
+	statusR, statusW, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer statusR.Close()
+	defer statusW.Close()
+
+	// run the script
+	env := os.Environ()
+	// we need to hardcode FD=3 because this is the FD after
+	// exec.Command() forked. there is no way in go currently
+	// to run something right after fork() in the child to
+	// know the fd. However because go will close all fds
+	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
+	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
+	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
+
+	workdir := filepath.Join(rundir, "work")
+	if err := os.MkdirAll(workdir, 0700); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Env = env
+	cmd.Dir = workdir
+	cmd.ExtraFiles = []*os.File{statusW}
+	cmd.Stdout = logf
+	cmd.Stderr = logf
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+	statusW.Close()
+
+	// wait for repair to finish or timeout
+	var scriptErr error
+	killTimerCh := time.After(defaultRepairTimeout)
+	doneCh := make(chan error)
+	go func() {
+		doneCh <- cmd.Wait()
+		close(doneCh)
+	}()
+	select {
+	case scriptErr = <-doneCh:
+		// done
+	case <-killTimerCh:
+		if err := osutil.KillProcessGroup(cmd); err != nil {
+			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
+		}
+		scriptErr = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
+	}
+	// read repair status pipe, use the last value
+	status := readStatus(statusR)
+	statusPath := filepath.Join(rundir, baseName+"."+status.String())
+
+	// if the script had an error exit status still honor what we
+	// read from the status-pipe, however report the error
+	if scriptErr != nil {
+		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
+			logger.Noticef("cannot report error to errtracker: %s", err)
+		}
+		// ensure the error is present in the output log
+		fmt.Fprintf(logf, "\n%s", scriptErr)
+	}
+	if err := os.Rename(logPath, statusPath); err != nil {
+		return err
+	}
+	r.SetStatus(status)
 
 	return nil
+}
+
+func readStatus(r io.Reader) RepairStatus {
+	var status RepairStatus
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		switch strings.TrimSpace(scanner.Text()) {
+		case "done":
+			status = DoneStatus
+		case "skip":
+			status = SkipStatus
+		}
+	}
+	if scanner.Err() != nil {
+		return RetryStatus
+	}
+	return status
+}
+
+// errtrackerReport reports an repairErr with the given logPath to the
+// snap error tracker.
+func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
+	errMsg := fmt.Sprintf("%s", repairErr)
+
+	scriptOutput, err := ioutil.ReadFile(logPath)
+	if err != nil {
+		logger.Noticef("cannot read %s", logPath)
+	}
+	s := fmt.Sprintf("%s/%d", r.BrandID(), r.RepairID())
+
+	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
+	extra := map[string]string{
+		"Revision": strconv.Itoa(r.Revision()),
+		"BrandID":  r.BrandID(),
+		"RepairID": strconv.Itoa(r.RepairID()),
+		"Status":   status.String(),
+	}
+	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
+	return err
 }
 
 // Runner implements fetching, tracking and running repairs.
@@ -98,15 +231,17 @@ type Runner struct {
 
 // NewRunner returns a Runner.
 func NewRunner() *Runner {
-	// TODO: pass TLSConfig with lower-bounded time
-	opts := httputil.ClientOpts{
-		MayLogBody: false,
-	}
-	cli := httputil.NewHTTPClient(&opts)
-	return &Runner{
-		cli:          cli,
+	run := &Runner{
 		sequenceNext: make(map[string]int),
 	}
+	opts := httputil.ClientOpts{
+		MayLogBody: false,
+		TLSConfig: &tls.Config{
+			Time: run.now,
+		},
+	}
+	run.cli = httputil.NewHTTPClient(&opts)
+	return run
 }
 
 var (
@@ -138,8 +273,8 @@ var (
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
-func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,6 +317,14 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 		return nil, nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
@@ -191,6 +334,7 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	case 404:
 		return nil, nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
@@ -209,7 +353,7 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	return
 }
 
-func checkStream(brandID, repairID string, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+func checkStream(brandID string, repairID int, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	if len(r) == 0 {
 		return nil, nil, fmt.Errorf("empty repair assertions stream")
 	}
@@ -220,7 +364,7 @@ func checkStream(brandID, repairID string, r []asserts.Assertion) (repair *asser
 	}
 
 	if repair.BrandID() != brandID || repair.RepairID() != repairID {
-		return nil, nil, fmt.Errorf("repair id mismatch %s/%s != %s/%s", repair.BrandID(), repair.RepairID(), brandID, repairID)
+		return nil, nil, fmt.Errorf("repair id mismatch %s/%d != %s/%d", repair.BrandID(), repair.RepairID(), brandID, repairID)
 	}
 
 	return repair, r[1:], nil
@@ -231,8 +375,8 @@ type peekResp struct {
 }
 
 // Peek retrieves the headers for the repair with the given ids.
-func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{}, err error) {
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interface{}, err error) {
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, err
 	}
@@ -259,18 +403,27 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 		return nil, err
 	}
 
+	moveTimeLowerBound := true
+	defer func() {
+		if moveTimeLowerBound {
+			t, _ := http.ParseTime(resp.Header.Get("Date"))
+			run.moveTimeLowerBound(t)
+		}
+	}()
+
 	switch resp.StatusCode {
 	case 200:
 		// ok
 	case 404:
 		return nil, ErrRepairNotFound
 	default:
+		moveTimeLowerBound = false
 		return nil, fmt.Errorf("cannot peek repair headers, unexpected status %d", resp.StatusCode)
 	}
 
 	headers = rsp.Headers
-	if headers["brand-id"] != brandID || headers["repair-id"] != repairID {
-		return nil, fmt.Errorf("cannot peek repair headers, repair id mismatch %s/%s != %s/%s", headers["brand-id"], headers["repair-id"], brandID, repairID)
+	if headers["brand-id"] != brandID || headers["repair-id"] != strconv.Itoa(repairID) {
+		return nil, fmt.Errorf("cannot peek repair headers, repair id mismatch %s/%s != %s/%d", headers["brand-id"], headers["repair-id"], brandID, repairID)
 	}
 
 	return headers, nil
@@ -291,6 +444,19 @@ const (
 	DoneStatus
 )
 
+func (rs RepairStatus) String() string {
+	switch rs {
+	case RetryStatus:
+		return "retry"
+	case SkipStatus:
+		return "skip"
+	case DoneStatus:
+		return "done"
+	default:
+		return "unknown"
+	}
+}
+
 // RepairState holds the current revision and status of a repair in a sequence of repairs.
 type RepairState struct {
 	Sequence int          `json:"sequence"`
@@ -300,8 +466,9 @@ type RepairState struct {
 
 // state holds the atomically updated control state of the runner with sequences of repairs and their states.
 type state struct {
-	Device    deviceInfo                `json:"device"`
-	Sequences map[string][]*RepairState `json:"sequences,omitempty"`
+	Device         deviceInfo                `json:"device"`
+	Sequences      map[string][]*RepairState `json:"sequences,omitempty"`
+	TimeLowerBound time.Time                 `json:"time-lower-bound"`
 }
 
 func (run *Runner) setRepairState(brandID string, state RepairState) {
@@ -328,12 +495,37 @@ func (run *Runner) readState() error {
 	return dec.Decode(&run.state)
 }
 
+func (run *Runner) moveTimeLowerBound(t time.Time) {
+	if t.After(run.state.TimeLowerBound) {
+		run.stateModified = true
+		run.state.TimeLowerBound = t.UTC()
+	}
+}
+
+var timeNow = time.Now
+
+func (run *Runner) now() time.Time {
+	now := timeNow().UTC()
+	if now.Before(run.state.TimeLowerBound) {
+		return run.state.TimeLowerBound
+	}
+	return now
+}
+
 func (run *Runner) initState() error {
 	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
 		return fmt.Errorf("cannot create repair state directory: %v", err)
 	}
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
+	run.state = state{}
+	// initialize time lower bound with image built time/seed.yaml time
+	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	if err != nil {
+		return err
+	}
+	run.moveTimeLowerBound(info.ModTime())
+	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
 	}
@@ -358,10 +550,10 @@ func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
 	// a trusted authority
 	acctID := a.AuthorityID()
 	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		return err
 	}
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return fmt.Errorf("%v not signed by trusted authority: %s", a.Ref(), acctID)
 	}
 	return nil
@@ -383,17 +575,17 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 		seen[u] = true
 		signKey := []string{a.SignKeyID()}
 		key, err := trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
-		if err != nil && err != asserts.ErrNotFound {
+		if err != nil && !asserts.IsNotFound(err) {
 			return err
 		}
 		if err == nil {
 			bottom = true
 		} else {
 			key, err = workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
-			if err != nil && err != asserts.ErrNotFound {
+			if err != nil && !asserts.IsNotFound(err) {
 				return err
 			}
-			if err == asserts.ErrNotFound {
+			if asserts.IsNotFound(err) {
 				return fmt.Errorf("cannot find public key %q", signKey[0])
 			}
 			if err := checkAuthorityID(key, trusted); err != nil {
@@ -559,8 +751,7 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 
 var errSkip = errors.New("repair unnecessary on this system")
 
-func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
+func (run *Runner) fetch(brandID string, repairID int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	headers, err := run.Peek(brandID, repairID)
 	if err != nil {
 		return nil, nil, err
@@ -571,14 +762,12 @@ func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux [
 	return run.Fetch(brandID, repairID, -1)
 }
 
-func (run *Runner) refetch(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
+func (run *Runner) refetch(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	return run.Fetch(brandID, repairID, revision)
 }
 
-func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, aux []asserts.Assertion) error {
-	repairID := strconv.Itoa(seq)
-	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
+func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repair, aux []asserts.Assertion) error {
+	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
 	err := os.MkdirAll(d, 0775)
 	if err != nil {
 		return err
@@ -588,17 +777,16 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 	r := append([]asserts.Assertion{repair}, aux...)
 	for _, a := range r {
 		if err := enc.Encode(a); err != nil {
-			return fmt.Errorf("cannot encode repair assertions %q-%s for saving: %v", brandID, repairID, err)
+			return fmt.Errorf("cannot encode repair assertions %s-%d for saving: %v", brandID, repairID, err)
 		}
 	}
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", r[0].Revision()))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
-func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
-	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
-	p := filepath.Join(d, fmt.Sprintf("repair.r%d", revision))
+func (run *Runner) readSavedStream(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
+	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
 	f, err := os.Open(p)
 	if err != nil {
 		return nil, nil, err
@@ -613,7 +801,7 @@ func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *a
 			break
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot decode repair assertions %q-%s from disk: %v", brandID, repairID, err)
+			return nil, nil, fmt.Errorf("cannot decode repair assertions %s-%d from disk: %v", brandID, repairID, err)
 		}
 		r = append(r, a)
 	}
@@ -634,7 +822,7 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
 		if err != nil {
 			if err != ErrRepairNotModified {
-				logger.Noticef("cannot refetch repair %q-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
+				logger.Noticef("cannot refetch repair %s-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
 			}
 			// try to use what we have already on disk
 			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
@@ -661,7 +849,10 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 			return nil, errSkip
 		}
 	}
-	// TODO: verify with signatures
+	// verify with signatures
+	if err := run.Verify(repair, aux); err != nil {
+		return nil, fmt.Errorf("cannot verify repair %s-%d: %v", brandID, state.Sequence, err)
+	}
 	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
 		return nil, err
 	}
@@ -711,4 +902,39 @@ func (run *Runner) Next(brandID string) (*Repair, error) {
 			sequence: sequenceNext - 1,
 		}, nil
 	}
+}
+
+// Limit trust to specific keys while there's no delegation or limited
+// keys support.  The obtained assertion stream may also include
+// account keys that are directly or indirectly signed by a trusted
+// key.
+var (
+	trustedRepairRootKeys []*asserts.AccountKey
+)
+
+// Verify verifies that the repair is properly signed by the specific
+// trusted root keys or by account keys in the stream (passed via aux)
+// directly or indirectly signed by a trusted key.
+func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error {
+	workBS := asserts.NewMemoryBackstore()
+	for _, a := range aux {
+		if a.Type() != asserts.AccountKeyType {
+			continue
+		}
+		err := workBS.Put(asserts.AccountKeyType, a)
+		if err != nil {
+			return err
+		}
+	}
+	trustedBS := asserts.NewMemoryBackstore()
+	for _, t := range trustedRepairRootKeys {
+		trustedBS.Put(asserts.AccountKeyType, t)
+	}
+	for _, t := range sysdb.Trusted() {
+		if t.Type() == asserts.AccountType {
+			trustedBS.Put(asserts.AccountType, t)
+		}
+	}
+
+	return verifySignatures(repair, workBS, trustedBS)
 }

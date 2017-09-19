@@ -28,6 +28,7 @@ package main
 //#include <errno.h>
 //#include <linux/can.h>
 //#include <linux/netlink.h>
+//#include <grp.h>
 //#include <sched.h>
 //#include <search.h>
 //#include <stdbool.h>
@@ -135,6 +136,11 @@ package main
 //		return htobe64(val);
 //}
 //
+//static int mygetgrnam_r(const char *name, struct group *grp,char *buf,
+//			  size_t buflen, struct group **result) {
+//	return getgrnam_r(name, grp, buf, buflen, result);
+//}
+//
 import "C"
 
 import (
@@ -143,10 +149,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"os/user"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	// FIXME: we want github.com/seccomp/libseccomp-golang but that
 	// will not work with trusty because libseccomp-golang checks
@@ -458,6 +466,137 @@ func readNumber(token string) (uint64, error) {
 	return strconv.ParseUint(token, 10, 64)
 }
 
+// Be very strict so usernames and groups specified in policy are widely
+// compatible. From NAME_REGEX in /etc/adduser.conf
+var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
+
+func findUid(username string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(username) {
+		return 0, fmt.Errorf("%q must be a valid username", username)
+	}
+	user, err := user.Lookup(username)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.ParseUint(user.Uid, 10, 64)
+}
+
+// hrm, user.LookupGroup() doesn't exist yet:
+// https://github.com/golang/go/issues/2617
+//
+// Use implementation from upcoming releases:
+// https://golang.org/src/os/user/lookup_unix.go
+func lookupGroup(groupname string) (string, error) {
+	var grp C.struct_group
+	var result *C.struct_group
+
+	buf := alloc(groupBuffer)
+	defer buf.free()
+	cname := C.CString(groupname)
+	defer C.free(unsafe.Pointer(cname))
+
+	err := retryWithBuffer(buf, func() syscall.Errno {
+		return syscall.Errno(C.mygetgrnam_r(cname,
+			&grp,
+			(*C.char)(buf.ptr),
+			C.size_t(buf.size),
+			&result))
+	})
+	if err != nil {
+		return "", fmt.Errorf("group: lookup groupname %s: %v", groupname, err)
+	}
+	if result == nil {
+		return "", fmt.Errorf("group: unknown group %s", groupname)
+	}
+	return strconv.Itoa(int(grp.gr_gid)), nil
+}
+
+type bufferKind C.int
+
+const (
+	groupBuffer = bufferKind(C._SC_GETGR_R_SIZE_MAX)
+)
+
+func (k bufferKind) initialSize() C.size_t {
+	sz := C.sysconf(C.int(k))
+	if sz == -1 {
+		// DragonFly and FreeBSD do not have _SC_GETPW_R_SIZE_MAX.
+		// Additionally, not all Linux systems have it, either. For
+		// example, the musl libc returns -1.
+		return 1024
+	}
+	if !isSizeReasonable(int64(sz)) {
+		// Truncate.  If this truly isn't enough, retryWithBuffer will error on the first run.
+		return maxBufferSize
+	}
+	return C.size_t(sz)
+}
+
+type memBuffer struct {
+	ptr  unsafe.Pointer
+	size C.size_t
+}
+
+func alloc(kind bufferKind) *memBuffer {
+	sz := kind.initialSize()
+	return &memBuffer{
+		ptr:  C.malloc(sz),
+		size: sz,
+	}
+}
+
+func (mb *memBuffer) resize(newSize C.size_t) {
+	mb.ptr = C.realloc(mb.ptr, newSize)
+	mb.size = newSize
+}
+
+func (mb *memBuffer) free() {
+	C.free(mb.ptr)
+}
+
+// retryWithBuffer repeatedly calls f(), increasing the size of the
+// buffer each time, until f succeeds, fails with a non-ERANGE error,
+// or the buffer exceeds a reasonable limit.
+func retryWithBuffer(buf *memBuffer, f func() syscall.Errno) error {
+	for {
+		errno := f()
+		if errno == 0 {
+			return nil
+		} else if errno != syscall.ERANGE {
+			return errno
+		}
+		newSize := buf.size * 2
+		if !isSizeReasonable(int64(newSize)) {
+			return fmt.Errorf("internal buffer exceeds %d bytes", maxBufferSize)
+		}
+		buf.resize(newSize)
+	}
+}
+
+const maxBufferSize = 1 << 20
+
+func isSizeReasonable(sz int64) bool {
+	return sz > 0 && sz <= maxBufferSize
+}
+
+// end code from https://golang.org/src/os/user/lookup_unix.go
+
+func findGid(group string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(group) {
+		return 0, fmt.Errorf("%q must be a valid group name", group)
+	}
+
+	//group, err := user.LookupGroup(group)
+	group, err := lookupGroup(group)
+	if err != nil {
+		return 0, err
+	}
+
+	//return strconv.ParseUint(group.Gid, 10, 64)
+	return strconv.ParseUint(group, 10, 64)
+}
+
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
@@ -508,6 +647,18 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
 			value, err = readNumber(arg[1:])
+		} else if strings.HasPrefix(arg, "u:") {
+			cmpOp = seccomp.CompareEqual
+			value, err = findUid(arg[2:])
+			if err != nil {
+				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
+			}
+		} else if strings.HasPrefix(arg, "g:") {
+			cmpOp = seccomp.CompareEqual
+			value, err = findGid(arg[2:])
+			if err != nil {
+				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
+			}
 		} else {
 			cmpOp = seccomp.CompareEqual
 			value, err = readNumber(arg)
@@ -638,27 +789,16 @@ func compile(content []byte, out string) error {
 	}
 
 	// write atomically
-	dir, err := os.Open(filepath.Dir(out))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	fout, err := os.Create(out + ".tmp")
+	fout, err := osutil.NewAtomicFile(out, 0644, 0, -1, -1)
 	if err != nil {
 		return err
 	}
 	defer fout.Close()
-	if err := secFilter.ExportBPF(fout); err != nil {
+
+	if err := secFilter.ExportBPF(fout.File); err != nil {
 		return err
 	}
-	if err := fout.Sync(); err != nil {
-		return err
-	}
-	if err := os.Rename(out+".tmp", out); err != nil {
-		return err
-	}
-	return dir.Sync()
+	return fout.Commit()
 }
 
 func showSeccompLibraryVersion() error {

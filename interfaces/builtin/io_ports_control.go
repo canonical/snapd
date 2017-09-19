@@ -47,7 +47,7 @@ const ioPortsControlConnectedPlugSecComp = `
 ioperm
 iopl
 `
-const ioPortsControlConnectedPlugUDev = `KERNEL=="port", TAG+="###SLOT_SECURITY_TAGS###"`
+const ioPortsControlConnectedPlugUDev = `KERNEL=="port", TAG+="###CONNECTED_SECURITY_TAGS###"`
 
 func init() {
 	registerIface(&commonInterface{
