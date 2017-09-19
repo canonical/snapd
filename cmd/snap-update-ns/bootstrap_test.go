@@ -104,13 +104,6 @@ func (s *bootstrapSuite) TestFindArgv0(c *C) {
 	c.Assert(*result, Equals, "arg0")
 }
 
-// Check that if argv0 is unterminated we return NULL.
-func (s *bootstrapSuite) TestFindArgv0Unterminated(c *C) {
-	buf := []byte("arg0")
-	result := update.FindArgv0(buf)
-	c.Assert(result, Equals, (*string)(nil))
-}
-
 // Check that ValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
@@ -129,7 +122,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		errPattern  string
 	}{
 		// Corrupted buffer is dealt with.
-		{"argv0", "", false, "argv0 is corrupted"},
+		{"", "", false, "argv0 is corrupted"},
 		// When testing real bootstrap is identified and disabled.
 		{"argv0.test\x00", "", false, "bootstrap is not enabled while testing"},
 		// Snap name is mandatory.

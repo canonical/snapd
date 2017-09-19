@@ -105,7 +105,11 @@ func validateSnapName(snapName string) int {
 func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
 	var snapNameOut *C.char
 	var shouldSetNsOut C.bool
-	C.process_arguments((*C.char)(unsafe.Pointer(&cmdline[0])), C.size_t(len(cmdline)), &snapNameOut, &shouldSetNsOut)
+	var buf *C.char
+	if len(cmdline) > 0 {
+		buf = (*C.char)(unsafe.Pointer(&cmdline[0]))
+	}
+	C.process_arguments(buf, C.size_t(len(cmdline)), &snapNameOut, &shouldSetNsOut)
 	if snapNameOut != nil {
 		snapName = C.GoString(snapNameOut)
 	}
