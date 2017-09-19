@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -55,4 +56,17 @@ exit 0
 	c.Check(r.Stdout(), HasLen, 0)
 
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.done")), Equals, true)
+}
+
+func (r *repairSuite) TestRunAlreadyLocked(c *C) {
+	err := os.MkdirAll(dirs.SnapRunRepairDir, 0700)
+	c.Assert(err, IsNil)
+	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
+	c.Assert(err, IsNil)
+	err = flock.Lock()
+	c.Assert(err, IsNil)
+	defer flock.Unlock()
+
+	err = repair.ParseArgs([]string{"run"})
+	c.Check(err, ErrorMatches, `cannot run, another snap-repair run already executing`)
 }

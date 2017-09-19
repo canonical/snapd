@@ -70,7 +70,7 @@ func (c *cmdRun) Execute(args []string) error {
 	}
 	err = flock.TryLock()
 	if err == osutil.ErrAlreadyLocked {
-		fmt.Errorf("cannot run, another snap-repair run already executing")
+		return fmt.Errorf("cannot run, another snap-repair run already executing")
 	}
 	if err != nil {
 		return err
