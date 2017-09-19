@@ -208,6 +208,7 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+	commandsURI    *url.URL
 
 	// Device auth endpoints.
 	// - deviceNonceURI points to endpoint to get a nonce
@@ -459,6 +460,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		store.buyURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/buy", nil)
 		store.customersMeURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/customers/me", nil)
 		store.sectionsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/sections", nil)
+		store.commandsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/names", nil)
 		store.deviceNonceURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/nonces", nil)
 		store.deviceSessionURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/sessions", nil)
 	}
@@ -666,6 +668,47 @@ func cancelled(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+var expectedCatalogPreamble = []interface{}{
+	json.Delim('{'),
+	"_embedded",
+	json.Delim('{'),
+	"clickindex:package",
+	json.Delim('['),
+}
+
+type catalogItem struct {
+	Name string `json:"package_name"`
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer) error {
+	const what = "decode new commands catalog"
+	if resp.StatusCode != 200 {
+		return respToError(resp, what)
+	}
+	dec := json.NewDecoder(resp.Body)
+	for _, expectedToken := range expectedCatalogPreamble {
+		token, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if token != expectedToken {
+			return fmt.Errorf(what+": bad catalog preamble: expected %#v, got %#v", expectedToken, token)
+		}
+	}
+
+	for dec.More() {
+		var v catalogItem
+		if err := dec.Decode(&v); err != nil {
+			return fmt.Errorf(what+": %v", err)
+		}
+		if v.Name != "" {
+			fmt.Fprintln(names, v.Name)
+		}
+	}
+
+	return nil
 }
 
 func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
@@ -1102,6 +1145,43 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	return sectionNames, nil
+}
+
+// WriteCatalogs queries the "commands" endpoint and writes the
+// command names into the given io.Writer.
+func (s *Store) WriteCatalogs(names io.Writer) error {
+	u := *s.commandsURI
+
+	q := u.Query()
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u.RawQuery = q.Encode()
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
+	}
+
+	doRequest := func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}
+	readResponse := func(resp *http.Response) error {
+		return decodeCatalog(resp, names)
+	}
+
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return respToError(resp, "refresh commands catalog")
+	}
+
+	return nil
 }
 
 // RefreshCandidate contains information for the store about the currently
