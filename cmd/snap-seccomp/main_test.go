@@ -182,9 +182,8 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
 			}
 		}
-		err = cmd.Run()
-		if err != nil {
-			fmt.Printf("cannot build multi-lib syscall runner: %v", err)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("cannot build multi-lib syscall runner: %v\n%s", err, output)
 		}
 	}
 }
