@@ -206,8 +206,8 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, u.HomeDir, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, u.HomeDir, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(u.HomeDir, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(u.HomeDir, "/snap/snapname/common")), check.Equals, true)
 }
 
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
