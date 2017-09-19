@@ -22,7 +22,7 @@ package ctlcmd
 import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/servicectl"
+	"github.com/snapcore/snapd/overlord/servicestate"
 )
 
 type stopCommand struct {
@@ -42,7 +42,7 @@ func init() {
 }
 
 func (c *stopCommand) Execute(args []string) error {
-	inst := servicectl.Instruction{
+	inst := servicestate.Instruction{
 		Action: "stop",
 		Names:  c.Positional.ServiceNames,
 		StopOptions: client.StopOptions{

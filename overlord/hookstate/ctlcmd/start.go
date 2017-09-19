@@ -22,7 +22,7 @@ package ctlcmd
 import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/servicectl"
+	"github.com/snapcore/snapd/overlord/servicestate"
 )
 
 var (
@@ -42,7 +42,7 @@ type startCommand struct {
 }
 
 func (c *startCommand) Execute(args []string) error {
-	inst := servicectl.Instruction{
+	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  c.Positional.ServiceNames,
 		StartOptions: client.StartOptions{
