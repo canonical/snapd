@@ -45,15 +45,20 @@ const openglConnectedPlugAppArmor = `
 
   # eglfs
   /dev/vchiq rw,
+
+  # /sys/devices
   /sys/devices/pci[0-9]*/**/config r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
+  /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
   /sys/bus/pci/devices/ r,
+  /sys/bus/platform/devices/soc:gpu/ r,
   /run/udev/data/+drm:card* r,
   /run/udev/data/+pci:[0-9]* r,
+  /run/udev/data/+platform:soc:gpu* r,
 
   # FIXME: for each device in /dev that this policy references, lookup the
   # device type, major and minor and create rules of this form:
