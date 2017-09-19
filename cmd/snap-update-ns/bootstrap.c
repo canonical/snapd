@@ -75,12 +75,8 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 const char*
 find_argv0(const char* buf, size_t num_read)
 {
-    // cmdline is an array of NUL ('\0') separated strings.
-    size_t argv0_len = strnlen(buf, num_read);
-    if (argv0_len == num_read) {
-        // ensure that the buffer is properly terminated.
-        return NULL;
-    }
+    // cmdline is an array of NUL ('\0') separated strings and guaranteed to be
+    // NULL-terminated via read_cmdline().
     return buf;
 }
 
@@ -250,6 +246,7 @@ int validate_snap_name(const char* snap_name)
     return 0;
 }
 
+// process_arguments parses given cmdline which must be list of strings separated with NUL bytes.
 void process_arguments(const char* cmdline, size_t num_read, const char** snap_name_out, bool* should_setns_out)
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
