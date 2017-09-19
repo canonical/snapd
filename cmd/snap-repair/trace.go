@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -54,12 +55,16 @@ type repairTrace struct {
 	path string
 }
 
+// validRepairTraceName checks that the given name looks like a valid repair
+// trace
+var validRepairTraceName = regexp.MustCompile(`^r[0-9]+\.(done|skip|retry|running)$`)
+
 // newRepairTraceFromPath takes a repair log path like
 // the path /var/lib/snapd/repair/run/my-brand/1/r2.done
 // and contructs a repair log from that.
 func newRepairTraceFromPath(path string) *repairTrace {
 	rt := &repairTrace{path: path}
-	if !rt.validSuffix(path) {
+	if !validRepairTraceName.MatchString(filepath.Base(path)) {
 		return nil
 	}
 	return rt
@@ -75,14 +80,21 @@ func (rt *repairTrace) Repair() string {
 
 // Revision returns the revision of the repair
 func (rt *repairTrace) Revision() string {
-	return revFromFilepath(rt.path)
+	rev, err := revFromFilepath(rt.path)
+	if err != nil {
+		// this can never happen because we check that path starts
+		// with the right prefix. However handle the case just in
+		// case.
+		return "-"
+	}
+	return rev
 }
 
 // Summary returns the summary of the repair that was run
 func (rt *repairTrace) Summary() string {
 	f, err := os.Open(rt.path)
 	if err != nil {
-		return "cannot read summary"
+		return "-"
 	}
 	defer f.Close()
 
@@ -95,7 +107,7 @@ func (rt *repairTrace) Summary() string {
 		}
 	}
 
-	return "cannot find summary"
+	return "-"
 }
 
 // Status returns the status of the given repair {done,skip,retry,running}
@@ -109,12 +121,11 @@ func indentPrefix(level int) string {
 
 // WriteScriptIndented outputs the script that produced this repair output
 // to the given writer w with the indent level given by indent.
-func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) {
+func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) error {
 	scriptPath := rt.path[:strings.LastIndex(rt.path, ".")] + ".script"
 	f, err := os.Open(scriptPath)
 	if err != nil {
-		fmt.Fprintf(w, "cannot read script: %v", err)
-		return
+		return err
 	}
 	defer f.Close()
 
@@ -125,15 +136,15 @@ func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) {
 	if scanner.Err() != nil {
 		fmt.Fprintf(w, "%serror: %s\n", indentPrefix(indent), scanner.Err())
 	}
+	return nil
 }
 
 // WriteOutputIndented outputs the repair output to the given writer w
 // with the indent level given by indent.
-func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) {
+func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) error {
 	f, err := os.Open(rt.path)
 	if err != nil {
-		fmt.Fprintf(w, "  error: %s\n", err)
-		return
+		return err
 	}
 	defer f.Close()
 
@@ -149,27 +160,17 @@ func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) {
 		fmt.Fprintf(w, "%s%s\n", indentPrefix(indent), scanner.Text())
 	}
 	if scanner.Err() != nil {
-		fmt.Fprintf(w, "%serror: %s\n", indentPrefix(indent), scanner.Err())
+		return err
 	}
+	return nil
 }
 
-// validSuffix returns true if the given traceName is something repairTrace
-// understands.
-func (rt *repairTrace) validSuffix(traceName string) bool {
-	for _, valid := range []string{".retry", ".skip", ".done", ".running"} {
-		if strings.HasSuffix(traceName, valid) {
-			return true
-		}
-	}
-	return false
-}
-
-// revFromFilepath is a helper that extrace the revision number from the
+// revFromFilepath is a helper that extracts the revision number from the
 // filename of the repairTrace
-func revFromFilepath(name string) string {
+func revFromFilepath(name string) (string, error) {
 	var rev int
 	if _, err := fmt.Sscanf(filepath.Base(name), "r%d.", &rev); err == nil {
-		return strconv.Itoa(rev)
+		return strconv.Itoa(rev), nil
 	}
-	return "?"
+	return "", fmt.Errorf("cannot find revision in %q", name)
 }

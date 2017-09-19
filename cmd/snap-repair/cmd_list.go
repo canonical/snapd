@@ -61,7 +61,7 @@ func (c *cmdList) Execute([]string) error {
 		return err
 	}
 	if len(repairTraces) == 0 {
-		fmt.Fprintf(w, "no repairs yet\n")
+		fmt.Fprintf(Stderr, "no repairs yet\n")
 		return nil
 	}
 
