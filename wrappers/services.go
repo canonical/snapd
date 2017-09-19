@@ -77,8 +77,8 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 		return nil
 	}
 
-	for _, path := range app.ServiceSocketFiles() {
-		err := stop(filepath.Base(path))
+	for _, socket := range app.Sockets {
+		err := stop(filepath.Base(socket.File()))
 		if err != nil {
 			return err
 		}
@@ -103,8 +103,8 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 		}
 
-		for socketName := range app.Sockets {
-			socketService := filepath.Base(app.SocketFile(socketName))
+		for _, socket := range app.Sockets {
+			socketService := filepath.Base(socket.File())
 			// enable the socket
 			if err := sysd.Enable(socketService); err != nil {
 				return err
@@ -231,7 +231,8 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 		serviceName := filepath.Base(app.ServiceFile())
 
-		for _, path := range app.ServiceSocketFiles() {
+		for _, socket := range app.Sockets {
+			path := socket.File()
 			socketServiceName := filepath.Base(path)
 			if err := sysd.Disable(socketServiceName); err != nil {
 				return err
@@ -394,8 +395,8 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 	}
 
 	socketFiles := make(map[string][]byte)
-	for socketName := range app.Sockets {
-		socketFiles[app.SocketFile(socketName)] = genSocketFile(app, socketName)
+	for name, socket := range app.Sockets {
+		socketFiles[socket.File()] = genSocketFile(app, name)
 	}
 	return &socketFiles, nil
 }

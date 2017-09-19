@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -127,10 +128,10 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	socketServiceFiles := info.Apps["svc1"].ServiceSocketFiles()
-	c.Assert(socketServiceFiles, HasLen, 2)
-	for _, socketServiceFile := range socketServiceFiles {
-		c.Check(osutil.FileExists(socketServiceFile), Equals, false)
+	app := info.Apps["svc1"]
+	c.Assert(app.Sockets, HasLen, 2)
+	for _, socket := range app.Sockets {
+		c.Check(osutil.FileExists(socket.File()), Equals, false)
 	}
 }
 
@@ -177,10 +178,10 @@ apps:
 }
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
-	var sysdLog [][]string
+	var sysdLog []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if cmd[0] != "show" {
-			sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "stop" {
+			sysdLog = append(sysdLog, cmd[1])
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -205,11 +206,9 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"stop", "snap.hello-snap.svc1.sock1.socket"},
-		{"stop", "snap.hello-snap.svc1.sock2.socket"},
-		{"stop", "snap.hello-snap.svc1.service"},
-	})
+	sort.Strings(sysdLog)
+	c.Check(sysdLog, DeepEquals, []string{
+		"snap.hello-snap.svc1.service", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"})
 }
 
 func (s *servicesTestSuite) TestStartServices(c *C) {

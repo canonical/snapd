@@ -443,6 +443,9 @@ type SlotInfo struct {
 
 // SocketInfo provides information on application sockets.
 type SocketInfo struct {
+	App *AppInfo
+
+	Name         string
 	ListenStream string
 	SocketMode   os.FileMode
 }
@@ -488,6 +491,11 @@ type HookInfo struct {
 
 	Name  string
 	Plugs map[string]*PlugInfo
+}
+
+// File returns the path to the file
+func (socket *SocketInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -550,24 +558,6 @@ func (app *AppInfo) ServiceName() string {
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
-}
-
-// ServiceSocketFiles returns the list of  systemd socket file paths for the daemon app.
-func (app *AppInfo) ServiceSocketFiles() []string {
-	socketPaths := make([]string, 0, len(app.Sockets))
-	for name := range app.Sockets {
-		socketPaths = append(socketPaths, app.SocketFile(name))
-	}
-	sort.Strings(socketPaths)
-	return socketPaths
-}
-
-// SocketFile returns the systemd socket file path for the specified app socket.
-func (app *AppInfo) SocketFile(name string) string {
-	if _, ok := app.Sockets[name]; !ok {
-		return ""
-	}
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+"."+name+".socket")
 }
 
 // Env returns the app specific environment overrides

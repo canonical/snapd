@@ -1343,25 +1343,28 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
-		"svc": {
-			Snap:            info,
-			Name:            "svc",
-			Command:         "svc1",
-			Daemon:          "forking",
-			RestartCond:     snap.RestartOnAbnormal,
-			StopTimeout:     timeout.Timeout(25 * time.Second),
-			StopCommand:     "stop-cmd",
-			PostStopCommand: "post-stop-cmd",
-			BusName:         "busName",
-			Sockets: map[string]*snap.SocketInfo{
-				"sock1": {
-					ListenStream: "/tmp/sock1.socket",
-					SocketMode:   0666,
-				},
-			},
-		},
-	})
+
+	app := snap.AppInfo{
+		Snap:            info,
+		Name:            "svc",
+		Command:         "svc1",
+		Daemon:          "forking",
+		RestartCond:     snap.RestartOnAbnormal,
+		StopTimeout:     timeout.Timeout(25 * time.Second),
+		StopCommand:     "stop-cmd",
+		PostStopCommand: "post-stop-cmd",
+		BusName:         "busName",
+		Sockets:         map[string]*snap.SocketInfo{},
+	}
+
+	app.Sockets["sock1"] = &snap.SocketInfo{
+		App:          &app,
+		Name:         "sock1",
+		ListenStream: "/tmp/sock1.socket",
+		SocketMode:   0666,
+	}
+
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{"svc": &app})
 }
 
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
@@ -1376,17 +1379,22 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
+
+	app := snap.AppInfo{
+		Snap:    info,
+		Name:    "svc",
+		Command: "svc",
+		Sockets: map[string]*snap.SocketInfo{},
+	}
+
+	app.Sockets["sock"] = &snap.SocketInfo{
+		App:          &app,
+		Name:         "sock",
+		ListenStream: "8080",
+	}
+
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
-		"svc": {
-			Snap:    info,
-			Name:    "svc",
-			Command: "svc",
-			Sockets: map[string]*snap.SocketInfo{
-				"sock": {
-					ListenStream: "8080",
-				},
-			},
-		},
+		"svc": &app,
 	})
 }
 

@@ -335,6 +335,8 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 		for name, data := range yApp.Sockets {
 			app.Sockets[name] = &SocketInfo{
+				App:          app,
+				Name:         name,
 				ListenStream: data.ListenStream,
 				SocketMode:   data.SocketMode,
 			}
