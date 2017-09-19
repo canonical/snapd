@@ -22,7 +22,10 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -58,12 +61,25 @@ func init() {
 }
 
 func (c *cmdRun) Execute(args []string) error {
-	// TODO: operate a run lock
+	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0700); err != nil {
+		return err
+	}
+	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
+	if err != nil {
+		return err
+	}
+	err = flock.TryLock()
+	if err == osutil.ErrAlreadyLocked {
+		fmt.Errorf("cannot run, another snap-repair run already executing")
+	}
+	if err != nil {
+		return err
+	}
+	defer flock.Unlock()
 
 	run := NewRunner()
 	run.BaseURL = baseURL
-	err := run.LoadState()
-
+	err = run.LoadState()
 	if err != nil {
 		return err
 	}
