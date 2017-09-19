@@ -71,15 +71,6 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
     return num_read;
 }
 
-// find_argv0 scans the command line buffer and looks for the 0st argument.
-const char*
-find_argv0(const char* buf, size_t num_read)
-{
-    // cmdline is an array of NUL ('\0') separated strings and guaranteed to be
-    // NULL-terminated via read_cmdline().
-    return buf;
-}
-
 // find_snap_name scans the command line buffer and looks for the 1st argument.
 // if the 1st argument exists but is empty NULL is returned.
 const char*
@@ -252,7 +243,10 @@ void process_arguments(const char* cmdline, size_t num_read, const char** snap_n
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
     // of the code automatically.
-    const char* argv0 = find_argv0(cmdline, num_read);
+    //
+    // cmdline is an array of NUL ('\0') separated strings and guaranteed to be
+    // NULL-terminated via read_cmdline().
+    const char* argv0 = cmdline;
     if (argv0 == NULL) {
         bootstrap_errno = 0;
         bootstrap_msg = "argv0 is corrupted";
