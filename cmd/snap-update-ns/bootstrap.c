@@ -328,6 +328,7 @@ void bootstrap(void)
     };
     ssize_t num_read;
     if ((num_read = read_cmdline(cmdline, sizeof cmdline)) < 0) {
+        // read_cmdline sets bootstrap_{errno,msg}
         return;
     }
 
