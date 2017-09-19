@@ -229,20 +229,21 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%s", "ctl");
 	if (stat(nvpath, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvpath, 195, 255);
+	}
 
 	sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%s", "-uvm");
 	if (stat(nvpath, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvpath, 247, 0);
+	}
 
-		// add the assigned devices
-		while (udev_s->assigned != NULL) {
-			const char *path =
-			    udev_list_entry_get_name(udev_s->assigned);
-			if (path == NULL)
-				die("udev_list_entry_get_name failed");
-			run_snappy_app_dev_add(udev_s, path);
-			udev_s->assigned =
-			    udev_list_entry_get_next(udev_s->assigned);
-		}
+	// add the assigned devices
+	while (udev_s->assigned != NULL) {
+		const char *path =
+		    udev_list_entry_get_name(udev_s->assigned);
+		if (path == NULL)
+			die("udev_list_entry_get_name failed");
+		run_snappy_app_dev_add(udev_s, path);
+		udev_s->assigned =
+		    udev_list_entry_get_next(udev_s->assigned);
 	}
 }
