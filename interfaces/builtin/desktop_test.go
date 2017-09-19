@@ -20,11 +20,17 @@
 package builtin_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -54,6 +60,10 @@ slots:
 func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
 	s.plug = MockPlug(c, desktopConsumerYaml, nil, "desktop")
 	s.coreSlot = MockSlot(c, desktopCoreYaml, nil, "desktop")
+}
+
+func (s *DesktopInterfaceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *DesktopInterfaceSuite) TestName(c *C) {
@@ -89,6 +99,45 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// On all-snaps systems, no mount entries are added
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Check(spec.MountEntries(), HasLen, 0)
+
+	// On classic systems, a number of font related directories
+	// are bind mounted from the host system if they exist.
+	restore = release.MockOnClassic(true)
+	defer restore()
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+
+	entries := spec.MountEntries()
+	c.Assert(entries, HasLen, 3)
+
+	const hostfs = "/var/lib/snapd/hostfs"
+	c.Check(entries[0].Name, Equals, hostfs+dirs.SystemFontsDir)
+	c.Check(entries[0].Dir, Equals, "/usr/share/fonts")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
+
+	c.Check(entries[1].Name, Equals, hostfs+dirs.SystemLocalFontsDir)
+	c.Check(entries[1].Dir, Equals, "/usr/local/share/fonts")
+	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
+
+	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
+	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
+	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
