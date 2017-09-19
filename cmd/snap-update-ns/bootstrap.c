@@ -93,11 +93,7 @@ find_snap_name(const char* buf, size_t num_read)
 const char*
 find_1st_option(const char* buf, size_t num_read)
 {
-    size_t argv0_len = strnlen(buf, num_read);
-    if (argv0_len + 1 >= num_read) {
-        return NULL;
-    }
-    size_t pos = argv0_len + 1;
+    size_t pos = strlen(buf) + 1;
     if (buf[pos] == '-') {
         return &buf[pos];
     }
