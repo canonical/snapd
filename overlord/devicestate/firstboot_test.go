@@ -107,6 +107,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	s.overlord = ovld
+
+	// don't actually try to talk to the store on snapstate.Ensure
+	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	snapstate.CanAutoRefresh = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -375,7 +379,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 
 	st := s.overlord.State()
 	chg := s.makeBecomeOperationalChange(c, st)
-	err := s.overlord.Settle(5 * time.Second)
+	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -451,6 +455,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	snapmgr, err := snapstate.Manager(st)
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
+
 	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
@@ -559,7 +564,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(5 * time.Second)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -743,7 +748,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(5 * time.Second)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)

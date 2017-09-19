@@ -39,21 +39,21 @@ import (
 func TestHTTPUtil(t *testing.T) { check.TestingT(t) }
 
 type loggerSuite struct {
-	logbuf *bytes.Buffer
+	logbuf        *bytes.Buffer
+	restoreLogger func()
 }
 
 var _ = check.Suite(&loggerSuite{})
 
-func (loggerSuite) TearDownTest(c *check.C) {
+func (s *loggerSuite) TearDownTest(c *check.C) {
 	os.Unsetenv("SNAPD_DEBUG")
+	s.restoreLogger()
 }
 
 func (s *loggerSuite) SetUpTest(c *check.C) {
 	os.Setenv("SNAPD_DEBUG", "true")
 	s.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.New(s.logbuf, logger.DefaultFlags)
-	c.Assert(err, check.IsNil)
-	logger.SetLogger(l)
+	s.logbuf, s.restoreLogger = logger.MockLogger()
 }
 
 func (loggerSuite) TestFlags(c *check.C) {

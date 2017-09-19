@@ -175,6 +175,7 @@ AXNpZw==
 authority-id: canonical
 brand-id: canonical
 repair-id: 2
+summary: repair two
 architectures:
   - amd64
   - arm64
@@ -232,12 +233,12 @@ func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	repair, aux, err := runner.Fetch("canonical", "2", -1)
+	repair, aux, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, IsNil)
 	c.Check(repair, NotNil)
 	c.Check(aux, HasLen, 0)
 	c.Check(repair.BrandID(), Equals, "canonical")
-	c.Check(repair.RepairID(), Equals, "2")
+	c.Check(repair.RepairID(), Equals, 2)
 	c.Check(repair.Body(), DeepEquals, []byte("script\n"))
 
 	s.checkBrokenTimeNowMitigated(c, runner)
@@ -261,7 +262,7 @@ func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, `assertion body length 7 exceeds maximum body size 4 for "repair".*`)
 	c.Assert(n, Equals, 1)
 }
@@ -291,7 +292,7 @@ func (s *runnerSuite) TestFetch500(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, "cannot fetch repair, unexpected status 500")
 	c.Assert(n, Equals, 5)
 }
@@ -312,7 +313,7 @@ func (s *runnerSuite) TestFetchEmpty(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -334,7 +335,7 @@ func (s *runnerSuite) TestFetchBroken(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -358,7 +359,7 @@ func (s *runnerSuite) TestFetchNotFound(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
@@ -385,7 +386,7 @@ func (s *runnerSuite) TestFetchIfNoneMatchNotModified(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, _, err := runner.Fetch("canonical", "2", 0)
+	_, _, err := runner.Fetch("canonical", 2, 0)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 	c.Assert(n, Equals, 1)
 
@@ -403,7 +404,7 @@ func (s *runnerSuite) TestFetchIgnoreSupersededRevision(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", 2)
+	_, _, err := runner.Fetch("canonical", 2, 2)
 	c.Assert(err, Equals, repair.ErrRepairNotModified)
 }
 
@@ -419,7 +420,7 @@ func (s *runnerSuite) TestFetchIdMismatch(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "4", -1)
+	_, _, err := runner.Fetch("canonical", 4, -1)
 	c.Assert(err, ErrorMatches, `cannot fetch repair, repair id mismatch canonical/2 != canonical/4`)
 }
 
@@ -436,7 +437,7 @@ func (s *runnerSuite) TestFetchWrongFirstType(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, _, err := runner.Fetch("canonical", "2", -1)
+	_, _, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, ErrorMatches, `cannot fetch repair, unexpected first assertion "account-key"`)
 }
 
@@ -455,7 +456,7 @@ func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	repair, aux, err := runner.Fetch("canonical", "2", -1)
+	repair, aux, err := runner.Fetch("canonical", 2, -1)
 	c.Assert(err, IsNil)
 	c.Check(repair, NotNil)
 	c.Check(aux, HasLen, 1)
@@ -479,7 +480,7 @@ func (s *runnerSuite) TestPeek(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	h, err := runner.Peek("canonical", "2")
+	h, err := runner.Peek("canonical", 2)
 	c.Assert(err, IsNil)
 	c.Check(h["series"], DeepEquals, []interface{}{"16"})
 	c.Check(h["architectures"], DeepEquals, []interface{}{"amd64", "arm64"})
@@ -504,7 +505,7 @@ func (s *runnerSuite) TestPeek500(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, ErrorMatches, "cannot peek repair headers, unexpected status 500")
 	c.Assert(n, Equals, 5)
 }
@@ -526,7 +527,7 @@ func (s *runnerSuite) TestPeekInvalid(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(n, Equals, 5)
 }
@@ -547,7 +548,7 @@ func (s *runnerSuite) TestPeekNotFound(c *C) {
 	r := s.mockBrokenTimeNowSetToEpoch(c, runner)
 	defer r()
 
-	_, err := runner.Peek("canonical", "2")
+	_, err := runner.Peek("canonical", 2)
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 	c.Assert(n, Equals, 1)
 
@@ -566,7 +567,7 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 	runner := repair.NewRunner()
 	runner.BaseURL = mustParseURL(mockServer.URL)
 
-	_, err := runner.Peek("canonical", "4")
+	_, err := runner.Peek("canonical", 4)
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
 }
 
@@ -779,6 +780,7 @@ var (
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-01T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -791,6 +793,7 @@ AXNpZw==`,
 authority-id: canonical
 brand-id: canonical
 repair-id: 2
+summary: repair two
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -806,6 +809,7 @@ revision: 2
 authority-id: canonical
 brand-id: canonical
 repair-id: 3
+summary: repair three rev2
 series:
   - 16
 timestamp: 2017-07-03T12:00:00Z
@@ -823,6 +827,7 @@ revision: 4
 authority-id: canonical
 brand-id: canonical
 repair-id: 3
+summary: repair three rev4
 series:
   - 16
 timestamp: 2017-07-03T12:00:00Z
@@ -839,6 +844,7 @@ AXNpZw==
 authority-id: canonical
 brand-id: canonical
 repair-id: 4
+summary: repair four
 timestamp: 2017-07-03T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -913,6 +919,7 @@ func (s *runnerSuite) TestVerify(c *C) {
 	a, err := s.repairsSigning.Sign(asserts.RepairType, map[string]interface{}{
 		"brand-id":  "canonical",
 		"repair-id": "2",
+		"summary":   "repair two",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, []byte("#script"), "")
 	c.Assert(err, IsNil)
@@ -966,12 +973,12 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "3")
+	c.Check(rpr.RepairID(), Equals, 3)
 	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
 	c.Assert(err, IsNil)
 	c.Check(string(strm), Equals, seqRepairs[2])
@@ -1002,11 +1009,11 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "3")
+	c.Check(rpr.RepairID(), Equals, 3)
 	// refetched new revision!
 	c.Check(rpr.Revision(), Equals, 4)
 	c.Check(rpr.Body(), DeepEquals, []byte("scriptC2\n"))
@@ -1014,7 +1021,7 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	// new repair
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "4")
+	c.Check(rpr.RepairID(), Equals, 4)
 	c.Check(rpr.Body(), DeepEquals, []byte("scriptD\n"))
 
 	// no more
@@ -1044,6 +1051,7 @@ func (s *runnerSuite) TestNextImmediateSkip(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1080,6 +1088,7 @@ func (s *runnerSuite) TestNextRefetchSkip(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
@@ -1122,6 +1131,7 @@ authority-id: canonical
 revision: 1
 brand-id: canonical
 repair-id: 1
+summary: repair one rev1
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1208,6 +1218,7 @@ func (s *runnerSuite) TestNextSaveStateError(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 33
 timestamp: 2017-07-02T12:00:00Z
@@ -1240,6 +1251,7 @@ func (s *runnerSuite) TestNextVerifyNoKey(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1280,6 +1292,7 @@ func (s *runnerSuite) TestNextVerifySelfSigned(c *C) {
 	rpr, err := randomSigning.Sign(asserts.RepairType, map[string]interface{}{
 		"brand-id":  "canonical",
 		"repair-id": "1",
+		"summary":   "repair one",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, []byte("scriptB\n"), "")
 	c.Assert(err, IsNil)
@@ -1332,7 +1345,7 @@ func (s *runnerSuite) TestNextVerifyAllKeysOK(c *C) {
 
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
-	c.Check(rpr.RepairID(), Equals, "1")
+	c.Check(rpr.RepairID(), Equals, 1)
 }
 
 func (s *runnerSuite) TestRepairSetStatus(c *C) {
@@ -1340,6 +1353,7 @@ func (s *runnerSuite) TestRepairSetStatus(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 timestamp: 2017-07-02T12:00:00Z
 body-length: 8
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1382,6 +1396,7 @@ func (s *runnerSuite) TestRepairBasicRun(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
@@ -1421,6 +1436,7 @@ func makeMockRepair(script string) string {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
+summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
@@ -1648,7 +1664,7 @@ func (s *runScriptSuite) TestRepairHitsTimeout(c *C) {
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
 	defer r2()
 
-	restore := repair.MockDefaultRepairTimeout(10 * time.Millisecond)
+	restore := repair.MockDefaultRepairTimeout(100 * time.Millisecond)
 	defer restore()
 
 	script := `#!/bin/sh
@@ -1671,6 +1687,6 @@ sleep 100
 	})
 	s.verifyOutput(c, "r0.retry", `output before timeout
 
-"repair (1; brand-id:canonical)" failed: repair did not finish within 10ms`)
+"repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }

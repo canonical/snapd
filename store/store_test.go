@@ -157,6 +157,8 @@ type remoteRepoTestSuite struct {
 
 	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
+
+	restoreLogger func()
 }
 
 var _ = Suite(&remoteRepoTestSuite{})
@@ -338,10 +340,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	os.Setenv("SNAPD_DEBUG", "1")
 	t.AddCleanup(func() { os.Unsetenv("SNAPD_DEBUG") })
 
-	t.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.New(t.logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
+	t.logbuf, t.restoreLogger = logger.MockLogger()
 
 	root, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
@@ -368,10 +367,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
 	t.mockXDelta.Restore()
-}
-
-func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
-	logger.SimpleSetup()
+	t.restoreLogger()
 }
 
 func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
@@ -2545,6 +2541,77 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 	sections, err := repo.Sections(t.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
+}
+
+const mockNamesJSON = `
+{
+  "_embedded": {
+    "clickindex:package": [
+      {
+        "aliases": [
+          {
+            "name": "potato",
+            "target": "baz"
+          },
+          {
+            "name": "meh",
+            "target": "baz"
+          }
+        ],
+        "package_name": "bar"
+      },
+      {
+        "aliases": null,
+        "package_name": "foo"
+      }
+    ]
+  }
+}`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
+	t.testUbuntuStoreSnapCommands(c, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
+	t.testUbuntuStoreSnapCommands(c, false)
+}
+
+func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+	defer release.MockOnClassic(onClassic)()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			query := r.URL.Query()
+			c.Check(query, HasLen, 1)
+			expectedConfinement := "strict"
+			if onClassic {
+				expectedConfinement = "strict,classic"
+			}
+			c.Check(query.Get("confinement"), Equals, expectedConfinement)
+			c.Check(r.URL.Path, Equals, "/api/v1/snaps/names")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("Content-Length", fmt.Sprint(len(mockNamesJSON)))
+		w.WriteHeader(200)
+		io.WriteString(w, mockNamesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	repo := New(&Config{StoreBaseURL: serverURL}, nil)
+	c.Assert(repo, NotNil)
+
+	var bufNames bytes.Buffer
+	err := repo.WriteCatalogs(&bufNames)
+	c.Check(err, IsNil)
+	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
