@@ -412,3 +412,16 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snapctl manpage
+##
+if HAVE_RST2MAN
+dist_man_MANS += snapctl/snapctl.1
+CLEANFILES += snapctl/snapctl.1
+
+snapctl/%.1: snapctl/%.rst
+	mkdir -p snapctl
+	$(HAVE_RST2MAN) $^ > $@
+endif
+EXTRA_DIST += snapctl/snapctl.rst

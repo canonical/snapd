@@ -591,6 +591,7 @@ popd
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
+%{_mandir}/man1/snapctl.1*
 %{_mandir}/man5/snap-confine.5*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
