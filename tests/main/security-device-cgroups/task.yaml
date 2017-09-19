@@ -101,6 +101,7 @@ execute: |
 
     echo "But existing nvidia devices are in the snap's device cgroup"
     MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "c 195:255 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
     MATCH "c 247:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     echo "But nonexisting nvidia devices are not"
