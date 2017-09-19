@@ -83,6 +83,15 @@ func findSnapName(buf []byte) *string {
 	return nil
 }
 
+// findFirstOption returns the first "-option" string in argv-like array.
+func findFirstOption(buf []byte) *string {
+	if ptr := C.find_1st_option((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
+		str := C.GoString(ptr)
+		return &str
+	}
+	return nil
+}
+
 // validateSnapName checks if snap name is valid.
 // This also sets bootstrap_msg on failure.
 func validateSnapName(snapName string) int {

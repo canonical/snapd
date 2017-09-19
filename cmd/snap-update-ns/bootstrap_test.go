@@ -96,6 +96,29 @@ func (s *bootstrapSuite) TestFindSnapName7(c *C) {
 	c.Assert(*result, Equals, "snap")
 }
 
+// Check that if there are no options we just return nil.
+func (s *bootstrapSuite) TestFindFirstOption1(c *C) {
+	for _, str := range []string{"\x00", "arg0\x00", "arg0\x00arg1\x00"} {
+		result := update.FindFirstOption([]byte(str))
+		c.Assert(result, Equals, (*string)(nil))
+	}
+}
+
+// Check that if there are are options we return the first one.
+func (s *bootstrapSuite) TestFindFirstOption2(c *C) {
+	expected := "-o1"
+	for _, str := range []string{
+		"\x00-o1\x00",
+		"arg0\x00-o1\x00",
+		"arg0\x00-o1\x00arg1\x00",
+		"arg0\x00-o1\x00-o2\x00",
+		"arg0\x00-o1\x00-o2\x00arg1\x00",
+	} {
+		result := update.FindFirstOption([]byte(str))
+		c.Assert(result, DeepEquals, &expected, Commentf("got %q", *result))
+	}
+}
+
 // Check that ValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
