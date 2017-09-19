@@ -1372,6 +1372,17 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 	flags.Revert = true
+	if !(flags.JailMode || flags.DevMode || flags.Classic) {
+		if snapst.Flags.DevMode {
+			flags.DevMode = true
+		}
+		if snapst.Flags.JailMode {
+			flags.JailMode = true
+		}
+		if snapst.Flags.Classic {
+			flags.Classic = true
+		}
+	}
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
