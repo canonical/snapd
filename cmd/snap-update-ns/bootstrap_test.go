@@ -142,6 +142,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{"argv0.test\x00", "", false, "bootstrap is not enabled while testing"},
 		// Snap name is mandatory.
 		{"argv0\x00", "", false, "snap name not provided"},
+		{"argv0\x00\x00", "", false, "snap name not provided"},
 		// Snap name is parsed correctly.
 		{"argv0\x00snapname\x00", "snapname", true, ""},
 		// Snap name is validated correctly.
