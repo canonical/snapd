@@ -155,6 +155,7 @@ type Info struct {
 
 	LicenseAgreement string
 	LicenseVersion   string
+	License          string
 	Epoch            string
 	Base             string
 	Confinement      ConfinementType

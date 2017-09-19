@@ -76,13 +76,9 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	if at == nil {
 		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
 	}
-	primaryKeys := make([]string, len(at.PrimaryKey))
-	for i, k := range at.PrimaryKey {
-		pk, ok := headers[k]
-		if !ok {
-			return nil, fmt.Errorf("missing primary header %q to query remote assertion", k)
-		}
-		primaryKeys[i] = pk
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
 	sto := storeNew(nil, authContext)

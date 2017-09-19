@@ -191,6 +191,13 @@ dbus (send)
 
 dbus (send)
     bus=system
+    path=/org/freedesktop/UPower
+    interface=org.freedesktop.UPower
+    member=GetDisplayDevice
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
     path=/org/freedesktop/UPower/devices/**
     interface=org.freedesktop.UPower.Device
     member=GetHistory

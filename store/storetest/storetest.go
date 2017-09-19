@@ -20,11 +20,13 @@
 package storetest
 
 import (
+	"io"
+
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -37,7 +39,7 @@ import (
 type Store struct{}
 
 // ensure we conform
-var _ snapstate.StoreService = Store{}
+var _ storestate.StoreService = Store{}
 
 func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
@@ -79,6 +81,6 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
-func (Store) SnapCommands() (map[string][]string, error) {
-	panic("fakeStore.SnapCommands not expected")
+func (Store) WriteCatalogs(io.Writer) error {
+	panic("fakeStore.WriteCatalogs not expected")
 }
