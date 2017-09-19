@@ -6,7 +6,11 @@ description: |
   to include "socket AF_NETLINK - NETLINK_KOBJECT_UEVENT" which
   is vital for nmcli to work.
 
-systems: [ubuntu-core-*]
+# run only against the amd64 VM, we cannot run this on arm/arm64
+# boards because the (wifi) network is already managed by netplan
+# there and when n-m gets installed/removed it will hang when
+# trying to deconfigure the wifi network which is already owned.
+systems: [ubuntu-core-16-64, ubuntu-core-16-32]
 
 execute: |
     echo "Install network-manager and do basic smoke test"
