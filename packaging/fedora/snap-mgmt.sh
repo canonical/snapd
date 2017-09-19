@@ -90,6 +90,9 @@ purge() {
     for mnt in /run/snapd/ns/*.mnt; do
         umount -l "$mnt" || true
     done
+    for fstab in /run/snapd/ns/*.fstab; do
+        rm -f "$fstab"
+    done
     umount -l /run/snapd/ns/ || true
 
 
