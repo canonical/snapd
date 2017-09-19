@@ -32,9 +32,10 @@ import (
 )
 
 func mockSnapRepair(c *C) *testutil.MockCmd {
-	err := os.MkdirAll(dirs.DistroLibExecDir, 0755)
+	coreLibExecDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	err := os.MkdirAll(coreLibExecDir, 0755)
 	c.Assert(err, IsNil)
-	return testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-repair"), "")
+	return testutil.MockCommand(c, filepath.Join(coreLibExecDir, "snap-repair"), "")
 }
 
 func (s *SnapSuite) TestSnapShowRepair(c *C) {

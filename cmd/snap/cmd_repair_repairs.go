@@ -39,7 +39,7 @@ func runSnapRepair(cmdStr string, args []string) error {
 		return fmt.Errorf(i18n.G("repairs are not available on a classic system"))
 	}
 
-	snapRepairPath := filepath.Join(dirs.CoreLibExecDir, "snap-repair")
+	snapRepairPath := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-repair")
 	args = append([]string{cmdStr}, args...)
 	cmd := exec.Command(snapRepairPath, args...)
 	cmd.Stdin = os.Stdin
