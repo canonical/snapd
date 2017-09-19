@@ -61,9 +61,9 @@ func showRepairDetails(w io.Writer, repair string) error {
 
 	for _, trace := range repairTraces {
 		fmt.Fprintf(w, "repair: %s\n", trace.Repair())
+		fmt.Fprintf(w, "revision: %s\n", trace.Revision())
 		fmt.Fprintf(w, "status: %s\n", trace.Status())
 		fmt.Fprintf(w, "summary: %s\n", trace.Summary())
-		fmt.Fprintf(w, "rev: %s\n", trace.Rev())
 
 		fmt.Fprintf(w, "script:\n")
 		trace.WriteScriptIndented(w, 2)

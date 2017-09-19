@@ -73,8 +73,8 @@ func (rt *repairTrace) Repair() string {
 	return fmt.Sprintf("%s-%s", brand, seq)
 }
 
-// Rev returns the revision of the repair
-func (rt *repairTrace) Rev() string {
+// Revision returns the revision of the repair
+func (rt *repairTrace) Revision() string {
 	return revFromFilepath(rt.path)
 }
 
@@ -104,11 +104,7 @@ func (rt *repairTrace) Status() string {
 }
 
 func indentPrefix(level int) string {
-	indentPrefix := make([]byte, level)
-	for i := range indentPrefix {
-		indentPrefix[i] = ' '
-	}
-	return string(indentPrefix)
+	return strings.Repeat(" ", level)
 }
 
 // WriteScriptIndented outputs the script that produced this repair output
