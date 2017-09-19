@@ -211,21 +211,24 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// proprietary devices.
 	struct stat sbuf;
 	char nvpath[16] = { 0 };	// /dev/nvidiaXXX, ctl and -uvm
-	for (unsigned minor = 0; minor < 256; minor++) {
+	for (unsigned minor = 0; minor < 255; minor++) {
 		// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
-		// /dev/nvidia0 through /dev/nvidia254 and /dev/nvidiactl
-		if (minor < 255)
-			sc_must_snprintf(nvpath, sizeof(nvpath),
-					 "/dev/nvidia%u", minor);
-		else
-			sc_must_snprintf(nvpath, sizeof(nvpath),
-					 "/dev/nvidia%s", "ctl");
+		// /dev/nvidia0 through /dev/nvidia254
+		sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%u",
+				 minor);
 
-		if (stat(nvpath, &sbuf) == 0) {
-			_run_snappy_app_dev_add_majmin(udev_s, nvpath, 195,
-						       minor);
+		// Stop trying to find devices after one is not found. In this
+		// manner, we'll add /dev/nvidia0 and /dev/nvidia1 but stop
+		// trying to find nvidia3 - nvidia254 if nvidia2 is not found.
+		if (stat(nvpath, &sbuf) != 0) {
+			break;
 		}
+		_run_snappy_app_dev_add_majmin(udev_s, nvpath, 195, minor);
 	}
+
+	sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%s", "ctl");
+	if (stat(nvpath, &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, nvpath, 195, 255);
 
 	sc_must_snprintf(nvpath, sizeof(nvpath), "/dev/nvidia%s", "-uvm");
 	if (stat(nvpath, &sbuf) == 0) {
