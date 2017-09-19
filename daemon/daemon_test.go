@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/testutil"
@@ -61,10 +60,6 @@ var _ = check.Suite(&daemonSuite{})
 func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	s.lastPolkitFlags = flags
 	return s.authorized, s.err
-}
-
-func (s *daemonSuite) SetUpSuite(c *check.C) {
-	snapstate.CanAutoRefresh = nil
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {

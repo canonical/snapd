@@ -51,7 +51,7 @@ func Model(st *state.State) (*asserts.Model, error) {
 		"brand-id": device.Brand,
 		"model":    device.Model,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -77,7 +77,7 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 		"model":    device.Model,
 		"serial":   device.Serial,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {

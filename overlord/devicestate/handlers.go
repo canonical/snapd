@@ -430,7 +430,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		return err
 	}
 
@@ -500,7 +500,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		if err == nil {
 			return nil, nil
 		}
-		if err != asserts.ErrNotFound {
+		if !asserts.IsNotFound(err) {
 			return nil, err
 		}
 		st.Unlock()

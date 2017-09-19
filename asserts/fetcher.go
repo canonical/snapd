@@ -66,7 +66,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	if err == nil {
 		return nil
 	}
-	if err != ErrNotFound {
+	if !IsNotFound(err) {
 		return err
 	}
 	u := ref.Unique()

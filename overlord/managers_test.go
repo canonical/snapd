@@ -62,21 +62,20 @@ import (
 type mgrsSuite struct {
 	tempdir string
 
-	aa     *testutil.MockCmd
-	udev   *testutil.MockCmd
-	umount *testutil.MockCmd
+	restore func()
+
+	aa               *testutil.MockCmd
+	udev             *testutil.MockCmd
+	umount           *testutil.MockCmd
+	restoreSystemctl func()
 
 	snapDiscardNs *testutil.MockCmd
-
-	prevctlCmd func(...string) ([]byte, error)
+	snapSeccomp   *testutil.MockCmd
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
-	restore        func()
 
 	devAcct *asserts.Account
-
-	o *overlord.Overlord
 
 	serveIDtoName map[string]string
 	serveSnapPath map[string]string
@@ -84,7 +83,7 @@ type mgrsSuite struct {
 
 	hijackServeSnap func(http.ResponseWriter)
 
-	snapSeccomp *testutil.MockCmd
+	o *overlord.Overlord
 }
 
 var (
@@ -117,15 +116,14 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
-	snapstate.CanAutoRefresh = nil
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
-	ms.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	ms.restoreSystemctl = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
@@ -192,14 +190,17 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
+	// don't actually try to talk to the store on snapstate.Ensure
+	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	snapstate.CanAutoRefresh = nil
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	ms.restoreTrusted()
 	ms.restore()
+	ms.restoreSystemctl()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
@@ -207,7 +208,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.snapSeccomp.Restore()
 }
 
-var settleTimeout = 10 * time.Second
+var settleTimeout = 15 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
@@ -380,7 +381,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 }
 
 func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
-	var baseURL string
+	var baseURL *url.URL
 	fillHit := func(name string) string {
 		snapf, err := snap.Open(ms.serveSnapPath[name])
 		if err != nil {
@@ -390,29 +391,32 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 		if err != nil {
 			panic(err)
 		}
-		hit := strings.Replace(searchHit, "@URL@", baseURL+"/snap/"+name, -1)
+		hit := strings.Replace(searchHit, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", baseURL+"/icon", -1)
+		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", ms.serveRevision[name], -1)
 		return hit
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// all URLS are /api/v1/snaps/... so check the url is sane and discard
+		// the common prefix to simplify indexing into the comps slice.
 		comps := strings.Split(r.URL.Path, "/")
-		if len(comps) == 0 {
+		if len(comps) <= 4 {
 			panic("unexpected url path: " + r.URL.Path)
-
 		}
-		switch comps[1] {
+		comps = comps[4:]
+
+		switch comps[0] {
 		case "assertions":
 			ref := &asserts.Ref{
-				Type:       asserts.Type(comps[2]),
-				PrimaryKey: comps[3:],
+				Type:       asserts.Type(comps[1]),
+				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(ms.storeSigning.Find)
-			if err == asserts.ErrNotFound {
+			if asserts.IsNotFound(err) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(404)
 				w.Write([]byte(`{"status": 404}`))
@@ -427,7 +431,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			return
 		case "details":
 			w.WriteHeader(200)
-			io.WriteString(w, fillHit(comps[2]))
+			io.WriteString(w, fillHit(comps[1]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
 			var input struct {
@@ -458,12 +462,12 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				panic(err)
 			}
 			w.Write(output)
-		case "snap":
+		case "download":
 			if ms.hijackServeSnap != nil {
 				ms.hijackServeSnap(w)
 				return
 			}
-			snapR, err := os.Open(ms.serveSnapPath[comps[2]])
+			snapR, err := os.Open(ms.serveSnapPath[comps[1]])
 			if err != nil {
 				panic(err)
 			}
@@ -474,18 +478,11 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	}))
 	c.Assert(mockServer, NotNil)
 
-	baseURL = mockServer.URL
-
-	detailsURL, err := url.Parse(baseURL + "/details/")
-	c.Assert(err, IsNil)
-	bulkURL, err := url.Parse(baseURL + "/metadata")
-	c.Assert(err, IsNil)
-	assertionsURL, err := url.Parse(baseURL + "/assertions/")
-	c.Assert(err, IsNil)
+	baseURL, _ = url.Parse(mockServer.URL)
+	assertionsBaseURL, _ := baseURL.Parse("api/v1/snaps")
 	storeCfg := store.Config{
-		DetailsURI:    detailsURL,
-		BulkURI:       bulkURL,
-		AssertionsURI: assertionsURL,
+		StoreBaseURL:      baseURL,
+		AssertionsBaseURL: assertionsBaseURL,
 	}
 
 	mStore := store.New(&storeCfg, nil)
