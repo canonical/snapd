@@ -83,7 +83,7 @@ func (r *Repair) SetStatus(status RepairStatus) {
 // makeRepairSymlink ensures $dir/repair exists and is a symlink to
 // /usr/lib/snapd/snap-repair
 func makeRepairSymlink(dir string) (err error) {
-	// make "repair" binary available to the reapir scripts via symlink
+	// make "repair" binary available to the repair scripts via symlink
 	// to the real snap-repair
 	if err = os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -144,13 +144,18 @@ func (r *Repair) Run() error {
 	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
 	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
-	// inject /usr/lib/snapd/ into PATH so that the script can use
-	// `snap-repair done`
+	// inject repairToolDir into PATH so that the script can use
+	// `repair {done,skip,retry}`
+	var havePath bool
 	for i, envStr := range env {
 		if strings.HasPrefix(envStr, "PATH=") {
 			newEnv := fmt.Sprintf("%s:%s", strings.TrimSuffix(envStr, ":"), repairToolsDir)
 			env[i] = newEnv
+			havePath = true
 		}
+	}
+	if !havePath {
+		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
 	}
 
 	workdir := filepath.Join(rundir, "work")
