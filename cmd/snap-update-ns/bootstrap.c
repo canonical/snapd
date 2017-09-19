@@ -73,7 +73,7 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 
 // find_argv0 scans the command line buffer and looks for the 0st argument.
 const char*
-find_argv0(char* buf, size_t num_read)
+find_argv0(const char* buf, size_t num_read)
 {
     // cmdline is an array of NUL ('\0') separated strings.
     size_t argv0_len = strnlen(buf, num_read);
@@ -87,7 +87,7 @@ find_argv0(char* buf, size_t num_read)
 // find_snap_name scans the command line buffer and looks for the 1st argument.
 // if the 1st argument exists but is empty NULL is returned.
 const char*
-find_snap_name(char* buf, size_t num_read)
+find_snap_name(const char* buf, size_t num_read)
 {
     // cmdline is an array of NUL ('\0') separated strings.
     //
@@ -106,7 +106,7 @@ find_snap_name(char* buf, size_t num_read)
         buf += arg_len + 1;
     } while (buf[0] == '-');
 
-    char* snap_name = buf;
+    const char* snap_name = buf;
     if (*snap_name == '\0') {
         return NULL;
     }
@@ -114,7 +114,7 @@ find_snap_name(char* buf, size_t num_read)
 }
 
 const char*
-find_1st_option(char* buf, size_t num_read)
+find_1st_option(const char* buf, size_t num_read)
 {
     size_t argv0_len = strnlen(buf, num_read);
     if (argv0_len + 1 >= num_read) {
