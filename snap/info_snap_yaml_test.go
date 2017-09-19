@@ -1364,6 +1364,32 @@ apps:
 	})
 }
 
+func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   sockets:
+     sock:
+       listen-stream: 8080
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"svc": {
+			Snap:    info,
+			Name:    "svc",
+			Command: "svc",
+			Sockets: map[string]*snap.SocketInfo{
+				"sock": {
+					ListenStream: "8080",
+				},
+			},
+		},
+	})
+}
+
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
 	y := []byte(`
 name: foo
