@@ -31,9 +31,9 @@ The `snap-confine` program accepts two options:
 
     `--classic` requests the so-called _classic_ _confinement_ in which
     applications are not confined at all (like in classic systems, hence the
-    name). This disables disables the use of a dedicated, per-snap mount
-    namespace. The `snapd` service generates permissive apparmor and seccomp
-    profiles that allow everything.
+    name). This disables the use of a dedicated, per-snap mount namespace. The
+    `snapd` service generates permissive apparmor and seccomp profiles that
+    allow everything.
 
     `--base BASE` directs snap-confine to use the given base snap as the root
     filesystem. If omitted it defaults to the `core` snap. This is derived from
