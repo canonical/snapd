@@ -227,14 +227,14 @@ int validate_snap_name(const char* snap_name)
 }
 
 // process_arguments parses given cmdline which must be list of strings separated with NUL bytes.
+// cmdline is an array of NUL ('\0') separated strings and guaranteed to be
+// NUL-terminated via read_cmdline().
 void process_arguments(const char* cmdline, const char** snap_name_out, bool* should_setns_out)
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
     // of the code automatically.
     //
-    // cmdline is an array of NUL ('\0') separated strings and guaranteed to be
-    // NULL-terminated via read_cmdline().
     const char* argv0 = cmdline;
     if (argv0 == NULL) {
         bootstrap_errno = 0;
