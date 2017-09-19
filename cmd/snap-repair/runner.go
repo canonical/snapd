@@ -68,7 +68,7 @@ type Repair struct {
 }
 
 func (r *Repair) RunDir() string {
-	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), r.RepairID())
+	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), strconv.Itoa(r.RepairID()))
 }
 
 // SetStatus sets the status of the repair in the state and saves the latter.
@@ -204,13 +204,13 @@ func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath 
 	if err != nil {
 		logger.Noticef("cannot read %s", logPath)
 	}
-	s := fmt.Sprintf("%s/%s", r.BrandID(), r.RepairID())
+	s := fmt.Sprintf("%s/%d", r.BrandID(), r.RepairID())
 
 	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
 	extra := map[string]string{
 		"Revision": strconv.Itoa(r.Revision()),
 		"BrandID":  r.BrandID(),
-		"RepairID": r.RepairID(),
+		"RepairID": strconv.Itoa(r.RepairID()),
 		"Status":   status.String(),
 	}
 	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
@@ -273,8 +273,8 @@ var (
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
-func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -353,7 +353,7 @@ func (run *Runner) Fetch(brandID, repairID string, revision int) (repair *assert
 	return
 }
 
-func checkStream(brandID, repairID string, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+func checkStream(brandID string, repairID int, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	if len(r) == 0 {
 		return nil, nil, fmt.Errorf("empty repair assertions stream")
 	}
@@ -364,7 +364,7 @@ func checkStream(brandID, repairID string, r []asserts.Assertion) (repair *asser
 	}
 
 	if repair.BrandID() != brandID || repair.RepairID() != repairID {
-		return nil, nil, fmt.Errorf("repair id mismatch %s/%s != %s/%s", repair.BrandID(), repair.RepairID(), brandID, repairID)
+		return nil, nil, fmt.Errorf("repair id mismatch %s/%d != %s/%d", repair.BrandID(), repair.RepairID(), brandID, repairID)
 	}
 
 	return repair, r[1:], nil
@@ -375,8 +375,8 @@ type peekResp struct {
 }
 
 // Peek retrieves the headers for the repair with the given ids.
-func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{}, err error) {
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%s", brandID, repairID))
+func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interface{}, err error) {
+	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, err
 	}
@@ -422,8 +422,8 @@ func (run *Runner) Peek(brandID, repairID string) (headers map[string]interface{
 	}
 
 	headers = rsp.Headers
-	if headers["brand-id"] != brandID || headers["repair-id"] != repairID {
-		return nil, fmt.Errorf("cannot peek repair headers, repair id mismatch %s/%s != %s/%s", headers["brand-id"], headers["repair-id"], brandID, repairID)
+	if headers["brand-id"] != brandID || headers["repair-id"] != strconv.Itoa(repairID) {
+		return nil, fmt.Errorf("cannot peek repair headers, repair id mismatch %s/%s != %s/%d", headers["brand-id"], headers["repair-id"], brandID, repairID)
 	}
 
 	return headers, nil
@@ -751,8 +751,7 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 
 var errSkip = errors.New("repair unnecessary on this system")
 
-func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
+func (run *Runner) fetch(brandID string, repairID int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	headers, err := run.Peek(brandID, repairID)
 	if err != nil {
 		return nil, nil, err
@@ -763,14 +762,12 @@ func (run *Runner) fetch(brandID string, seq int) (repair *asserts.Repair, aux [
 	return run.Fetch(brandID, repairID, -1)
 }
 
-func (run *Runner) refetch(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
+func (run *Runner) refetch(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	return run.Fetch(brandID, repairID, revision)
 }
 
-func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, aux []asserts.Assertion) error {
-	repairID := strconv.Itoa(seq)
-	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
+func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repair, aux []asserts.Assertion) error {
+	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
 	err := os.MkdirAll(d, 0775)
 	if err != nil {
 		return err
@@ -780,16 +777,15 @@ func (run *Runner) saveStream(brandID string, seq int, repair *asserts.Repair, a
 	r := append([]asserts.Assertion{repair}, aux...)
 	for _, a := range r {
 		if err := enc.Encode(a); err != nil {
-			return fmt.Errorf("cannot encode repair assertions %s-%s for saving: %v", brandID, repairID, err)
+			return fmt.Errorf("cannot encode repair assertions %s-%d for saving: %v", brandID, repairID, err)
 		}
 	}
 	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
 }
 
-func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	repairID := strconv.Itoa(seq)
-	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, repairID)
+func (run *Runner) readSavedStream(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
 	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
 	f, err := os.Open(p)
 	if err != nil {
@@ -805,7 +801,7 @@ func (run *Runner) readSavedStream(brandID string, seq, revision int) (repair *a
 			break
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot decode repair assertions %s-%s from disk: %v", brandID, repairID, err)
+			return nil, nil, fmt.Errorf("cannot decode repair assertions %s-%d from disk: %v", brandID, repairID, err)
 		}
 		r = append(r, a)
 	}

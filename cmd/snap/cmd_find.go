@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -68,6 +69,10 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 type SectionName string
 
 func (s SectionName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapSectionsFile, match); err == nil {
+		return ret
+	}
+
 	cli := Client()
 	sections, err := cli.Sections()
 	if err != nil {
