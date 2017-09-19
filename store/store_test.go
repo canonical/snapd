@@ -2543,6 +2543,77 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
+const mockNamesJSON = `
+{
+  "_embedded": {
+    "clickindex:package": [
+      {
+        "aliases": [
+          {
+            "name": "potato",
+            "target": "baz"
+          },
+          {
+            "name": "meh",
+            "target": "baz"
+          }
+        ],
+        "package_name": "bar"
+      },
+      {
+        "aliases": null,
+        "package_name": "foo"
+      }
+    ]
+  }
+}`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
+	t.testUbuntuStoreSnapCommands(c, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
+	t.testUbuntuStoreSnapCommands(c, false)
+}
+
+func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+	defer release.MockOnClassic(onClassic)()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			query := r.URL.Query()
+			c.Check(query, HasLen, 1)
+			expectedConfinement := "strict"
+			if onClassic {
+				expectedConfinement = "strict,classic"
+			}
+			c.Check(query.Get("confinement"), Equals, expectedConfinement)
+			c.Check(r.URL.Path, Equals, "/api/v1/snaps/names")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("Content-Length", fmt.Sprint(len(mockNamesJSON)))
+		w.WriteHeader(200)
+		io.WriteString(w, mockNamesJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	repo := New(&Config{StoreBaseURL: serverURL}, nil)
+	c.Assert(repo, NotNil)
+
+	var bufNames bytes.Buffer
+	err := repo.WriteCatalogs(&bufNames)
+	c.Check(err, IsNil)
+	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
