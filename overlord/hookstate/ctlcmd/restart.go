@@ -22,7 +22,7 @@ package ctlcmd
 import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/servicectl"
+	"github.com/snapcore/snapd/overlord/servicestate"
 )
 
 var (
@@ -42,7 +42,7 @@ type restartCommand struct {
 }
 
 func (c *restartCommand) Execute(args []string) error {
-	inst := servicectl.Instruction{
+	inst := servicestate.Instruction{
 		Action: "restart",
 		Names:  c.Positional.ServiceNames,
 		RestartOptions: client.RestartOptions{

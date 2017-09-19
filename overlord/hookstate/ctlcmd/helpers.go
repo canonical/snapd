@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/servicectl"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -67,9 +67,9 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	return svcs, nil
 }
 
-var servicectlImpl = servicectl.ServiceControl
+var servicechangeImpl = servicestate.Change
 
-func runServiceCommand(context *hookstate.Context, inst *servicectl.Instruction, serviceNames []string) error {
+func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
 	if context == nil {
 		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
 	}
@@ -80,7 +80,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicectl.Instruction,
 		return err
 	}
 
-	chg, err := servicectlImpl(st, appInfos, inst)
+	chg, err := servicechangeImpl(st, appInfos, inst)
 	if err != nil {
 		return err
 	}

@@ -56,7 +56,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/servicectl"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
@@ -2605,7 +2605,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	var inst servicectl.Instruction
+	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
@@ -2626,9 +2626,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	chg, err := servicectl.ServiceControl(st, appInfos, &inst)
+	chg, err := servicestate.Change(st, appInfos, &inst)
 	if err != nil {
-		if _, ok := err.(servicectl.ServiceActionConflictError); ok {
+		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
 		}
 		return BadRequest(err.Error())
