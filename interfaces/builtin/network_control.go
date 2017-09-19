@@ -36,6 +36,7 @@ const networkControlConnectedPlugAppArmor = `
 # trusted apps.
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
