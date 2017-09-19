@@ -88,6 +88,7 @@ network packet,
 network bluetooth,
 
 include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # DBus accesses
 include <abstractions/dbus-strict>

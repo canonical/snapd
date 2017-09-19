@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -267,6 +268,24 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	pb.Set(float64(f.fakeCurrentProgress))
 
 	return nil
+}
+
+func (f *fakeStore) WriteCatalogs(io.Writer) error {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-commands",
+	})
+
+	return nil
+}
+
+func (f *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-sections",
+	})
+
+	return nil, nil
 }
 
 type fakeSnappyBackend struct {
