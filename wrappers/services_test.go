@@ -113,7 +113,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
   sockets:
     sock1:
       listen-stream: sock1.socket
-      socket-mode: "0666"
+      socket-mode: 0666
     sock2:
       listen-stream: sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
@@ -192,7 +192,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
   sockets:
     sock1:
       listen-stream: sock1.socket
-      socket-mode: "0666"
+      socket-mode: 0666
     sock2:
       listen-stream: sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
@@ -391,7 +391,7 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
   sockets:
     sock1:
       listen-stream: sock1.socket
-      socket-mode: "0666"
+      socket-mode: 0666
     sock2:
       listen-stream: sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})

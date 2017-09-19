@@ -444,7 +444,7 @@ type SlotInfo struct {
 // SocketInfo provides information on application sockets.
 type SocketInfo struct {
 	ListenStream string
-	SocketMode   string
+	SocketMode   os.FileMode
 }
 
 // AppInfo provides information about a app.

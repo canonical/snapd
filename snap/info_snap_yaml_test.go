@@ -1338,8 +1338,8 @@ apps:
    bus-name: busName
    sockets:
      sock1:
-       listen-stream: sock1.socket
-       socket-mode: "0666"
+       listen-stream: /tmp/sock1.socket
+       socket-mode: 0666
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1356,8 +1356,8 @@ apps:
 			BusName:         "busName",
 			Sockets: map[string]*snap.SocketInfo{
 				"sock1": {
-					ListenStream: "sock1.socket",
-					SocketMode:   "0666",
+					ListenStream: "/tmp/sock1.socket",
+					SocketMode:   0666,
 				},
 			},
 		},

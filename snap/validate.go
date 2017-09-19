@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
@@ -153,16 +152,6 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 func validateAppSocket(name string, socket *SocketInfo) error {
 	if socket.ListenStream == "" {
 		return fmt.Errorf("app socket '%s' has empty ListenStream", name)
-	}
-
-	if socket.SocketMode != "" {
-		invalidErr := fmt.Errorf("app socket '%s' has invalid SocketMode %q", name, socket.SocketMode)
-		if !strings.HasPrefix(socket.SocketMode, "0") {
-			return invalidErr
-		}
-		if _, err := strconv.ParseUint(socket.SocketMode, 8, 32); err != nil {
-			return invalidErr
-		}
 	}
 	return nil
 }

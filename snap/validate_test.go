@@ -138,7 +138,7 @@ func (s *ValidateSuite) TestValidateAppSockets(c *C) {
 		Sockets: map[string]*SocketInfo{
 			"sock": {
 				ListenStream: "/a/path",
-				SocketMode:   "0600",
+				SocketMode:   0600,
 			},
 		},
 	}
@@ -166,34 +166,6 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyName(c *C) {
 	}
 	err := ValidateApp(&app)
 	c.Assert(err, ErrorMatches, `app socket 'sock' has empty ListenStream`)
-}
-
-func (s *ValidateSuite) TestValidateAppSocketsInvalidSocketMode(c *C) {
-	app := AppInfo{
-		Name: "foo",
-		Sockets: map[string]*SocketInfo{
-			"sock": {
-				ListenStream: "/a/socket",
-				SocketMode:   "wrong",
-			},
-		},
-	}
-	err := ValidateApp(&app)
-	c.Assert(err, ErrorMatches, `app socket 'sock' has invalid SocketMode "wrong"`)
-}
-
-func (s *ValidateSuite) TestValidateAppSocketsInvalidSocketModeNoOctal(c *C) {
-	app := AppInfo{
-		Name: "foo",
-		Sockets: map[string]*SocketInfo{
-			"sock": {
-				ListenStream: "/a/socket",
-				SocketMode:   "123",
-			},
-		},
-	}
-	err := ValidateApp(&app)
-	c.Assert(err, ErrorMatches, `app socket 'sock' has invalid SocketMode "123"`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {

@@ -93,8 +93,8 @@ type layoutYaml struct {
 }
 
 type socketsYaml struct {
-	ListenStream string `yaml:"listen-stream,omitempty"`
-	SocketMode   string `yaml:"socket-mode,omitempty"`
+	ListenStream string      `yaml:"listen-stream,omitempty"`
+	SocketMode   os.FileMode `yaml:"socket-mode,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -334,19 +334,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			slot.Apps[appName] = app
 		}
 		for name, data := range yApp.Sockets {
-			var socketMode string
-			if data.SocketMode != "" {
-				if _, err := strconv.ParseUint(data.SocketMode, 8, 32); err != nil {
-					return err
-				}
-				socketMode = data.SocketMode
-			}
-
-			socketInfo := &SocketInfo{
+			app.Sockets[name] = &SocketInfo{
 				ListenStream: data.ListenStream,
-				SocketMode:   socketMode,
+				SocketMode:   data.SocketMode,
 			}
-			app.Sockets[name] = socketInfo
 		}
 	}
 	return nil

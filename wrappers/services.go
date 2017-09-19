@@ -354,7 +354,7 @@ X-Snappy=yes
 [Socket]
 Service={{.ServiceFileName}}
 ListenStream={{.SocketInfo.ListenStream}}
-{{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode}}{{end}}
+{{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
 
 [Install]
 WantedBy={{.SocketsTarget}}
