@@ -96,14 +96,6 @@ func (s *bootstrapSuite) TestFindSnapName7(c *C) {
 	c.Assert(*result, Equals, "snap")
 }
 
-// Check that if argv0 is returned as expected
-func (s *bootstrapSuite) TestFindArgv0(c *C) {
-	buf := []byte("arg0\x00argv1\x00")
-	result := update.FindArgv0(buf)
-	c.Assert(result, NotNil)
-	c.Assert(*result, Equals, "arg0")
-}
-
 // Check that ValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)

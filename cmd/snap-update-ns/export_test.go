@@ -21,7 +21,6 @@ package main
 
 var (
 	ReadCmdline      = readCmdline
-	FindArgv0        = findArgv0
 	FindSnapName     = findSnapName
 	ValidateSnapName = validateSnapName
 	ProcessArguments = processArguments
