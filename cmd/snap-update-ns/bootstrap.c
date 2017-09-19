@@ -76,25 +76,15 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 const char*
 find_snap_name(const char* buf, size_t num_read)
 {
-    // cmdline is an array of NUL ('\0') separated strings.
-    //
-    // We can skip over the first entry (program name) and look at the second
-    // entry, in our case it should be the snap name. We also want to skip any
-    // arguments starting with "-" as those are command line options we are not
-    // interested in them.
-
-    // Skip the zeroth argument as well as any options.
+    // Skip the zeroth argument as well as any options. We know buf is NULL
+    // padded and terminated from read_cmdline().
     do {
-        size_t arg_len = strnlen(buf, num_read);
-        if (arg_len + 1 >= num_read) {
-            return NULL;
-        }
-        num_read -= arg_len + 1;
+        size_t arg_len = strlen(buf);
         buf += arg_len + 1;
     } while (buf[0] == '-');
 
     const char* snap_name = buf;
-    if (*snap_name == '\0') {
+    if (strlen(snap_name) == 0) {
         return NULL;
     }
     return snap_name;
