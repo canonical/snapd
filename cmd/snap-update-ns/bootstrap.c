@@ -308,6 +308,10 @@ void bootstrap(void)
         // namespace.
         if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
             return;
+        } else {
+            bootstrap_errno = 0;
+            bootstrap_msg = "unsupported option";
+            return;
         }
     }
 
