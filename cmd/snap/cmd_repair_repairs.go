@@ -76,7 +76,7 @@ type cmdListRepairs struct{}
 
 var shortRepairsHelp = i18n.G("Lists all repairs")
 var longRepairsHelp = i18n.G(`
-The repairs command lists all repairs for the given device.
+The repairs command lists all processed repairs for this device.
 `)
 
 func init() {
