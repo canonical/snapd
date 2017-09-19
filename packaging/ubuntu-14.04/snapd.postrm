@@ -87,6 +87,9 @@ if [ "$1" = "purge" ]; then
     umount -l /snap || true
     rmdir --ignore-fail-on-non-empty /snap || true
 
+    echo "Removing snapd cache"
+    rm -f /var/cache/snapd/*
+
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi
