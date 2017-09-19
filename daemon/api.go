@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
@@ -2347,12 +2347,9 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	// Right now snapctl is only used for hooks. If at some point it grows
-	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	if err != nil {
-		return BadRequest("error running snapctl: %s", err)
-	}
+	// Ignore missing context error to allow 'snapctl -h' without a context;
+	// Actual context is validated later by get/set.
+	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
@@ -2362,7 +2359,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	if context.IsEphemeral() {
+	if context != nil && context.IsEphemeral() {
 		context.Lock()
 		defer context.Unlock()
 		if err := context.Done(); err != nil {

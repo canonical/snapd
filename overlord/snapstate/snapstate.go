@@ -23,14 +23,17 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
@@ -1695,4 +1698,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
+}
+
+func refreshCatalogs(st *state.State, theStore storestate.StoreService) error {
+	st.Unlock()
+	defer st.Lock()
+
+	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
+	}
+
+	sections, err := theStore.Sections(nil)
+	if err != nil {
+		return err
+	}
+
+	sort.Strings(sections)
+	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
+		return err
+	}
+
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	if err != nil {
+		return err
+	}
+	defer namesFile.Cancel()
+	if err := theStore.WriteCatalogs(namesFile); err != nil {
+		return err
+	}
+
+	return namesFile.Commit()
 }

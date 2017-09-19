@@ -39,8 +39,6 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
-    # This skips various sync calls which can greatly speed up test execution.
-    SNAPD_UNSAFE_IO: 1
 
 backends:
     linode:
@@ -299,6 +297,15 @@ prepare: |
         echo "Tests cannot run inside a container"
         exit 1
     fi
+    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
+        # There's a packaging bug in Debian sid lately where some packages
+        # conflict on manual page file. To work around it simply remove the
+        # manpages package.
+        apt-get remove --purge -y manpages
+    fi
+
+    # FIXME: remove once the following bug is fixed:
+    #   https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=876128
     if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
         # There's a packaging bug in Debian sid lately where some packages
         # conflict on manual page file. To work around it simply remove the
