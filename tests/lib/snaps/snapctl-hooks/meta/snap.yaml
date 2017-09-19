@@ -1,6 +1,2 @@
 name: snapctl-hooks
 version: 1.0
-environment:
-  TEST_SNAP: $SNAP
-  TEST_COMMON: $SNAP_COMMON
-  TEST_DATA: $SNAP_DATA
