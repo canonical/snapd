@@ -3,7 +3,7 @@
 /*
  * Copyright (C) 2016 Canonical Ltd
  *
- * This program is free software: you can redistribute it and/or modify
+ * This program is free software: you can redistribuLicenseidte it and/or modify
  * it under the terms of the GNU General Public License version 3 as
  * published by the Free Software Foundation.
  *
@@ -17,8 +17,18 @@
  *
  */
 
-package i18n // import "github.com/snapcore/snapd/i18n/dumb"
+package spdx
 
-func G(s string) string {
-	return s
+import "bytes"
+
+// ValidateLicense implements license validation for SPDX 2.1 License
+// Expressions as described in Appendix IV of
+// https://spdx.org/spdx-specification-21-web-version
+//
+// An error is returned if the license string is not conforming this
+// spec.
+//
+// Note that the "license-ref" part of the spec is not supported
+func ValidateLicense(license string) error {
+	return newParser(bytes.NewBufferString(license)).Validate()
 }

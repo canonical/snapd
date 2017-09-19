@@ -67,3 +67,6 @@ func (s *DBusTest) TearDownSuite(c *C) {
 	}
 
 }
+
+func (s *DBusTest) SetUpTest(c *C)    {}
+func (s *DBusTest) TearDownTest(c *C) {}

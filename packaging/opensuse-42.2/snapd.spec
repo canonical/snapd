@@ -32,8 +32,8 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27.5
-Release:        1
+Version:        2.27.6
+Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
 Group:          System/Packages
@@ -128,11 +128,11 @@ export CXXFLAGS
 %goprep %{import_path}
 
 %if 0%{?with_test_keys}
-# The %gobuild macro doesn't allow us to pass any additional parameters
+# The gobuild macro doesn't allow us to pass any additional parameters
 # so we we have to invoke `go install` here manually.
 export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
 export GOBIN=%{_builddir}/go/bin
-# Options used are the same as the %gobuild macro does but as it
+# Options used are the same as the gobuild macro does but as it
 # doesn't allow us to amend new flags we have to repeat them here:
 # -s: tell long running tests to shorten their build time
 # -v: be verbose
@@ -144,9 +144,10 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %endif
 
 %gobuild cmd/snap
-%gobuild cmd/snap-exec
 %gobuild cmd/snapctl
 %gobuild cmd/snap-update-ns
+# build snap-exec completely static for base snaps
+CGO_ENABLED=0 %gobuild cmd/snap-exec
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
@@ -198,6 +199,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %buildroot/var/cache/snapd
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -243,6 +245,9 @@ esac
 
 %preun
 %service_del_preun %{systemd_services_list}
+if [ $1 -eq 0 ]; then
+    rm -f /var/cache/snapd/*
+fi
 
 %postun
 %service_del_postun %{systemd_services_list}
@@ -268,6 +273,7 @@ esac
 %dir /var/lib/snapd/seccomp
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
+%dir /var/cache/snapd
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man5/snap-confine.5.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
