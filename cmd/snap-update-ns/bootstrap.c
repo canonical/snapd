@@ -251,8 +251,7 @@ void process_arguments(const char* cmdline, size_t num_read, const char** snap_n
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
-    // of the code automatically. In snapd we can just set the required
-    // environment variable.
+    // of the code automatically.
     const char* argv0 = find_argv0(cmdline, num_read);
     if (argv0 == NULL) {
         bootstrap_errno = 0;
