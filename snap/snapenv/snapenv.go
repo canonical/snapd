@@ -29,6 +29,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type preserveUnsafeEnvFlag int8
+
+const (
+	noPreserve preserveUnsafeEnvFlag = iota
+	doPreserve
+)
+
 // ExecEnv returns the full environment that is required for
 // snap-{confine,exec}(like SNAP_{NAME,REVISION} etc are all set).
 //
@@ -44,7 +51,11 @@ import (
 func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
-	env := envMap(os.Environ(), info.Confinement == snap.ClassicConfinement)
+	preserve := noPreserve
+	if info.Confinement == snap.ClassicConfinement {
+		preserve = doPreserve
+	}
+	env := envMap(os.Environ(), preserve)
 	snapEnv := snapEnv(info)
 	for k, v := range snapEnv {
 		env[k] = v
@@ -146,7 +157,7 @@ const PreservedUnsafePrefix = "SNAP_SAVED_"
 // rename variables that will be stripped out by the dynamic linker
 // executing the setuid snap-confine by prepending their names with
 // PreservedUnsafePrefix.
-func envMap(env []string, preserveUnsafeVars bool) map[string]string {
+func envMap(env []string, preserveUnsafeEnv preserveUnsafeEnvFlag) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
 		// snap-exec unconditionally renames variables
@@ -161,7 +172,7 @@ func envMap(env []string, preserveUnsafeVars bool) map[string]string {
 			continue // strange
 		}
 		k, v := l[0], l[1]
-		if preserveUnsafeVars && unsafeEnv[k] {
+		if preserveUnsafeEnv == doPreserve && unsafeEnv[k] {
 			k = PreservedUnsafePrefix + k
 		}
 		envMap[k] = v
