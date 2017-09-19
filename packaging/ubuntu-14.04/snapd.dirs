@@ -1,4 +1,5 @@
 snap
+var/cache/snapd
 usr/lib/snapd
 var/lib/snapd/apparmor/snap-confine.d
 var/lib/snapd/auto-import

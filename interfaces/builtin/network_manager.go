@@ -114,6 +114,7 @@ network packet,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # Explicitly deny plugging snaps from ptracing the slot to silence noisy
 # denials. Neither the NetworkManager service nor nmcli require ptrace
