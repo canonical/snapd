@@ -79,7 +79,7 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 const char*
 find_snap_name(const char* buf)
 {
-    // Skip the zeroth argument as well as any options. We know buf is NULL
+    // Skip the zeroth argument as well as any options. We know buf is NUL
     // padded and terminated from read_cmdline().
     do {
         size_t arg_len = strlen(buf);
@@ -96,6 +96,8 @@ find_snap_name(const char* buf)
 const char*
 find_1st_option(const char* buf)
 {
+    // Skip the zeroth argument and find the first command line option.
+    // We know buf is NUL padded and terminated from read_cmdline().
     size_t pos = strlen(buf) + 1;
     if (buf[pos] == '-') {
         return &buf[pos];
