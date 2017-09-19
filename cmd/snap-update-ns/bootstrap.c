@@ -161,6 +161,7 @@ setns_into_snap(const char* snap_name)
     return err;
 }
 
+// TODO: reuse the code from snap-confine, if possible.
 static int skip_lowercase_letters(const char** p)
 {
     int skipped = 0;
@@ -172,6 +173,7 @@ static int skip_lowercase_letters(const char** p)
     return skipped;
 }
 
+// TODO: reuse the code from snap-confine, if possible.
 static int skip_digits(const char** p)
 {
     int skipped = 0;
@@ -183,6 +185,7 @@ static int skip_digits(const char** p)
     return skipped;
 }
 
+// TODO: reuse the code from snap-confine, if possible.
 static int skip_one_char(const char** p, char c)
 {
     if (**p == c) {
