@@ -24,4 +24,5 @@ var (
 	FindArgv0        = findArgv0
 	FindSnapName     = findSnapName
 	ValidateSnapName = validateSnapName
+	ProcessArguments = processArguments
 )
