@@ -28,7 +28,8 @@ import (
 func (r *repairSuite) TestListNoRepairsYet(c *C) {
 	err := repair.ParseArgs([]string{"list"})
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), Equals, "no repairs yet\n")
+	c.Check(r.Stdout(), Equals, "")
+	c.Check(r.Stderr(), Equals, "no repairs yet\n")
 }
 
 func (r *repairSuite) TestListRepairsSimple(c *C) {
@@ -42,4 +43,5 @@ my-brand-1   1    done     my-brand repair one
 my-brand-2   2    skip     my-brand repair two
 my-brand-3   0    running  my-brand repair three
 `)
+	c.Check(r.Stderr(), Equals, "")
 }
