@@ -52,7 +52,7 @@ func (r *repairSuite) TestStatusUnparsableStatusFD(c *C) {
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
 
 		err := repair.ParseArgs([]string{s})
-		c.Check(err, ErrorMatches, `cannot parse SNAP_REPAIR_STATUS_FD environment: strconv.ParseInt: parsing "xxx": invalid syntax`)
+		c.Check(err, ErrorMatches, `cannot parse SNAP_REPAIR_STATUS_FD environment: strconv.*: parsing "xxx": invalid syntax`)
 	}
 }
 

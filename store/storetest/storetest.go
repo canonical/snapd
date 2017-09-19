@@ -20,6 +20,8 @@
 package storetest
 
 import (
+	"io"
+
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
@@ -79,6 +81,6 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
-func (Store) SnapCommands() (map[string][]string, error) {
-	panic("fakeStore.SnapCommands not expected")
+func (Store) WriteCatalogs(io.Writer) error {
+	panic("fakeStore.WriteCatalogs not expected")
 }
