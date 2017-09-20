@@ -720,6 +720,9 @@ func stringList(headers map[string]interface{}, name string) ([]string, error) {
 
 // Applicable returns whether a repair with the given headers is applicable to the device.
 func (run *Runner) Applicable(headers map[string]interface{}) bool {
+	if headers["disabled"] == "true" {
+		return false
+	}
 	series, err := stringList(headers, "series")
 	if err != nil {
 		return false
