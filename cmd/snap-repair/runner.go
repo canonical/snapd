@@ -121,6 +121,14 @@ func (r *Repair) Run() error {
 	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
 	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
+	// inject /usr/lib/snapd/ into PATH so that the script can use
+	// `snap-repair done`
+	for i, envStr := range env {
+		if strings.HasPrefix(envStr, "PATH=") {
+			newEnv := fmt.Sprintf("%s:%s", strings.TrimSuffix(envStr, ":"), dirs.CoreLibExecDir)
+			env[i] = newEnv
+		}
+	}
 
 	workdir := filepath.Join(rundir, "work")
 	if err := os.MkdirAll(workdir, 0700); err != nil {

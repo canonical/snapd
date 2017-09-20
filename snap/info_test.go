@@ -443,12 +443,12 @@ func (s *infoSuite) TestJoinSnapApp(c *C) {
 	}
 }
 
-func ExampleSpltiSnapApp() {
+func ExampleSplitSnapApp() {
 	fmt.Println(snap.SplitSnapApp("hello-world.env"))
 	// Output: hello-world env
 }
 
-func ExampleSpltiSnapAppShort() {
+func ExampleSplitSnapAppShort() {
 	fmt.Println(snap.SplitSnapApp("hello-world"))
 	// Output: hello-world hello-world
 }

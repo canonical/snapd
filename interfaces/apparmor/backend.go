@@ -216,7 +216,11 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var policy string
-	if opts.Classic && !opts.JailMode {
+	// When partial AppArmor is detected, use the classic template for now. We could
+	// use devmode, but that could generate confusing log entries for users running
+	// snaps on systems with partial AppArmor support.
+	level := release.AppArmorLevel()
+	if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
 		policy = classicTemplate
 	} else {
 		policy = defaultTemplate
@@ -232,13 +236,12 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###SNIPPETS###":
 			var tagSnippets string
-
 			if opts.Classic && opts.JailMode {
 				// Add a special internal snippet for snaps using classic confinement
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
-			} else if opts.Classic && !opts.JailMode {
+			} else if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
 				// When classic confinement (without jailmode) is in effect we
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.
