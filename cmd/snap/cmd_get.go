@@ -166,6 +166,10 @@ func (x *cmdGet) outputList(conf map[string]interface{}) error {
 	return nil
 }
 
+var isTerminal = func() bool {
+	return terminal.IsTerminal(int(os.Stdin.Fd()))
+}
+
 func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, confKeys []string) error {
 	rootRequested := len(confKeys) == 0
 	var confToPrint interface{} = conf
@@ -182,9 +186,14 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 		}
 	}
 
-	if _, ok := confToPrint.(map[string]interface{}); ok {
-		// TODO: remove this conditional and the warning below after a transition period.
-		fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
+	if cfg, ok := confToPrint.(map[string]interface{}); ok {
+		// FIXME: this needs a test
+		if isTerminal() {
+			return x.outputList(cfg)
+		} else {
+			// TODO: remove this conditional and the warning below after a transition period.
+			fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
+		}
 	}
 
 	if s, ok := confToPrint.(string); ok && !x.Typed {
@@ -224,11 +233,10 @@ func (x *cmdGet) Execute(args []string) error {
 		return err
 	}
 
-	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
 	switch {
 	case x.Document:
 		return x.outputJson(conf)
-	case x.List || isTerminal:
+	case x.List:
 		return x.outputList(conf)
 	default:
 		return x.outputDefault(conf, snapName, confKeys)
