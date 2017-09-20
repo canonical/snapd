@@ -166,37 +166,7 @@ func (x *cmdGet) outputList(conf map[string]interface{}) error {
 	return nil
 }
 
-func (x *cmdGet) Execute(args []string) error {
-	if len(args) > 0 {
-		// TRANSLATORS: the %s is the list of extra arguments
-		return fmt.Errorf(i18n.G("too many arguments: %s"), strings.Join(args, " "))
-	}
-
-	if x.Document && x.Typed {
-		return fmt.Errorf("cannot use -d and -t together")
-	}
-
-	if x.Document && x.List {
-		return fmt.Errorf("cannot use -d and -l together")
-	}
-
-	snapName := string(x.Positional.Snap)
-	confKeys := x.Positional.Keys
-
-	cli := Client()
-	conf, err := cli.Conf(snapName, confKeys)
-	if err != nil {
-		return err
-	}
-
-	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
-	switch {
-	case x.Document:
-		return x.outputJson(conf)
-	case x.List || isTerminal:
-		return x.outputList(conf)
-	}
-
+func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, confKeys []string) error {
 	rootRequested := len(confKeys) == 0
 	var confToPrint interface{} = conf
 
@@ -228,4 +198,39 @@ func (x *cmdGet) Execute(args []string) error {
 
 	fmt.Fprintln(Stdout, "")
 	return nil
+
+}
+
+func (x *cmdGet) Execute(args []string) error {
+	if len(args) > 0 {
+		// TRANSLATORS: the %s is the list of extra arguments
+		return fmt.Errorf(i18n.G("too many arguments: %s"), strings.Join(args, " "))
+	}
+
+	if x.Document && x.Typed {
+		return fmt.Errorf("cannot use -d and -t together")
+	}
+
+	if x.Document && x.List {
+		return fmt.Errorf("cannot use -d and -l together")
+	}
+
+	snapName := string(x.Positional.Snap)
+	confKeys := x.Positional.Keys
+
+	cli := Client()
+	conf, err := cli.Conf(snapName, confKeys)
+	if err != nil {
+		return err
+	}
+
+	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
+	switch {
+	case x.Document:
+		return x.outputJson(conf)
+	case x.List || isTerminal:
+		return x.outputList(conf)
+	default:
+		return x.outputDefault(conf, snapName, confKeys)
+	}
 }
