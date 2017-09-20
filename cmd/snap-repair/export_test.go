@@ -66,6 +66,10 @@ func MockTrustedRepairRootKeys(keys []*asserts.AccountKey) (restore func()) {
 	}
 }
 
+func TrustedRepairRootKeys() []*asserts.AccountKey {
+	return trustedRepairRootKeys
+}
+
 func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }

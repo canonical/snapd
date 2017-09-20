@@ -41,6 +41,7 @@ execute: |
     echo "$@" > /tmp/xdg-open-output
     EOF
     chmod +x /tmp/xdg-open
+    touch /usr/bin/xdg-open
     mount --bind /tmp/xdg-open /usr/bin/xdg-open
 
     ensure_xdg_open_output() {

@@ -2,6 +2,14 @@
 #include <tunables/global>
 
 @LIBEXECDIR@/snap-confine (attach_disconnected) {
+    # Include any additional files that snapd chose to generate.
+    # - for $HOME on NFS
+    # - for $HOME on encrypted media
+    #
+    # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
+    # and https://forum.snapcraft.io/t/snaps-and-nfs-home/
+    include "/var/lib/snapd/apparmor/snap-confine.d"
+
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
@@ -242,6 +250,10 @@
     audit deny mount /** -> /snap/bin/**,
     # Allow the content interface to bind fonts from the host filesystem
     mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
+    # Allow the desktop interface to bind fonts from the host filesystem
+    mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts -> /usr/share/fonts,
+    mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts -> /usr/local/share/fonts,
+    mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig -> /var/cache/fontconfig,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir

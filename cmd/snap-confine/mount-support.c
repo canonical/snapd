@@ -574,17 +574,23 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			{},
 		};
 		char rootfs_dir[PATH_MAX];
- again:
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
 				 base_snap_name);
 		if (access(rootfs_dir, F_OK) != 0) {
 			if (sc_streq(base_snap_name, "core")) {
-				// As a special fallback, allow the base snap to degrade from
-				// "core" to "ubuntu-core". This is needed for the migration
-				// tests.
+				// As a special fallback, allow the
+				// base snap to degrade from "core" to
+				// "ubuntu-core". This is needed for
+				// the migration tests.
 				base_snap_name = "ubuntu-core";
-				goto again;
+				sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
+						 "%s/%s/current/",
+						 SNAP_MOUNT_DIR,
+						 base_snap_name);
+				if (access(rootfs_dir, F_OK) != 0) {
+					die("cannot locate the core or legacy core snap (current symlink missing?)");
+				}
 			}
 			die("cannot locate the base snap: %s", base_snap_name);
 		}
