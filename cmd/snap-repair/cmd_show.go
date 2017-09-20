@@ -67,11 +67,13 @@ func showRepairDetails(w io.Writer, repair string) error {
 
 		fmt.Fprintf(w, "script:\n")
 		if err := trace.WriteScriptIndented(w, 2); err != nil {
-			fmt.Fprintf(w, "%serror: %s", indentPrefix(2), err)
+			fmt.Fprintf(w, "%serror: %s\n", indentPrefix(2), err)
 		}
 
 		fmt.Fprintf(w, "output:\n")
-		trace.WriteOutputIndented(w, 2)
+		if err := trace.WriteOutputIndented(w, 2); err != nil {
+			fmt.Fprintf(w, "%serror: %s\n", indentPrefix(2), err)
+		}
 	}
 
 	return nil

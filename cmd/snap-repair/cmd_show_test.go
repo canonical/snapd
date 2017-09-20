@@ -20,6 +20,10 @@
 package main_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
@@ -91,4 +95,48 @@ func (r *repairSuite) TestShowRepairErrorNoRepairDir(c *C) {
 
 	err := repair.NewCmdShow("canonical-1").Execute(nil)
 	c.Check(err, ErrorMatches, `cannot find repair "canonical-1"`)
+}
+
+func (r *repairSuite) TestShowRepairSingleWithoutScript(c *C) {
+	makeMockRepairState(c)
+	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.script")
+	err := os.Remove(scriptPath)
+	c.Assert(err, IsNil)
+
+	err = repair.NewCmdShow("canonical-1").Execute(nil)
+	c.Check(err, IsNil)
+	c.Check(r.Stdout(), Equals, fmt.Sprintf(`repair: canonical-1
+revision: 3
+status: retry
+summary: repair one
+script:
+  error: open %s: no such file or directory
+output:
+  retry output
+
+`, scriptPath))
+
+}
+
+func (r *repairSuite) TestShowRepairSingleUnreadableOutput(c *C) {
+	makeMockRepairState(c)
+	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.retry")
+	err := os.Chmod(scriptPath, 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(scriptPath, 0644)
+
+	err = repair.NewCmdShow("canonical-1").Execute(nil)
+	c.Check(err, IsNil)
+	c.Check(r.Stdout(), Equals, fmt.Sprintf(`repair: canonical-1
+revision: 3
+status: retry
+summary: -
+script:
+  #!/bin/sh
+  echo retry output
+output:
+  error: open %s: permission denied
+
+`, scriptPath))
+
 }
