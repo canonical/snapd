@@ -139,6 +139,16 @@ func flattenConfig(cfg map[string]interface{}, root bool) (values []ConfigValue)
 	return values
 }
 
+func (c *cmdGet) outputJson(conf map[string]interface{}) error {
+	bytes, err := json.MarshalIndent(conf, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(Stdout, string(bytes))
+	return nil
+}
+
 func (x *cmdGet) Execute(args []string) error {
 	if len(args) > 0 {
 		// TRANSLATORS: the %s is the list of extra arguments
@@ -162,16 +172,19 @@ func (x *cmdGet) Execute(args []string) error {
 		return err
 	}
 
+	switch {
+	case x.Document:
+		return x.outputJson(conf)
+	}
+
 	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
 	rootRequested := len(confKeys) == 0
 	var confToPrint interface{} = conf
 
 	if rootRequested && len(conf) == 0 {
-		if !x.Document {
-			return fmt.Errorf("snap %q has no configuration", snapName)
-		}
+		return fmt.Errorf("snap %q has no configuration", snapName)
 	} else {
-		if !x.Document && !x.List && len(confKeys) == 1 {
+		if !x.List && len(confKeys) == 1 {
 			// if single key was requested, then just output the value unless it's a map,
 			// in which case it will be printed as a list below.
 			if _, ok := conf[confKeys[0]].(map[string]interface{}); !ok {
@@ -179,7 +192,7 @@ func (x *cmdGet) Execute(args []string) error {
 			}
 		}
 
-		if cfg, ok := confToPrint.(map[string]interface{}); ok && !x.Document {
+		if cfg, ok := confToPrint.(map[string]interface{}); ok {
 			// TODO: remove this conditional and the warning below after a transition period.
 			if isTerminal || x.List {
 				w := tabWriter()
