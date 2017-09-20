@@ -1704,9 +1704,6 @@ func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
 	defer r2()
 
-	restore := repair.MockDefaultRepairTimeout(100 * time.Millisecond)
-	defer restore()
-
 	script := `#!/bin/sh
 echo PATH=$PATH
 ls -l ${PATH##*:}/repair
