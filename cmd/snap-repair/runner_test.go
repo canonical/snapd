@@ -908,6 +908,13 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	return mockServer
 }
 
+func (s *runnerSuite) TestTrustedRepairRootKeys(c *C) {
+	acctKeys := repair.TrustedRepairRootKeys()
+	c.Check(acctKeys, HasLen, 1)
+	c.Check(acctKeys[0].AccountID(), Equals, "canonical")
+	c.Check(acctKeys[0].PublicKeyID(), Equals, "nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t")
+}
+
 func (s *runnerSuite) TestVerify(c *C) {
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
