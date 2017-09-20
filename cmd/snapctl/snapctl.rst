@@ -22,7 +22,7 @@ DESCRIPTION
 ===========
 
 The `snapctl` command can be called by snap hooks (such as `configure`,
-`install`, `remove`) or by applications to get or set configuration values of
+`install` or `remove`) or by applications to get or set configuration values of
 the containing snap. The `snapctl` command cannot be used outside of these
 contexts.
 
@@ -68,12 +68,40 @@ Configuration values can store arbitrary JSON data. Such values can be set by
 providing properly quoted JSON documents. Specific values contained in JSON
 documents can be referenced by dotted paths. See examples below.
 
-EXAMPLE
-=======
+EXAMPLES
+========
 
- snapctl set username=frank email=frank@somehost.com
- snapctl set user="{\"name\":\"frank\", \"email\":\"frank@somehost.com\"}"
- snapctl set user.name=frank
+`snapctl set username=frank email=frank@somehost.com`
+
+ Set username and email values.
+
+`snapctl set user="{\"name\":\"frank\", \"email\":\"frank@somehost.com\"}"`
+
+ Set user to a JSON map.
+ 
+`snapctl set user.name=frank`
+
+ Set name inside user document using dotted path (creates the map automatically if
+ it doesn't exist).
+
+`snapctl get user.name`
+
+ Get name from user document, prints just the value since it's a simple string:
+ `frank`
+
+ `snapctl get -d user.name`
+
+ Get name from user document, forces JSON output resulting in:
+`{
+        "user.name": "frank"
+ }`
+
+ `snapctl get user`
+
+ Get user document, prints:
+`{
+        "name": "frank"
+ }`
 
 BUGS
 ====
