@@ -361,6 +361,9 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 	})
 	defer reset()
 
+	// this needs doing because dirs depends on the release info
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, ErrorMatches, "classic confinement requires snaps under /snap or symlink from /snap to "+dirs.SnapMountDir)
 }
@@ -483,7 +486,7 @@ func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
@@ -580,7 +583,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -602,7 +605,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -1085,7 +1088,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -1111,7 +1114,7 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -1151,7 +1154,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -1223,7 +1226,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 
 	s.state.Lock()
@@ -5282,7 +5285,7 @@ func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
 }
 func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
@@ -5336,7 +5339,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 	s.testTrySetsTryMode(snapstate.Flags{}, c)
 }
@@ -5349,7 +5352,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 }
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
 	if !dirs.SupportsClassicConfinement() {
-		return
+		c.Skip("no support for classic")
 	}
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }

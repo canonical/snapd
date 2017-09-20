@@ -22,7 +22,7 @@ execute: |
         exit 1
     fi
 
-    echo "Test that getting root document without any configuration produces an error"
+    echo "Test that getting root document without any configuration produces an error with list format"
     if output=$(snap get snapctl-hooks 2>&1); then
         echo "snap get didn't fail as expected"
         exit 1
@@ -32,6 +32,9 @@ execute: |
         echo "Expected '$expected' error, but it was '$output'"
         exit 1
     fi
+
+    echo "Test that getting root document without any configuration works for json output"
+    snap get snapctl-hooks -d | MATCH "^{}$"
 
     echo "Test that values set via snapctl can be obtained via snap get"
     if ! snap set snapctl-hooks command=test-snapctl-set-foo; then
