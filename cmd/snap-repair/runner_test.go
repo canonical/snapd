@@ -1704,11 +1704,9 @@ func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
 	defer r2()
 
-	restore := repair.MockDefaultRepairTimeout(100 * time.Millisecond)
-	defer restore()
-
 	script := `#!/bin/sh
 echo PATH=$PATH
+ls -l ${PATH##*:}/repair
 `
 	s.seqRepairs = []string{makeMockRepair(script)}
 	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
@@ -1721,5 +1719,11 @@ echo PATH=$PATH
 
 	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
 	c.Assert(err, IsNil)
-	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:.*/usr/lib/snapd"))
+	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:.*/run/snapd/repair/tools.*"))
+	c.Check(string(output), Matches, "(?ms).*/repair -> /usr/lib/snapd/snap-repair")
+
+	// run again and ensure no error happens
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
 }
