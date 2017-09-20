@@ -139,7 +139,7 @@ func flattenConfig(cfg map[string]interface{}, root bool) (values []ConfigValue)
 	return values
 }
 
-func (c *cmdGet) outputJson(conf map[string]interface{}) error {
+func (c *cmdGet) outputJson(conf interface{}) error {
 	bytes, err := json.MarshalIndent(conf, "", "\t")
 	if err != nil {
 		return err
@@ -217,24 +217,15 @@ func (x *cmdGet) Execute(args []string) error {
 		fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
 	}
 
-	if x.Typed && confToPrint == nil {
-		fmt.Fprintln(Stdout, "null")
-		return nil
-	}
-
 	if s, ok := confToPrint.(string); ok && !x.Typed {
 		fmt.Fprintln(Stdout, s)
 		return nil
 	}
 
-	var bytes []byte
-	if confToPrint != nil {
-		bytes, err = json.MarshalIndent(confToPrint, "", "\t")
-		if err != nil {
-			return err
-		}
+	if confToPrint != nil || x.Typed {
+		return x.outputJson(confToPrint)
 	}
 
-	fmt.Fprintln(Stdout, string(bytes))
+	fmt.Fprintln(Stdout, "")
 	return nil
 }
