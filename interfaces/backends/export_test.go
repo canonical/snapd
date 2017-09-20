@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,8 @@
  *
  */
 
-package release
-
-var ReadOSRelease = readOSRelease
-
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
-	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
-	}
-}
-
-func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
-	old := appArmorFeaturesSysPath
-	appArmorFeaturesSysPath = path
-	return func() {
-		appArmorFeaturesSysPath = old
-	}
-}
+package backends
 
 var (
-	ProbeAppArmor            = probeAppArmor
-	RequiredAppArmorFeatures = requiredAppArmorFeatures
+	Backends = backends
 )

@@ -163,42 +163,48 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 
 	isTerminal := terminal.IsTerminal(int(os.Stdin.Fd()))
-
+	rootRequested := len(confKeys) == 0
 	var confToPrint interface{} = conf
-	if !x.Document && !x.List && len(confKeys) == 1 {
-		// if single key was requested, then just output the value unless it's a map,
-		// in which case it will be printed as a list below.
-		if _, ok := conf[confKeys[0]].(map[string]interface{}); !ok {
-			confToPrint = conf[confKeys[0]]
+
+	if rootRequested && len(conf) == 0 {
+		if !x.Document {
+			return fmt.Errorf("snap %q has no configuration", snapName)
 		}
-	}
-
-	if cfg, ok := confToPrint.(map[string]interface{}); ok && !x.Document {
-		// TODO: remove this conditional and the warning below after a transition period.
-		if isTerminal || x.List {
-			w := tabWriter()
-			defer w.Flush()
-
-			rootRequested := len(confKeys) == 0
-			fmt.Fprintf(w, "Key\tValue\n")
-			values := flattenConfig(cfg, rootRequested)
-			for _, v := range values {
-				fmt.Fprintf(w, "%s\t%v\n", v.Path, v.Value)
+	} else {
+		if !x.Document && !x.List && len(confKeys) == 1 {
+			// if single key was requested, then just output the value unless it's a map,
+			// in which case it will be printed as a list below.
+			if _, ok := conf[confKeys[0]].(map[string]interface{}); !ok {
+				confToPrint = conf[confKeys[0]]
 			}
-			return nil
-		} else {
-			fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
 		}
-	}
 
-	if x.Typed && confToPrint == nil {
-		fmt.Fprintln(Stdout, "null")
-		return nil
-	}
+		if cfg, ok := confToPrint.(map[string]interface{}); ok && !x.Document {
+			// TODO: remove this conditional and the warning below after a transition period.
+			if isTerminal || x.List {
+				w := tabWriter()
+				defer w.Flush()
 
-	if s, ok := confToPrint.(string); ok && !x.Typed {
-		fmt.Fprintln(Stdout, s)
-		return nil
+				fmt.Fprintf(w, "Key\tValue\n")
+				values := flattenConfig(cfg, rootRequested)
+				for _, v := range values {
+					fmt.Fprintf(w, "%s\t%v\n", v.Path, v.Value)
+				}
+				return nil
+			} else {
+				fmt.Fprintf(Stderr, i18n.G(`WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`))
+			}
+		}
+
+		if x.Typed && confToPrint == nil {
+			fmt.Fprintln(Stdout, "null")
+			return nil
+		}
+
+		if s, ok := confToPrint.(string); ok && !x.Typed {
+			fmt.Fprintln(Stdout, s)
+			return nil
+		}
 	}
 
 	var bytes []byte
