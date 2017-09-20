@@ -767,6 +767,8 @@ func (s *runnerSuite) TestApplicable(c *C) {
 		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
 		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
 		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
+		{map[string]interface{}{"disabled": "true"}, false},
+		{map[string]interface{}{"disabled": "false"}, true},
 	}
 
 	for _, scen := range scenarios {
@@ -1140,7 +1142,8 @@ brand-id: canonical
 repair-id: 1
 summary: repair one rev1
 series:
-  - 33
+  - 16
+disabled: true
 timestamp: 2017-07-02T12:00:00Z
 body-length: 7
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
