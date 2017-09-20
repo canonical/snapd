@@ -91,11 +91,11 @@ func makeRepairSymlink(dir string) (err error) {
 
 	old := filepath.Join(dirs.CoreLibExecDir, "snap-repair")
 	new := filepath.Join(dir, "repair")
-	if osutil.FileExists(new) {
-		return nil
+	if err := os.Symlink(old, new); err != nil && !os.IsExist(err) {
+		return err
 	}
 
-	return os.Symlink(old, new)
+	return nil
 }
 
 // Run executes the repair script leaving execution trail files on disk.
