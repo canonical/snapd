@@ -60,6 +60,9 @@ func (r *repairSuite) TestStatusHappy(c *C) {
 	for _, s := range []string{"done", "skip", "retry"} {
 		rp, wp, err := os.Pipe()
 		c.Assert(err, IsNil)
+		defer rp.Close()
+		defer wp.Close()
+
 		os.Setenv("SNAP_REPAIR_STATUS_FD", strconv.Itoa(int(wp.Fd())))
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
 
