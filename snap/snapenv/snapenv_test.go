@@ -31,11 +31,14 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type HTestSuite struct{}
+type HTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&HTestSuite{})
 
@@ -158,19 +161,18 @@ func (s *HTestSuite) TestExtraEnvForExecEnv(c *C) {
 	c.Assert(val, Equals, "BAR")
 }
 
-func setenvWithReset(key string, val string) func() {
+func setenvWithReset(s *HTestSuite, key string, val string) {
 	tmpdirEnv, tmpdirFound := os.LookupEnv("TMPDIR")
 	os.Setenv("TMPDIR", "/var/tmp")
 	if tmpdirFound {
-		return func() { os.Setenv("TMPDIR", tmpdirEnv) }
+		s.AddCleanup(func() { os.Setenv("TMPDIR", tmpdirEnv) })
 	} else {
-		return func() { os.Unsetenv("TMPDIR") }
+		s.AddCleanup(func() { os.Unsetenv("TMPDIR") })
 	}
 }
 
 func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
-	reset = setenvWithReset("TMPDIR", "/var/tmp")
-	defer reset()
+	setenvWithReset(s, "TMPDIR", "/var/tmp")
 
 	env := ExecEnv(mockSnapInfo, map[string]string{})
 
@@ -183,8 +185,7 @@ func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
 }
 
 func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
-	reset = setenvWithReset("TMPDIR", "/var/tmp")
-	defer reset()
+	setenvWithReset(s, "TMPDIR", "/var/tmp")
 
 	env := ExecEnv(mockClassicSnapInfo, map[string]string{})
 
