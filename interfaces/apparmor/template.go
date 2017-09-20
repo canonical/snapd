@@ -461,3 +461,13 @@ var classicJailmodeSnippet = `
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 `
+
+// nfsSnippet contains extra permissions necessary for snaps and snap-confine
+// to operate when NFS is used. This is an imperfect solution as this grants
+// some network access to all the snaps on the system.
+var nfsSnippet = `
+  # Workaround for systems using NFS, for details see:
+  # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1662552
+  network inet,
+  network inet6,
+`
