@@ -9,7 +9,7 @@ tool for accessing snap configuration
 :Author: pawel.stolowski@canonical.com
 :Date:   2017-09-19
 :Copyright: Canonical Ltd.
-:Version: 1.0.0
+:Version: 2.27
 :Manual section: 1
 :Manual group: snappy
 
@@ -33,6 +33,7 @@ OPTIONS
 =======
 
 `get <key>`           Read configuration value assigned to <key>.
+
 `set <key>=<value>`   Set configuration <value> for <key>.
 
 `Get` flags 
@@ -71,37 +72,50 @@ documents can be referenced by dotted paths. See examples below.
 EXAMPLES
 ========
 
-`snapctl set username=frank email=frank@somehost.com`
+snapctl set username=frank email=frank@somehost.com
+---------------------------------------------------
 
- Set username and email values.
+Set username and email values.
 
-`snapctl set user="{\"name\":\"frank\", \"email\":\"frank@somehost.com\"}"`
+snapctl set user="{\\"name\\":\\"frank\\", \\"email\\":\\"frank@somehost.com\\"}"
+---------------------------------------------------------------------------------
 
- Set user to a JSON map.
+Set user to a JSON map.
  
-`snapctl set user.name=frank`
+snapctl set user.name=frank
+---------------------------
 
- Set name inside user document using dotted path (creates the map automatically if
- it doesn't exist).
+Set name inside user document using dotted path (creates the map automatically if
+it doesn't exist).
 
-`snapctl get user.name`
+snapctl get user.name
+---------------------
 
- Get name from user document, prints just the value since it's a simple string:
- `frank`
+Get name from user document, prints just the value since it's a simple string:
+`frank`
 
- `snapctl get -d user.name`
+snapctl get -d user.name
+------------------------
 
- Get name from user document, forces JSON output resulting in:
-`{
-        "user.name": "frank"
- }`
+Get name from user document, forces JSON output resulting in:
 
- `snapctl get user`
+::
 
- Get user document, prints:
-`{
-        "name": "frank"
- }`
+ {
+   "user.name": "frank"
+ }
+
+
+snapctl get user
+----------------
+
+Get user document, prints:
+
+::
+
+ {
+   "name": "frank"
+ }
 
 BUGS
 ====
