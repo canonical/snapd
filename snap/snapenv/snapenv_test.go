@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -137,18 +138,60 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 	}
 }
 
+func envValue(env []string, key string) (bool, string) {
+	for _, item := range env {
+		if strings.HasPrefix(item, key+"=") {
+			return true, strings.SplitN(item, "=", 2)[1]
+		}
+	}
+	return false, ""
+}
+
 func (s *HTestSuite) TestExtraEnvForExecEnv(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
 	env := ExecEnv(info, map[string]string{"FOO": "BAR"})
-	found := false
-	for _, item := range env {
-		if item == "FOO=BAR" {
-			found = true
-			break
-		}
-	}
+	found, val := envValue(env, "FOO")
 	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "BAR")
+}
+
+func setenvWithReset(key string, val string) func() {
+	tmpdirEnv, tmpdirFound := os.LookupEnv("TMPDIR")
+	os.Setenv("TMPDIR", "/var/tmp")
+	if tmpdirFound {
+		return func() { os.Setenv("TMPDIR", tmpdirEnv) }
+	} else {
+		return func() { os.Unsetenv("TMPDIR") }
+	}
+}
+
+func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
+	reset = setenvWithReset("TMPDIR", "/var/tmp")
+	defer reset()
+
+	env := ExecEnv(mockSnapInfo, map[string]string{})
+
+	found, val := envValue(env, "TMPDIR")
+	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "/var/tmp")
+
+	found, val = envValue(env, PreservedUnsafePrefix+"TMPDIR")
+	c.Assert(found, Equals, false)
+}
+
+func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
+	reset = setenvWithReset("TMPDIR", "/var/tmp")
+	defer reset()
+
+	env := ExecEnv(mockClassicSnapInfo, map[string]string{})
+
+	found, val := envValue(env, "TMPDIR")
+	c.Assert(found, Equals, false)
+
+	found, val = envValue(env, PreservedUnsafePrefix+"TMPDIR")
+	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "/var/tmp")
 }

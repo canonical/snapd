@@ -52,7 +52,7 @@ func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
 	preserve := noPreserve
-	if info.Confinement == snap.ClassicConfinement {
+	if info.NeedsClassic() {
 		preserve = doPreserve
 	}
 	env := envMap(os.Environ(), preserve)
