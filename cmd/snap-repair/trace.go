@@ -134,7 +134,7 @@ func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) error {
 		fmt.Fprintf(w, "%s%s\n", indentPrefix(indent), scanner.Text())
 	}
 	if scanner.Err() != nil {
-		fmt.Fprintf(w, "%serror: %s\n", indentPrefix(indent), scanner.Err())
+		return scanner.Err()
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) error {
 		fmt.Fprintf(w, "%s%s\n", indentPrefix(indent), scanner.Text())
 	}
 	if scanner.Err() != nil {
-		return err
+		return scanner.Err()
 	}
 	return nil
 }
