@@ -11,7 +11,7 @@ details: |
     "jailmode".
     This has been reported as https://bugs.launchpad.net/snappy/+bug/1641885
 prepare: |
-    snapbuild "$TESTSLIB/snaps/test-snapd-devmode" .
+    snap pack "$TESTSLIB/snaps/test-snapd-devmode"
     echo "Install a test snap that uses 'confinement: devmode' in jailmode"
     snap install --jailmode --dangerous ./test-snapd-devmode_1.0_all.snap
 execute: |

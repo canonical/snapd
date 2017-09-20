@@ -4,11 +4,11 @@ prepare: |
     snap install --devmode jq
 
     echo "Build basic test package (without hooks)"
-    snapbuild $TESTSLIB/snaps/basic .
+    snap pack $TESTSLIB/snaps/basic
     snap install --dangerous basic_1.0_all.snap
 
     echo "Build package with hook to run snapctl set"
-    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snap pack $TESTSLIB/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
 restore: |

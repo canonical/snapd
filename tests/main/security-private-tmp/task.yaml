@@ -15,7 +15,7 @@ prepare: |
     mkdir -p $SNAP_INSTALL_DIR
     cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
     sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
-    snapbuild $SNAP_INSTALL_DIR .
+    snap pack $SNAP_INSTALL_DIR
     snap install --dangerous not-test-snapd-tools_1.0_all.snap
 
 restore: |
