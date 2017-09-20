@@ -306,3 +306,15 @@ func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	err = tr.Get("test-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }
+
+func (s *transactionSuite) TestNoConfiguration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var res interface{}
+	tr := config.NewTransaction(s.state)
+	err := tr.Get("some-snap", "", &res)
+	c.Assert(err, NotNil)
+	c.Assert(config.IsNoOption(err), Equals, true)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no configuration`)
+}
