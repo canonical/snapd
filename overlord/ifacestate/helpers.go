@@ -42,7 +42,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addInterfaces(extraInterfaces); err != nil {
 		return err
 	}
-	if err := m.addBackends(extraBackends); err != nil {
+	if err := m.addAndInitBackends(extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(); err != nil {
@@ -74,13 +74,19 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	return nil
 }
 
-func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+func (m *InterfaceManager) addAndInitBackends(extra []interfaces.SecurityBackend) error {
 	for _, backend := range backends.All {
+		if err := backend.Initialize(); err != nil {
+			return err
+		}
 		if err := m.repo.AddBackend(backend); err != nil {
 			return err
 		}
 	}
 	for _, backend := range extra {
+		if err := backend.Initialize(); err != nil {
+			return err
+		}
 		if err := m.repo.AddBackend(backend); err != nil {
 			return err
 		}
