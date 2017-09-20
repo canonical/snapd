@@ -164,11 +164,28 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
+
 	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	c.Assert(err, IsNil)
+
+	// Build 32bit runner on amd64 to test non-native syscall handling.
+	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
+	// it seems tricky to find the right gcc-multilib for this.
+	if arch.UbuntuArchitecture() == "amd64" {
+		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
+		cmd.Args = append(cmd.Args, "-m32")
+		for i, k := range cmd.Args {
+			if k == s.seccompSyscallRunner {
+				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
+			}
+		}
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("cannot build multi-lib syscall runner: %v\n%s", err, output)
+		}
+	}
 }
 
 // Runs the policy through the kernel:
@@ -217,21 +234,45 @@ set_tls
 # arm64
 readlinkat
 faccessat
+# i386 from amd64
+restart_syscall
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
+	// default syscall runner
+	syscallRunner := s.seccompSyscallRunner
+
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
-	if len(l) > 1 && l[1] != "native" {
-		c.Logf("cannot use non-native in runBpfInKernel")
-		return
+	syscallName := l[0]
+	syscallArch := "native"
+	if len(l) > 1 {
+		syscallArch = l[1]
 	}
 
-	var syscallRunnerArgs [7]string
-	syscallNr, err := seccomp.GetSyscallFromName(l[0])
+	syscallNr, err := seccomp.GetSyscallFromName(syscallName)
 	c.Assert(err, IsNil)
+
+	// Check if we want to test non-native architecture
+	// handling. Doing this via the in-kernel tests is tricky as
+	// we need a kernel that can run the architecture and a
+	// compiler that can produce the required binaries. Currently
+	// we only test amd64 running i386 here.
+	if syscallArch != "native" {
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
+		c.Assert(err, IsNil)
+
+		switch syscallArch {
+		case "amd64":
+			// default syscallRunner
+		case "i386":
+			syscallRunner = s.seccompSyscallRunner + ".m32"
+		default:
+			c.Errorf("unexpected non-native arch: %s", syscallArch)
+		}
+	}
 	switch {
 	case syscallNr == -101:
 		// "socket"
@@ -249,6 +290,7 @@ faccessat
 		return
 	}
 
+	var syscallRunnerArgs [7]string
 	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
@@ -265,7 +307,7 @@ faccessat
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -713,12 +755,6 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// on amd64 we add compat i386
 		{"amd64", "read", "read;i386", main.SeccompRetAllow},
 		{"amd64", "read", "read;amd64", main.SeccompRetAllow},
-		// on arm64 we add compat armhf
-		{"arm64", "read", "read;armhf", main.SeccompRetAllow},
-		{"arm64", "read", "read;arm64", main.SeccompRetAllow},
-		// on ppc64 we add compat powerpc
-		{"ppc64", "read", "read;powerpc", main.SeccompRetAllow},
-		{"ppc64", "read", "read;ppc64", main.SeccompRetAllow},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp
