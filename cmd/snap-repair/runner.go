@@ -105,13 +105,6 @@ func (r *Repair) Run() error {
 	}
 	defer logf.Close()
 
-	statusR, statusW, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-	defer statusR.Close()
-	defer statusW.Close()
-
 	// run the script
 	env := os.Environ()
 	// we need to hardcode FD=3 because this is the FD after
@@ -135,6 +128,12 @@ func (r *Repair) Run() error {
 		return err
 	}
 
+	statusR, statusW, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer statusR.Close()
+
 	cmd := exec.Command(script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = env
@@ -142,10 +141,12 @@ func (r *Repair) Run() error {
 	cmd.ExtraFiles = []*os.File{statusW}
 	cmd.Stdout = logf
 	cmd.Stderr = logf
-	if err = cmd.Start(); err != nil {
+	// delayed err check to ensure statusW is always closed
+	err = cmd.Start()
+	statusW.Close()
+	if err != nil {
 		return err
 	}
-	statusW.Close()
 
 	// wait for repair to finish or timeout
 	var scriptErr error
