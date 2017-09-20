@@ -684,14 +684,27 @@ func (s *runnerSuite) TestTLSTime(c *C) {
 	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
 }
 
-func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
-	par := filepath.Dir(dirs.SnapSeedDir)
-	err := os.Chmod(par, 0555)
+func makeReadOnly(c *C, dir string) (restore func()) {
+	// skip tests that need this because uid==0 does not honor
+	// write permissions in directories (yay, unix)
+	if os.Getuid() == 0 {
+		// FIXME: we could use osutil.Chattr() here
+		c.Skip("too lazy to make path readonly as root")
+	}
+	err := os.Chmod(dir, 0555)
 	c.Assert(err, IsNil)
-	defer os.Chmod(par, 0775)
+	return func() {
+		err := os.Chmod(dir, 0755)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
+	defer restore()
 
 	runner := repair.NewRunner()
-	err = runner.LoadState()
+	err := runner.LoadState()
 	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
 }
 
@@ -702,9 +715,8 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 
-	err = os.Chmod(dirs.SnapRepairDir, 0555)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapRepairDir, 0775)
+	restore := makeReadOnly(c, dirs.SnapRepairDir)
+	defer restore()
 
 	// no error because this is a no-op
 	err = runner.SaveState()
@@ -1245,11 +1257,10 @@ AXNpZw==`}
 	runner.LoadState()
 
 	// break SaveState
-	err := os.Chmod(dirs.SnapRepairDir, 0555)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapRepairDir, 0775)
+	restore := makeReadOnly(c, dirs.SnapRepairDir)
+	defer restore()
 
-	_, err = runner.Next("canonical")
+	_, err := runner.Next("canonical")
 	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }
 
