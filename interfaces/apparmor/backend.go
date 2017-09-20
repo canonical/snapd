@@ -63,6 +63,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityAppArmor
 }
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // setupSnapConfineReexec will setup apparmor profiles on a classic
 // system on the hosts /etc/apparmor.d directory. This is needed for
 // running snap-confine from the core snap.
