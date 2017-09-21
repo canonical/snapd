@@ -313,6 +313,9 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// the super-broad template we are starting with.
 			} else {
 				tagSnippets = snippetForTag
+				if nfs, _ := anythingUsesNfs(); nfs {
+					tagSnippets += nfsSnippet
+				}
 			}
 			return tagSnippets
 		}
