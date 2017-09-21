@@ -209,12 +209,21 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// the cgroup unconditionally (AppArmor will still mediate the access).
 	// We'll want to rethink this if snapd needs to mediate access to other
 	// proprietary devices.
-	struct stat sbuf;
+	//
+	// Device major and minor numbers are described in (though nvidia-uvm
+	// currently isn't listed):
+	// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
 	char nv_path[15] = { 0 };	// /dev/nvidiaXXX
 	const unsigned nv_major = 195;
+	const char *nvctl_path = "/dev/nvidiactl";
+	const unsigned nvctl_minor = 255;
+	const char *nvuvm_path = "/dev/nvidia-uvm";
+	const unsigned nvuvm_major = 247;
+	const unsigned nvuvm_minor = 0;
+	struct stat sbuf;
+
+	// /dev/nvidia0 through /dev/nvidia254
 	for (unsigned nv_minor = 0; nv_minor < 255; nv_minor++) {
-		// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
-		// /dev/nvidia0 through /dev/nvidia254
 		sc_must_snprintf(nv_path, sizeof(nv_path), "/dev/nvidia%u",
 				 nv_minor);
 
@@ -228,16 +237,13 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 					       nv_minor);
 	}
 
-	const char *nvctl_path = "/dev/nvidiactl";
-	const unsigned nvctl_minor = 255;
+	// /dev/nvidiactl
 	if (stat(nvctl_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
 					       nv_major, nvctl_minor);
 	}
 
-	const char *nvuvm_path = "/dev/nvidia-uvm";
-	const unsigned nvuvm_major = 247;
-	const unsigned nvuvm_minor = 0;
+	// /dev/nvidia-uvm
 	if (stat(nvuvm_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
 					       nvuvm_major, nvuvm_minor);
