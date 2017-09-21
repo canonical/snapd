@@ -49,6 +49,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -63,9 +64,68 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityAppArmor
 }
 
-// Initialize does nothing.
+// Initialize prepares customized apparmor policy for snap-confine.
 func (b *Backend) Initialize() error {
+	// TODO: also generate policy for snap-confine from core.
+	return setupSnapConfineGeneratedPolicy()
+}
+
+// setupSnapConfineGeneratedPolicy inspects the system and sets up local
+// apparmor policy for snap-confine. Local policy is included by the
+// system-wide policy. If the local policy has changed then the apparmor
+// profile for snap-confine is reloaded.
+func setupSnapConfineGeneratedPolicy() error {
+	dir := dirs.SnapConfineAppArmorDir
+	glob := "generated-*"
+	policy := make(map[string]*osutil.FileState)
+
+	// Check if NFS is mounted anywhere. Because NFS is not transparent to
+	// apparmor we must alter our profile to counter that and allow
+	// snap-confine to work.
+	if nfs, err := anythingUsesNfs(); err != nil {
+		return err
+	} else if nfs {
+		policy["generated-nfs"] = &osutil.FileState{
+			Content: []byte(nfsSnippet),
+			Mode:    0644,
+		}
+	}
+
+	// Ensure that generated policy is what we computed above.
+	created, removed, err := osutil.EnsureDirState(dir, glob, policy)
+	if err != nil {
+		return err
+	}
+	if len(created) == 0 && len(removed) == 0 {
+		// If the generated policy didn't change, we're all done.
+		return nil
+	}
+
+	// Reload the apparmor profile of snap-confine. This points to the main
+	// file in /etc/apparmor.d/ as that file contains include statements that
+	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine.d/.
+	// We are not using apparmor.LoadProfile() because it uses other cache.
+	if output, err := exec.Command("apparmor_parser", "--replace",
+		// TODO: the name varies across distros, fix that :/
+		"--write-cache", filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine.real"),
+		"--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+	}
 	return nil
+}
+
+// anythingUsesNfs returns true if any NFS file system is mounted.
+func anythingUsesNfs() (bool, error) {
+	entries, err := mount.LoadMountInfo(mount.ProcSelfMountInfo)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.FsType == "nfs4" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // setupSnapConfineReexec will setup apparmor profiles on a classic
