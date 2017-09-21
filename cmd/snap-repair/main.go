@@ -27,6 +27,7 @@ import (
 	// TODO: consider not using go-flags at all
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -45,6 +46,13 @@ snap-repair is a tool to fetch and run repair assertions
 which are used to do emergency repairs on the device.
 `
 )
+
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %v\n", err)
+	}
+}
 
 var errOnClassic = fmt.Errorf("cannot use snap-repair on a classic system")
 

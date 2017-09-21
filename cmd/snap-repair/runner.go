@@ -135,6 +135,8 @@ func (r *Repair) Run() error {
 	defer statusR.Close()
 	defer statusW.Close()
 
+	logger.Debugf("executing %s", script)
+
 	// run the script
 	env := os.Environ()
 	// we need to hardcode FD=3 because this is the FD after
@@ -328,6 +330,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
+			logger.Debugf("fetching repair %s-%d", brandID, repairID)
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,

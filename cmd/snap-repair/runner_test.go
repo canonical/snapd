@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -66,6 +67,8 @@ type baseRunnerSuite struct {
 	repairsAcctKey    *asserts.AccountKey
 
 	repairsSigning *assertstest.SigningDB
+
+	restoreLogger func()
 }
 
 func (s *baseRunnerSuite) SetUpSuite(c *C) {
@@ -105,6 +108,8 @@ func (s *baseRunnerSuite) SetUpSuite(c *C) {
 }
 
 func (s *baseRunnerSuite) SetUpTest(c *C) {
+	_, s.restoreLogger = logger.MockLogger()
+
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 
@@ -127,6 +132,7 @@ func (s *baseRunnerSuite) SetUpTest(c *C) {
 
 func (s *baseRunnerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.restoreLogger()
 }
 
 func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
