@@ -1750,8 +1750,8 @@ ls -l ${PATH##*:}/repair
 
 	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
 	c.Assert(err, IsNil)
-	c.Check(string(output), Matches, fmt.Sprintf("(?ms)^PATH=.*:.*/run/snapd/repair/tools.*"))
-	c.Check(string(output), Matches, "(?ms).*/repair -> /usr/lib/snapd/snap-repair")
+	c.Check(string(output), Matches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
+	c.Check(string(output), Matches, `(?ms).*/repair -> /usr/lib/snapd/snap-repair`)
 
 	// run again and ensure no error happens
 	err = rpr.Run()
