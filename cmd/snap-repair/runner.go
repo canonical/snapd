@@ -80,6 +80,24 @@ func (r *Repair) SetStatus(status RepairStatus) {
 	r.run.SaveState()
 }
 
+// makeRepairSymlink ensures $dir/repair exists and is a symlink to
+// /usr/lib/snapd/snap-repair
+func makeRepairSymlink(dir string) (err error) {
+	// make "repair" binary available to the repair scripts via symlink
+	// to the real snap-repair
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	old := filepath.Join(dirs.CoreLibExecDir, "snap-repair")
+	new := filepath.Join(dir, "repair")
+	if err := os.Symlink(old, new); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	return nil
+}
+
 // Run executes the repair script leaving execution trail files on disk.
 func (r *Repair) Run() error {
 	// write the script to disk
@@ -89,8 +107,13 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	baseName := fmt.Sprintf("r%d", r.Revision())
+	// ensure the script can use "repair done"
+	repairToolsDir := filepath.Join(dirs.SnapRunDir, "repair/tools")
+	if err := makeRepairSymlink(repairToolsDir); err != nil {
+		return err
+	}
 
+	baseName := fmt.Sprintf("r%d", r.Revision())
 	script := filepath.Join(rundir, baseName+".script")
 	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
 	if err != nil {
@@ -121,6 +144,19 @@ func (r *Repair) Run() error {
 	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
 	env = append(env, "SNAP_REPAIR_STATUS_FD=3")
 	env = append(env, "SNAP_REPAIR_RUN_DIR="+rundir)
+	// inject repairToolDir into PATH so that the script can use
+	// `repair {done,skip,retry}`
+	var havePath bool
+	for i, envStr := range env {
+		if strings.HasPrefix(envStr, "PATH=") {
+			newEnv := fmt.Sprintf("%s:%s", strings.TrimSuffix(envStr, ":"), repairToolsDir)
+			env[i] = newEnv
+			havePath = true
+		}
+	}
+	if !havePath {
+		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
+	}
 
 	workdir := filepath.Join(rundir, "work")
 	if err := os.MkdirAll(workdir, 0700); err != nil {
@@ -712,6 +748,9 @@ func stringList(headers map[string]interface{}, name string) ([]string, error) {
 
 // Applicable returns whether a repair with the given headers is applicable to the device.
 func (run *Runner) Applicable(headers map[string]interface{}) bool {
+	if headers["disabled"] == "true" {
+		return false
+	}
 	series, err := stringList(headers, "series")
 	if err != nil {
 		return false
