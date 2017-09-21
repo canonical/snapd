@@ -71,6 +71,10 @@ func (r *Repair) RunDir() string {
 	return filepath.Join(dirs.SnapRepairRunDir, r.BrandID(), strconv.Itoa(r.RepairID()))
 }
 
+func (r *Repair) String() string {
+	return fmt.Sprintf("%s-%v", r.BrandID(), r.RepairID())
+}
+
 // SetStatus sets the status of the repair in the state and saves the latter.
 func (r *Repair) SetStatus(status RepairStatus) {
 	brandID := r.BrandID()
@@ -201,7 +205,7 @@ func (r *Repair) Run() error {
 	// if the script had an error exit status still honor what we
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
-		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
 		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}

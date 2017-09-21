@@ -1597,13 +1597,13 @@ exit 1
 	})
 	s.verifyOutput(c, "r0.retry", `unhappy output
 
-"repair (1; brand-id:canonical)" failed: exit status 1`)
+repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	c.Check(s.errReport.repair, Equals, "canonical/1")
-	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
+	c.Check(s.errReport.errMsg, Equals, `repair canonical-1 revision 0 failed: exit status 1`)
 	c.Check(s.errReport.dupSig, Equals, `canonical/1
-"repair (1; brand-id:canonical)" failed: exit status 1
+repair canonical-1 revision 0 failed: exit status 1
 output:
 unhappy output
 `)
@@ -1653,7 +1653,7 @@ exit 1
 	})
 	s.verifyOutput(c, "r0.retry", `unhappy output
 
-"repair (1; brand-id:canonical)" failed: exit status 1`)
+repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	// run again, it will be happy this time
@@ -1699,7 +1699,7 @@ sleep 100
 	})
 	s.verifyOutput(c, "r0.retry", `output before timeout
 
-"repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
+repair canonical-1 revision 0 failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }
 
