@@ -333,6 +333,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
+		Epoch:         snap.EpochZero(),
 	}
 	if strings.Contains(name, "alias-snap") {
 		name = "alias-snap"

@@ -258,7 +258,7 @@ confinement: devmode`
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
-	c.Check(info.Epoch, Equals, "1*")
+	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.NeedsDevMode(), Equals, true)
 	c.Check(info.NeedsClassic(), Equals, false)
@@ -300,7 +300,7 @@ type: app`
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
-	c.Check(info.Epoch, Equals, "0") // Defaults to 0
+	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
 }

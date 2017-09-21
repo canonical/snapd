@@ -44,7 +44,7 @@ type snapYaml struct {
 	License          string                 `yaml:"license,omitempty"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
-	Epoch            string                 `yaml:"epoch,omitempty"`
+	Epoch            Epoch                  `yaml:"epoch,omitempty"`
 	Base             string                 `yaml:"base,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
@@ -180,9 +180,9 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
-	epoch := "0"
-	if y.Epoch != "" {
-		epoch = y.Epoch
+	epoch := y.Epoch
+	if epoch.IsNull() {
+		epoch = EpochZero()
 	}
 	confinement := StrictConfinement
 	if y.Confinement != "" {
