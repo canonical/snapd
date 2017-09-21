@@ -89,6 +89,7 @@ func setupSnapConfineGeneratedPolicy() error {
 			Content: []byte(nfsSnippet),
 			Mode:    0644,
 		}
+		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
 	}
 
 	// Ensure that generated policy is what we computed above.
