@@ -227,6 +227,7 @@ func readStatus(r io.Reader) RepairStatus {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
 			status = DoneStatus
+		// TODO: support having a script skip over many and up to a given repair-id #
 		case "skip":
 			status = SkipStatus
 		}
