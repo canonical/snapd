@@ -118,6 +118,15 @@ type ConnRef struct {
 	SlotRef SlotRef
 }
 
+type Connection struct {
+	plugInfo *snap.PlugInfo
+	slotInfo *snap.SlotInfo
+}
+
+func (conn *Connection) Interface() string {
+	return conn.plugInfo.Interface
+}
+
 // ID returns a string identifying a given connection.
 func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)

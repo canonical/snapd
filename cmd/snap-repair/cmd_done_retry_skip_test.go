@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -63,7 +64,11 @@ func (r *repairSuite) TestStatusHappy(c *C) {
 		defer rp.Close()
 		defer wp.Close()
 
-		os.Setenv("SNAP_REPAIR_STATUS_FD", strconv.Itoa(int(wp.Fd())))
+		fd, e := syscall.Dup(int(wp.Fd()))
+		c.Assert(e, IsNil)
+		wp.Close()
+
+		os.Setenv("SNAP_REPAIR_STATUS_FD", strconv.Itoa(fd))
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
 
 		err = repair.ParseArgs([]string{s})
