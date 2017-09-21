@@ -187,7 +187,6 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 	}
 
 	if cfg, ok := confToPrint.(map[string]interface{}); ok {
-		// FIXME: this needs a test
 		if isTerminal() {
 			return x.outputList(cfg)
 		} else {
