@@ -553,7 +553,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Find and open snap-update-ns from the same filesystem as where we
+	// Find and open snap-update-ns from the same path as where we
 	// (snap-confine) were called.
 	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	snap_update_ns_fd = sc_open_snap_update_ns();
