@@ -744,3 +744,74 @@ void sc_ensure_shared_snap_mount(void)
 			    NULL);
 	}
 }
+
+static void sc_make_slave_mount_ns(void)
+{
+	if (unshare(CLONE_NEWNS) < 0) {
+		die("can not unshare mount namespace");
+	}
+	// In our new mount namespace, recursively change all mounts
+	// to slave mode, so we see changes from the parent namespace
+	// but don't propagate our own changes.
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
+}
+
+void sc_setup_user_mounts(const char *snap_name)
+{
+	debug("%s: %s", __FUNCTION__, snap_name);
+
+	char profile_path[PATH_MAX];
+	struct stat st;
+
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/var/lib/snapd/mount/snap.%s.user-fstab", snap_name);
+	if (stat(profile_path, &st) != 0) {
+		// It is ok for the user fstab to not exist.
+		return;
+	}
+
+	sc_make_slave_mount_ns();
+
+	// Find and open snap-update-ns from the same path as where we
+	// (snap-confine) were called.
+	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	snap_update_ns_fd = sc_open_snap_update_ns();
+
+	debug("calling snap-update-ns to initialize user mounts");
+	pid_t child = fork();
+	if (child < 0) {
+		die("cannot fork to run snap-update-ns");
+	}
+	if (child == 0) {
+		// We are the child, execute snap-update-ns
+		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+		snap_name_copy = strdup(snap_name);
+		if (snap_name_copy == NULL) {
+			die("cannot copy snap name");
+		}
+		char *argv[] = {
+			"snap-update-ns", "--user-fstab", snap_name_copy,
+			NULL
+		};
+		char *envp[3] = { NULL };
+		if (sc_is_debug_enabled()) {
+			envp[0] = "SNAPD_DEBUG=1";
+		}
+		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
+		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
+		fexecve(snap_update_ns_fd, argv, envp);
+		die("cannot execute snap-update-ns");
+	}
+	// We are the parent, so wait for snap-update-ns to finish.
+	int status = 0;
+	debug("waiting for snap-update-ns to finish...");
+	if (waitpid(child, &status, 0) < 0) {
+		die("waitpid() failed for snap-update-ns process");
+	}
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
+	} else if (WIFSIGNALED(status)) {
+		die("snap-update-ns killed by signal %i", WTERMSIG(status));
+	}
+	debug("snap-update-ns finished successfully");
+}
