@@ -363,7 +363,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// where $ROOT is either "/" or the "/snap/core/current"
 		// that we are re-execing from
 		char *src = NULL;
-		char self[PATH_MAX] = { 0, };
+		char self[PATH_MAX + 1] = { 0, };
 		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
 			die("cannot read /proc/self/exe");
 		}
@@ -372,8 +372,9 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot use result from readlink: %s", src);
 		}
 		src = dirname(self);
-		// dirname(path) might return '.' depending on path. /proc/self/exe should always point
-// to an absolute path, but let's guarantee that.
+		// dirname(path) might return '.' depending on path.
+		// /proc/self/exe should always point
+		// to an absolute path, but let's guarantee that.
 		if (src[0] != '/') {
 			die("cannot use the result of dirname(): %s", src);
 		}
