@@ -32,9 +32,9 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-void _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
-				    const char *path, unsigned major,
-				    unsigned minor)
+void
+_run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
+			       const char *path, unsigned major, unsigned minor)
 {
 	int status = 0;
 	pid_t pid = fork();
