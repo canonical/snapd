@@ -82,7 +82,7 @@ func setupSnapConfineGeneratedPolicy() error {
 	// Check if NFS is mounted anywhere. Because NFS is not transparent to
 	// apparmor we must alter our profile to counter that and allow
 	// snap-confine to work.
-	if nfs, err := anythingUsesNfs(); err != nil {
+	if nfs, err := anythingUsesNfs(); err != nil { // TODO: make this mockable
 		return err
 	} else if nfs {
 		policy["generated-nfs"] = &osutil.FileState{
