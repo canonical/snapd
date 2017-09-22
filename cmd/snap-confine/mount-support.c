@@ -362,13 +362,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// bind mount the current $ROOT/usr/lib/snapd path,
 		// where $ROOT is either "/" or the "/snap/core/current"
 		// that we are re-execing from
-		char src[PATH_MAX + 1];
-		sc_must_snprintf(src, sizeof src, "%s", LIBEXECDIR);
-
+		char *src = LIBEXECDIR;
 		char self[PATH_MAX + 1] = { 0, };
 		if (readlink("/proc/self/exe", self, sizeof self) > 0) {
-			char *dir = dirname(self);
-			sc_must_snprintf(src, sizeof src, "%s", dir);
+			src = dirname(self);
 		}
 
 		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
