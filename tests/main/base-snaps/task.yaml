@@ -37,6 +37,12 @@ execute: |
     #  https://bugs.launchpad.net/snapstore/+bug/1715824
     #
     snap install --edge test-snapd-base-bare
-    snap install --edge test-snapd-busybox-static
+    snap install --edge --devmode test-snapd-busybox-static
     echo "Ensure we can run a statically linked binary from an empty base"
     test-snapd-busybox-static.busybox-static echo hello | MATCH hello
+
+    if test-snapd-busybox-static.busybox-static ls /bin/dd; then
+        echo "bare should be empty but it is not:"
+        test-snapd-busybox-static.busybox-static ls /bin
+        exit 1
+    fi
