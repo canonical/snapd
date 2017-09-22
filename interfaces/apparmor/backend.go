@@ -82,7 +82,7 @@ func setupSnapConfineGeneratedPolicy() error {
 	// Check if NFS is mounted anywhere. Because NFS is not transparent to
 	// apparmor we must alter our profile to counter that and allow
 	// snap-confine to work.
-	if nfs, err := anythingUsesNfs(); err != nil { // TODO: make this mockable
+	if nfs, err := anythingUsesNfs(); err != nil {
 		return err
 	} else if nfs {
 		policy["generated-nfs"] = &osutil.FileState{
@@ -128,11 +128,15 @@ func setupSnapConfineGeneratedPolicy() error {
 	return nil
 }
 
+var (
+	procSelfMountInfo = mount.ProcSelfMountInfo
+)
+
 // anythingUsesNfs returns true if any NFS file system is mounted.
 func anythingUsesNfs() (bool, error) {
-	entries, err := mount.LoadMountInfo(mount.ProcSelfMountInfo)
+	entries, err := mount.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannot parse /proc/self/mountinfo, %s", err)
 	}
 	for _, entry := range entries {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && strings.HasPrefix(entry.MountDir, "/home/") {

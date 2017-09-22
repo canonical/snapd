@@ -492,3 +492,26 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	})
 
 }
+
+func (s *backendSuite) TestAnythingUsesNfs(c *C) {
+	// Errors from parsing mountinfo are propagated.
+	restore := apparmor.MockMountInfo("bad syntax")
+	defer restore()
+	nfs, err := apparmor.AnythingUsesNfs()
+	c.Assert(err, ErrorMatches, "cannot parse /proc/self/mountinfo, .*")
+	c.Assert(nfs, Equals, false)
+
+	// NFSv4 mounted at /home/zyga/nfs is recognized.
+	restore = apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	nfs, err = apparmor.AnythingUsesNfs()
+	c.Assert(err, IsNil)
+	c.Assert(nfs, Equals, true)
+
+	// NFSv4 mounted at /mnt/nfs is ignored (not in $HOME).
+	restore = apparmor.MockMountInfo("680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	nfs, err = apparmor.AnythingUsesNfs()
+	c.Assert(err, IsNil)
+	c.Assert(nfs, Equals, false)
+}

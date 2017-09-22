@@ -20,8 +20,33 @@
 package apparmor
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+
 	"github.com/snapcore/snapd/testutil"
 )
+
+var (
+	AnythingUsesNfs = anythingUsesNfs
+)
+
+//MockMountInfo mocks content of /proc/self/mountinfo read by anythingUsesNfs
+func MockMountInfo(text string) (restore func()) {
+	old := procSelfMountInfo
+	f, err := ioutil.TempFile("", "mountinfo")
+	if err != nil {
+		panic(fmt.Errorf("cannot open temporary file %s", err))
+	}
+	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+		panic(fmt.Errorf("cannot write mock mountinfo file %s", err))
+	}
+	procSelfMountInfo = f.Name()
+	return func() {
+		os.Remove(procSelfMountInfo)
+		procSelfMountInfo = old
+	}
+}
 
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
