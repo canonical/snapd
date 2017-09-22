@@ -242,7 +242,6 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
 					       nv_major, nvctl_minor);
 	}
-
 	// /dev/nvidia-uvm
 	if (stat(nvuvm_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
