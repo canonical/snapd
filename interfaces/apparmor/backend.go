@@ -118,6 +118,13 @@ func setupSnapConfineReexec(snapInfo *snap.Info) error {
 		return err
 	}
 
+	// create for policy extensions for snap-confine. This is required for the
+	// profiles to compile but distribution package may not yet contain this
+	// directory.
+	if err := os.MkdirAll(dirs.SnapAppArmorConfineDir, 0755); err != nil {
+		return err
+	}
+
 	// not using apparmor.LoadProfile() because it uses a different cachedir
 	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot replace snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
