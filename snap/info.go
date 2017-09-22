@@ -590,6 +590,16 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
+func MockSanitizePlugsSlots(f func(snapInfo *Info) error) (restore func()) {
+	old := SanitizePlugsSlots
+	SanitizePlugsSlots = f
+	return func() { SanitizePlugsSlots = old }
+}
+
+var SanitizePlugsSlots = func(snapInfo *Info) error {
+	panic("SanitizePlugsSlots function not set")
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
@@ -613,6 +623,11 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	info.Size = st.Size()
 
 	err = addImplicitHooks(info)
+	if err != nil {
+		return nil, err
+	}
+
+	err = SanitizePlugsSlots(info)
 	if err != nil {
 		return nil, err
 	}
