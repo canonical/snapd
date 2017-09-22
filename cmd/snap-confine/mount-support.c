@@ -558,9 +558,10 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	snap_update_ns_fd = sc_open_snap_update_ns();
 
-	// Remember if we are on classic, some things behave differently there.
 	bool on_classic_distro = is_running_on_classic_distribution();
-	if (on_classic_distro) {
+	// on classic or with alternative base snaps we need to setup
+	// a different confinement
+	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -585,17 +586,23 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			{},
 		};
 		char rootfs_dir[PATH_MAX];
- again:
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
 				 base_snap_name);
 		if (access(rootfs_dir, F_OK) != 0) {
 			if (sc_streq(base_snap_name, "core")) {
-				// As a special fallback, allow the base snap to degrade from
-				// "core" to "ubuntu-core". This is needed for the migration
-				// tests.
+				// As a special fallback, allow the
+				// base snap to degrade from "core" to
+				// "ubuntu-core". This is needed for
+				// the migration tests.
 				base_snap_name = "ubuntu-core";
-				goto again;
+				sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
+						 "%s/%s/current/",
+						 SNAP_MOUNT_DIR,
+						 base_snap_name);
+				if (access(rootfs_dir, F_OK) != 0) {
+					die("cannot locate the core or legacy core snap (current symlink missing?)");
+				}
 			}
 			die("cannot locate the base snap: %s", base_snap_name);
 		}
