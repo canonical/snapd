@@ -362,20 +362,20 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// bind mount the current $ROOT/usr/lib/snapd path,
 		// where $ROOT is either "/" or the "/snap/core/current"
 		// that we are re-execing from
-		char *src = LIBEXECDIR;
+		char *src = NULL;
 		char self[PATH_MAX] = { 0, };
-		if (readlink("/proc/self/exe", self, sizeof(self) - 1) > 0) {
-			// this cannot happen except when the kernel is buggy
-			if (strstr(self, "/snap-confine") == NULL) {
-				die("cannot use result from readlink: %s", src);
-			}
-			src = dirname(self);
-			// dirname(path) might return '.' depending on path. /proc/self/exe should always point
+		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+			die("cannot read /proc/self/exe");
+		}
+		// this cannot happen except when the kernel is buggy
+		if (strstr(self, "/snap-confine") == NULL) {
+			die("cannot use result from readlink: %s", src);
+		}
+		src = dirname(self);
+		// dirname(path) might return '.' depending on path. /proc/self/exe should always point
 // to an absolute path, but let's guarantee that.
-			if (src[0] != '/') {
-				die("cannot use the result of dirname(): %s",
-				    src);
-			}
+		if (src[0] != '/') {
+			die("cannot use the result of dirname(): %s", src);
 		}
 
 		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
