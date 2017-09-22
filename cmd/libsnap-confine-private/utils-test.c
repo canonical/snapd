@@ -20,53 +20,53 @@
 
 #include <glib.h>
 
-static void test_str2bool()
+static void test_parse_bool()
 {
 	int err;
 	bool value;
 
 	value = false;
-	err = str2bool("yes", &value, false);
+	err = parse_bool("yes", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_true(value);
 
 	value = false;
-	err = str2bool("1", &value, false);
+	err = parse_bool("1", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_true(value);
 
 	value = true;
-	err = str2bool("no", &value, false);
+	err = parse_bool("no", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
 	value = true;
-	err = str2bool("0", &value, false);
+	err = parse_bool("0", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
 	value = true;
-	err = str2bool("", &value, false);
+	err = parse_bool("", &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
 	value = true;
-	err = str2bool(NULL, &value, false);
+	err = parse_bool(NULL, &value, false);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_false(value);
 
 	value = false;
-	err = str2bool(NULL, &value, true);
+	err = parse_bool(NULL, &value, true);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_true(value);
 
 	value = true;
-	err = str2bool("flower", &value, false);
+	err = parse_bool("flower", &value, false);
 	g_assert_cmpint(err, ==, -1);
 	g_assert_cmpint(errno, ==, EINVAL);
 	g_assert_true(value);
 
-	err = str2bool("yes", NULL, false);
+	err = parse_bool("yes", NULL, false);
 	g_assert_cmpint(err, ==, -1);
 	g_assert_cmpint(errno, ==, EFAULT);
 }
@@ -177,7 +177,7 @@ static void test_sc_nonfatal_mkpath__absolute()
 
 static void __attribute__ ((constructor)) init()
 {
-	g_test_add_func("/utils/str2bool", test_str2bool);
+	g_test_add_func("/utils/parse_bool", test_parse_bool);
 	g_test_add_func("/utils/die", test_die);
 	g_test_add_func("/utils/die_with_errno", test_die_with_errno);
 	g_test_add_func("/utils/sc_nonfatal_mkpath/relative",
