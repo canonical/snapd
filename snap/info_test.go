@@ -701,11 +701,6 @@ func (s *infoSuite) TestInfoServices(c *C) {
 apps:
   svc1:
     daemon: potato
-    sockets:
-      sock1:
-        listen-stream: s1.socket
-      sock2:
-        listen-stream: s2.socket
   svc2:
     daemon: no
   app1:

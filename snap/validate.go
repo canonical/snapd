@@ -71,6 +71,16 @@ func ValidateAlias(alias string) error {
 	return nil
 }
 
+// ValidateAppSocketName checks if a string ca be used as a name for a socket
+// (for socket activation).
+func ValidateAppSocketName(name string) error {
+	valid := validSnapName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid app socket name: %q", name)
+	}
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.Name()
@@ -149,9 +159,14 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 	return nil
 }
 
-func validateAppSocket(name string, socket *SocketInfo) error {
+func validateAppSocket(socket *SocketInfo) error {
+	err := ValidateAppSocketName(socket.Name)
+	if err != nil {
+		return err
+	}
+
 	if socket.ListenStream == "" {
-		return fmt.Errorf("app socket '%s' has empty ListenStream", name)
+		return fmt.Errorf("socket %q must define listen-stream", socket.Name)
 	}
 	return nil
 }
@@ -191,8 +206,8 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	for name, socket := range app.Sockets {
-		err := validateAppSocket(name, socket)
+	for _, socket := range app.Sockets {
+		err := validateAppSocket(socket)
 		if err != nil {
 			return err
 		}

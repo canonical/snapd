@@ -251,6 +251,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 		Daemon:  "simple",
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
+				Name:         "sock1",
 				ListenStream: "sock1.socket",
 				SocketMode:   0666,
 			},

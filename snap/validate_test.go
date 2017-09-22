@@ -137,6 +137,7 @@ func (s *ValidateSuite) TestValidateAppSockets(c *C) {
 		Name: "foo",
 		Sockets: map[string]*SocketInfo{
 			"sock": {
+				Name:         "sock",
 				ListenStream: "/a/path",
 				SocketMode:   0600,
 			},
@@ -150,6 +151,7 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 		Name: "foo",
 		Sockets: map[string]*SocketInfo{
 			"sock": {
+				Name:         "sock",
 				ListenStream: "/a/socket",
 			},
 		},
@@ -157,15 +159,29 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 	c.Check(ValidateApp(&app), IsNil)
 }
 
-func (s *ValidateSuite) TestValidateAppSocketsEmptyName(c *C) {
+func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 	app := AppInfo{
 		Name: "foo",
 		Sockets: map[string]*SocketInfo{
-			"sock": {},
+			"sock": {Name: "sock"},
 		},
 	}
 	err := ValidateApp(&app)
-	c.Assert(err, ErrorMatches, `app socket 'sock' has empty ListenStream`)
+	c.Assert(err, ErrorMatches, `socket "sock" must define listen-stream`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
+	app := AppInfo{
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": {
+				Name:         "invalid name",
+				ListenStream: "8080",
+			},
+		},
+	}
+	err := ValidateApp(&app)
+	c.Assert(err, ErrorMatches, `invalid app socket name: "invalid name"`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
@@ -411,4 +427,37 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_DATA/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_COMMON/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "$SNAP/data", Symlink: "$SNAP_DATA"}), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketName(c *C) {
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
+	}
+	for _, name := range validNames {
+		err := ValidateAppSocketName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		err := ValidateAppSocketName(name)
+		c.Assert(err, ErrorMatches, `invalid app socket name: ".*"`)
+	}
 }
