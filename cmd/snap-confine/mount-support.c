@@ -547,9 +547,10 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Remember if we are on classic, some things behave differently there.
 	bool on_classic_distro = is_running_on_classic_distribution();
-	if (on_classic_distro) {
+	// on classic or with alternative base snaps we need to setup
+	// a different confinement
+	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea

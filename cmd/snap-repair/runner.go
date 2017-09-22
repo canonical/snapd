@@ -124,13 +124,17 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	// the date may be broken so we use an additional counter
-	logPath := filepath.Join(rundir, baseName+".output")
-	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE, 0600)
+	logPath := filepath.Join(rundir, baseName+".running")
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer logf.Close()
+
+	fmt.Fprintf(logf, "repair: %s\n", r)
+	fmt.Fprintf(logf, "revision: %d\n", r.Revision())
+	fmt.Fprintf(logf, "summary: %s\n", r.Summary())
+	fmt.Fprintf(logf, "output:\n")
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
@@ -241,7 +245,7 @@ func readStatus(r io.Reader) RepairStatus {
 // errtrackerReport reports an repairErr with the given logPath to the
 // snap error tracker.
 func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
-	errMsg := fmt.Sprintf("%s", repairErr)
+	errMsg := repairErr.Error()
 
 	scriptOutput, err := ioutil.ReadFile(logPath)
 	if err != nil {
