@@ -74,7 +74,7 @@ static const struct sc_bool_name sc_bool_names[] = {
  *
  * If the text cannot be recognized, the default value is used.
  **/
-static int str2bool(const char *text, bool * value, bool default_value)
+static int parse_bool(const char *text, bool * value, bool default_value)
 {
 	if (value == NULL) {
 		errno = EFAULT;
@@ -97,7 +97,7 @@ static int str2bool(const char *text, bool * value, bool default_value)
 /**
  * Get an environment variable and convert it to a boolean.
  *
- * Supported values are those of str2bool(), namely "yes", "no" as well as "1"
+ * Supported values are those of parse_bool(), namely "yes", "no" as well as "1"
  * and "0". All other values are treated as false and a diagnostic message is
  * printed to stderr. If the environment variable is unset, set value to the
  * default_value as if the environment variable was set to default_value.
@@ -106,7 +106,7 @@ static bool getenv_bool(const char *name, bool default_value)
 {
 	const char *str_value = getenv(name);
 	bool value = default_value;
-	if (str2bool(str_value, &value, default_value) < 0) {
+	if (parse_bool(str_value, &value, default_value) < 0) {
 		if (errno == EINVAL) {
 			fprintf(stderr,
 				"WARNING: unrecognized value of environment variable %s (expected yes/no or 1/0)\n",
