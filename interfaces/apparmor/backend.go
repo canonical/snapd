@@ -102,6 +102,19 @@ func setupSnapConfineGeneratedPolicy() error {
 		return nil
 	}
 
+	// If snapd is executing from the core snap the it means it has
+	// re-executed. In that case we are no longer using the copy of
+	// snap-confined from the host distribution but our own copy. We don't have
+	// to re-compile and load the updated profile as that is performed by
+	// setupSnapConfineReexec below.
+	exe, err := os.Readlink("/proc/self/exe") // TODO: make this mockable
+	if err != nil {
+		return fmt.Errorf("cannot read /proc/self/exe, %s", err)
+	}
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return nil
+	}
+
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine.d/.
