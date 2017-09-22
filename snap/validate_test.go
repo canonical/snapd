@@ -133,55 +133,255 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 }
 
 func (s *ValidateSuite) TestValidateAppSockets(c *C) {
+	socket := &SocketInfo{
+		Name:         "sock",
+		ListenStream: "/var/snap/mysnap/common/socket",
+		SocketMode:   0600,
+	}
 	app := AppInfo{
-		Name: "foo",
-		Sockets: map[string]*SocketInfo{
-			"sock": {
-				Name:         "sock",
-				ListenStream: "/a/path",
-				SocketMode:   0600,
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
 			},
 		},
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": socket,
+		},
 	}
+	socket.App = &app
 	c.Check(ValidateApp(&app), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
+	socket := &SocketInfo{
+		Name:         "sock",
+		ListenStream: "/var/snap/mysnap/common/socket",
+	}
 	app := AppInfo{
-		Name: "foo",
-		Sockets: map[string]*SocketInfo{
-			"sock": {
-				Name:         "sock",
-				ListenStream: "/a/socket",
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
 			},
 		},
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": socket,
+		},
 	}
+	socket.App = &app
 	c.Check(ValidateApp(&app), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
+	socket := &SocketInfo{Name: "sock"}
 	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
 		Name: "foo",
 		Sockets: map[string]*SocketInfo{
-			"sock": {Name: "sock"},
+			"sock": socket,
 		},
 	}
+	socket.App = &app
 	err := ValidateApp(&app)
-	c.Assert(err, ErrorMatches, `socket "sock" must define listen-stream`)
+	c.Assert(err, ErrorMatches, `socket "sock" must define "listen-stream"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
+	socket := &SocketInfo{
+		Name:         "invalid name",
+		ListenStream: "8080",
+	}
 	app := AppInfo{
-		Name: "foo",
-		Sockets: map[string]*SocketInfo{
-			"sock": {
-				Name:         "invalid name",
-				ListenStream: "8080",
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
 			},
 		},
+		Name: "foo",
+		Sockets: map[string]*SocketInfo{
+			"sock": socket,
+		},
 	}
+	socket.App = &app
 	err := ValidateApp(&app)
 	c.Assert(err, ErrorMatches, `invalid app socket name: "invalid name"`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	validListenAddresses := []string{
+		// socket paths
+		"/var/snap/mysnap/common/my.socket",
+		"/var/snap/mysnap/20/my.socket",
+		"$SNAP_DATA/my.socket",
+		"$SNAP_COMMON/my.socket",
+		// abstract sockets
+		"@snap.mysnap.my.socket",
+		// addresses and ports
+		"8080",
+		"127.0.0.1:8080",
+		"[::]:8080",
+		"[::1]:8080",
+	}
+	for _, validAddress := range validListenAddresses {
+		socket.ListenStream = validAddress
+		err := ValidateApp(&app)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	invalidListenAddresses := []string{
+		// socket paths out of the snap dirs
+		"/some/path/my.socket",
+		"/var/snap/anothersnap/my.socket",
+		"/var/snap/mysnap/33/my.socket", // different revision
+	}
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(&app)
+		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must start with.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathVariable(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	invalidListenAddresses := []string{
+		"$SNAP/my.socket", // snap dir is not writable
+		"$SOMEVAR/my.socket",
+	}
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(&app)
+		c.Assert(
+			err, ErrorMatches,
+			`socket "sock" has invalid "listen-stream": only \$SNAP_DATA and \$SNAP_COMMON prefixes are allowed`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	invalidListenAddresses := []string{
+		"@snap.notmysnap.my.socket",
+		"@some.other.name",
+	}
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(&app)
+		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must be prefixed with.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	invalidListenAddresses := []string{
+		"10.0.1.1:8080",
+		"[fafa::baba]:8080",
+	}
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(&app)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" address.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
+	socket := &SocketInfo{Name: "sock"}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:    "myapp",
+		Sockets: map[string]*SocketInfo{"sock": socket},
+	}
+	socket.App = &app
+
+	invalidPorts := []string{
+		"-8080",
+		"12312345345",
+		"[::]:-123",
+		"[::1]:3452345234",
+		"invalid",
+		"[::]:invalid",
+	}
+	for _, invalidPort := range invalidPorts {
+		socket.ListenStream = invalidPort
+		err := ValidateApp(&app)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" port number.*`)
+	}
 }
 
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {

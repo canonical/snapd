@@ -240,7 +240,6 @@ apps:
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 	service := &snap.AppInfo{
-
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
@@ -252,7 +251,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
-				ListenStream: "sock1.socket",
+				ListenStream: "$SNAP_DATA/sock1.socket",
 				SocketMode:   0666,
 			},
 		},

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -356,7 +357,7 @@ X-Snappy=yes
 [Socket]
 Service={{.ServiceFileName}}
 FileDescriptorName={{.SocketInfo.Name}}
-ListenStream={{.SocketInfo.ListenStream}}
+ListenStream={{.ListenStream}}
 {{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
 
 [Install]
@@ -365,6 +366,8 @@ WantedBy={{.SocketsTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("socket-wrapper").Parse(socketTemplate))
 
+	socket := appInfo.Sockets[socketName]
+	listenStream := renderListenStream(socket)
 	wrapperData := struct {
 		App                *snap.AppInfo
 		ServiceFileName    string
@@ -373,6 +376,7 @@ WantedBy={{.SocketsTarget}}
 		MountUnit          string
 		SocketName         string
 		SocketInfo         *snap.SocketInfo
+		ListenStream       string
 	}{
 		App:                appInfo,
 		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
@@ -380,7 +384,8 @@ WantedBy={{.SocketsTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		SocketName:         socketName,
-		SocketInfo:         appInfo.Sockets[socketName],
+		SocketInfo:         socket,
+		ListenStream:       listenStream,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -401,4 +406,10 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 		socketFiles[socket.File()] = genServiceSocketFile(app, name)
 	}
 	return &socketFiles, nil
+}
+
+func renderListenStream(socket *snap.SocketInfo) string {
+	snap := socket.App.Snap
+	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
+	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
 }

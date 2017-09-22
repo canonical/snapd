@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
@@ -78,6 +79,89 @@ func ValidateAppSocketName(name string) error {
 	if !valid {
 		return fmt.Errorf("invalid app socket name: %q", name)
 	}
+	return nil
+}
+
+// ValidateAppSocketListenAddress checks that the value of socket addresses.
+func ValidateAppSocketListenAddress(socket *SocketInfo, fieldName string, address string) error {
+	if address == "" {
+		return fmt.Errorf("socket %q must define %q", socket.Name, fieldName)
+	}
+
+	switch address[0] {
+	case '/', '$':
+		return validateAppSocketListenAddressPath(socket, fieldName, address)
+	case '@':
+		return validateAppSocketListenAddressAbstractSocket(socket, fieldName, address)
+	default:
+		return validateAppSocketListenAddressNetAddress(socket, fieldName, address)
+	}
+}
+
+func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, path string) error {
+	if path[0] == '$' {
+		if strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"socket %q has invalid %q: only $SNAP_DATA and $SNAP_COMMON prefixes are allowed", socket.Name, fieldName)
+	}
+
+	if path[0] == '/' {
+		dataDirPrefix := socket.App.Snap.DataDir() + "/"
+		commonDirPrefix := socket.App.Snap.CommonDataDir() + "/"
+		if !(strings.HasPrefix(path, dataDirPrefix) || strings.HasPrefix(path, commonDirPrefix)) {
+			return fmt.Errorf(
+				"socket %q path for %q must start with %q or %q", socket.Name, fieldName, dataDirPrefix, commonDirPrefix)
+		}
+	}
+	return nil
+}
+
+func validateAppSocketListenAddressAbstractSocket(socket *SocketInfo, fieldName string, path string) error {
+	prefix := "@snap." + socket.App.Snap.Name()
+	if !strings.HasPrefix(path, prefix) {
+		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
+	}
+	return nil
+}
+
+func validateAppSocketListenAddressNetAddress(socket *SocketInfo, fieldName string, address string) error {
+	lastIndex := strings.LastIndex(address, ":")
+	if lastIndex >= 0 {
+		if err := validateAppSocketListenAddressNetAddressAddress(socket, fieldName, address[:lastIndex]); err != nil {
+			return err
+		}
+		if err := validateAppSocketListenAddressNetAddressPort(socket, fieldName, address[lastIndex+1:]); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Address only contains a port
+	if err := validateAppSocketListenAddressNetAddressPort(socket, fieldName, address); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateAppSocketListenAddressNetAddressAddress(socket *SocketInfo, fieldName string, address string) error {
+	for _, validAddress := range []string{"127.0.0.1", "[::1]", "[::]"} {
+		if address == validAddress {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("socket %q has invalid %q address %q", socket.Name, fieldName, address)
+}
+
+func validateAppSocketListenAddressNetAddressPort(socket *SocketInfo, fieldName string, port string) error {
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
+	}
+
 	return nil
 }
 
@@ -160,15 +244,11 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 }
 
 func validateAppSocket(socket *SocketInfo) error {
-	err := ValidateAppSocketName(socket.Name)
-	if err != nil {
+	if err := ValidateAppSocketName(socket.Name); err != nil {
 		return err
 	}
 
-	if socket.ListenStream == "" {
-		return fmt.Errorf("socket %q must define listen-stream", socket.Name)
-	}
-	return nil
+	return ValidateAppSocketListenAddress(socket, "listen-stream", socket.ListenStream)
 }
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"

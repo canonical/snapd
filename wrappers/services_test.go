@@ -113,10 +113,10 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
   daemon: simple
   sockets:
     sock1:
-      listen-stream: sock1.socket
+      listen-stream: $SNAP_DATA/sock1.socket
       socket-mode: 0666
     sock2:
-      listen-stream: sock2.socket
+      listen-stream: $SNAP_COMMON/sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.AddSnapServices(info, nil)
@@ -192,10 +192,10 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
   daemon: simple
   sockets:
     sock1:
-      listen-stream: sock1.socket
+      listen-stream: $SNAP_COMMON/sock1.socket
       socket-mode: 0666
     sock2:
-      listen-stream: sock2.socket
+      listen-stream: $SNAP_DATA/sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.AddSnapServices(info, nil)
@@ -389,10 +389,10 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
   daemon: simple
   sockets:
     sock1:
-      listen-stream: sock1.socket
+      listen-stream: $SNAP_COMMON/sock1.socket
       socket-mode: 0666
     sock2:
-      listen-stream: sock2.socket
+      listen-stream: $SNAP_DATA/sock2.socket
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	sock1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock1.socket")
@@ -403,29 +403,28 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 
 	content1, err := ioutil.ReadFile(sock1File)
 	c.Assert(err, IsNil)
-	c.Check(
-		strings.Contains(
-			string(content1),
-			`[Socket]
+	expected := fmt.Sprintf(
+		`[Socket]
 Service=snap.hello-snap.svc1.service
 FileDescriptorName=sock1
-ListenStream=sock1.socket
+ListenStream=%s
 SocketMode=0666
 
-`),
-		Equals, true)
+`, filepath.Join(s.tempdir, "/var/snap/hello-snap/common/sock1.socket"))
+	c.Check(strings.Contains(string(content1), expected), Equals, true)
 
 	content2, err := ioutil.ReadFile(sock2File)
 	c.Assert(err, IsNil)
-	c.Check(strings.Contains(
-		string(content2),
-			`[Socket]
+
+	expected = fmt.Sprintf(
+		`[Socket]
 Service=snap.hello-snap.svc1.service
 FileDescriptorName=sock2
-ListenStream=sock2.socket
+ListenStream=%s
 
-`),
-		Equals, true)
+`, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
+	c.Check(strings.Contains(string(content2), expected), Equals, true)
+
 }
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
