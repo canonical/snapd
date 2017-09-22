@@ -32,9 +32,9 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-void _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
-				    const char *path, unsigned major,
-				    unsigned minor)
+void
+_run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
+			       const char *path, unsigned major, unsigned minor)
 {
 	int status = 0;
 	pid_t pid = fork();
@@ -242,7 +242,6 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
 					       nv_major, nvctl_minor);
 	}
-
 	// /dev/nvidia-uvm
 	if (stat(nvuvm_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
