@@ -28,10 +28,10 @@ import (
 )
 
 var (
-	AnythingUsesNfs = anythingUsesNfs
+	IsHomeUsingNFS = isHomeUsingNFS
 )
 
-//MockMountInfo mocks content of /proc/self/mountinfo read by anythingUsesNfs
+//MockMountInfo mocks content of /proc/self/mountinfo read by isHomeUsingNFS
 func MockMountInfo(text string) (restore func()) {
 	old := procSelfMountInfo
 	f, err := ioutil.TempFile("", "mountinfo")

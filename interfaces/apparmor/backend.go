@@ -79,10 +79,10 @@ func setupSnapConfineGeneratedPolicy() error {
 	glob := "generated-*"
 	policy := make(map[string]*osutil.FileState)
 
-	// Check if NFS is mounted anywhere. Because NFS is not transparent to
-	// apparmor we must alter our profile to counter that and allow
-	// snap-confine to work.
-	if nfs, err := anythingUsesNfs(); err != nil {
+	// Check if NFS is mounted at or under $HOME. Because NFS is not
+	// transparent to apparmor we must alter our profile to counter that and
+	// allow snap-confine to work.
+	if nfs, err := isHomeUsingNFS(); err != nil {
 		return err
 	} else if nfs {
 		policy["generated-nfs"] = &osutil.FileState{
@@ -132,8 +132,8 @@ var (
 	procSelfMountInfo = mount.ProcSelfMountInfo
 )
 
-// anythingUsesNfs returns true if any NFS file system is mounted.
-func anythingUsesNfs() (bool, error) {
+// isHomeUsingNFS returns true if /home contains NFS mounts.
+func isHomeUsingNFS() (bool, error) {
 	entries, err := mount.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
 		return false, fmt.Errorf("cannot parse /proc/self/mountinfo, %s", err)
@@ -330,7 +330,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// the super-broad template we are starting with.
 			} else {
 				tagSnippets = snippetForTag
-				if nfs, _ := anythingUsesNfs(); nfs {
+				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
 				}
 			}
