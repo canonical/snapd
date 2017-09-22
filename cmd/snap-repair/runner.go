@@ -112,7 +112,7 @@ func (r *Repair) Run() error {
 	}
 
 	// ensure the script can use "repair done"
-	repairToolsDir := filepath.Join(dirs.SnapRunDir, "repair/tools")
+	repairToolsDir := filepath.Join(dirs.SnapRunRepairDir, "tools")
 	if err := makeRepairSymlink(repairToolsDir); err != nil {
 		return err
 	}

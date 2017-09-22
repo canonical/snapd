@@ -61,7 +61,7 @@ func init() {
 }
 
 func (c *cmdRun) Execute(args []string) error {
-	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0755); err != nil {
 		return err
 	}
 	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
