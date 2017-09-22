@@ -122,7 +122,7 @@ func anythingUsesNfs() (bool, error) {
 		return false, err
 	}
 	for _, entry := range entries {
-		if entry.FsType == "nfs4" || entry.FsType == "nfs" {
+		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && strings.HasPrefix(entry.MountDir, "/home/") {
 			return true, nil
 		}
 	}
