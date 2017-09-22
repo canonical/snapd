@@ -30,6 +30,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -357,10 +358,19 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// assumes to find snap-exec
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
 				 scratch_dir);
-		// FIXME: take re-exec into account, i.e. this may not
-		//        actually be the path we need, we need snapd
-		//        to tell us what path to use instead.
-		const char *src = LIBEXECDIR;
+
+		// bind mount the current $ROOT/usr/lib/snapd path,
+		// where $ROOT is either "/" or the "/snap/core/current"
+		// that we are re-execing from
+		char src[PATH_MAX + 1];
+		sc_must_snprintf(src, sizeof src, "%s", LIBEXECDIR);
+
+		char self[PATH_MAX + 1] = { 0, };
+		if (readlink("/proc/self/exe", self, sizeof self) > 0) {
+			char *dir = dirname(self);
+			sc_must_snprintf(src, sizeof src, "%s", dir);
+		}
+
 		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
