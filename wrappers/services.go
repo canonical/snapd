@@ -62,29 +62,30 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
 
-	stop := func(serviceName string) error {
-		if err := sysd.Stop(serviceName, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL")
+	socketErrors := []error{}
+	for _, socket := range app.Sockets {
+		if err := sysd.Stop(filepath.Base(socket.File()), tout); err != nil {
+			socketErrors = append(socketErrors, err)
 		}
-
-		return nil
 	}
 
-	for _, socket := range app.Sockets {
-		err := stop(filepath.Base(socket.File()))
-		if err != nil {
+	if err := sysd.Stop(serviceName, tout); err != nil {
+		if !systemd.IsTimeout(err) {
 			return err
 		}
+		inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+		// ignore errors for kill; nothing we'd do differently at this point
+		sysd.Kill(serviceName, "TERM")
+		time.Sleep(killWait)
+		sysd.Kill(serviceName, "KILL")
+
 	}
 
-	return stop(serviceName)
+	if len(socketErrors) > 0 {
+		return socketErrors[0]
+	}
+
+	return nil
 }
 
 // StartServices starts service units for the applications from the snap which are services.
