@@ -406,14 +406,25 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	c.Check(
 		strings.Contains(
 			string(content1),
-			"[Socket]\nService=snap.hello-snap.svc1.service\nListenStream=sock1.socket\nSocketMode=0666\n\n"),
+			`[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock1
+ListenStream=sock1.socket
+SocketMode=0666
+
+`),
 		Equals, true)
 
 	content2, err := ioutil.ReadFile(sock2File)
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(
 		string(content2),
-		"[Socket]\nService=snap.hello-snap.svc1.service\nListenStream=sock2.socket\n\n"),
+			`[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock2
+ListenStream=sock2.socket
+
+`),
 		Equals, true)
 }
 

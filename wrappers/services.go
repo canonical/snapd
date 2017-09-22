@@ -171,7 +171,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		}
 		written = append(written, svcFilePath)
 
-		// Generate systemd socket files if needed
+		// Generate systemd .socket files if needed
 		socketFiles, err := generateSnapSocketFiles(app)
 		if err != nil {
 			return err
@@ -344,7 +344,7 @@ WantedBy={{.ServicesTarget}}
 	return templateOut.Bytes()
 }
 
-func genSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
+func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
 	socketTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Socket {{.SocketName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
@@ -355,6 +355,7 @@ X-Snappy=yes
 
 [Socket]
 Service={{.ServiceFileName}}
+FileDescriptorName={{.SocketInfo.Name}}
 ListenStream={{.SocketInfo.ListenStream}}
 {{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
 
@@ -397,7 +398,7 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 
 	socketFiles := make(map[string][]byte)
 	for name, socket := range app.Sockets {
-		socketFiles[socket.File()] = genSocketFile(app, name)
+		socketFiles[socket.File()] = genServiceSocketFile(app, name)
 	}
 	return &socketFiles, nil
 }
