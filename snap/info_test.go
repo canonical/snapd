@@ -44,7 +44,14 @@ var _ = Suite(&infoSuite{})
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
-	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+	restore1 := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error {
+		return nil
+	})
+	restore2 := snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+	s.restore = func() {
+		restore1()
+		restore2()
+	}
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
