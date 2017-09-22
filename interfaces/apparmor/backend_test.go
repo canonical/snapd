@@ -371,6 +371,8 @@ snippet
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
+	restore = apparmor.MockMountInfo("") // mock away NFS detection
+	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
 	restoreTemplate := apparmor.MockTemplate("\n" +
