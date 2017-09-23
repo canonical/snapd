@@ -45,7 +45,7 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 .PHONY: hack
 hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
 	sudo install -D -m 4755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine.d/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
@@ -161,8 +161,8 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
-dist_man_MANS += snap-confine/snap-confine.5
-CLEANFILES += snap-confine/snap-confine.5
+dist_man_MANS += snap-confine/snap-confine.1
+CLEANFILES += snap-confine/snap-confine.1
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
@@ -281,7 +281,7 @@ snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests
 endif  # WITH_UNIT_TESTS
 
 if HAVE_RST2MAN
-snap-confine/%.5: snap-confine/%.rst
+snap-confine/%.1: snap-confine/%.rst
 	mkdir -p snap-confine
 	$(HAVE_RST2MAN) $^ > $@
 endif
