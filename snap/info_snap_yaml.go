@@ -180,10 +180,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
-	epoch := y.Epoch
-	if epoch.IsNull() {
-		epoch = EpochZero()
-	}
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -202,7 +198,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		License:             y.License,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
-		Epoch:               epoch,
+		Epoch:               y.Epoch,
 		Confinement:         confinement,
 		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),

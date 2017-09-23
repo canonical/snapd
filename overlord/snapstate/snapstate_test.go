@@ -1581,7 +1581,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "services-snap-id",
 				Revision: snap.R(7),
-				Epoch:    snap.EpochZero(),
 			},
 			revno: snap.R(11),
 		},
@@ -1760,7 +1759,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    snap.EpochZero(),
 			},
 			revno: snap.R(11),
 		},
@@ -1920,7 +1918,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    snap.EpochZero(),
 			},
 			revno: snap.R(11),
 		},
@@ -2126,7 +2123,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				Channel:  "channel-for-7",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    snap.EpochZero(),
 			},
 		},
 	}
@@ -2263,7 +2259,6 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    snap.EpochZero(),
 			Channel:  "some-channel",
 		},
 	})
@@ -2304,7 +2299,6 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    snap.EpochZero(),
 		},
 	})
 
@@ -2343,7 +2337,6 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 			Block:    []snap.Revision{snap.R(11)},
-			Epoch:    snap.EpochZero(),
 		},
 	})
 
