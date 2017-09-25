@@ -497,58 +497,53 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 }
 
 func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
-	// Errors from parsing mountinfo and fstab are propagated.
-	restore := apparmor.MockMountInfo("bad syntax")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
-	defer restore()
-	nfs, err := apparmor.IsHomeUsingNFS()
-	c.Assert(err, ErrorMatches, "cannot parse /proc/self/mountinfo, .*")
-	c.Assert(nfs, Equals, false)
+	cases := []struct {
+		mountinfo, fstab string
+		nfs              bool
+		errorPattern     string
+	}{
+		// Errors from parsing mountinfo and fstab are propagated.
+		{
+			mountinfo:    "bad syntax",
+			errorPattern: "cannot parse /proc/self/mountinfo, .*",
+		},
+		{
+			fstab:        "bad syntax",
+			errorPattern: "cannot parse /etc/fstab, .*",
+		},
+		// NFSv4 currently mounted at /home/zyga/nfs is recognized.
+		{
+			mountinfo: "680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
+			nfs:       true,
+		},
+		// NFSv4 currently mounted at /mnt/nfs is ignored (not in $HOME).
+		{
+			mountinfo: "680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
+		},
+		// NFSv4 that may be mounted at /home/zyga/nfs is recognized.
+		{
+			fstab: "localhost:/srv/nfs /home/zyga/nfs nfs defaults 0 0",
+			nfs:   true,
+		},
+		// NFSv4 that may be mounted at /mnt/nfs is ignored (not in $HOME).
+		{
+			fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
+		},
+	}
+	for _, tc := range cases {
+		restore := apparmor.MockMountInfo(tc.mountinfo)
+		defer restore()
+		restore = apparmor.MockEtcFstab(tc.fstab)
+		defer restore()
 
-	restore = apparmor.MockMountInfo("")
-	defer restore()
-	restore = apparmor.MockEtcFstab("bad syntax")
-	defer restore()
-	nfs, err = apparmor.IsHomeUsingNFS()
-	c.Assert(err, ErrorMatches, "cannot parse /etc/fstab, .*")
-	c.Assert(nfs, Equals, false)
-
-	// NFSv4 currently mounted at /home/zyga/nfs is recognized.
-	restore = apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
-	defer restore()
-	nfs, err = apparmor.IsHomeUsingNFS()
-	c.Assert(err, IsNil)
-	c.Assert(nfs, Equals, true)
-
-	// NFSv4 currently mounted at /mnt/nfs is ignored (not in $HOME).
-	restore = apparmor.MockMountInfo("680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
-	defer restore()
-	nfs, err = apparmor.IsHomeUsingNFS()
-	c.Assert(err, IsNil)
-	c.Assert(nfs, Equals, false)
-
-	// NFSv4 may be mounted at /home/zyga/nfs is recognized.
-	restore = apparmor.MockMountInfo("")
-	defer restore()
-	restore = apparmor.MockEtcFstab("localhost:/srv/nfs /home/zyga/nfs nfs defaults 0 0")
-	defer restore()
-	nfs, err = apparmor.IsHomeUsingNFS()
-	c.Assert(err, IsNil)
-	c.Assert(nfs, Equals, true)
-
-	// NFSv4 may be mounted at /mnt/nfs is ignored (not in $HOME).
-	restore = apparmor.MockMountInfo("")
-	defer restore()
-	restore = apparmor.MockEtcFstab("localhost:/srv/nfs /mnt/nfs nfs defaults 0 0")
-	defer restore()
-	nfs, err = apparmor.IsHomeUsingNFS()
-	c.Assert(err, IsNil)
-	c.Assert(nfs, Equals, false)
+		nfs, err := apparmor.IsHomeUsingNFS()
+		if tc.errorPattern != "" {
+			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Assert(nfs, Equals, tc.nfs)
+	}
 }
 
 // snap-confine policy when NFS is not used.
