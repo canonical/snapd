@@ -658,8 +658,11 @@ fi
 
 
 %changelog
-* Fri Sep 22 2017 Michael Vogt <mvo@ubuntu.com>
+* Mon Sep 25 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28
+ - hooks: rename refresh to after-refresh
+ - snap-confine: bind mount /usr/lib/snapd relative to snap-confine
+ - cmd,dirs: treat "liri" the same way as "arch"
  - snap-confine: fix base snaps on core
  - hooks: substitute env vars when executing hooks
  - interfaces: updates for default, browser-support, desktop, opengl,

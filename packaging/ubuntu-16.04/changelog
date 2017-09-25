@@ -1,6 +1,9 @@
 snapd (2.28) xenial; urgency=medium
 
   * New upstream release, LP: #1714984
+    - hooks: rename refresh to after-refresh
+    - snap-confine: bind mount /usr/lib/snapd relative to snap-confine
+    - cmd,dirs: treat "liri" the same way as "arch"
     - snap-confine: fix base snaps on core
     - hooks: substitute env vars when executing hooks
     - interfaces: updates for default, browser-support, desktop, opengl,
@@ -56,9 +59,9 @@ snapd (2.28) xenial; urgency=medium
     - vendor: fix artifact from manually editing vendor/vendor.json
     - tests: rename complexion to test-snapd-complexion
     - interfaces: add desktop and desktop-legacy
-      interfaces/desktop: add new 'desktop' interface for modern DEs*
-      interfaces/builtin/desktop_test.go: use modern testing techniques*
-      interfaces/wayland: allow read on /etc/drirc for Plasma desktop*
+      interfaces/desktop: add new 'desktop' interface for modern DEs
+      interfaces/builtin/desktop_test.go: use modern testing techniques
+      interfaces/wayland: allow read on /etc/drirc for Plasma desktop
       interfaces/desktop-legacy: add new 'legacy' interface (currently
       for a11y and input)
     - tests: fix race in snap userd test
@@ -265,7 +268,7 @@ snapd (2.28) xenial; urgency=medium
     - store: configurable base api
     - tests: fix how package lists are updated for opensuse and fedora
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 22 Sep 2017 09:03:07 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 25 Sep 2017 12:07:34 -0400
 
 snapd (2.27.5) xenial; urgency=medium
 
