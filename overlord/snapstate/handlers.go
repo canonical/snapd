@@ -167,8 +167,23 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		prereqName = snapsup.Base
 	}
 
+	if err := m.installPrereq(t, prereqName, snapsup.UserID); err != nil {
+		return err
+	}
+	for _, prereqName := range snapsup.Prereq {
+		if err := m.installPrereq(t, prereqName, snapsup.UserID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *SnapManager) installPrereq(t *state.Task, prereqName string, userID int) error {
+	st := t.State()
+
 	var prereqState SnapState
-	err = Get(st, prereqName, &prereqState)
+	err := Get(st, prereqName, &prereqState)
 	// we have the prereq already
 	if err == nil {
 		return nil
@@ -190,7 +205,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
 	// something might have triggered an explicit install of core while
 	// the state was unlocked -> deal with that here
 	if _, ok := err.(changeDuringInstallError); ok {

@@ -426,6 +426,24 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+// defaultContentPlugProviders takes a snap.Info and returns what
+// default providers there are.
+func defaultContentPlugProviders(info *snap.Info) []string {
+	// FIXME: only return default providers that are not already
+	//        satisfied by something else
+	out := []string{}
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			dprovider, ok := plug.Attrs["default-provider"].(string)
+			if !ok || dprovider == "" {
+				continue
+			}
+			out = append(out, dprovider)
+		}
+	}
+	return out
+}
+
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
@@ -465,6 +483,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 
 	snapsup := &SnapSetup{
 		Base:     info.Base,
+		Prereq:   defaultContentPlugProviders(info),
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
