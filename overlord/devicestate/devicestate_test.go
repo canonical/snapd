@@ -77,6 +77,7 @@ type deviceMgrSuite struct {
 
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
+	restoreSanitize          func()
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -105,6 +106,8 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
@@ -161,6 +164,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
+	s.restoreSanitize()
 }
 
 var settleTimeout = 15 * time.Second
