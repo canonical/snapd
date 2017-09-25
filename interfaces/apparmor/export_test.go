@@ -28,7 +28,8 @@ import (
 )
 
 var (
-	IsHomeUsingNFS = isHomeUsingNFS
+	IsHomeUsingNFS                  = isHomeUsingNFS
+	SetupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicy
 )
 
 //MockMountInfo mocks content of /proc/self/mountinfo read by isHomeUsingNFS
@@ -45,6 +46,16 @@ func MockMountInfo(text string) (restore func()) {
 	return func() {
 		os.Remove(procSelfMountInfo)
 		procSelfMountInfo = old
+	}
+}
+
+// MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.
+func MockProcSelfExe(symlink string) (restore func()) {
+	old := procSelfExe
+	procSelfExe = symlink
+	return func() {
+		os.Remove(procSelfExe)
+		procSelfExe = old
 	}
 }
 

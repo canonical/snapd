@@ -70,6 +70,8 @@ func (b *Backend) Initialize() error {
 	return setupSnapConfineGeneratedPolicy()
 }
 
+var procSelfExe = "/proc/self/exe"
+
 // setupSnapConfineGeneratedPolicy inspects the system and sets up local
 // apparmor policy for snap-confine. Local policy is included by the
 // system-wide policy. If the local policy has changed then the apparmor
@@ -107,7 +109,7 @@ func setupSnapConfineGeneratedPolicy() error {
 	// snap-confined from the host distribution but our own copy. We don't have
 	// to re-compile and load the updated profile as that is performed by
 	// setupSnapConfineReexec below.
-	exe, err := os.Readlink("/proc/self/exe") // TODO: make this mockable
+	exe, err := os.Readlink(procSelfExe)
 	if err != nil {
 		return fmt.Errorf("cannot read /proc/self/exe, %s", err)
 	}
