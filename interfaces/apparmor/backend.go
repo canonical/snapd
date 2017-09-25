@@ -77,9 +77,15 @@ var procSelfExe = "/proc/self/exe"
 // system-wide policy. If the local policy has changed then the apparmor
 // profile for snap-confine is reloaded.
 func setupSnapConfineGeneratedPolicy() error {
+	// Location of the generated policy.
 	dir := dirs.SnapConfineAppArmorDir
 	glob := "generated-*"
 	policy := make(map[string]*osutil.FileState)
+
+	// Create the local policy directory if it is not there.
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
@@ -92,11 +98,6 @@ func setupSnapConfineGeneratedPolicy() error {
 			Mode:    0644,
 		}
 		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
-	}
-
-	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
 	}
 
 	// Ensure that generated policy is what we computed above.
