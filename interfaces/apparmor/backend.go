@@ -94,6 +94,11 @@ func setupSnapConfineGeneratedPolicy() error {
 		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
 	}
 
+	// Create the local policy directory if it is not there.
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dir, glob, policy)
 	if err != nil {
