@@ -44,13 +44,9 @@ type Repository struct {
 	backends  map[SecuritySystem]SecurityBackend
 }
 
-func init() {
-	snap.SanitizePlugsSlots = sanitizePlugsSlots
-}
-
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
-	return &Repository{
+	repo := &Repository{
 		ifaces:    make(map[string]Interface),
 		plugs:     make(map[string]map[string]*Plug),
 		slots:     make(map[string]map[string]*Slot),
@@ -58,6 +54,10 @@ func NewRepository() *Repository {
 		plugSlots: make(map[*Plug]map[*Slot]*Connection),
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
+		return repo.sanitizePlugsSlots(snapInfo)
+	}
+	return repo
 }
 
 // Interface returns an interface with a given name.
@@ -852,7 +852,7 @@ func (e *BadInterfacesError) Error() string {
 	return strings.TrimSuffix(buf.String(), "; ")
 }
 
-func sanitizePlugsSlots(snapInfo *snap.Info) error {
+func (r *Repository) sanitizePlugsSlots(snapInfo *snap.Info) error {
 	snapName := snapInfo.Name()
 
 	bad := BadInterfacesError{
