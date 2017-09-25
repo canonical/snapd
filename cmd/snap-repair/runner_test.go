@@ -684,14 +684,27 @@ func (s *runnerSuite) TestTLSTime(c *C) {
 	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
 }
 
-func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
-	par := filepath.Dir(dirs.SnapSeedDir)
-	err := os.Chmod(par, 0555)
+func makeReadOnly(c *C, dir string) (restore func()) {
+	// skip tests that need this because uid==0 does not honor
+	// write permissions in directories (yay, unix)
+	if os.Getuid() == 0 {
+		// FIXME: we could use osutil.Chattr() here
+		c.Skip("too lazy to make path readonly as root")
+	}
+	err := os.Chmod(dir, 0555)
 	c.Assert(err, IsNil)
-	defer os.Chmod(par, 0775)
+	return func() {
+		err := os.Chmod(dir, 0755)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
+	defer restore()
 
 	runner := repair.NewRunner()
-	err = runner.LoadState()
+	err := runner.LoadState()
 	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
 }
 
@@ -702,9 +715,8 @@ func (s *runnerSuite) TestSaveStateFail(c *C) {
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
 
-	err = os.Chmod(dirs.SnapRepairDir, 0555)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapRepairDir, 0775)
+	restore := makeReadOnly(c, dirs.SnapRepairDir)
+	defer restore()
 
 	// no error because this is a no-op
 	err = runner.SaveState()
@@ -767,6 +779,8 @@ func (s *runnerSuite) TestApplicable(c *C) {
 		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
 		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
 		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
+		{map[string]interface{}{"disabled": "true"}, false},
+		{map[string]interface{}{"disabled": "false"}, true},
 	}
 
 	for _, scen := range scenarios {
@@ -906,6 +920,13 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	c.Assert(mockServer, NotNil)
 
 	return mockServer
+}
+
+func (s *runnerSuite) TestTrustedRepairRootKeys(c *C) {
+	acctKeys := repair.TrustedRepairRootKeys()
+	c.Check(acctKeys, HasLen, 1)
+	c.Check(acctKeys[0].AccountID(), Equals, "canonical")
+	c.Check(acctKeys[0].PublicKeyID(), Equals, "nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t")
 }
 
 func (s *runnerSuite) TestVerify(c *C) {
@@ -1133,7 +1154,8 @@ brand-id: canonical
 repair-id: 1
 summary: repair one rev1
 series:
-  - 33
+  - 16
+disabled: true
 timestamp: 2017-07-02T12:00:00Z
 body-length: 7
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
@@ -1238,11 +1260,10 @@ AXNpZw==`}
 	runner.LoadState()
 
 	// break SaveState
-	err := os.Chmod(dirs.SnapRepairDir, 0555)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapRepairDir, 0775)
+	restore := makeReadOnly(c, dirs.SnapRepairDir)
+	defer restore()
 
-	_, err = runner.Next("canonical")
+	_, err := runner.Next("canonical")
 	c.Check(err, ErrorMatches, `cannot save repair state:.*`)
 }
 
@@ -1566,7 +1587,12 @@ exit 0
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.done", "happy output\n")
+	s.verifyOutput(c, "r0.done", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+happy output
+`)
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1583,7 +1609,11 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `unhappy output
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -1592,6 +1622,10 @@ exit 1
 	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
 	c.Check(s.errReport.dupSig, Equals, `canonical/1
 "repair (1; brand-id:canonical)" failed: exit status 1
+output:
+repair: canonical-1
+revision: 0
+summary: repair one
 output:
 unhappy output
 `)
@@ -1617,7 +1651,12 @@ exit 0
 		`^r0.skip$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.skip", "other output\n")
+	s.verifyOutput(c, "r0.skip", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+other output
+`)
 	verifyRepairStatus(c, repair.SkipStatus)
 }
 
@@ -1639,7 +1678,11 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `unhappy output
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+unhappy output
 
 "repair (1; brand-id:canonical)" failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
@@ -1654,7 +1697,12 @@ exit 1
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.done", "happy now\n")
+	s.verifyOutput(c, "r0.done", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+happy now
+`)
 	verifyRepairStatus(c, repair.DoneStatus)
 }
 
@@ -1685,8 +1733,42 @@ sleep 100
 		`^r0.script$`,
 		`^work$`,
 	})
-	s.verifyOutput(c, "r0.retry", `output before timeout
+	s.verifyOutput(c, "r0.retry", `repair: canonical-1
+revision: 0
+summary: repair one
+output:
+output before timeout
 
 "repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
+}
+
+func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	script := `#!/bin/sh
+echo PATH=$PATH
+ls -l ${PATH##*:}/repair
+`
+	s.seqRepairs = []string{makeMockRepair(script)}
+	s.seqRepairs = s.signSeqRepairs(c, s.seqRepairs)
+
+	rpr, err := s.runner.Next("canonical")
+	c.Assert(err, IsNil)
+
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
+	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
+	c.Assert(err, IsNil)
+	c.Check(string(output), Matches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
+	c.Check(string(output), Matches, `(?ms).*/repair -> /usr/lib/snapd/snap-repair`)
+
+	// run again and ensure no error happens
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+
 }

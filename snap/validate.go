@@ -35,6 +35,8 @@ var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: sc_snap_name_validate and validate_snap_name .
 	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)

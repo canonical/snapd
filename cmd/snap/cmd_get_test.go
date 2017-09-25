@@ -29,9 +29,11 @@ import (
 	snapset "github.com/snapcore/snapd/cmd/snap"
 )
 
-var getTests = []struct {
+type getCmdArgs struct {
 	args, stdout, stderr, error string
-}{{
+}
+
+var getTests = []getCmdArgs{{
 	args:  "get snap-name --foo",
 	error: ".*unknown flag.*foo.*",
 }, {
@@ -62,6 +64,10 @@ var getTests = []struct {
 	args:   "get snapname -l test-key1 test-key2",
 	stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
 }, {
+	args:   "get snapname document",
+	stderr: `WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`,
+	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+}, {
 	args:   "get snapname -d test-key1 test-key2",
 	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
 }, {
@@ -81,10 +87,8 @@ var getTests = []struct {
 	stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }}
 
-func (s *SnapSuite) TestSnapGetTests(c *C) {
-	s.mockGetConfigServer(c)
-
-	for _, test := range getTests {
+func (s *SnapSuite) runTests(cmds []getCmdArgs, c *C) {
+	for _, test := range cmds {
 		s.stdout.Truncate(0)
 		s.stderr.Truncate(0)
 
@@ -99,6 +103,27 @@ func (s *SnapSuite) TestSnapGetTests(c *C) {
 			c.Check(s.Stdout(), Equals, test.stdout)
 		}
 	}
+}
+
+func (s *SnapSuite) TestSnapGetTests(c *C) {
+	s.mockGetConfigServer(c)
+	s.runTests(getTests, c)
+}
+
+var getNoConfigTests = []getCmdArgs{{
+	args:  "get -l snapname",
+	error: `snap "snapname" has no configuration`,
+}, {
+	args:  "get snapname",
+	error: `snap "snapname" has no configuration`,
+}, {
+	args:   "get -d snapname",
+	stdout: "{}\n",
+}}
+
+func (s *SnapSuite) TestSnapGetNoConfiguration(c *C) {
+	s.mockGetEmptyConfigServer(c)
+	s.runTests(getNoConfigTests, c)
 }
 
 func (s *SnapSuite) TestSortByPath(c *C) {
@@ -166,5 +191,18 @@ func (s *SnapSuite) mockGetConfigServer(c *C) {
 		default:
 			c.Errorf("unexpected keys %q", query.Get("keys"))
 		}
+	})
+}
+
+func (s *SnapSuite) mockGetEmptyConfigServer(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/snaps/snapname/conf" {
+			c.Errorf("unexpected path %q", r.URL.Path)
+			return
+		}
+
+		c.Check(r.Method, Equals, "GET")
+
+		fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
 	})
 }

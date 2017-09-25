@@ -66,6 +66,10 @@ func MockTrustedRepairRootKeys(keys []*asserts.AccountKey) (restore func()) {
 	}
 }
 
+func TrustedRepairRootKeys() []*asserts.AccountKey {
+	return trustedRepairRootKeys
+}
+
 func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
@@ -116,4 +120,10 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	origTimeNow := timeNow
 	timeNow = f
 	return func() { timeNow = origTimeNow }
+}
+
+func NewCmdShow(args ...string) *cmdShow {
+	cmdShow := &cmdShow{}
+	cmdShow.Positional.Repair = args
+	return cmdShow
 }

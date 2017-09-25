@@ -42,6 +42,7 @@ var (
 	SnapAppArmorDir           string
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
+	SnapAppArmorConfineDir    string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -91,6 +92,10 @@ var (
 	CompletionHelper string
 	CompletersDir    string
 	CompleteSh       string
+
+	SystemFontsDir           string
+	SystemLocalFontsDir      string
+	SystemFontconfigCacheDir string
 )
 
 const (
@@ -132,14 +137,14 @@ func StripRootDir(dir string) string {
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
-	if SnapMountDir == defaultSnapMountDir {
+	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
+	if SnapMountDir == smd {
 		return true
 	}
 
 	// distros with a non-default /snap location may still be good
 	// if there is a symlink in place that links from the
 	// defaultSnapMountDir (/snap) to the distro specific mount dir
-	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
 	fi, err := os.Lstat(smd)
 	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
 		if target, err := filepath.EvalSymlinks(smd); err == nil {
@@ -172,6 +177,7 @@ func SetRootDir(rootdir string) {
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
+	SnapAppArmorConfineDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine.d")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
@@ -232,4 +238,8 @@ func SetRootDir(rootdir string) {
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
+
+	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
+	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 }
