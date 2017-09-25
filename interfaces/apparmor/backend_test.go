@@ -631,3 +631,148 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	// from core snap. This is handled separately by per-profile Setup.
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
+
+// Test behavior when issHomeUsingNFS fails.
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
+	// Make corrupt mountinfo.
+	restore := apparmor.MockMountInfo("corrupt")
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink and point it to the snapd from the
+	// mounted core snap. This indicates that snapd has re-executed and
+	// should not reload snap-confine policy.
+	fakeExe := filepath.Join(s.RootDir, "corrupt-proc-self-exe")
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	// Setup generated policy for snap-confine.
+	err := apparmor.SetupSnapConfineGeneratedPolicy()
+	c.Assert(err, ErrorMatches, "cannot parse /proc/self/mountinfo,.*")
+
+	// While other stuff failed we created the policy directory.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// We didn't reload the policy.
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+// Test behavior when os.Readlink "/proc/self/exe" fails.
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
+	// Make it appear as if NFS was used under /home.
+	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink and point it to the snapd from the
+	// mounted core snap. This indicates that snapd has re-executed and
+	// should not reload snap-confine policy.
+	fakeExe := filepath.Join(s.RootDir, "corrupt-proc-self-exe")
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	// Setup generated policy for snap-confine.
+	err := apparmor.SetupSnapConfineGeneratedPolicy()
+	c.Assert(err, ErrorMatches, "cannot read /proc/self/exe,.*")
+
+	// We created the policy file.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+
+	// We didn't reload the policy though.
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+// Test behavior when exec.Command "apparmor_parser" fails
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
+	// Make it appear as if NFS was used under /home.
+	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+
+	// Intercept interaction with apparmor_parser and make it fail.
+	cmd := testutil.MockCommand(c, "apparmor_parser", "echo testing; exit 1")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+	c.Assert(err, IsNil)
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	// Setup generated policy for snap-confine.
+	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: testing")
+
+	// While created the policy file.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+
+	// We tried to reload the policy.
+	c.Assert(cmd.Calls(), HasLen, 1)
+}
+
+// Test behavior when MkdirAll fails
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError4(c *C) {
+	// Create a directory where we would expect to find the local policy.
+	err := ioutil.WriteFile(dirs.SnapConfineAppArmorDir, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	// Setup generated policy for snap-confine.
+	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	c.Assert(err, ErrorMatches, "*.: not a directory")
+}
+
+// Test behavior when EnsureDirState fails
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
+	// Intercept interaction with /proc/self/mountinfo.
+	restore := apparmor.MockMountInfo("")
+	defer restore()
+
+	// Intercept interaction with apparmor_parser and make it fail.
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+	c.Assert(err, IsNil)
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	// Create the snap-confine directory and put a file. Because the file name
+	// matches the glob generated-* snapd will attempt to remove it but because
+	// the directory is not writable, that operation will fail.
+	err = os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+	f := filepath.Join(dirs.SnapConfineAppArmorDir, "generated-test")
+	err = ioutil.WriteFile(f, []byte("spurious content"), 0644)
+	c.Assert(err, IsNil)
+	err = os.Chmod(dirs.SnapConfineAppArmorDir, 0555)
+	c.Assert(err, IsNil)
+
+	// Make the directory writable for cleanup.
+	defer os.Chmod(dirs.SnapConfineAppArmorDir, 0755)
+
+	// Setup generated policy for snap-confine.
+	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	c.Assert(err, ErrorMatches, `cannot synchronize snap-confine policy, remove .*/generated-test: permission denied`)
+
+	// The policy directory was unchanged.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+
+	// We didn't try to reload the policy.
+	c.Assert(cmd.Calls(), HasLen, 0)
+}

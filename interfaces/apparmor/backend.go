@@ -84,7 +84,7 @@ func setupSnapConfineGeneratedPolicy() error {
 
 	// Create the local policy directory if it is not there.
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return fmt.Errorf("cannot create snap-confine policy directory, %s", err)
 	}
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
@@ -103,7 +103,7 @@ func setupSnapConfineGeneratedPolicy() error {
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dir, glob, policy)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot synchronize snap-confine policy, %s", err)
 	}
 	if len(created) == 0 && len(removed) == 0 {
 		// If the generated policy didn't change, we're all done.
