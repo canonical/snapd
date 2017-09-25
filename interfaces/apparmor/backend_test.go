@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -735,6 +736,13 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError4(c *C) {
 
 // Test behavior when EnsureDirState fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
+	// This test cannot run as root as root bypassed DAC checks.
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	if u.Uid == "0" {
+		c.Skip("this test cannot run as root")
+	}
+
 	// Intercept interaction with /proc/self/mountinfo.
 	restore := apparmor.MockMountInfo("")
 	defer restore()
@@ -745,7 +753,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 
 	// Intercept the /proc/self/exe symlink.
 	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
-	err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+	err = os.Symlink("/usr/lib/snapd/snapd", fakeExe)
 	c.Assert(err, IsNil)
 	restore = apparmor.MockProcSelfExe(fakeExe)
 	defer restore()
