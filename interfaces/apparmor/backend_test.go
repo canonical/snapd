@@ -776,3 +776,26 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	// We didn't try to reload the policy.
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
+
+// Test Backend.Initialize
+func (s *backendSuite) TestInitialize(c *C) {
+	called := false
+	restore := apparmor.MockSetupSnapConfineGeneratedPolicy(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
+}
+
+// Test Backend.Initialize error propagation
+func (s *backendSuite) TestInitializeError(c *C) {
+	apparmor.MockSetupSnapConfineGeneratedPolicy(func() error {
+		return fmt.Errorf("testing")
+	})
+	err := s.Backend.Initialize()
+	c.Assert(err, ErrorMatches, "testing")
+}

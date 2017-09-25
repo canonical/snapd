@@ -56,6 +56,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var (
+	procSelfExe                     = "/proc/self/exe"
+	setupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicyImpl
+)
+
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct{}
 
@@ -70,13 +75,11 @@ func (b *Backend) Initialize() error {
 	return setupSnapConfineGeneratedPolicy()
 }
 
-var procSelfExe = "/proc/self/exe"
-
-// setupSnapConfineGeneratedPolicy inspects the system and sets up local
+// setupSnapConfineGeneratedPolicyImpl inspects the system and sets up local
 // apparmor policy for snap-confine. Local policy is included by the
 // system-wide policy. If the local policy has changed then the apparmor
 // profile for snap-confine is reloaded.
-func setupSnapConfineGeneratedPolicy() error {
+func setupSnapConfineGeneratedPolicyImpl() error {
 	// Location of the generated policy.
 	dir := dirs.SnapConfineAppArmorDir
 	glob := "generated-*"
