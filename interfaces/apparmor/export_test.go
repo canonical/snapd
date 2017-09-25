@@ -58,6 +58,23 @@ func MockMountInfo(text string) (restore func()) {
 	}
 }
 
+// MockEtcFstab mocks content of /etc/fstab read by isHomeUsingNFS
+func MockEtcFstab(text string) (restore func()) {
+	old := procSelfMountInfo
+	f, err := ioutil.TempFile("", "fstab")
+	if err != nil {
+		panic(fmt.Errorf("cannot open temporary file %s", err))
+	}
+	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+		panic(fmt.Errorf("cannot write mock fstab file %s", err))
+	}
+	etcFstab = f.Name()
+	return func() {
+		os.Remove(etcFstab)
+		etcFstab = old
+	}
+}
+
 // MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.
 func MockProcSelfExe(symlink string) (restore func()) {
 	old := procSelfExe

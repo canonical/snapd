@@ -497,22 +497,54 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 }
 
 func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
-	// Errors from parsing mountinfo are propagated.
+	// Errors from parsing mountinfo and fstab are propagated.
 	restore := apparmor.MockMountInfo("bad syntax")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 	nfs, err := apparmor.IsHomeUsingNFS()
 	c.Assert(err, ErrorMatches, "cannot parse /proc/self/mountinfo, .*")
 	c.Assert(nfs, Equals, false)
 
-	// NFSv4 mounted at /home/zyga/nfs is recognized.
+	restore = apparmor.MockMountInfo("")
+	defer restore()
+	restore = apparmor.MockEtcFstab("bad syntax")
+	defer restore()
+	nfs, err = apparmor.IsHomeUsingNFS()
+	c.Assert(err, ErrorMatches, "cannot parse /etc/fstab, .*")
+	c.Assert(nfs, Equals, false)
+
+	// NFSv4 currently mounted at /home/zyga/nfs is recognized.
 	restore = apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 	nfs, err = apparmor.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
 	c.Assert(nfs, Equals, true)
 
-	// NFSv4 mounted at /mnt/nfs is ignored (not in $HOME).
+	// NFSv4 currently mounted at /mnt/nfs is ignored (not in $HOME).
 	restore = apparmor.MockMountInfo("680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
+	defer restore()
+	nfs, err = apparmor.IsHomeUsingNFS()
+	c.Assert(err, IsNil)
+	c.Assert(nfs, Equals, false)
+
+	// NFSv4 may be mounted at /home/zyga/nfs is recognized.
+	restore = apparmor.MockMountInfo("")
+	defer restore()
+	restore = apparmor.MockEtcFstab("localhost:/srv/nfs /home/zyga/nfs nfs defaults 0 0")
+	defer restore()
+	nfs, err = apparmor.IsHomeUsingNFS()
+	c.Assert(err, IsNil)
+	c.Assert(nfs, Equals, true)
+
+	// NFSv4 may be mounted at /mnt/nfs is ignored (not in $HOME).
+	restore = apparmor.MockMountInfo("")
+	defer restore()
+	restore = apparmor.MockEtcFstab("localhost:/srv/nfs /mnt/nfs nfs defaults 0 0")
 	defer restore()
 	nfs, err = apparmor.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
@@ -523,6 +555,8 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	// Make it appear as if NFS was not used.
 	restore := apparmor.MockMountInfo("")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -546,8 +580,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 
 // snap-confine policy when NFS is used and snapd has not re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
-	// Make it appear as if NFS was used under /home.
+	// Make it appear as if NFS was mounted under /home.
 	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -593,8 +629,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
 
 // snap-confine policy when NFS is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C) {
-	// Make it appear as if NFS was used under /home.
+	// Make it appear as if NFS was mounted under /home.
 	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -665,8 +703,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 // Test behavior when os.Readlink "/proc/self/exe" fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
-	// Make it appear as if NFS was used under /home.
+	// Make it appear as if NFS was mounted under /home.
 	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -695,8 +735,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 // Test behavior when exec.Command "apparmor_parser" fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
-	// Make it appear as if NFS was used under /home.
+	// Make it appear as if NFS was mounted under /home.
 	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -743,8 +785,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 		c.Skip("this test cannot run as root")
 	}
 
-	// Intercept interaction with /proc/self/mountinfo.
+	// Intercept interaction with /proc/self/mountinfo and /etc/fstab.
 	restore := apparmor.MockMountInfo("")
+	defer restore()
+	restore = apparmor.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.

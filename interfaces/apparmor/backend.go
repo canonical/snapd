@@ -58,6 +58,7 @@ import (
 
 var (
 	procSelfExe                     = "/proc/self/exe"
+	etcFstab                        = "/etc/fstab"
 	setupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicyImpl
 )
 
@@ -143,14 +144,27 @@ var (
 	procSelfMountInfo = mount.ProcSelfMountInfo
 )
 
-// isHomeUsingNFS returns true if /home contains NFS mounts.
+// isHomeUsingNFS returns true if /home contains or might contain NFS mounts.
+//
+// Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
+// and possible mounted filesystems).  If either of those describes NFS
+// filesystem mounted under or beneath /home/ then the return value is true.
 func isHomeUsingNFS() (bool, error) {
-	entries, err := mount.LoadMountInfo(procSelfMountInfo)
+	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
 		return false, fmt.Errorf("cannot parse /proc/self/mountinfo, %s", err)
 	}
-	for _, entry := range entries {
+	for _, entry := range mountinfo {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && strings.HasPrefix(entry.MountDir, "/home/") {
+			return true, nil
+		}
+	}
+	fstab, err := mount.LoadProfile(etcFstab)
+	if err != nil {
+		return false, fmt.Errorf("cannot parse /etc/fstab, %s", err)
+	}
+	for _, entry := range fstab.Entries {
+		if (entry.Type == "nfs4" || entry.Type == "nfs") && strings.HasPrefix(entry.Dir, "/home/") {
 			return true, nil
 		}
 	}
