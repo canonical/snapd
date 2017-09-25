@@ -379,7 +379,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot use the result of dirname(): %s", src);
 		}
 
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
