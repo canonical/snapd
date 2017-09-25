@@ -8,14 +8,12 @@ details: |
     The plug must be autoconnected on install and, as usual, must be able to be
     reconnected.
 
-prepare: |
-    echo "Given a snap declaring a content sharing slot is installed"
-    snap install --edge test-snapd-content-slot
-
-    echo "And a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug
-
 execute: |
+    echo "When a snap declaring a content sharing plug is installed"
+    snap install --edge test-snapd-content-plug
+    echo "Then this pulls in the default provider"
+    snap list | MATCH  test-snapd-content-slot
+
     CONNECTED_PATTERN="test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
     DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot:shared-content-slot +-.*?- +test-snapd-content-plug:shared-content-plug"
 
