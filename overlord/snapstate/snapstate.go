@@ -171,7 +171,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// run refresh hook when updating existing snap, otherwise run install hook
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupRefreshHook(st, snapsup.Name())
+		refreshHook := SetupAfterRefreshHook(st, snapsup.Name())
 		addTask(refreshHook)
 		prev = refreshHook
 	}
@@ -275,8 +275,8 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
 }
 
-var SetupRefreshHook = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.SetupRefreshHook is unset")
+var SetupAfterRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupAfterRefreshHook is unset")
 }
 
 var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
