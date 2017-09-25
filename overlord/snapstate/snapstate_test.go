@@ -1698,7 +1698,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 	})
 
-	// check refresh hook
+	// check after-refresh hook
 	task = ts.Tasks()[12]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run after-refresh hook of "services-snap" snap if present`)
