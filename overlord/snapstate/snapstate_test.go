@@ -83,6 +83,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
@@ -117,6 +119,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 		restore2()
 		restore1()
+		restoreSanitize()
 		dirs.SetRootDir("/")
 	}
 
@@ -4945,7 +4948,8 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 }
 
 type snapmgrQuerySuite struct {
-	st *state.State
+	st      *state.State
+	restore func()
 }
 
 var _ = Suite(&snapmgrQuerySuite{})
@@ -4954,6 +4958,11 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	s.restore = func() {
+		restoreSanitize()
+	}
 
 	s.st = st
 
@@ -4989,6 +4998,7 @@ description: |
 
 func (s *snapmgrQuerySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *snapmgrQuerySuite) TestInfo(c *C) {

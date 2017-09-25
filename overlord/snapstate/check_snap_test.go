@@ -37,7 +37,8 @@ import (
 )
 
 type checkSnapSuite struct {
-	st *state.State
+	st      *state.State
+	restore func()
 }
 
 var _ = Suite(&checkSnapSuite{})
@@ -45,10 +46,15 @@ var _ = Suite(&checkSnapSuite{})
 func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	s.restore = func() {
+		restoreSanitize()
+	}
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {

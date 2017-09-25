@@ -46,6 +46,7 @@ type bootedSuite struct {
 	state       *state.State
 	snapmgr     *snapstate.SnapManager
 	fakeBackend *fakeSnappyBackend
+	restore     func()
 }
 
 var _ = Suite(&bootedSuite{})
@@ -54,6 +55,11 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	bs.restore = func() {
+		restoreSanitize()
+	}
 
 	// booted is not running on classic
 	release.MockOnClassic(false)
@@ -83,6 +89,7 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
+	bs.restore()
 }
 
 var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
