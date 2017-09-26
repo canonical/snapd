@@ -8,6 +8,13 @@ details: |
     The plug must be autoconnected on install and, as usual, must be able to be
     reconnected.
 
+prepare: |
+    echo "Ensure an empty state so that installing test-snapd-content-plug"
+    echo "will pull in test-snapd-content-slot *and* core"
+    systemctl stop snapd
+    rm -f /var/lib/snapd/state.json
+    systemctl start snapd
+
 execute: |
     echo "When a snap declaring a content sharing plug is installed"
     snap install --edge test-snapd-content-plug
