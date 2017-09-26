@@ -529,6 +529,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		Base:         info.Base,
+		Prereq:       defaultContentPlugProviders(info),
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
