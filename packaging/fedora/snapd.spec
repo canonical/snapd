@@ -365,9 +365,9 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
-%gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-# build snap-exec completely static for base snaps
+# build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+%gobuild -o bin/snap-update-ns  --ldflags '-extldflags "-static"' $GOFLAGS %{import_path}/cmd/snap-update-ns
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
@@ -591,7 +591,7 @@ popd
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
-%{_mandir}/man5/snap-confine.5*
+%{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
 %{_udevrulesdir}/80-snappy-assign.rules
