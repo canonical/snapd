@@ -1,3 +1,4 @@
+0001-osutil-adjust-StreamCommand-tests-for-golang-1.9.patch
 apparmor-compat.patch
 disable-i18n.patch
 disable-seccomp-tests.patch
