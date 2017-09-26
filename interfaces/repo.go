@@ -55,7 +55,14 @@ func NewRepository() *Repository {
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
-		return repo.SanitizePlugsSlots(snapInfo)
+		if err := repo.SanitizePlugsSlots(snapInfo); err != nil {
+			if _, ok := err.(*BadInterfacesError); ok {
+				//task.Logf("%s", err) FIXME
+			} else {
+				return err
+			}
+		}
+		return nil
 	}
 	return repo
 }
@@ -853,6 +860,11 @@ func (e *BadInterfacesError) Error() string {
 }
 
 func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
+	err := snap.Validate(snapInfo)
+	if err != nil {
+		return err
+	}
+
 	snapName := snapInfo.Name()
 
 	bad := BadInterfacesError{
@@ -916,11 +928,6 @@ func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
-	err := snap.Validate(snapInfo)
-	if err != nil {
-		return err
-	}
-
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -928,11 +935,6 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 
 	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
-	}
-
-	bad := BadInterfacesError{
-		snap:   snapName,
-		issues: make(map[string]string),
 	}
 
 	for plugName, plugInfo := range snapInfo.Plugs {
@@ -949,10 +951,6 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		}
 		slot := &Slot{SlotInfo: slotInfo}
 		r.slots[snapName][slotName] = slot
-	}
-
-	if len(bad.issues) > 0 {
-		return &bad
 	}
 	return nil
 }
