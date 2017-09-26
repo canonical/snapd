@@ -94,10 +94,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
-	oldSetupRefreshHook := snapstate.SetupRefreshHook
+	oldSetupAfterRefreshHook := snapstate.SetupAfterRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
-	snapstate.SetupRefreshHook = hookstate.SetupRefreshHook
+	snapstate.SetupAfterRefreshHook = hookstate.SetupAfterRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
 	var err error
@@ -114,7 +114,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.reset = func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
-		snapstate.SetupRefreshHook = oldSetupRefreshHook
+		snapstate.SetupAfterRefreshHook = oldSetupAfterRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 
 		restore2()
@@ -246,10 +246,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook[refresh]",
+		"run-hook[after-refresh]",
 		"start-snap-services")
 
-	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run refresh hook of .*`)
+	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run after-refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -403,7 +403,7 @@ version: 1.0`)
 	runHooks := tasksWithKind(ts, "run-hook")
 	// hook tasks for refresh and for configure hook only; no install hook
 	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
+	c.Assert(runHooks[0].Summary(), Equals, `Run after-refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
@@ -1701,10 +1701,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 	})
 
-	// check refresh hook
+	// check after-refresh hook
 	task = ts.Tasks()[12]
 	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run refresh hook of "services-snap" snap if present`)
+	c.Assert(task.Summary(), Matches, `Run after-refresh hook of "services-snap" snap if present`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState

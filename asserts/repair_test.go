@@ -149,6 +149,7 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 		{"summary: example repair\n", "", `"summary" header is mandatory`},
 		{"summary: example repair\n", "summary: \n", `"summary" header should not be empty`},
+		{"summary: example repair\n", "summary:\n    multi\n    line\n", `"summary" header cannot have newlines`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
