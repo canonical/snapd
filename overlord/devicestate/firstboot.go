@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -56,7 +56,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 		sideInfo.RealName = sn.Name
 	} else {
 		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
-		if err == asserts.ErrNotFound {
+		if asserts.IsNotFound(err) {
 			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
 		if err != nil {

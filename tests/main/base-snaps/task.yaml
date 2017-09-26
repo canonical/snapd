@@ -1,4 +1,5 @@
 summary: Check that base snaps work
+systems: [-opensuse-*]
 
 execute: |
     . $TESTSLIB/snaps.sh
@@ -33,7 +34,7 @@ execute: |
     # FIXME: we need to pull in test-snapd-base-bare explicitly here for now
     #        once snapd can do that on its own we can remove this
     # This will be fixed via:
-    #  https://github.com/mvo5/snappy/tree/ensure-core-in-snapstate-with-bases
+    #  https://bugs.launchpad.net/snapstore/+bug/1715824
     #
     snap install --edge test-snapd-base-bare
     snap install --edge --devmode test-snapd-busybox-static

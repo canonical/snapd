@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -55,6 +55,8 @@ type DeviceManager struct {
 
 // Manager returns a new device manager.
 func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
+	delayedCrossMgrInit()
+
 	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -252,6 +254,9 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
+		// hooks are under a different manager, make sure we consider
+		// it immediately
+		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
