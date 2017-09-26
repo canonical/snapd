@@ -21,9 +21,8 @@ package progress
 
 import (
 	"fmt"
-	"strings"
 	"time"
-	"unicode/utf8"
+	"unicode"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -163,24 +162,26 @@ func (*ANSIMeter) Finished() {
 func (*ANSIMeter) Notify(msgstr string) {
 	col := getCol()
 	fmt.Print("\r", exitAttributeMode, clrEOL)
-	n := 0
-	for _, w := range strings.Fields(msgstr) {
-		wl := utf8.RuneCountInString(w)
-		if n > 0 {
-			if n+wl+1 > col {
-				fmt.Print("\n")
-				n = 0
-			} else {
-				fmt.Print(" ")
-				n++
+
+	msg := []rune(msgstr)
+	var i int
+	for len(msg) > col {
+		for i = col; i >= 0; i-- {
+			if unicode.IsSpace(msg[i]) {
+				break
 			}
 		}
-		n += wl
-		fmt.Print(w)
+		if i < 1 {
+			// didn't find anything; print the whole thing and try again
+			fmt.Println(string(msg[:col]))
+			msg = msg[col:]
+		} else {
+			// found a space; print up to but not including it, and skip it
+			fmt.Println(string(msg[:i]))
+			msg = msg[i+1:]
+		}
 	}
-	if n > 0 {
-		fmt.Print("\n")
-	}
+	fmt.Println(string(msg))
 }
 
 // Write does nothing
