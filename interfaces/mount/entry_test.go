@@ -21,6 +21,7 @@ package mount_test
 
 import (
 	"os"
+	"os/user"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -192,4 +193,25 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd-mode=pasta"}}
 	_, err = e.XSnapdMode()
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
+}
+
+func (s *entrySuite) TestXSnapdUser(c *C) {
+	// User has a default value.
+	e := &mount.Entry{}
+	usr, err := e.XSnapdUser()
+	c.Assert(err, IsNil)
+	c.Assert(usr.Uid, Equals, "0")
+
+	// User is parsed from the x-snapd-user= option.
+	daemon, err := user.Lookup("daemon")
+	c.Assert(err, IsNil)
+	e = &mount.Entry{Options: []string{"x-snapd-user=daemon"}}
+	usr, err = e.XSnapdUser()
+	c.Assert(err, IsNil)
+	c.Assert(usr.Uid, Equals, daemon.Uid)
+
+	// Unknown user names are invalid.
+	e = &mount.Entry{Options: []string{"x-snapd-user=.bogus"}}
+	_, err = e.XSnapdUser()
+	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
 }
