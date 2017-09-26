@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -335,11 +336,28 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// assumes to find snap-exec
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
 				 scratch_dir);
-		// FIXME: take re-exec into account, i.e. this may not
-		//        actually be the path we need, we need snapd
-		//        to tell us what path to use instead.
-		const char *src = LIBEXECDIR;
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+
+		// bind mount the current $ROOT/usr/lib/snapd path,
+		// where $ROOT is either "/" or the "/snap/core/current"
+		// that we are re-execing from
+		char *src = NULL;
+		char self[PATH_MAX + 1] = { 0, };
+		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+			die("cannot read /proc/self/exe");
+		}
+		// this cannot happen except when the kernel is buggy
+		if (strstr(self, "/snap-confine") == NULL) {
+			die("cannot use result from readlink: %s", src);
+		}
+		src = dirname(self);
+		// dirname(path) might return '.' depending on path.
+		// /proc/self/exe should always point
+		// to an absolute path, but let's guarantee that.
+		if (src[0] != '/') {
+			die("cannot use the result of dirname(): %s", src);
+		}
+
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
