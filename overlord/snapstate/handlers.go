@@ -119,9 +119,12 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
-func changeInFlight(st *state.State, snapName string) (bool, error) {
+func changeInFlight(st *state.State, myChgID string, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
+			continue
+		}
+		if myChgID == chg.ID() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
@@ -193,8 +196,21 @@ func (m *SnapManager) installPrereq(t *state.Task, prereqName string, userID int
 		return err
 	}
 
+	// check that we are not already queued it for install
+	for _, tc := range t.Change().Tasks() {
+		if tc.Kind() == "link-snap" {
+			snapsup, err := TaskSnapSetup(tc)
+			if err != nil {
+				return err
+			}
+			if snapsup.Name() == prereqName {
+				return nil
+			}
+		}
+	}
+
 	// check that there is no task that installs the prereq already
-	prereqPending, err := changeInFlight(st, prereqName)
+	prereqPending, err := changeInFlight(st, t.Change().ID(), prereqName)
 	if err != nil {
 		return err
 	}
