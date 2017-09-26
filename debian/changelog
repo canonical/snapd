@@ -1,9 +1,9 @@
-snapd (2.27.6-2) UNRELEASED; urgency=medium
+snapd (2.27.6-2) unstable; urgency=medium
 
   * Add d/patches/0001-osutil-adjust-StreamCommand-tests-for-golang-1.9.patch
     to fix FTBFS with Go 1.9. (Closes: #876867)
 
- -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 26 Sep 2017 10:09:59 -0400
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 26 Sep 2017 13:41:53 -0400
 
 snapd (2.27.6-1) unstable; urgency=medium
 
