@@ -215,3 +215,24 @@ func (s *entrySuite) TestXSnapdUser(c *C) {
 	_, err = e.XSnapdUser()
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
 }
+
+func (s *entrySuite) TestXSnapdGroup(c *C) {
+	// Group has a default value.
+	e := &mount.Entry{}
+	grp, err := e.XSnapdGroup()
+	c.Assert(err, IsNil)
+	c.Assert(grp.Gid, Equals, "0")
+
+	// Group is parsed from the x-snapd-group= option.
+	daemon, err := user.LookupGroup("daemon")
+	c.Assert(err, IsNil)
+	e = &mount.Entry{Options: []string{"x-snapd-group=daemon"}}
+	grp, err = e.XSnapdGroup()
+	c.Assert(err, IsNil)
+	c.Assert(grp.Gid, Equals, daemon.Gid)
+
+	// Unknown group names are invalid.
+	e = &mount.Entry{Options: []string{"x-snapd-group=.bogus"}}
+	_, err = e.XSnapdGroup()
+	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
+}
