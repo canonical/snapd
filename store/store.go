@@ -131,6 +131,22 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 		info.Contact = d.SupportURL
 	}
 
+	// fill in the plug/slot data
+	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
+		if info.Plugs == nil {
+			info.Plugs = make(map[string]*snap.PlugInfo)
+		}
+		for k, v := range rawYamlInfo.Plugs {
+			info.Plugs[k] = v
+		}
+		if info.Slots == nil {
+			info.Slots = make(map[string]*snap.SlotInfo)
+		}
+		for k, v := range rawYamlInfo.Slots {
+			info.Slots[k] = v
+		}
+	}
+
 	// fill in the tracks data
 	if len(d.ChannelMapList) > 0 {
 		info.Channels = make(map[string]*snap.ChannelSnapInfo)
