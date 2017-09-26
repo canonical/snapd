@@ -65,12 +65,12 @@ type Epoch struct {
 
 // E returns the epoch represented by the expression s. It's meant for use in
 // testing, as it panics at the first sign of trouble.
-func E(s string) Epoch {
+func E(s string) *Epoch {
 	var e Epoch
 	if err := e.fromString(s); err != nil {
 		panic(fmt.Errorf("%q: %v", s, err))
 	}
-	return e
+	return &e
 }
 
 func (e *Epoch) fromString(s string) error {

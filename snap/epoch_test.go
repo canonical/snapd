@@ -216,13 +216,13 @@ func (s *epochSuite) TestEpochMarshal(c *check.C) {
 
 func (s *epochSuite) TestE(c *check.C) {
 	tests := []struct {
-		e snap.Epoch
+		e *snap.Epoch
 		s string
 	}{
-		{s: "0", e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
-		{s: "1", e: snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}},
-		{s: "1*", e: snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}},
-		{s: "400*", e: snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}},
+		{s: "0", e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
+		{s: "1", e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}},
+		{s: "1*", e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}},
+		{s: "400*", e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}},
 	}
 	for _, test := range tests {
 		c.Check(snap.E(test.s), check.DeepEquals, test.e, check.Commentf(test.s))

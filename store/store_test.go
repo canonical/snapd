@@ -2137,7 +2137,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
 			Size:        12345,
-			Epoch:       snap.E("0"),
+			Epoch:       *snap.E("0"),
 		},
 		"latest/candidate": {
 			Revision:    snap.R(2),
@@ -2145,7 +2145,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.StrictConfinement,
 			Channel:     "candidate",
 			Size:        12345,
-			Epoch:       snap.E("0"),
+			Epoch:       *snap.E("0"),
 		},
 		"latest/beta": {
 			Revision:    snap.R(8),
@@ -2153,7 +2153,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.DevModeConfinement,
 			Channel:     "beta",
 			Size:        12345,
-			Epoch:       snap.E("0"),
+			Epoch:       *snap.E("0"),
 		},
 		"latest/edge": {
 			Revision:    snap.R(9),
@@ -2161,7 +2161,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.DevModeConfinement,
 			Channel:     "edge",
 			Size:        12345,
-			Epoch:       snap.E("0"),
+			Epoch:       *snap.E("0"),
 		},
 	})
 
@@ -2844,7 +2844,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnap(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-		Epoch:    snap.E("1"),
+		Epoch:    *snap.E("1"),
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, NotNil)
@@ -2859,7 +2859,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNoChannel(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R(1),
-		Epoch:    snap.E("1"),
+		Epoch:    *snap.E("1"),
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, NotNil)
@@ -3056,7 +3056,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-			Epoch:    snap.E("0"),
+			Epoch:    *snap.E("0"),
 		}})
 		return []*snapDetails{{
 			Name:        "hello-world",
@@ -3074,7 +3074,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-		Epoch:    snap.E("0"),
+		Epoch:    *snap.E("0"),
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result.Name(), Equals, "hello-world")
