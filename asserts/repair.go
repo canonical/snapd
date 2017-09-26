@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -115,8 +116,12 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("repair-id too large: %s", repairID)
 	}
 
-	if _, err := checkNotEmptyString(assert.headers, "summary"); err != nil {
+	summary, err := checkNotEmptyString(assert.headers, "summary")
+	if err != nil {
 		return nil, err
+	}
+	if strings.ContainsAny(summary, "\n\r") {
+		return nil, fmt.Errorf(`"summary" header cannot have newlines`)
 	}
 
 	series, err := checkStringList(assert.headers, "series")

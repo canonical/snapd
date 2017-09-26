@@ -42,6 +42,7 @@ var (
 	SnapAppArmorDir           string
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
+	SnapAppArmorConfineDir    string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -165,7 +166,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "arch", "manjaro":
+	case "fedora", "centos", "rhel", "arch", "manjaro", "lirios":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -176,6 +177,7 @@ func SetRootDir(rootdir string) {
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
+	SnapAppArmorConfineDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine.d")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
