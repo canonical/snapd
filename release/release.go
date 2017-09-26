@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/apparmor"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -37,26 +35,10 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
-var (
-	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
-	requiredApparmorFeatures = []string{
-		"caps",
-		"dbus",
-		"domain",
-		"file",
-		"mount",
-		"namespaces",
-		"network",
-		"ptrace",
-		"signal",
-	}
-)
-
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	level, _ := apparmor.ProbeKernel().Evaluate()
-	return level != apparmor.Full
+	return AppArmorLevel() != FullAppArmor
 }
 
 var (
@@ -143,9 +125,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := apparmor.Full
+	level := FullAppArmor
 	if isDevmode {
-		level = apparmor.None
+		level = NoAppArmor
 	}
-	return apparmor.MockFeatureLevel(level)
+	return MockAppArmorLevel(level)
 }

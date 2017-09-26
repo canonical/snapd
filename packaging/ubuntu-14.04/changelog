@@ -268,6 +268,15 @@ snapd (2.28~14.04) trusty; urgency=medium
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 25 Sep 2017 12:08:10 -0400
 
+snapd (2.27.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1703798:
+    - interfaces: add udev netlink support to hardware-observe
+    - interfaces/network-{control,observe}: allow receiving
+      kobject_uevent() messages
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 07 Sep 2017 10:22:18 +0200
+
 snapd (2.27.5~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1703798:

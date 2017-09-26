@@ -77,6 +77,40 @@ func (as *assertsSuite) TestSuggestFormat(c *C) {
 	c.Check(fmtnum, Equals, 0)
 }
 
+func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
+	headers, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"one"})
+	c.Assert(err, IsNil)
+	c.Check(headers, DeepEquals, map[string]string{
+		"primary-key": "one",
+	})
+
+	headers, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar", "baz"})
+	c.Assert(err, IsNil)
+	c.Check(headers, DeepEquals, map[string]string{
+		"pk1": "bar",
+		"pk2": "baz",
+	})
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar"})
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only-2" assertion`)
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"", "baz"})
+	c.Check(err, ErrorMatches, `primary key "pk1" header cannot be empty`)
+
+	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"bar", "baz"})
+
+	headers["other"] = "foo"
+	pk1, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
+	c.Assert(err, IsNil)
+	c.Check(pk1, DeepEquals, pk)
+
+	delete(headers, "pk2")
+	_, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
+	c.Check(err, ErrorMatches, `must provide primary key: pk2`)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,

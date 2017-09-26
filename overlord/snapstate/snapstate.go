@@ -23,16 +23,21 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -78,6 +83,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
+	// ensure core gets installed. if it is already installed return
+	// an empty task set
+	ts := state.NewTaskSet()
+
 	targetRevision := snapsup.Revision()
 	revisionStr := ""
 	if snapsup.SideInfo != nil {
@@ -86,6 +95,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// check if we already have the revision locally (alters tasks)
 	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
+
+	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.Name()))
+	prereq.Set("snap-setup", snapsup)
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -97,8 +109,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prepare = st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.Name(), revisionStr, snapsup.Channel))
 	}
 	prepare.Set("snap-setup", snapsup)
+	prepare.WaitFor(prereq)
 
-	tasks := []*state.Task{prepare}
+	tasks := []*state.Task{prereq, prepare}
 	addTask := func(t *state.Task) {
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
@@ -236,6 +249,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	installSet := state.NewTaskSet(tasks...)
+	installSet.WaitAll(ts)
+	ts.AddAll(installSet)
 
 	if flags&skipConfigure != 0 {
 		return installSet, nil
@@ -249,10 +264,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
-	configSet.WaitAll(installSet)
-	installSet.AddAll(configSet)
+	configSet.WaitAll(ts)
+	ts.AddAll(configSet)
 
-	return installSet, nil
+	return ts, nil
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -260,7 +275,7 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
-	if snapName == "core" {
+	if snapName == defaultCoreSnapName {
 		confFlags |= IgnoreHookError
 		confFlags |= TrackHookError
 	}
@@ -310,6 +325,14 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+type changeConflictError struct {
+	snapName string
+}
+
+func (e changeConflictError) Error() string {
+	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
+}
+
 // CheckChangeConflictMany ensures that for the given snapNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -347,7 +370,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 					} else {
 						snapName = slotRef.Snap
 					}
-					return fmt.Errorf("snap %q has changes in progress", snapName)
+					return changeConflictError{snapName}
 				}
 			} else {
 				snapsup, err := TaskSnapSetup(task)
@@ -356,13 +379,21 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 				}
 				snapName := snapsup.Name()
 				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
-					return fmt.Errorf("snap %q has changes in progress", snapName)
+					return changeConflictError{snapName}
 				}
 			}
 		}
 	}
 
 	return nil
+}
+
+type changeDuringInstallError struct {
+	snapName string
+}
+
+func (c changeDuringInstallError) Error() string {
+	return fmt.Sprintf("snap %q state changed during install preparations", c.snapName)
 }
 
 // CheckChangeConflict ensures that for the given snapName no other
@@ -388,7 +419,7 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
-			return fmt.Errorf("snap %q state changed during install preparations", snapName)
+			return changeDuringInstallError{snapName: snapName}
 		}
 	}
 
@@ -425,7 +456,15 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		instFlags |= skipConfigure
 	}
 
+	// It is ok do open the snap file here because we either
+	// have side info or the user passed --dangerous
+	info, _, err := backend.OpenSnapFile(path, si)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
+		Base:     info.Base,
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
@@ -470,6 +509,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 
 	snapsup := &SnapSetup{
 		Channel:      channel,
+		Base:         info.Base,
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
@@ -562,7 +602,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 
 	st.Unlock()
 	updates, err := theStore.ListRefresh(candidatesInfo, user)
@@ -1628,10 +1668,10 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	// some systems have two cores: ubuntu-core/core
 	// we always return "core" in this case
 	if len(res) == 2 {
-		if res[0].Name() == "core" && res[1].Name() == "ubuntu-core" {
+		if res[0].Name() == defaultCoreSnapName && res[1].Name() == "ubuntu-core" {
 			return res[0], nil
 		}
-		if res[0].Name() == "ubuntu-core" && res[1].Name() == "core" {
+		if res[0].Name() == "ubuntu-core" && res[1].Name() == defaultCoreSnapName {
 			return res[1], nil
 		}
 		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
@@ -1668,4 +1708,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
+}
+
+func refreshCatalogs(st *state.State, theStore storestate.StoreService) error {
+	st.Unlock()
+	defer st.Lock()
+
+	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
+	}
+
+	sections, err := theStore.Sections(nil)
+	if err != nil {
+		return err
+	}
+
+	sort.Strings(sections)
+	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
+		return err
+	}
+
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	if err != nil {
+		return err
+	}
+	defer namesFile.Cancel()
+	if err := theStore.WriteCatalogs(namesFile); err != nil {
+		return err
+	}
+
+	return namesFile.Commit()
 }

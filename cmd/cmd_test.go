@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,6 +39,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type cmdSuite struct {
 	restoreExec   func()
+	restoreLogger func()
 	execCalled    int
 	lastExecArgv0 string
 	lastExecArgv  []string
@@ -51,6 +53,7 @@ var _ = Suite(&cmdSuite{})
 
 func (s *cmdSuite) SetUpTest(c *C) {
 	s.restoreExec = cmd.MockSyscallExec(s.syscallExec)
+	_, s.restoreLogger = logger.MockLogger()
 	s.execCalled = 0
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
@@ -64,6 +67,7 @@ func (s *cmdSuite) SetUpTest(c *C) {
 
 func (s *cmdSuite) TearDownTest(c *C) {
 	s.restoreExec()
+	s.restoreLogger()
 }
 
 func (s *cmdSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
