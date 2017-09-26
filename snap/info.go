@@ -627,8 +627,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	err = SanitizePlugsSlots(info)
-	if err != nil {
+	if err := SanitizePlugsSlots(info); err != nil {
 		return nil, err
 	}
 
