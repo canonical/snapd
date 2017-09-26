@@ -21,6 +21,7 @@ package mount
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"syscall"
@@ -198,4 +199,21 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		}
 	}
 	return flags, nil
+}
+
+// XSnapdMode returns the file mode associated with x-snapd-mode mount option.
+// If the mode is not specified explicitly then a default mode of 0755 is assumed.
+func (e *Entry) XSnapdMode() (os.FileMode, error) {
+	var mode os.FileMode = 0755
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, "x-snapd-mode=") {
+			kv := strings.SplitN(opt, "=", 2)
+			n, err := fmt.Sscanf(kv[1], "%o", &mode)
+			if err != nil || n != 1 {
+				return mode, fmt.Errorf("cannot parse octal file mode from %q", kv[1])
+			}
+			break
+		}
+	}
+	return mode, nil
 }
