@@ -38,11 +38,13 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error { return nil }
 }
 
 // Standard streams, redirected for testing.

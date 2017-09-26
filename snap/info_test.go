@@ -504,6 +504,17 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents st
 	checker(c, info)
 }
 
+func (s *infoSuite) TestReadInfoErrorsOnPlugSlotValidation(c *C) {
+	snap.SanitizePlugsSlots = func(info *snap.Info) error {
+		return fmt.Errorf("ERROR")
+	}
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	_, err := snap.ReadInfo("sample", si)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "ERROR")
+}
+
 func (s *infoSuite) TestReadInfoNoHooks(c *C) {
 	yaml := `name: foo
 version: 1.0`

@@ -55,7 +55,7 @@ func NewRepository() *Repository {
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
-		return repo.sanitizePlugsSlots(snapInfo)
+		return repo.SanitizePlugsSlots(snapInfo)
 	}
 	return repo
 }
@@ -852,7 +852,7 @@ func (e *BadInterfacesError) Error() string {
 	return strings.TrimSuffix(buf.String(), "; ")
 }
 
-func (r *Repository) sanitizePlugsSlots(snapInfo *snap.Info) error {
+func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
 	snapName := snapInfo.Name()
 
 	bad := BadInterfacesError{
@@ -936,46 +936,18 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	}
 
 	for plugName, plugInfo := range snapInfo.Plugs {
-		iface, ok := r.ifaces[plugInfo.Interface]
-		if !ok {
-			bad.issues[plugName] = "unknown interface"
-			continue
-		}
-		// Reject plug with invalid name
-		if err := ValidateName(plugName); err != nil {
-			bad.issues[plugName] = err.Error()
-			continue
-		}
-		plug := &Plug{PlugInfo: plugInfo}
-		if err := plug.Sanitize(iface); err != nil {
-			bad.issues[plugName] = err.Error()
-			continue
-		}
 		if r.plugs[snapName] == nil {
 			r.plugs[snapName] = make(map[string]*Plug)
 		}
+		plug := &Plug{PlugInfo: plugInfo}
 		r.plugs[snapName][plugName] = plug
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
-		iface, ok := r.ifaces[slotInfo.Interface]
-		if !ok {
-			bad.issues[slotName] = "unknown interface"
-			continue
-		}
-		// Reject slot with invalid name
-		if err := ValidateName(slotName); err != nil {
-			bad.issues[slotName] = err.Error()
-			continue
-		}
-		slot := &Slot{SlotInfo: slotInfo}
-		if err := slot.Sanitize(iface); err != nil {
-			bad.issues[slotName] = err.Error()
-			continue
-		}
 		if r.slots[snapName] == nil {
 			r.slots[snapName] = make(map[string]*Slot)
 		}
+		slot := &Slot{SlotInfo: slotInfo}
 		r.slots[snapName][slotName] = slot
 	}
 
