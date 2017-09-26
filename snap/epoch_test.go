@@ -134,7 +134,7 @@ func (s epochSuite) TestGoodEpochs(c *check.C) {
 func (s *epochSuite) TestEpochValidate(c *check.C) {
 	validEpochs := []*snap.Epoch{
 		nil,
-		&snap.Epoch{},
+		{},
 		{Read: []uint32{0}, Write: []uint32{0}},
 		{Read: []uint32{0, 1}, Write: []uint32{1}},
 		{Read: []uint32{1}, Write: []uint32{1}},
