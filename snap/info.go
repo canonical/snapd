@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -164,6 +165,9 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
+
+	// Plugs or slots with issues (they are not included in Plugs or Slots)
+	BadInterfaces map[string]string // slot or plug => message
 
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
@@ -329,6 +333,32 @@ func (s *Info) Services() []*AppInfo {
 	}
 
 	return svcs
+}
+
+func (s *Info) BadInterfacesInfoString() string {
+	inverted := make(map[string][]string)
+	for name, reason := range s.BadInterfaces {
+		inverted[reason] = append(inverted[reason], name)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", s.Name())
+	reasons := make([]string, 0, len(inverted))
+	for reason := range inverted {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		names := inverted[reason]
+		sort.Strings(names)
+		for i, name := range names {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(name)
+		}
+		fmt.Fprintf(&buf, " (%s); ", reason)
+	}
+	return strings.TrimSuffix(buf.String(), "; ")
 }
 
 // DownloadInfo contains the information to download a snap.
