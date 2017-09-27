@@ -5,7 +5,19 @@ systems:
     # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
     - -ubuntu-*-ppc64el
 
+environment:
+    NAMES: /var/cache/snapd/names
+
 prepare: |
+    systemctl stop snapd.service snapd.socket
+    [ -e "$NAMES" ] && mv "$NAMES" "$NAMES.orig"
+    cat >"$NAMES" <<EOF
+    test-assumes
+    test-snapd-thumbnailer
+    test-snapd-tools
+    EOF
+    chattr +i "$NAMES"
+    systemctl start snapd.service
     mkdir -p testdir
     touch testdir/foo.snap
     touch bar.snap
@@ -15,6 +27,11 @@ prepare: |
     expect -d -f key.exp0
 
 restore: |
+    systemctl stop snapd.service
+    chattr -i "$NAMES"
+    rm "$NAMES"
+    [ -e "$NAMES.orig" ] && mv "$NAMES.orig" "$NAMES"
+    systemctl start snapd.service
     rm testdir/foo.snap bar.snap
     rmdir testdir
 

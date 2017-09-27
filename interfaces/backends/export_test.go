@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,8 @@
  *
  */
 
-package i18n // import "github.com/snapcore/snapd/i18n/dumb"
+package backends
 
-func G(s string) string {
-	return s
-}
+var (
+	Backends = backends
+)

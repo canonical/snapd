@@ -43,15 +43,19 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns
+hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
 	sudo install -D -m 4755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
+	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine.d/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
+	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
 	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+snap-seccomp/snap-seccomp: snap-seccomp/*.go
+	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
 
 ##
 ## libsnap-confine-private.a
@@ -157,8 +161,8 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
-dist_man_MANS += snap-confine/snap-confine.5
-CLEANFILES += snap-confine/snap-confine.5
+dist_man_MANS += snap-confine/snap-confine.1
+CLEANFILES += snap-confine/snap-confine.1
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
@@ -277,7 +281,7 @@ snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests
 endif  # WITH_UNIT_TESTS
 
 if HAVE_RST2MAN
-snap-confine/%.5: snap-confine/%.rst
+snap-confine/%.1: snap-confine/%.rst
 	mkdir -p snap-confine
 	$(HAVE_RST2MAN) $^ > $@
 endif
@@ -295,6 +299,7 @@ if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 endif
+	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine.d/
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
