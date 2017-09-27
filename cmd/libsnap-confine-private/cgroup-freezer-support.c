@@ -11,9 +11,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "../libsnap-confine-private/cleanup-funcs.h"
-#include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/utils.h"
+#include "cleanup-funcs.h"
+#include "string-utils.h"
+#include "utils.h"
 
 static const char *freezer_cgroup_dir = "/sys/fs/cgroup/freezer";
 
