@@ -506,21 +506,17 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result, nil)
 }
 
-func webify(result map[string]interface{}, resource string) map[string]interface{} {
-	result["resource"] = resource
-
-	icon, ok := result["icon"].(string)
-	if !ok || icon == "" || strings.HasPrefix(icon, "http") {
+func webify(result *client.Snap, resource string) *client.Snap {
+	if result.Icon == "" || strings.HasPrefix(result.Icon, "http") {
 		return result
 	}
-	result["icon"] = ""
+	result.Icon = ""
 
 	route := appIconCmd.d.router.Get(appIconCmd.Path)
 	if route != nil {
-		name, _ := result["name"].(string)
-		url, err := route.URL("name", name)
+		url, err := route.URL("name", result.Name)
 		if err == nil {
-			result["icon"] = url.String()
+			result.Icon = url.String()
 		}
 	}
 
