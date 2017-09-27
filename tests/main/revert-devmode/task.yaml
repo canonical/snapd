@@ -74,8 +74,10 @@ execute: |
     snap remove --revision=$LATEST test-snapd-tools
     snap refresh --edge test-snapd-tools
 
-    echo "And revert is made with --jailmode flag"
-    snap revert --jailmode test-snapd-tools
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And revert is made with --jailmode flag"
+        snap revert --jailmode test-snapd-tools
 
-    echo "Then snap now runs confined (in jailmode, bah)"
-    snap list|MATCH 'test-snapd-tools .* jailmode'
+        echo "Then snap now runs confined (in jailmode, bah)"
+        snap list|MATCH 'test-snapd-tools .* jailmode'
+    fi
