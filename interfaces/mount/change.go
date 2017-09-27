@@ -51,6 +51,11 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
+var (
+	sysMount   = syscall.Mount
+	sysUnmount = syscall.Unmount
+)
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
@@ -61,10 +66,10 @@ func (c *Change) Perform() error {
 		if err != nil {
 			return err
 		}
-		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
 	case Unmount:
 		const UMOUNT_NOFOLLOW = 8
-		return syscall.Unmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		return sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
 	}
 	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
