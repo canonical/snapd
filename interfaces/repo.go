@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
 	"strings"
@@ -55,14 +54,7 @@ func NewRepository() *Repository {
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
-		if err := repo.SanitizePlugsSlots(snapInfo); err != nil {
-			if _, ok := err.(*BadInterfacesError); ok {
-				//task.Logf("%s", err) FIXME
-			} else {
-				return err
-			}
-		}
-		return nil
+		return repo.SanitizePlugsSlots(snapInfo)
 	}
 	return repo
 }
@@ -826,66 +818,26 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	return spec, nil
 }
 
-// BadInterfacesError is returned when some snap interfaces could not be registered.
-// Those interfaces not mentioned in the error were successfully registered.
-type BadInterfacesError struct {
-	snap   string
-	issues map[string]string // slot or plug name => message
-}
-
-func (e *BadInterfacesError) Error() string {
-	inverted := make(map[string][]string)
-	for name, reason := range e.issues {
-		inverted[reason] = append(inverted[reason], name)
-	}
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", e.snap)
-	reasons := make([]string, 0, len(inverted))
-	for reason := range inverted {
-		reasons = append(reasons, reason)
-	}
-	sort.Strings(reasons)
-	for _, reason := range reasons {
-		names := inverted[reason]
-		sort.Strings(names)
-		for i, name := range names {
-			if i > 0 {
-				buf.WriteString(", ")
-			}
-			buf.WriteString(name)
-		}
-		fmt.Fprintf(&buf, " (%s); ", reason)
-	}
-	return strings.TrimSuffix(buf.String(), "; ")
-}
-
 func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err
 	}
 
-	snapName := snapInfo.Name()
-
-	bad := BadInterfacesError{
-		snap:   snapName,
-		issues: make(map[string]string),
-	}
-
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := r.ifaces[plugInfo.Interface]
 		if !ok {
-			bad.issues[plugName] = "unknown interface"
+			snapInfo.BadInterfaces[plugName] = "unknown interface"
 			continue
 		}
 		// Reject plug with invalid name
 		if err := ValidateName(plugName); err != nil {
-			bad.issues[plugName] = err.Error()
+			snapInfo.BadInterfaces[plugName] = err.Error()
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := plug.Sanitize(iface); err != nil {
-			bad.issues[plugName] = err.Error()
+			snapInfo.BadInterfaces[plugName] = err.Error()
 			continue
 		}
 	}
@@ -893,24 +845,21 @@ func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
 	for slotName, slotInfo := range snapInfo.Slots {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
-			bad.issues[slotName] = "unknown interface"
+			snapInfo.BadInterfaces[slotName] = "unknown interface"
 			continue
 		}
 		// Reject slot with invalid name
 		if err := ValidateName(slotName); err != nil {
-			bad.issues[slotName] = err.Error()
+			snapInfo.BadInterfaces[slotName] = err.Error()
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
 		if err := slot.Sanitize(iface); err != nil {
-			bad.issues[slotName] = err.Error()
+			snapInfo.BadInterfaces[slotName] = err.Error()
 			continue
 		}
 	}
 
-	if len(bad.issues) > 0 {
-		return &bad
-	}
 	return nil
 }
 

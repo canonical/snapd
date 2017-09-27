@@ -1918,14 +1918,16 @@ func (s *RepositorySuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
 	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"}), IsNil)
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidSlotNameYaml, nil)
 	err := s.testRepo.SanitizePlugsSlots(snapInfo)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+	c.Assert(err, IsNil)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snapInfo.BadInterfacesInfoString(), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
 }
 
 func (s *RepositorySuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"}), IsNil)
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidPlugNameYaml, nil)
 	err := s.testRepo.SanitizePlugsSlots(snapInfo)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+	c.Assert(err, IsNil)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snapInfo.BadInterfacesInfoString(), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
 }
