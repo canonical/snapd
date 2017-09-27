@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.28
+Version:        2.28.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -658,6 +658,11 @@ fi
 
 
 %changelog
+* Wed Sep 27 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.1
+  - snap-confine: update apparmor rules for fedora based basesnaps
+  - snapstate: rename refresh hook to post-refresh for consistency
+
 * Mon Sep 25 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28
  - hooks: rename refresh to after-refresh
