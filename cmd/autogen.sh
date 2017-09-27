@@ -20,7 +20,7 @@ extra_opts=
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-arch --enable-merged-usr"
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-biarch --enable-merged-usr"
 		;;
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
@@ -28,10 +28,10 @@ case "$ID" in
 	ubuntu)
 		case "$VERSION_ID" in
 			16.04)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
+				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
 				;;
 			*)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-static-libcap"
+				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap"
 				;;
 		esac
 		;;
