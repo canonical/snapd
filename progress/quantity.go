@@ -22,6 +22,8 @@ package progress
 import (
 	"fmt"
 	"math"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 // these are taken from github.com/chipaca/quantity with permission :-)
@@ -95,16 +97,31 @@ func divmod(a, b float64) (q, r float64) {
 	return q, a - q*b
 }
 
+var (
+	// TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
+	//    (I fully expect this to always be "s", given it's a SI unit)
+	secs = i18n.G("s")
+	// TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+	mins = i18n.G("m")
+	// TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+	hours = i18n.G("h")
+	// TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+	days = i18n.G("d")
+	// TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+	years = i18n.G("y")
+)
+
+// dt is seconds (as in the output of time.Now().Seconds())
 func formatDuration(dt float64) string {
 	if dt < 60 {
 		if dt >= 9.995 {
-			return fmt.Sprintf("%.1fs", dt)
+			return fmt.Sprintf("%.1f%s", dt, secs)
 		} else if dt >= .9995 {
-			return fmt.Sprintf("%.2fs", dt)
+			return fmt.Sprintf("%.2f%s", dt, secs)
 		}
 
 		var prefix rune
-		for _, prefix = range "mun" {
+		for _, prefix = range "mµn" {
 			dt *= 1000
 			if dt >= .9995 {
 				break
@@ -112,65 +129,65 @@ func formatDuration(dt float64) string {
 		}
 
 		if dt > 9.5 {
-			return fmt.Sprintf("%3.f%cs", dt, prefix)
+			return fmt.Sprintf("%3.f%c%s", dt, prefix, secs)
 		}
 
-		return fmt.Sprintf("%.1f%cs", dt, prefix)
+		return fmt.Sprintf("%.1f%c%s", dt, prefix, secs)
 	}
 
 	if dt < 600 {
 		m, s := divmod(dt, 60)
-		return fmt.Sprintf("%.fm%02.fs", m, s)
+		return fmt.Sprintf("%.f%s%02.f%s", m, mins, s, secs)
 	}
 
 	dt /= 60 // dt now minutes
 
 	if dt < 99.95 {
-		return fmt.Sprintf("%3.1fm", dt)
+		return fmt.Sprintf("%3.1f%s", dt, mins)
 	}
 
 	if dt < 10*60 {
 		h, m := divmod(dt, 60)
-		return fmt.Sprintf("%.fh%02.fm", h, m)
+		return fmt.Sprintf("%.f%s%02.f%s", h, hours, m, mins)
 	}
 
 	if dt < 24*60 {
 		if h, m := divmod(dt, 60); m < 10 {
-			return fmt.Sprintf("%.fh%1.fm", h, m)
+			return fmt.Sprintf("%.f%s%1.f%s", h, hours, m, mins)
 		}
 
-		return fmt.Sprintf("%3.1fh", dt/60)
+		return fmt.Sprintf("%3.1f%s", dt/60, hours)
 	}
 
 	dt /= 60 // dt now hours
 
 	if dt < 10*24 {
 		d, h := divmod(dt, 24)
-		return fmt.Sprintf("%.fd%02.fh", d, h)
+		return fmt.Sprintf("%.f%s%02.f%s", d, days, h, hours)
 	}
 
 	if dt < 99.95*24 {
 		if d, h := divmod(dt, 24); h < 10 {
-			return fmt.Sprintf("%.fd%.fh", d, h)
+			return fmt.Sprintf("%.f%s%.f%s", d, days, h, hours)
 		}
-		return fmt.Sprintf("%4.1fd", dt/24)
+		return fmt.Sprintf("%4.1f%s", dt/24, days)
 	}
 
 	dt /= 24 // dt now days
 
 	if dt < 2*period {
-		return fmt.Sprintf("%4.0fd", dt)
+		return fmt.Sprintf("%4.0f%s", dt, days)
 	}
 
 	dt /= period // dt now years
 
 	if dt < 9.995 {
-		return fmt.Sprintf("%4.2fy", dt)
+		return fmt.Sprintf("%4.2f%s", dt, years)
 	}
 
 	if dt < 99.95 {
-		return fmt.Sprintf("%4.1fy", dt)
+		return fmt.Sprintf("%4.1f%s", dt, years)
 	}
 
-	return fmt.Sprintf("%4.fy", dt)
+	return fmt.Sprintf("%4.f%s", dt, years)
 }

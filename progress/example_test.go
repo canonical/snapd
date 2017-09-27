@@ -88,7 +88,7 @@ func ExampleFormatDuration() {
 	}
 	// Output:
 	// "3.0ns"
-	// " 36us"
+	// " 36µs"
 	// "430ms"
 	// "5.16s"
 	// "1m02s"

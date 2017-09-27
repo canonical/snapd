@@ -54,7 +54,7 @@ var (
 
 func getCol() int {
 	col, _, _ := terminal.GetSize(0)
-	if col < 10 {
+	if col <= 0 {
 		// give up
 		col = 80
 	}
@@ -139,10 +139,13 @@ func (p *ANSIMeter) Set(current float64) {
 }
 
 func (p *ANSIMeter) Spin(msgstr string) {
+	// spin moves a block a third of the screen's width right and
+	// left across the screen (each call to Spin bummps it left
+	// or right by 1%)
 	col := getCol()
 	msg := norm(col, []rune(msgstr))
 	p.spin++
-	if p.spin > 90 {
+	if p.spin > 66 {
 		p.spin = -p.spin + 1
 
 	}
@@ -151,7 +154,7 @@ func (p *ANSIMeter) Spin(msgstr string) {
 		spin = -spin
 	}
 	i := spin * col / 100
-	j := (spin + 10) * col / 100
+	j := 1 + (spin+33)*col/100
 	fmt.Print("\r", string(msg[:i]), enterReverseMode, string(msg[i:j]), exitAttributeMode, string(msg[j:]))
 }
 
