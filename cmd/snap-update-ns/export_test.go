@@ -20,8 +20,9 @@
 package main
 
 var (
-	ReadCmdline               = readCmdline
-	FindArgv0                 = findArgv0
-	FindSnapName              = findSnapName
-	PartiallyValidateSnapName = partiallyValidateSnapName
+	ReadCmdline      = readCmdline
+	FindSnapName     = findSnapName
+	FindFirstOption  = findFirstOption
+	ValidateSnapName = validateSnapName
+	ProcessArguments = processArguments
 )

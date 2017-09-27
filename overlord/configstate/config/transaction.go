@@ -143,6 +143,18 @@ func (t *Transaction) GetMaybe(snapName, key string, result interface{}) error {
 }
 
 func getFromPristine(snapName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
+	// special case - get root document
+	if len(subkeys) == 0 {
+		if len(config) == 0 {
+			return &NoOptionError{SnapName: snapName}
+		}
+		raw := jsonRaw(config)
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
+			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
+		}
+		return nil
+	}
+
 	raw, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
@@ -251,5 +263,8 @@ type NoOptionError struct {
 }
 
 func (e *NoOptionError) Error() string {
+	if e.Key == "" {
+		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
+	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }

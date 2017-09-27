@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,6 +36,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 type repairSuite struct {
 	testutil.BaseTest
+
+	rootdir string
 
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -53,6 +56,10 @@ func (r *repairSuite) SetUpTest(c *C) {
 	oldStderr := repair.Stderr
 	r.AddCleanup(func() { repair.Stderr = oldStderr })
 	repair.Stderr = r.stderr
+
+	r.rootdir = c.MkDir()
+	dirs.SetRootDir(r.rootdir)
+	r.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (r *repairSuite) Stdout() string {
@@ -67,7 +74,7 @@ var _ = Suite(&repairSuite{})
 
 func (r *repairSuite) TestUnknownArg(c *C) {
 	err := repair.ParseArgs([]string{})
-	c.Check(err, ErrorMatches, "Please specify the run command")
+	c.Check(err, ErrorMatches, "Please specify one command of: list, run or show")
 }
 
 func (r *repairSuite) TestRunOnClassic(c *C) {
