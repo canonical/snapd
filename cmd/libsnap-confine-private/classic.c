@@ -1,5 +1,6 @@
 #include "config.h"
 #include "classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -12,7 +13,7 @@ bool is_running_on_classic_distribution()
 	char buf[255];
 	int is_core = false;
 
-	FILE *f = fopen(os_release, "r");
+	FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
 	if (f == NULL) {
 		return !is_core;
 	}
@@ -22,6 +23,5 @@ bool is_running_on_classic_distribution()
 			break;
 		}
 	}
-	fclose(f);
 	return !is_core;
 }
