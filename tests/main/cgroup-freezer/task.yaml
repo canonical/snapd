@@ -6,19 +6,30 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-sh
 execute: |
-    test-snapd-sh -c 'sleep 30' &
-    pid=$!
-
+    # Start a "sleep" process in the background
+    test-snapd-sh -c 'exec sleep 1h' &
+    pid1=$!
     # Give snap-confine a moment to start and perform its task.
     sleep 3
-
     # While the process is alive its PID can be seen in the tasks file of the
     # control group.
-    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid"
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid1"
 
-    # When the process is gone the control group is updated and the task no
+    # Start a second process so that we can check adding tasks to an existing
+    # control group.
+    test-snapd-sh -c 'exec sleep 1h' &
+    pid2=$!
+    sleep 3
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid2"
+
+    # When the process terminates the control group is updated and the task no
     # longer registers there.
-    kill "$pid"
-    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH -v "$pid"
+    kill "$pid1"
+    wait -n || true  # wait returns the exit code and we kill the process
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH -v "$pid1"
+
+    kill "$pid2"
+    wait -n || true  # same as above
+    cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH -v "$pid2"
 restore: |
     rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true
