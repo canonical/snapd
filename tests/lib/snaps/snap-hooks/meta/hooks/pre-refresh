@@ -1,0 +1,3 @@
+#!/bin/sh
+
+snapctl set prerefreshed="pre-refresh at revision $SNAP_REVISION"

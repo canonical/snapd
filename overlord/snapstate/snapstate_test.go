@@ -95,6 +95,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
@@ -223,6 +224,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"run-hook[pre-refresh]",
 		"mount-snap",
 	}
 	if opts&unlinkBefore != 0 {
@@ -399,9 +401,10 @@ version: 1.0`)
 
 	runHooks := tasksWithKind(ts, "run-hook")
 	// hook tasks for refresh and for configure hook only; no install hook
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+	c.Assert(runHooks, HasLen, 3)
+	c.Assert(runHooks[0].Summary(), Equals, `Run pre-refresh hook of "some-snap" snap if present`)
+	c.Assert(runHooks[1].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
+	c.Assert(runHooks[2].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
 func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
@@ -1699,7 +1702,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	// check post-refresh hook
-	task = ts.Tasks()[12]
+	task = ts.Tasks()[13]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -2611,7 +2614,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 16
+			j += 17
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {

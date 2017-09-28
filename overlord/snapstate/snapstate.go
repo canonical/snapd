@@ -126,6 +126,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = checkAsserts
 	}
 
+	// run refresh hooks when updating existing snap, otherwise run install
+	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
+
+	if runRefreshHooks {
+		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
+		addTask(preRefreshHook)
+		prev = preRefreshHook
+	}
+
 	// mount
 	if !revisionIsLocal {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.Name(), revisionStr))
@@ -182,11 +191,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// run refresh hook when updating existing snap, otherwise run install hook
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupPostRefreshHook(st, snapsup.Name())
-		addTask(refreshHook)
-		prev = refreshHook
+	if runRefreshHooks {
+		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
+		addTask(postRefreshHook)
+		prev = postRefreshHook
 	}
 
 	// only run install hook if installing the snap for the first time
@@ -288,6 +296,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 
 var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
+}
+
+var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }
 
 var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
