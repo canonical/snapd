@@ -54,9 +54,7 @@ func SetupPostRefreshHook(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run post-refresh hook of %q snap if present"), hooksup.Snap)
-	task := HookTask(st, summary, hooksup, nil)
-
-	return task
+	return HookTask(st, summary, hooksup, nil)
 }
 
 func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {

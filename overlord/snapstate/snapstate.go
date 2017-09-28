@@ -129,12 +129,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// run refresh hooks when updating existing snap, otherwise run install
 	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
 
-	if runRefreshHooks {
-		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
-		addTask(preRefreshHook)
-		prev = preRefreshHook
-	}
-
 	// mount
 	if !revisionIsLocal {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.Name(), revisionStr))
@@ -147,7 +141,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
 		addTask(stop)
 		prev = stop
+	}
 
+	if runRefreshHooks {
+		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
+		addTask(preRefreshHook)
+		prev = preRefreshHook
+	}
+
+	if snapst.Active {
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
 		addTask(removeAliases)
 		prev = removeAliases

@@ -92,6 +92,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
+	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
@@ -113,6 +114,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.reset = func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 
@@ -224,12 +226,16 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
-		"run-hook[pre-refresh]",
 		"mount-snap",
 	}
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
 			"stop-snap-services",
+		)
+	}
+	expected = append(expected, "run-hook[pre-refresh]")
+	if opts&unlinkBefore != 0 {
+		expected = append(expected,
 			"remove-aliases",
 			"unlink-current-snap",
 		)
