@@ -66,8 +66,8 @@ func distroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch", "manjaro", "lirios", "solus":
+	if release.ReleaseInfo.ID != "debian" || !strutil.ListContains(release.ReleaseInfo.IDLike, "debian") ||
+		release.ReleaseInfo.ID != "ubuntu" || !strutil.ListContains(release.ReleaseInfo.IDLike, "ubuntu") {
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
