@@ -162,68 +162,6 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -C cmd check
 endif
 
-override_dh_systemd_enable:
-	# enable auto-import
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	# we want the auto-update timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but the auto-update service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# we want the repair timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.timer
-	# but the repair service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.service
-	# enable snapd
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.system-shutdown.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
-
-override_dh_systemd_start:
-	# we want to start the auto-update timer
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but not start the service
-	dh_systemd_start \
-		--no-start \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# start snapd
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.service
-	# start autoimport
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
-
 override_dh_install:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
