@@ -1,15 +1,27 @@
 #include "config.h"
 #include "classic.h"
 
+#include <string.h>
+#include <stdio.h>
 #include <unistd.h>
+
+char *os_release = "/etc/os-release";
 
 bool is_running_on_classic_distribution()
 {
-	// NOTE: keep this list sorted please
-	return false
-	    || access("/var/lib/dpkg/status", F_OK) == 0
-	    || access("/var/lib/pacman", F_OK) == 0
-	    || access("/var/lib/portage", F_OK) == 0
-	    || access("/var/lib/rpm", F_OK) == 0
-	    || access("/sbin/procd", F_OK) == 0;
+	char buf[255];
+	int is_core = false;
+
+	FILE *f = fopen(os_release, "r");
+	if (f == NULL) {
+		return !is_core;
+	}
+	while (fgets(buf, sizeof buf, f) != NULL) {
+		if (strcmp(buf, "ID=ubuntu-core\n") == 0) {
+			is_core = true;
+			break;
+		}
+	}
+	fclose(f);
+	return !is_core;
 }
