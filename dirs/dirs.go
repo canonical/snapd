@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // the various file paths
@@ -166,8 +167,8 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "arch", "manjaro", "lirios":
+	switch {
+	case release.ReleaseInfo.ID == "fedora", strutil.ListContains(release.ReleaseInfo.IDLike, "fedora"), release.ReleaseInfo.ID == "arch", strutil.ListContains(release.ReleaseInfo.IDLike, "arch"):
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
