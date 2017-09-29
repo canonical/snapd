@@ -7,19 +7,26 @@ prepare: |
     install_local test-snapd-sh
 execute: |
     # Start a "sleep" process in the background
-    test-snapd-sh -c 'exec sleep 1h' &
+    test-snapd-sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 1h' &
     pid1=$!
-    # Give snap-confine a moment to start and perform its task.
-    sleep 3
+    # Ensure that snap-confine has finished its task and that the snap process
+    # is active. Note that we don't want to wait forever either.
+    for i in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/1.stamp && break
+        sleep 0.1
+    done
     # While the process is alive its PID can be seen in the tasks file of the
     # control group.
     cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid1"
 
     # Start a second process so that we can check adding tasks to an existing
     # control group.
-    test-snapd-sh -c 'exec sleep 1h' &
+    test-snapd-sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 1h' &
     pid2=$!
-    sleep 3
+    for i in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/2.stamp && break
+        sleep 0.1
+    done
     cat /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks | MATCH "$pid2"
 
     # When the process terminates the control group is updated and the task no
