@@ -1,20 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type installedSnapName string
 
 func (s installedSnapName) Complete(match string) []flags.Completion {
-	cli := Client()
-	snaps, err := cli.List(nil, nil)
+	snaps, err := Client().List(nil, nil)
 	if err != nil {
 		return nil
 	}
@@ -29,14 +31,50 @@ func (s installedSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var ret []flags.Completion
+
+	// TODO: look into implementing binary search
+	//       e.g. https://github.com/pts/pts-line-bisect/
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line < match {
+			continue
+		}
+		if !strings.HasPrefix(line, match) {
+			break
+		}
+		ret = append(ret, flags.Completion{Item: line})
+		if len(ret) > 10000 {
+			// too many matches; slow machines could take too long to process this
+			// e.g. the bbb takes ~1s to process ~2M entries (i.e. to reach the
+			// point of asking the user if they actually want to see that many
+			// results). 10k ought to be enough for anybody.
+			break
+		}
+	}
+
+	return ret, nil
+}
+
 type remoteSnapName string
 
 func (s remoteSnapName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapNamesFile, match); err == nil {
+		return ret
+	}
+
 	if len(match) < 3 {
 		return nil
 	}
-	cli := Client()
-	snaps, _, err := cli.Find(&client.FindOptions{
+	snaps, _, err := Client().Find(&client.FindOptions{
 		Prefix: true,
 		Query:  match,
 	})
@@ -71,8 +109,7 @@ func (s anySnapName) Complete(match string) []flags.Completion {
 type changeID string
 
 func (s changeID) Complete(match string) []flags.Completion {
-	cli := Client()
-	changes, err := cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	changes, err := Client().Changes(&client.ChangesOptions{Selector: client.ChangesAll})
 	if err != nil {
 		return nil
 	}
@@ -81,6 +118,24 @@ func (s changeID) Complete(match string) []flags.Completion {
 	for _, change := range changes {
 		if strings.HasPrefix(change.ID, match) {
 			ret = append(ret, flags.Completion{Item: change.ID})
+		}
+	}
+
+	return ret
+}
+
+type assertTypeName string
+
+func (n assertTypeName) Complete(match string) []flags.Completion {
+	cli := Client()
+	names, err := cli.AssertionTypes()
+	if err != nil {
+		return nil
+	}
+	ret := make([]flags.Completion, 0, len(names))
+	for _, name := range names {
+		if strings.HasPrefix(name, match) {
+			ret = append(ret, flags.Completion{Item: name})
 		}
 	}
 
@@ -202,8 +257,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	parts := strings.SplitN(match, ":", 2)
 
 	// Ask snapd about available interfaces.
-	cli := Client()
-	ifaces, err := cli.Interfaces()
+	ifaces, err := Client().Connections()
 	if err != nil {
 		return nil
 	}
@@ -286,6 +340,49 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 				}
 			}
 		}
+	}
+
+	return ret
+}
+
+type interfaceName string
+
+func (s interfaceName) Complete(match string) []flags.Completion {
+	ifaces, err := Client().Interfaces(nil)
+	if err != nil {
+		return nil
+	}
+
+	ret := make([]flags.Completion, 0, len(ifaces))
+	for _, iface := range ifaces {
+		if strings.HasPrefix(iface.Name, match) {
+			ret = append(ret, flags.Completion{Item: iface.Name, Description: iface.Summary})
+		}
+	}
+
+	return ret
+}
+
+type serviceName string
+
+func (s serviceName) Complete(match string) []flags.Completion {
+	cli := Client()
+	apps, err := cli.Apps(nil, client.AppOptions{Service: true})
+	if err != nil {
+		return nil
+	}
+
+	snaps := map[string]bool{}
+	var ret []flags.Completion
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		if !snaps[app.Snap] {
+			snaps[app.Snap] = true
+			ret = append(ret, flags.Completion{Item: app.Snap})
+		}
+		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
 	}
 
 	return ret

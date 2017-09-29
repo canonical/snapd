@@ -203,7 +203,7 @@ func snapExecHook(snapName, revision, hookName string) error {
 	}
 
 	// build the environment
-	env := append(os.Environ(), hook.Env()...)
+	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
 	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)

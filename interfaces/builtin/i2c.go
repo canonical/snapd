@@ -41,6 +41,15 @@ const i2cBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const i2cConnectedPlugAppArmor = `
+# Description: Can access I2C controller
+
+%s rw,
+/sys/devices/platform/{*,**.i2c}/%s/** rw,
+`
+
+const i2cConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
+
 // The type for i2c interface
 type i2cInterface struct{}
 
@@ -49,8 +58,8 @@ func (iface *i2cInterface) Name() string {
 	return "i2c"
 }
 
-func (iface *i2cInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *i2cInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              i2cSummary,
 		BaseDeclarationSlots: i2cBaseDeclarationSlots,
 	}
@@ -67,15 +76,8 @@ var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Validate the path
@@ -93,15 +95,6 @@ func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// Checks and possibly modifies a plug
-func (iface *i2cInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
 func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
@@ -109,8 +102,7 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmor, cleanedPath, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
@@ -120,10 +112,9 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 		return nil
 	}
 	const pathPrefix = "/dev/"
-	const udevRule string = `KERNEL=="%s", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
 	}
 	return nil
 }
@@ -131,10 +122,6 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *i2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-func (iface *i2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

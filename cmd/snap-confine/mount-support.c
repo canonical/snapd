@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
 #include <mntent.h>
 #include <sched.h>
@@ -29,7 +30,10 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -135,76 +139,51 @@ static void setup_private_pts()
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
-/*
- * Setup mount profiles as described by snapd.
+/**
+ * Setup mount profiles by running snap-update-ns.
  *
- * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
- * and executes the mount requests described there.
- *
- * Currently only bind mounts are allowed. All bind mounts are read only by
- * default though the `rw` flag can be used.
- *
- * This function is called with the rootfs being "consistent" so that it is
- * either the core snap on an all-snap system or the core snap + punched holes
- * on a classic system.
+ * The first argument is an open file descriptor (though opened with O_PATH, so
+ * not as powerful), to a copy of snap-update-ns. The program is opened before
+ * the root filesystem is pivoted so that it is easier to pick the right copy.
  **/
-static void sc_setup_mount_profiles(const char *snap_name)
+static void sc_setup_mount_profiles(int snap_update_ns_fd,
+				    const char *snap_name)
 {
-	debug("%s: %s", __FUNCTION__, snap_name);
-
-	FILE *desired __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	FILE *current __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	char profile_path[PATH_MAX];
-
-	sc_must_snprintf(profile_path, sizeof(profile_path),
-			 "/run/snapd/ns/snap.%s.fstab", snap_name);
-	debug("opening current mount profile %s", profile_path);
-	current = setmntent(profile_path, "w");
-	if (current == NULL) {
-		die("cannot open current mount profile: %s", profile_path);
+	debug("calling snap-update-ns to initialize mount namespace");
+	pid_t child = fork();
+	if (child < 0) {
+		die("cannot fork to run snap-update-ns");
 	}
-
-	sc_must_snprintf(profile_path, sizeof(profile_path),
-			 "/var/lib/snapd/mount/snap.%s.fstab", snap_name);
-	debug("opening desired mount profile %s", profile_path);
-	desired = setmntent(profile_path, "r");
-	if (desired == NULL && errno == ENOENT) {
-		// It is ok for the desired profile to not exist. Note that in this
-		// case we also "update" the current profile as we already opened and
-		// truncated it above.
-		return;
+	if (child == 0) {
+		// We are the child, execute snap-update-ns
+		char *snap_name_copy
+		    __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		snap_name_copy = strdup(snap_name);
+		if (snap_name_copy == NULL) {
+			die("cannot copy snap name");
+		}
+		char *argv[] = {
+			"snap-update-ns", "--from-snap-confine", snap_name_copy,
+			NULL
+		};
+		char *envp[] = { NULL };
+		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
+		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
+		fexecve(snap_update_ns_fd, argv, envp);
+		die("cannot execute snap-update-ns");
 	}
-	if (desired == NULL) {
-		die("cannot open desired mount profile: %s", profile_path);
+	// We are the parent, so wait for snap-update-ns to finish.
+	int status = 0;
+	debug("waiting for snap-update-ns to finish...");
+	if (waitpid(child, &status, 0) < 0) {
+		die("waitpid() failed for snap-update-ns process");
 	}
-
-	struct mntent *m = NULL;
-	while ((m = getmntent(desired)) != NULL) {
-		debug("read mount entry\n"
-		      "\tmnt_fsname: %s\n"
-		      "\tmnt_dir: %s\n"
-		      "\tmnt_type: %s\n"
-		      "\tmnt_opts: %s\n"
-		      "\tmnt_freq: %d\n"
-		      "\tmnt_passno: %d",
-		      m->mnt_fsname, m->mnt_dir, m->mnt_type,
-		      m->mnt_opts, m->mnt_freq, m->mnt_passno);
-		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
-		debug("initial flags are: bind,ro,nodev,nosuid");
-		if (strcmp(m->mnt_type, "none") != 0) {
-			die("cannot honor mount profile, only 'none' filesystem type is supported");
-		}
-		if (hasmntopt(m, "bind") == NULL) {
-			die("cannot honor mount profile, the bind mount flag is mandatory");
-		}
-		if (hasmntopt(m, "rw") != NULL) {
-			flags &= ~MS_RDONLY;
-		}
-		sc_do_mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL);
-		if (addmntent(current, m) != 0) {	// NOTE: returns 1 on error.
-			die("cannot append entry to the current mount profile");
-		}
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
+	} else if (WIFSIGNALED(status)) {
+		die("snap-update-ns killed by signal %i", WTERMSIG(status));
 	}
+	debug("snap-update-ns finished successfully");
 }
 
 struct sc_mount {
@@ -217,6 +196,7 @@ struct sc_mount_config {
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
 	bool on_classic_distro;
+	bool uses_base_snap;
 };
 
 /**
@@ -330,15 +310,66 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
+			struct stat buf;
 			if (access(dir, F_OK) == 0) {
 				sc_must_snprintf(src, sizeof src, "%s%s",
 						 config->rootfs_dir, dir);
 				sc_must_snprintf(dst, sizeof dst, "%s%s",
 						 scratch_dir, dir);
-				sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-				sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+				if (lstat(src, &buf) == 0
+				    && lstat(dst, &buf) == 0) {
+					sc_do_mount(src, dst, NULL, MS_BIND,
+						    NULL);
+					sc_do_mount("none", dst, NULL, MS_SLAVE,
+						    NULL);
+				}
 			}
 		}
+	}
+	if (config->uses_base_snap) {
+		// when bases are used we need to bind-mount the libexecdir
+		// (that contains snap-exec) into /usr/lib/snapd of the
+		// base snap so that snap-exec is available for the snaps
+		// (base snaps do not ship snapd)
+
+		// dst is always /usr/lib/snapd as this is where snapd
+		// assumes to find snap-exec
+		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
+				 scratch_dir);
+
+		// bind mount the current $ROOT/usr/lib/snapd path,
+		// where $ROOT is either "/" or the "/snap/core/current"
+		// that we are re-execing from
+		char *src = NULL;
+		char self[PATH_MAX + 1] = { 0, };
+		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+			die("cannot read /proc/self/exe");
+		}
+		// this cannot happen except when the kernel is buggy
+		if (strstr(self, "/snap-confine") == NULL) {
+			die("cannot use result from readlink: %s", src);
+		}
+		src = dirname(self);
+		// dirname(path) might return '.' depending on path.
+		// /proc/self/exe should always point
+		// to an absolute path, but let's guarantee that.
+		if (src[0] != '/') {
+			die("cannot use the result of dirname(): %s", src);
+		}
+
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
+		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+
+		// FIXME: snapctl tool - our apparmor policy wants it in
+		//        /usr/bin/snapctl, we will need an empty file
+		//        here from the base snap or we need to move it
+		//        into a different location and just symlink it
+		//        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
+		//        and in the base snap case adjust PATH
+		//src = "/usr/bin/snapctl";
+		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
+		//sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
+		//sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -502,6 +533,34 @@ static bool __attribute__ ((used))
 	return false;
 }
 
+static int sc_open_snap_update_ns()
+{
+	// +1 is for the case where the link is exactly PATH_MAX long but we also
+	// want to store the terminating '\0'. The readlink system call doesn't add
+	// terminating null, but our initialization of buf handles this for us.
+	char buf[PATH_MAX + 1] = { 0 };
+	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
+		die("cannot readlink /proc/self/exe");
+	}
+	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
+		die("readlink /proc/self/exe returned relative path");
+	}
+	char *bufcopy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	bufcopy = strdup(buf);
+	if (bufcopy == NULL) {
+		die("cannot copy buffer");
+	}
+	char *dname = dirname(bufcopy);
+	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
+	debug("snap-update-ns executable: %s", buf);
+	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0) {
+		die("cannot open snap-update-ns executable");
+	}
+	debug("opened snap-update-ns executable as file descriptor %d", fd);
+	return fd;
+}
+
 void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
@@ -512,9 +571,15 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Remember if we are on classic, some things behave differently there.
+	// Find and open snap-update-ns from the same path as where we
+	// (snap-confine) were called.
+	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	snap_update_ns_fd = sc_open_snap_update_ns();
+
 	bool on_classic_distro = is_running_on_classic_distribution();
-	if (on_classic_distro) {
+	// on classic or with alternative base snaps we need to setup
+	// a different confinement
+	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -539,17 +604,23 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			{},
 		};
 		char rootfs_dir[PATH_MAX];
- again:
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
 				 base_snap_name);
 		if (access(rootfs_dir, F_OK) != 0) {
 			if (sc_streq(base_snap_name, "core")) {
-				// As a special fallback, allow the base snap to degrade from
-				// "core" to "ubuntu-core". This is needed for the migration
-				// tests.
+				// As a special fallback, allow the
+				// base snap to degrade from "core" to
+				// "ubuntu-core". This is needed for
+				// the migration tests.
 				base_snap_name = "ubuntu-core";
-				goto again;
+				sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
+						 "%s/%s/current/",
+						 SNAP_MOUNT_DIR,
+						 base_snap_name);
+				if (access(rootfs_dir, F_OK) != 0) {
+					die("cannot locate the core or legacy core snap (current symlink missing?)");
+				}
 			}
 			die("cannot locate the base snap: %s", base_snap_name);
 		}
@@ -557,6 +628,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.on_classic_distro = true,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -573,6 +645,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		struct sc_mount_config all_snap_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&all_snap_config);
 	}
@@ -590,7 +663,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_name);
+	sc_setup_mount_profiles(snap_update_ns_fd, snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.

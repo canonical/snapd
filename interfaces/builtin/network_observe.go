@@ -41,6 +41,7 @@ const networkObserveConnectedPlugAppArmor = `
 #capability net_admin,
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
@@ -117,6 +118,9 @@ network inet6 raw,
 
 # network devices
 /sys/devices/**/net/** r,
+
+# for receiving kobject_uevent() net messages from the kernel
+network netlink raw,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-observe
@@ -139,6 +143,9 @@ socket AF_NETLINK - NETLINK_ROUTE
 
 # multicast statistics
 socket AF_NETLINK - NETLINK_GENERIC
+
+# for receiving kobject_uevent() net messages from the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 func init() {

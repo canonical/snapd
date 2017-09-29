@@ -38,9 +38,9 @@ type Repository struct {
 	plugs map[string]map[string]*Plug
 	slots map[string]map[string]*Slot
 	// given a slot and a plug, are they connected?
-	slotPlugs map[*Slot]map[*Plug]bool
+	slotPlugs map[*Slot]map[*Plug]*Connection
 	// given a plug and a slot, are they connected?
-	plugSlots map[*Plug]map[*Slot]bool
+	plugSlots map[*Plug]map[*Slot]*Connection
 	backends  map[SecuritySystem]SecurityBackend
 }
 
@@ -50,8 +50,8 @@ func NewRepository() *Repository {
 		ifaces:    make(map[string]Interface),
 		plugs:     make(map[string]map[string]*Plug),
 		slots:     make(map[string]map[string]*Slot),
-		slotPlugs: make(map[*Slot]map[*Plug]bool),
-		plugSlots: make(map[*Plug]map[*Slot]bool),
+		slotPlugs: make(map[*Slot]map[*Plug]*Connection),
+		plugSlots: make(map[*Plug]map[*Slot]*Connection),
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
@@ -78,6 +78,115 @@ func (r *Repository) AddInterface(i Interface) error {
 	}
 	r.ifaces[interfaceName] = i
 	return nil
+}
+
+// InfoOptions describes options for Info.
+//
+// Names: return just this subset if non-empty.
+// Doc: return documentation.
+// Plugs: return information about plugs.
+// Slots: return information about slots.
+// Connected: only consider interfaces with at least one connection.
+type InfoOptions struct {
+	Names     []string
+	Doc       bool
+	Plugs     bool
+	Slots     bool
+	Connected bool
+}
+
+func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
+	// NOTE: InfoOptions.Connected is handled by Info
+	si := StaticInfoOf(iface)
+	ifaceName := iface.Name()
+	ii := &Info{
+		Name:    ifaceName,
+		Summary: si.Summary,
+	}
+	if opts != nil && opts.Doc {
+		// Collect documentation URL
+		ii.DocURL = si.DocURL
+	}
+	if opts != nil && opts.Plugs {
+		// Collect all plugs of this interface type.
+		for _, snapName := range sortedSnapNamesWithPlugs(r.plugs) {
+			for _, plugName := range sortedPlugNames(r.plugs[snapName]) {
+				plugInfo := r.plugs[snapName][plugName].PlugInfo
+				if plugInfo.Interface == ifaceName {
+					ii.Plugs = append(ii.Plugs, plugInfo)
+				}
+			}
+		}
+	}
+	if opts != nil && opts.Slots {
+		// Collect all slots of this interface type.
+		for _, snapName := range sortedSnapNamesWithSlots(r.slots) {
+			for _, slotName := range sortedSlotNames(r.slots[snapName]) {
+				slotInfo := r.slots[snapName][slotName].SlotInfo
+				if slotInfo.Interface == ifaceName {
+					ii.Slots = append(ii.Slots, slotInfo)
+				}
+			}
+		}
+	}
+	return ii
+}
+
+// Info returns information about interfaces in the system.
+//
+// If names is empty then all interfaces are considered. Query options decide
+// which data to return but can also skip interfaces without connections. See
+// the documentation of InfoOptions for details.
+func (r *Repository) Info(opts *InfoOptions) []*Info {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// If necessary compute the set of interfaces with any connections.
+	var connected map[string]bool
+	if opts != nil && opts.Connected {
+		connected = make(map[string]bool)
+		for _, plugMap := range r.slotPlugs {
+			for plug, conn := range plugMap {
+				if conn != nil {
+					connected[plug.Interface] = true
+				}
+			}
+		}
+		for _, slotMap := range r.plugSlots {
+			for slot, conn := range slotMap {
+				if conn != nil {
+					connected[slot.Interface] = true
+				}
+			}
+		}
+	}
+
+	// If weren't asked about specific interfaces then query every interface.
+	var names []string
+	if opts == nil || len(opts.Names) == 0 {
+		for _, iface := range r.ifaces {
+			name := iface.Name()
+			if connected == nil || connected[name] {
+				// Optionally filter out interfaces without connections.
+				names = append(names, name)
+			}
+		}
+	} else {
+		names = make([]string, len(opts.Names))
+		copy(names, opts.Names)
+	}
+	sort.Strings(names)
+
+	// Query each interface we are interested in.
+	infos := make([]*Info, 0, len(names))
+	for _, name := range names {
+		if iface, ok := r.ifaces[name]; ok {
+			if connected == nil || connected[name] {
+				infos = append(infos, r.interfaceInfo(iface, opts))
+			}
+		}
+	}
+	return infos
 }
 
 // AddBackend adds the provided security backend to the repository.
@@ -154,7 +263,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
 	// Reject plug that don't pass interface-specific sanitization
-	if err := i.SanitizePlug(plug); err != nil {
+	if err := plug.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
@@ -253,7 +362,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if i == nil {
 		return fmt.Errorf("cannot add slot, interface %q is not known", slot.Interface)
 	}
-	if err := i.SanitizeSlot(slot); err != nil {
+	if err := slot.Sanitize(i); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
@@ -410,7 +519,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 			return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 		}
 		// Ensure that slot and plug are connected
-		if !r.slotPlugs[slot][plug] {
+		if r.slotPlugs[slot][plug] == nil {
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
@@ -463,19 +572,20 @@ func (r *Repository) Connect(ref ConnRef) error {
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
 	// Ensure that slot and plug are not connected yet
-	if r.slotPlugs[slot][plug] {
+	if r.slotPlugs[slot][plug] != nil {
 		// But if they are don't treat this as an error.
 		return nil
 	}
 	// Connect the plug
 	if r.slotPlugs[slot] == nil {
-		r.slotPlugs[slot] = make(map[*Plug]bool)
+		r.slotPlugs[slot] = make(map[*Plug]*Connection)
 	}
 	if r.plugSlots[plug] == nil {
-		r.plugSlots[plug] = make(map[*Slot]bool)
+		r.plugSlots[plug] = make(map[*Slot]*Connection)
 	}
-	r.slotPlugs[slot][plug] = true
-	r.plugSlots[plug][slot] = true
+	conn := &Connection{plugInfo: plug.PlugInfo, slotInfo: slot.SlotInfo}
+	r.slotPlugs[slot][plug] = conn
+	r.plugSlots[plug][slot] = conn
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
 	return nil
@@ -515,7 +625,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 		return fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that slot and plug are connected
-	if !r.slotPlugs[slot][plug] {
+	if r.slotPlugs[slot][plug] == nil {
 		return fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 			plugSnapName, plugName, slotSnapName, slotName)
 	}
@@ -783,7 +893,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
-		if err := iface.SanitizePlug(plug); err != nil {
+		if err := plug.Sanitize(iface); err != nil {
 			bad.issues[plugName] = err.Error()
 			continue
 		}
@@ -805,7 +915,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
-		if err := iface.SanitizeSlot(slot); err != nil {
+		if err := slot.Sanitize(iface); err != nil {
 			bad.issues[slotName] = err.Error()
 			continue
 		}

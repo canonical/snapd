@@ -140,6 +140,8 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
+		"desktop":                 true,
+		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
 		"mir":                     true,
@@ -155,6 +157,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"unity7":                  true,
 		"unity8":                  true,
 		"upower-observe":          true,
+		"wayland":                 true,
 		"x11":                     true,
 	}
 
@@ -456,7 +459,9 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"autopilot-introspection": {"core"},
-		"bluez":                   {"app"},
+		"avahi-control":           {"app", "core"},
+		"avahi-observe":           {"app", "core"},
+		"bluez":                   {"app", "core"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
@@ -482,9 +487,10 @@ var (
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
-		"ppp":                       {"core"},
-		"pulseaudio":                {"app", "core"},
-		"serial-port":               {"core", "gadget"},
+		"ppp":         {"core"},
+		"pulseaudio":  {"app", "core"},
+		"serial-port": {"core", "gadget"},
+		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -539,7 +545,8 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				sanitizeErr := iface.SanitizeSlot(&interfaces.Slot{SlotInfo: slotInfo})
+				slot := &interfaces.Slot{SlotInfo: slotInfo}
+				sanitizeErr := slot.Sanitize(iface)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
@@ -612,7 +619,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                     true,
 		"content":                   true,
 		"docker":                    true,
 		"fwupd":                     true,

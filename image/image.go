@@ -105,7 +105,7 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			local[snapName] = info
 
 			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
-			if err != nil && err != asserts.ErrNotFound {
+			if err != nil && !asserts.IsNotFound(err) {
 				return nil, err
 			}
 			if err == nil {
@@ -244,9 +244,6 @@ func installCloudConfig(gadgetDir string) error {
 	if osutil.FileExists(cloudConfig) {
 		dst := filepath.Join(cloudDir, "cloud.cfg")
 		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
-	} else {
-		dst := filepath.Join(cloudDir, "cloud-init.disabled")
-		err = osutil.AtomicWriteFile(dst, nil, 0644, 0)
 	}
 	return err
 }

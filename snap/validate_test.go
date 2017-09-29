@@ -82,6 +82,23 @@ func (s *ValidateSuite) TestValidateEpoch(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateLicense(c *C) {
+	validLicenses := []string{
+		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
+	}
+	for _, epoch := range validLicenses {
+		err := ValidateLicense(epoch)
+		c.Assert(err, IsNil)
+	}
+	invalidLicenses := []string{
+		"GPL~3.0", "3.0-GPL", "(GPL-3.0", "(GPL-3.0))", "GPL-3.0++", "+GPL-3.0", "GPL-3.0 GPL-2.0",
+	}
+	for _, epoch := range invalidLicenses {
+		err := ValidateLicense(epoch)
+		c.Assert(err, NotNil)
+	}
+}
+
 func (s *ValidateSuite) TestValidateHook(c *C) {
 	validHooks := []*HookInfo{
 		{Name: "a"},
@@ -244,6 +261,25 @@ version: 1.0
 	c.Assert(Validate(info), IsNil)
 }
 
+func (s *ValidateSuite) TestIllegalSnapLicense(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+license: GPL~3.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot validate license "GPL~3.0": unknown license: GPL~3.0`)
+}
+
+func (s *ValidateSuite) TestMissingSnapLicenseIsOkay(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
+}
+
 func (s *ValidateSuite) TestIllegalHookName(c *C) {
 	hookType := NewHookType(regexp.MustCompile(".*"))
 	restore := MockSupportedHookTypes([]*HookType{hookType})
@@ -310,4 +346,47 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		err := ValidateAlias(alias)
 		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
 	}
+}
+
+func (s *ValidateSuite) TestValidateLayout(c *C) {
+	// Several invalid layouts.
+	c.Check(ValidateLayout(&Layout{}),
+		ErrorMatches, "cannot accept layout with empty path")
+	c.Check(ValidateLayout(&Layout{Path: "/foo"}),
+		ErrorMatches, `cannot determine layout for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Type: "tmpfs"}),
+		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Symlink: "/froz"}),
+		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Symlink: "/froz"}),
+		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "ext4"}),
+		ErrorMatches, `cannot accept filesystem "ext4" for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", User: "foo"}),
+		ErrorMatches, `cannot accept user "foo" for "/foo/bar"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", Group: "foo"}),
+		ErrorMatches, `cannot accept group "foo" for "/foo/bar"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}),
+		ErrorMatches, `cannot accept mode 01755 for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "$FOO", Type: "tmpfs"}),
+		ErrorMatches, `cannot accept layout of "\$FOO": reference to unknown variable "\$FOO"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "$BAR"}),
+		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Symlink: "$BAR"}),
+		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+	// Several valid layouts.
+	c.Check(ValidateLayout(&Layout{Path: "/tmp", Type: "tmpfs"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/usr", Bind: "$SNAP/usr"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_DATA/var"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_COMMON/var"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/etc/foo.conf", Symlink: "$SNAP_DATA/etc/foo.conf"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", User: "nobody"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", User: "root"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Group: "nobody"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Group: "root"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Mode: 0655}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/usr", Symlink: "$SNAP/usr"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_DATA/var"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_COMMON/var"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Path: "$SNAP/data", Symlink: "$SNAP_DATA"}), IsNil)
 }

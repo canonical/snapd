@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,12 +18,6 @@
  */
 
 package builtin
-
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-)
 
 const lxdSupportSummary = `allows operating as the LXD service`
 
@@ -55,45 +49,16 @@ const lxdSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
-type lxdSupportInterface struct{}
-
-func (iface *lxdSupportInterface) Name() string {
-	return "lxd-support"
-}
-
-func (iface *lxdSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary:              lxdSupportSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationPlugs: lxdSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: lxdSupportBaseDeclarationSlots,
-	}
-}
-
-func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *lxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *lxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-func (iface *lxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// allow what declarations allowed
-	return true
-}
-
 func init() {
-	registerIface(&lxdSupportInterface{})
+	registerIface(&commonInterface{
+		name:                  "lxd-support",
+		summary:               lxdSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  lxdSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:  lxdSupportBaseDeclarationPlugs,
+		connectedPlugAppArmor: lxdSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  lxdSupportConnectedPlugSecComp,
+		reservedForOS:         true,
+	})
 }

@@ -14,29 +14,39 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-_complete() {
+_complete_snap() {
     # TODO: add support for sourcing this function from the core snap.
     local cur prev words cword
     _init_completion -n : || return
 
-    local command
-    if [[ ${#words[@]} -gt 2 ]]; then
-        if [[ ${words[1]} =~ ^-- ]]; then
-            # global options take no args
-            return 0
-        fi
-        if [[ ${words[-2]} = "--help" ]]; then
-            # help takes no args
-            return 0
-        fi
-
-        command=${words[-2]}
+    if [[ ${#words[@]} -le 2 ]]; then
+        # we're completing on the first word
+        COMPREPLY=($(GO_FLAGS_COMPLETION=1 "${words[@]}"))
+        return 0
     fi
+
+    local command
+    if [[ ${words[1]} =~ ^- ]]; then
+        # global options take no args
+        return 0
+    fi
+
+    for w in "${words[@]:1}"; do
+        if [[ "$w" == "-h" || "$w" == "--help" ]]; then
+            # completing on help gets confusing
+            return 0
+        fi
+    done
+
+    command=${words[1]}
 
     # Only split on newlines
     local IFS=$'\n'
 
-    COMPREPLY=($(GO_FLAGS_COMPLETION=1 "${words[@]}"))
+    # now we pass _just the bit that's being completed_ of the command
+    # to snap for it to figure it out. go-flags isn't smart enough to
+    # look at COMP_WORDS etc. itself.
+    COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
 
     case $command in
         install|info|sign-build)
@@ -62,4 +72,4 @@ _complete() {
     return 0
 }
 
-complete -F _complete snap
+complete -F _complete_snap snap

@@ -45,8 +45,8 @@ var (
 	stopNotifyDelay = 20 * time.Second
 )
 
-// run calls systemctl with the given args, returning its standard output (and wrapped error)
-func run(args ...string) ([]byte, error) {
+// systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
+var systemctlCmd = func(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
@@ -56,14 +56,25 @@ func run(args ...string) ([]byte, error) {
 	return bs, nil
 }
 
-// SystemctlCmd is called from the commands to actually call out to
+// MockSystemctl is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
-var SystemctlCmd = run
+func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+	oldSystemctlCmd := systemctlCmd
+	systemctlCmd = f
+	return func() {
+		systemctlCmd = oldSystemctlCmd
+	}
+}
+
+func Available() error {
+	_, err := systemctlCmd("--version")
+	return err
+}
 
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
 	args := make([]string, 0, 2*len(svcs)+6)
@@ -79,8 +90,13 @@ func jctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-// JournalctlCmd is called from Logs to run journalctl; exported for testing.
-var JournalctlCmd = jctl
+func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser, error)) func() {
+	oldJctl := jctl
+	jctl = f
+	return func() {
+		jctl = oldJctl
+	}
+}
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
@@ -91,61 +107,13 @@ type Systemd interface {
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
-	Status(service string) (string, error)
-	ServiceStatus(service string) (*ServiceStatus, error)
+	Status(services ...string) ([]*ServiceStatus, error)
 	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, what, where, fstype string) (string, error)
 }
 
 // A Log is a single entry in the systemd journal
 type Log map[string]string
-
-// RestartCondition encapsulates the different systemd 'restart' options
-type RestartCondition string
-
-// These are the supported restart conditions
-const (
-	RestartNever      RestartCondition = "never"
-	RestartOnSuccess  RestartCondition = "on-success"
-	RestartOnFailure  RestartCondition = "on-failure"
-	RestartOnAbnormal RestartCondition = "on-abnormal"
-	RestartOnAbort    RestartCondition = "on-abort"
-	RestartAlways     RestartCondition = "always"
-)
-
-var RestartMap = map[string]RestartCondition{
-	"never":       RestartNever,
-	"on-success":  RestartOnSuccess,
-	"on-failure":  RestartOnFailure,
-	"on-abnormal": RestartOnAbnormal,
-	"on-abort":    RestartOnAbort,
-	"always":      RestartAlways,
-}
-
-// ErrUnknownRestartCondition is returned when trying to unmarshal an unknown restart condition
-var ErrUnknownRestartCondition = errors.New("invalid restart condition")
-
-func (rc RestartCondition) String() string {
-	return string(rc)
-}
-
-// UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
-func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var v string
-
-	if err := unmarshal(&v); err != nil {
-		return err
-	}
-
-	nrc, ok := RestartMap[v]
-	if !ok {
-		return ErrUnknownRestartCondition
-	}
-
-	*rc = nrc
-
-	return nil
-}
 
 const (
 	// the default target for systemd units that we generate
@@ -174,88 +142,123 @@ type systemd struct {
 
 // DaemonReload reloads systemd's configuration.
 func (*systemd) DaemonReload() error {
-	_, err := SystemctlCmd("daemon-reload")
+	_, err := systemctlCmd("daemon-reload")
 	return err
 }
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
+	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
+	_, err := systemctlCmd("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Start the given service
 func (*systemd) Start(serviceName string) error {
-	_, err := SystemctlCmd("start", serviceName)
+	_, err := systemctlCmd("start", serviceName)
 	return err
 }
 
 // LogReader for the given services
 func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
-	return JournalctlCmd(serviceNames, n, follow)
+	return jctl(serviceNames, n, follow)
 }
 
-var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
+var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
-func (s *systemd) Status(serviceName string) (string, error) {
-	status, err := s.ServiceStatus(serviceName)
-	if err != nil {
-		return "", err
-	}
-
-	return status.StatusString(), nil
-}
-
-// A ServiceStatus holds structured service status information.
 type ServiceStatus struct {
-	ServiceFileName string `json:"service-file-name"`
-	LoadState       string `json:"load-state"`
-	ActiveState     string `json:"active-state"`
-	SubState        string `json:"sub-state"`
-	UnitFileState   string `json:"unit-file-state"`
+	Daemon          string
+	ServiceFileName string
+	Enabled         bool
+	Active          bool
 }
 
-func (status *ServiceStatus) StatusString() string {
-	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState)
-}
-
-func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
+	expected := []string{"Id", "Type", "ActiveState", "UnitFileState"}
+	cmd := make([]string, len(serviceNames)+2)
+	cmd[0] = "show"
+	cmd[1] = "--property=" + strings.Join(expected, ",")
+	copy(cmd[2:], serviceNames)
+	bs, err := systemctlCmd(cmd...)
 	if err != nil {
 		return nil, err
 	}
 
-	status := &ServiceStatus{ServiceFileName: serviceName}
+	sts := make([]*ServiceStatus, 0, len(serviceNames))
+	cur := &ServiceStatus{}
+	seen := map[string]bool{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
-		if len(bs[0]) > 0 {
-			k := string(bs[1])
-			v := string(bs[2])
-			switch k {
-			case "LoadState":
-				status.LoadState = v
-			case "ActiveState":
-				status.ActiveState = v
-			case "SubState":
-				status.SubState = v
-			case "UnitFileState":
-				status.UnitFileState = v
+		if len(bs[0]) == 0 {
+			// systemctl separates data pertaining to particular services by an empty line
+			missing := make([]string, 0, len(expected))
+			for _, k := range expected {
+				if !seen[k] {
+					missing = append(missing, k)
+				}
 			}
+			if len(missing) > 0 {
+				return nil, fmt.Errorf("cannot get service status: missing %s in ‘systemctl show’ output", strings.Join(missing, ", "))
+
+			}
+			sts = append(sts, cur)
+			if len(sts) > len(serviceNames) {
+				break // wut
+			}
+			if cur.ServiceFileName != serviceNames[len(sts)-1] {
+				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.ServiceFileName)
+			}
+
+			cur = &ServiceStatus{}
+			seen = map[string]bool{}
+			continue
 		}
+		if len(bs[3]) > 0 {
+			return nil, fmt.Errorf("cannot get service status: bad line %q in ‘systemctl show’ output", bs[3])
+		}
+		k := string(bs[1])
+		v := string(bs[2])
+
+		if v == "" {
+			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’ output", k)
+		}
+
+		switch k {
+		case "Id":
+			cur.ServiceFileName = v
+		case "Type":
+			cur.Daemon = v
+		case "ActiveState":
+			// made to match “systemctl is-active” behaviour, at least at systemd 229
+			cur.Active = v == "active" || v == "reloading"
+		case "UnitFileState":
+			// "static" means it can't be disabled
+			cur.Enabled = v == "enabled" || v == "static"
+		default:
+			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
+		}
+
+		if seen[k] {
+			return nil, fmt.Errorf("cannot get service status: duplicate field %q in ‘systemctl show’ output", k)
+		}
+		seen[k] = true
 	}
 
-	return status, nil
+	if len(sts) != len(serviceNames) {
+		return nil, fmt.Errorf("cannot get service status: expected %d results, got %d", len(serviceNames), len(sts))
+	}
+
+	return sts, nil
 }
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
-	if _, err := SystemctlCmd("stop", serviceName); err != nil {
+	if _, err := systemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
 
@@ -273,7 +276,7 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
+			bs, err := systemctlCmd("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -295,7 +298,7 @@ loop:
 
 // Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := SystemctlCmd("kill", serviceName, "-s", signal)
+	_, err := systemctlCmd("kill", serviceName, "-s", signal)
 	return err
 }
 
@@ -335,25 +338,19 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
-const myFmt = "2006-01-02T15:04:05.000000Z07:00"
-
-// Timestamp of the Log, formatted like RFC3339 to µs precision.
-//
-// If no timestamp, the string "-(no timestamp!)-" -- and something is
-// wrong with your system. Some other "impossible" error conditions
-// also result in "-(errror message)-" timestamps.
-func (l Log) Timestamp() string {
-	t := "-(no timestamp!)-"
-	if sus, ok := l["__REALTIME_TIMESTAMP"]; ok {
-		// according to systemd.journal-fields(7) it's microseconds as a decimal string
-		if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
-			t = time.Unix(us/1000000, 1000*(us%1000000)).UTC().Format(myFmt)
-		} else {
-			t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
-		}
+// Time returns the time the Log was received by the journal.
+func (l Log) Time() (time.Time, error) {
+	sus, ok := l["__REALTIME_TIMESTAMP"]
+	if !ok {
+		return time.Time{}, errors.New("no timestamp")
+	}
+	// according to systemd.journal-fields(7) it's microseconds as a decimal string
+	us, err := strconv.ParseInt(sus, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("timestamp not a decimal number: %#v", sus)
 	}
 
-	return t
+	return time.Unix(us/1000000, 1000*(us%1000000)).UTC(), nil
 }
 
 // Message of the Log, if any; otherwise, "-".
@@ -384,10 +381,6 @@ func (l Log) PID() string {
 	}
 
 	return "-"
-}
-
-func (l Log) String() string {
-	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp(), l.SID(), l.PID(), l.Message())
 }
 
 // useFuse detects if we should be using squashfuse instead

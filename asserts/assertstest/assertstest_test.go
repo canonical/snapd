@@ -75,10 +75,7 @@ func (s *helperSuite) TestReadPrivKeyUnarmored(c *C) {
 }
 
 func (s *helperSuite) TestStoreStack(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-
-	store := assertstest.NewStoreStack("super", rootPrivKey, storePrivKey)
+	store := assertstest.NewStoreStack("super", nil)
 
 	c.Check(store.TrustedAccount.AccountID(), Equals, "super")
 	c.Check(store.TrustedAccount.IsCertified(), Equals, true)
@@ -86,9 +83,13 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(store.TrustedKey.AccountID(), Equals, "super")
 	c.Check(store.TrustedKey.Name(), Equals, "root")
 
+	c.Check(store.GenericAccount.AccountID(), Equals, "generic")
+	c.Check(store.GenericAccount.IsCertified(), Equals, true)
+
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   store.Trusted,
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         store.Trusted,
+		OtherPredefined: store.Generic,
 	})
 	c.Assert(err, IsNil)
 
@@ -99,6 +100,30 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(storeAccKey.AccountID(), Equals, store.AuthorityID)
 	c.Check(storeAccKey.PublicKeyID(), Equals, store.KeyID)
 	c.Check(storeAccKey.Name(), Equals, "store")
+
+	c.Check(store.GenericKey.AccountID(), Equals, "generic")
+	c.Check(store.GenericKey.Name(), Equals, "serials")
+
+	c.Check(store.GenericModelsKey.AccountID(), Equals, "generic")
+	c.Check(store.GenericModelsKey.Name(), Equals, "models")
+
+	g, err := store.Find(asserts.AccountType, map[string]string{
+		"account-id": "generic",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(g.Headers(), DeepEquals, store.GenericAccount.Headers())
+
+	g, err = store.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": store.GenericKey.PublicKeyID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(g.Headers(), DeepEquals, store.GenericKey.Headers())
+
+	g, err = store.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": store.GenericModelsKey.PublicKeyID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(g.Headers(), DeepEquals, store.GenericModelsKey.Headers())
 
 	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")
@@ -119,4 +144,20 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(acctKey.Name(), Equals, "default")
+
+	a, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": "generic",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(a.Headers(), DeepEquals, store.GenericAccount.Headers())
+
+	c.Check(store.GenericClassicModel.AuthorityID(), Equals, "generic")
+	c.Check(store.GenericClassicModel.BrandID(), Equals, "generic")
+	c.Check(store.GenericClassicModel.Model(), Equals, "generic-classic")
+	c.Check(store.GenericClassicModel.Classic(), Equals, true)
+	err = db.Check(store.GenericClassicModel)
+	c.Assert(err, IsNil)
+
+	err = db.Add(store.GenericKey)
+	c.Assert(err, IsNil)
 }
