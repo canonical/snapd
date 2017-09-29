@@ -45,6 +45,23 @@ static void test_is_on_core()
 	unlink("os-release.core");
 }
 
+const char *os_release_classic_with_long_line = ""
+    "NAME=\"Ubuntu\"\n"
+    "VERSION=\"17.04 (Zesty Zapus)\"\n"
+    "ID=ubuntu\n"
+    "ID_LIKE=debian\n"
+    "LONG=line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.";
+
+static void test_is_on_classic_with_long_line()
+{
+	g_file_set_contents("os-release.classic-with-long-line",
+			    os_release_classic, strlen(os_release_classic),
+			    NULL);
+	os_release = "os-release.classic-with-long-line";
+	g_assert_true(is_running_on_classic_distribution());
+	unlink("os-release.classic-with-long-line");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
