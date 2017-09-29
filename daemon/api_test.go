@@ -6432,7 +6432,7 @@ func (s *storeSuite) TestPutAssertionNotFound(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches,
-		`cannot find store assertion with store "store-1": assertion not found`)
+		`cannot find assertion: store \(store-1\) not found`)
 }
 
 func (s *storeSuite) TestPutAssertionNoURL(c *check.C) {

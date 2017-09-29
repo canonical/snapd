@@ -2735,8 +2735,8 @@ func putStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		"store": storeData.Store,
 	})
 	if err != nil {
-		if err == asserts.ErrNotFound {
-			return BadRequest("cannot find store assertion with store %q: %s", storeData.Store, err)
+		if asserts.IsNotFound(err) {
+			return BadRequest("cannot find assertion: %s", err)
 		}
 		msg := "unexpected error finding store assertion"
 		logger.Noticef("%s: %s", msg, err)
