@@ -66,7 +66,7 @@ purge() {
             rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
             # snap mount dir
             umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR}/$snap/$rev"
+            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
             rm -f "${SNAP_MOUNT_DIR}/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
@@ -90,6 +90,9 @@ purge() {
     for mnt in /run/snapd/ns/*.mnt; do
         umount -l "$mnt" || true
     done
+    for fstab in /run/snapd/ns/*.fstab; do
+        rm -f "$fstab"
+    done
     umount -l /run/snapd/ns/ || true
 
 
@@ -97,14 +100,17 @@ purge() {
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
-    rm -rf "${SNAP_MOUNT_DIR}"/*
-    rm -rf /var/snap/*
+    rm -rf "${SNAP_MOUNT_DIR}"
+    rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
     rm -rf /var/lib/snapd/desktop/applications/*
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+
+    echo "Removing snapd catalog cache"
+    rm -f /var/cache/snapd/*
 }
 
 while [ -n "$1" ]; do
@@ -115,7 +121,7 @@ while [ -n "$1" ]; do
             ;;
         --snap-mount-dir=*)
             SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX="$(systemd-escape -p $SNAP_MOUNT_DIR)"
+            SNAP_UNIT_PREFIX=$(systemd-escape -p "$SNAP_MOUNT_DIR")
             shift
             ;;
         --purge)

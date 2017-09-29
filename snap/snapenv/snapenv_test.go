@@ -71,7 +71,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
 
 	c.Assert(env, DeepEquals, map[string]string{
-		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.SnapMountDir),
+		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",

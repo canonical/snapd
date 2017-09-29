@@ -20,8 +20,8 @@
 package cmd
 
 import (
-	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -67,7 +67,7 @@ func distroSupportsReExec() bool {
 		return false
 	}
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch":
+	case "fedora", "centos", "rhel", "opensuse", "suse", "poky", "arch", "manjaro", "lirios", "solus":
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
@@ -116,12 +116,6 @@ func coreSupportsReExec(corePath string) bool {
 func InternalToolPath(tool string) string {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
-	// mostly useful for tests
-	if !osutil.GetenvBool(reExecKey, true) {
-		logger.Debugf("re-exec disabled by user")
-		return distroTool
-	}
-
 	// find the internal path relative to the running snapd, this
 	// ensure we don't rely on the state of the system (like
 	// having a valid "current" symlink).
@@ -132,8 +126,8 @@ func InternalToolPath(tool string) string {
 	}
 
 	// ensure we never use this helper from anything but
-	if !strings.HasSuffix(exe, "/snapd") {
-		panic("InternalToolPath can only be used from snapd")
+	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
+		log.Panicf("InternalToolPath can only be used from snapd, got: %s", exe)
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
@@ -146,10 +140,11 @@ func InternalToolPath(tool string) string {
 	return filepath.Join(filepath.Dir(exe), tool)
 }
 
-// mustUnsetenv will os.Unsetenv the for or panic if it cannot do that
+// mustUnsetenv will unset the given environment key or panic if it
+// cannot do that
 func mustUnsetenv(key string) {
 	if err := os.Unsetenv(key); err != nil {
-		panic(fmt.Sprintf("cannot unset %s: %s", key, err))
+		log.Panicf("cannot unset %s: %s", key, err)
 	}
 }
 
@@ -159,6 +154,7 @@ func ExecInCoreSnap() {
 	// Which executable are we?
 	exe, err := os.Readlink(selfExe)
 	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
 		return
 	}
 
@@ -180,8 +176,7 @@ func ExecInCoreSnap() {
 	}
 
 	// Did we already re-exec?
-	if osutil.GetenvBool("SNAP_DID_REEXEC") {
-		mustUnsetenv("SNAP_DID_REEXEC")
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return
 	}
 
@@ -207,6 +202,7 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
+	// we keep this for e.g. the errtracker
 	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
 	panic(syscallExec(full, os.Args, env))
 }

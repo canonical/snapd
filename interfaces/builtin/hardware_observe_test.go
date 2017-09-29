@@ -66,26 +66,18 @@ func (s *HardwareObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *HardwareObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "hardware-observe",
 		Interface: "hardware-observe",
-	}})
-	c.Assert(err, ErrorMatches, "hardware-observe slots are reserved for the operating system snap")
+	}}
+	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+		"hardware-observe slots are reserved for the core snap")
 }
 
 func (s *HardwareObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *HardwareObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "hardware-observe"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "hardware-observe"`)
+	c.Assert(s.plug.Sanitize(s.iface), IsNil)
 }
 
 func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
@@ -95,6 +87,7 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability sys_rawio,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "network netlink raw,\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
@@ -102,6 +95,7 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "iopl\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_KOBJECT_UEVENT\n")
 }
 
 func (s *HardwareObserveInterfaceSuite) TestInterfaces(c *C) {

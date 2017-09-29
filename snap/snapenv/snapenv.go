@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -91,7 +93,12 @@ func snapEnv(info *snap.Info) map[string]string {
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
 	return map[string]string{
-		"SNAP":          info.MountDir(),
+		// This uses CoreSnapMountDir because the computed environment
+		// variables are conveyed to the started application process which
+		// shall *either* execute with the new mount namespace where snaps are
+		// always mounted on /snap OR it is a classically confined snap where
+		// /snap is a part of the distribution package.
+		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.Name(), info.Revision.String()),
 		"SNAP_COMMON":   info.CommonDataDir(),
 		"SNAP_DATA":     info.DataDir(),
 		"SNAP_NAME":     info.Name(),

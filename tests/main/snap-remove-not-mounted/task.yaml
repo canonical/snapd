@@ -9,7 +9,7 @@ execute: |
     # simulate what happens if someone "snap try /tmp/something" and then
     # reboots: the dir is gone and nothing can be mounted anymore
     rm -rf /tmp/test-snapd-tools
-    umount $SNAPMOUNTDIR/test-snapd-tools/x1
+    umount $SNAP_MOUNT_DIR/test-snapd-tools/x1
 
     # ensure removal still works
     snap remove test-snapd-tools

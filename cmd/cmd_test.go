@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,6 +39,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type cmdSuite struct {
 	restoreExec   func()
+	restoreLogger func()
 	execCalled    int
 	lastExecArgv0 string
 	lastExecArgv  []string
@@ -51,6 +53,7 @@ var _ = Suite(&cmdSuite{})
 
 func (s *cmdSuite) SetUpTest(c *C) {
 	s.restoreExec = cmd.MockSyscallExec(s.syscallExec)
+	_, s.restoreLogger = logger.MockLogger()
 	s.execCalled = 0
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
@@ -64,6 +67,7 @@ func (s *cmdSuite) SetUpTest(c *C) {
 
 func (s *cmdSuite) TearDownTest(c *C) {
 	s.restoreExec()
+	s.restoreLogger()
 }
 
 func (s *cmdSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
@@ -217,7 +221,12 @@ func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 }
 
 func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
-	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd")
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return "/usr/bin/potato", nil
+	})
+	defer restore()
+
+	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
 }
 
 func (s *cmdSuite) TestExecInCoreSnap(c *C) {
@@ -281,10 +290,9 @@ func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
 }
 
 func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
-
-	os.Setenv("SNAP_DID_REEXEC", "1")
-	defer os.Unsetenv("SNAP_DID_REEXEC")
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	c.Assert(err, IsNil)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

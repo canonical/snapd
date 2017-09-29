@@ -47,7 +47,7 @@ type linkSnapSuite struct {
 var _ = Suite(&linkSnapSuite{})
 
 type witnessRestartReqStateBackend struct {
-	restartRequested state.RestartType
+	restartRequested []state.RestartType
 }
 
 func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
@@ -55,13 +55,13 @@ func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
 }
 
 func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
-	b.restartRequested = t
+	b.restartRequested = append(b.restartRequested, t)
 }
 
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
-	dirs.SnapCookieDir = c.MkDir()
+	dirs.SetRootDir(c.MkDir())
 
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
@@ -133,7 +133,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, Equals, state.RestartUnset)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -182,7 +182,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35")
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "foo/35")
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -204,11 +204,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
+			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/35"),
+			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 	})
 }
@@ -245,7 +245,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	c.Check(typ, Equals, snap.TypeOS)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, Equals, state.RestartDaemon)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
 	c.Check(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart\.`)
 }
@@ -385,5 +385,47 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(1))
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
-	c.Check(s.stateBackend.restartRequested, Equals, state.RestartDaemon)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no previous core snap and an error on link, in this
+	// case we need to restart on classic back into the distro
+	// package version
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si1,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "core", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon, state.RestartDaemon})
+
 }

@@ -56,6 +56,7 @@ capability sys_admin,
 
 # Needed for udevadm
 /run/udev/data/** r,
+network netlink raw,
 
 # util-linux
 /{,usr/}bin/lscpu ixr,
@@ -87,6 +88,10 @@ iopl
 
 # multicast statistics
 socket AF_NETLINK - NETLINK_GENERIC
+
+# kernel uevents
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 func init() {

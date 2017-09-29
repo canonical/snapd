@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -28,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
@@ -193,6 +191,13 @@ dbus (send)
 
 dbus (send)
     bus=system
+    path=/org/freedesktop/UPower
+    interface=org.freedesktop.UPower
+    member=GetDisplayDevice
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
     path=/org/freedesktop/UPower/devices/**
     interface=org.freedesktop.UPower.Device
     member=GetHistory
@@ -221,8 +226,8 @@ func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              upowerObserveSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
@@ -264,21 +269,8 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
 func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeApp && slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system or application snaps", iface.Name())
-	}
-	return nil
+	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 
 func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

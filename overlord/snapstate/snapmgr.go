@@ -35,9 +35,9 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -69,6 +69,7 @@ const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
+var catalogRefreshDelay = 24 * time.Hour
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -78,6 +79,8 @@ type SnapManager struct {
 	currentRefreshSchedule string
 	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
+
+	nextCatalogRefresh time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
@@ -89,6 +92,7 @@ type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
+	Base    string `json:"base,omitempty"`
 
 	Flags
 
@@ -152,8 +156,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// HasCurrent returns whether snapst.Current is set.
-func (snapst *SnapState) HasCurrent() bool {
+// IsInstalled returns whether the snap is installed, i.e. snapst represents an installed snap with Current revision set.
+func (snapst *SnapState) IsInstalled() bool {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
@@ -176,11 +180,9 @@ func (snapst *SnapState) LocalRevision() snap.Revision {
 	return local
 }
 
-// TODO: unexport CurrentSideInfo and HasCurrent?
-
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
+	if !snapst.IsInstalled() {
 		return nil
 	}
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
@@ -268,32 +270,6 @@ func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	return false
 }
 
-type cachedStoreKey struct{}
-
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
-}
-
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
-		return nil
-	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
-	}
-	panic("internal error: needing the store before managers have initialized it")
-}
-
 // Manager returns a new snap manager.
 func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
@@ -314,6 +290,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	// install/update related
+
+	// TODO: no undo handler here, we may use the GC for this and just
+	// remove anything that is not referenced anymore
+	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
@@ -347,21 +327,27 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
 	runner.AddHandler("prefer-aliases", m.doPreferAliases, m.undoRefreshAliases)
 
+	// misc
+	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
+
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
-
-	// test handlers
-	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
-		return fmt.Errorf("fake-install-snap-error errored")
-	}, nil)
 
 	return m, nil
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// Serialize "prerequisites", the state lock is not enough as
+	// Install() inside doPrerequisites() will unlock to talk to
+	// the store.
+	if cand.Kind() == "prerequisites" {
+		for _, t := range running {
+			if t.Kind() == "prerequisites" {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -467,12 +453,24 @@ func (m *SnapManager) LastRefresh() (time.Time, error) {
 	return lastRefresh, nil
 }
 
+// NextRefresh returns the time the next update of the system's snaps
+// will be attempted.
+// The caller should be holding the state lock.
 func (m *SnapManager) NextRefresh() time.Time {
 	return m.nextRefresh
 }
 
+// RefreshSchedule returns the current refresh schedule.
+// The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() string {
 	return m.currentRefreshSchedule
+}
+
+// NextCatalogRefresh returns the time the next update of catalog
+// data will be attempted.
+// The caller should be holding the state lock.
+func (m *SnapManager) NextCatalogRefresh() time.Time {
+	return m.nextCatalogRefresh
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
@@ -535,6 +533,33 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	return err
+}
+
+// ensureCatalogRefresh ensures that we refresh the catalog
+// data periodically
+func (m *SnapManager) ensureCatalogRefresh() error {
+	// sneakily don't do anything if in testing
+	if CanAutoRefresh == nil {
+		return nil
+	}
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	theStore := storestate.Store(m.state)
+	now := time.Now()
+	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
+
+	if !needsRefresh {
+		return nil
+	}
+
+	next := now.Add(catalogRefreshDelay)
+	// catalog refresh does not carry on trying on error
+	m.nextCatalogRefresh = next
+
+	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
+
+	return refreshCatalogs(m.state, theStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -634,6 +659,21 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
 // GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
 // before the feature of running snapctl outside of hooks was introduced, leading to a warning
 // from snap-confine).
@@ -671,6 +711,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.ensureRefreshes(),
+		m.ensureCatalogRefresh(),
 	}
 
 	m.runner.Ensure()

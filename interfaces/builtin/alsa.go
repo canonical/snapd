@@ -21,12 +21,6 @@ package builtin
 
 const alsaSummary = `allows access to raw ALSA devices`
 
-const alsaDescription = `
-The alsa interface allows connected plugs to access raw ALSA devices.
-
-The core snap provides the slot that is shared by all the snaps.
-`
-
 const alsaBaseDeclarationSlots = `
   alsa:
     allow-installation:
@@ -52,15 +46,25 @@ const alsaConnectedPlugAppArmor = `
 @{PROC}/asound/** rw,
 `
 
+const alsaConnectedPlugUDev = `
+KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="hwC[0-9]*D[0-9]*",      TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="midiC[0-9]*D[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="seq",                   TAG+="###CONNECTED_SECURITY_TAGS###"
+SUBSYSTEM=="sound", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "alsa",
 		summary:               alsaSummary,
-		description:           alsaDescription,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  alsaBaseDeclarationSlots,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
+		connectedPlugUDev:     alsaConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
