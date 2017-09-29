@@ -202,7 +202,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
 		content, err = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot write %q: %s", df, err)
 		}
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
