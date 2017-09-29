@@ -28,7 +28,6 @@ import "C"
 import (
 	"fmt"
 	"os/user"
-	"regexp"
 	"strconv"
 	"syscall"
 	"unsafe"
@@ -134,15 +133,8 @@ func isSizeReasonable(sz int64) bool {
 
 // end code from https://golang.org/src/os/user/lookup_unix.go
 
-// Be very strict so usernames and groups specified in policy are widely
-// compatible. From NAME_REGEX in /etc/adduser.conf
-var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
-
 // FindUid returns the identifier of the given UNIX user name.
 func FindUid(username string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(username) {
-		return 0, fmt.Errorf("%q must be a valid username", username)
-	}
 	user, err := user.Lookup(username)
 	if err != nil {
 		return 0, err
@@ -153,10 +145,6 @@ func FindUid(username string) (uint64, error) {
 
 // FindGid returns the identifier of the given UNIX group name.
 func FindGid(group string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(group) {
-		return 0, fmt.Errorf("%q must be a valid group name", group)
-	}
-
 	// In golang 1.8 we can use the built-in function like this:
 	//group, err := user.LookupGroup(group)
 	group, err := lookupGroup(group)
