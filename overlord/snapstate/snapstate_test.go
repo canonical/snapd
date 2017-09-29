@@ -426,7 +426,9 @@ func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
 	c.Check(flag, Equals, true)
 }
 
-func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
+type fullFlags struct{ before, change, after, setup snapstate.Flags }
+
+func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -436,15 +438,17 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 			{RealName: "some-snap", Revision: snap.R(7)},
 			{RealName: "some-snap", Revision: snap.R(11)},
 		},
+		Flags:    flags.before,
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", flags)
+	ts, err := snapstate.Revert(s.state, "some-snap", flags.change)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+	tasks := ts.Tasks()
+	c.Assert(s.state.TaskCount(), Equals, len(tasks))
+	c.Assert(taskKinds(tasks), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
 		"stop-snap-services",
@@ -458,6 +462,11 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"run-hook[configure]",
 	})
 
+	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+	c.Assert(err, IsNil)
+	flags.setup.Revert = true
+	c.Check(snapsup.Flags, Equals, flags.setup)
+
 	chg := s.state.NewChange("revert", "revert snap")
 	chg.AddAll(ts)
 
@@ -469,11 +478,49 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Flags, Equals, flags)
+	c.Check(snapst.Flags, Equals, flags.after)
+}
+
+func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
+	s.testRevertTasksFullFlags(fullFlags{before: flags, change: flags, after: flags, setup: flags}, c)
 }
 
 func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	s.testRevertTasks(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromDevMode(c *C) {
+	// the snap is installed in devmode, but the request to revert does not specify devmode
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{DevMode: true}, // the snap is installed in devmode
+		change: snapstate.Flags{},              // the request to revert does not specify devmode
+		after:  snapstate.Flags{DevMode: true}, // the reverted snap is installed in devmode
+		setup:  snapstate.Flags{DevMode: true}, // because setup said so
+	}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromJailMode(c *C) {
+	// the snap is installed in jailmode, but the request to revert does not specify jailmode
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{JailMode: true}, // the snap is installed in jailmode
+		change: snapstate.Flags{},               // the request to revert does not specify jailmode
+		after:  snapstate.Flags{JailMode: true}, // the reverted snap is installed in jailmode
+		setup:  snapstate.Flags{JailMode: true}, // because setup said so
+	}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		c.Skip("no support for classic")
+	}
+
+	// the snap is installed in classic, but the request to revert does not specify classic
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{Classic: true}, // the snap is installed in classic
+		change: snapstate.Flags{},              // the request to revert does not specify classic
+		after:  snapstate.Flags{Classic: true}, // the reverted snap is installed in classic
+		setup:  snapstate.Flags{Classic: true}, // because setup said so
+	}, c)
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksDevMode(c *C) {
