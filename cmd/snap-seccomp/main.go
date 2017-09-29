@@ -143,6 +143,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -509,13 +510,13 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			value, err = readNumber(arg[1:])
 		} else if strings.HasPrefix(arg, "u:") {
 			cmpOp = seccomp.CompareEqual
-			value, err = osutil.FindUid(arg[2:])
+			value, err = findUid(arg[2:])
 			if err != nil {
 				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
 			}
 		} else if strings.HasPrefix(arg, "g:") {
 			cmpOp = seccomp.CompareEqual
-			value, err = osutil.FindGid(arg[2:])
+			value, err = findGid(arg[2:])
 			if err != nil {
 				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
 			}
@@ -659,6 +660,26 @@ func compile(content []byte, out string) error {
 		return err
 	}
 	return fout.Commit()
+}
+
+// Be very strict so usernames and groups specified in policy are widely
+// compatible. From NAME_REGEX in /etc/adduser.conf
+var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
+
+// findUid returns the identifier of the given UNIX user name.
+func findUid(username string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(username) {
+		return 0, fmt.Errorf("%q must be a valid username", username)
+	}
+	return osutil.FindUid(username)
+}
+
+// findGid returns the identifier of the given UNIX group name.
+func findGid(group string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(group) {
+		return 0, fmt.Errorf("%q must be a valid group name", group)
+	}
+	return osutil.FindGid(group)
 }
 
 func showSeccompLibraryVersion() error {
