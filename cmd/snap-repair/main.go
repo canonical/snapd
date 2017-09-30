@@ -27,6 +27,8 @@ import (
 	// TODO: consider not using go-flags at all
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 )
@@ -69,6 +71,7 @@ func run() error {
 	if release.OnClassic {
 		return errOnClassic
 	}
+	httputil.SetUserAgentFromVersion(cmd.Version, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
