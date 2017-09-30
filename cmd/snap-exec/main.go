@@ -141,15 +141,33 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	if err != nil {
 		return err
 	}
-	// strings.Split() is ok here because we validate all app fields
-	// and the whitelist is pretty strict (see
-	// snap/validate.go:appContentWhitelist)
-	cmdArgv := strings.Split(cmdAndArgs, " ")
-	cmd := cmdArgv[0]
-	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
 	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
+
+	// strings.Split() is ok here because we validate all app fields
+	// and the whitelist is pretty strict (see
+	// snap/validate.go:appContentWhitelist)
+	tmpCmdArgv := strings.Split(cmdAndArgs, " ")
+	cmd := tmpCmdArgv[0]
+
+	cmdArgs := make([]string, 0, len(tmpCmdArgv[1:]))
+	for _, arg := range tmpCmdArgv[1:] {
+		maybeExpanded := os.Expand(arg, func(k string) string {
+			for _, kv := range env {
+				l := strings.SplitN(kv, "=", 2)
+				if len(l) == 2 {
+					if k == l[0] {
+						return l[1]
+					}
+				}
+			}
+			return ""
+		})
+		if maybeExpanded != "" {
+			cmdArgs = append(cmdArgs, maybeExpanded)
+		}
+	}
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
