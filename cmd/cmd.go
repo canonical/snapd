@@ -66,8 +66,7 @@ func distroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
-	if release.ReleaseInfo.ID != "debian" || !strutil.ListContains(release.ReleaseInfo.IDLike, "debian") ||
-		release.ReleaseInfo.ID != "ubuntu" || !strutil.ListContains(release.ReleaseInfo.IDLike, "ubuntu") {
+	if !release.DistroLike("debian", "ubuntu") {
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}

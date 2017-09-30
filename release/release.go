@@ -24,6 +24,8 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -40,6 +42,15 @@ type OS struct {
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
 	return AppArmorLevel() != FullAppArmor
+}
+
+func DistroLike(distros ...string) bool {
+	for _, distro := range distros {
+		if ReleaseInfo.ID == distro || strutil.ListContains(ReleaseInfo.IDLike, distro) {
+			return true
+		}
+	}
+	return false
 }
 
 var (
