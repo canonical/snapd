@@ -94,10 +94,11 @@ type State struct {
 	lastChangeId int
 	lastLaneId   int
 
-	backend Backend
-	data    customData
-	changes map[string]*Change
-	tasks   map[string]*Task
+	backend  Backend
+	data     customData
+	changes  map[string]*Change
+	tasks    map[string]*Task
+	warnings map[string]*Warning
 
 	modified bool
 
@@ -114,6 +115,7 @@ func New(backend Backend) *State {
 		data:     make(customData),
 		changes:  make(map[string]*Change),
 		tasks:    make(map[string]*Task),
+		warnings: make(map[string]*Warning),
 		modified: true,
 		cache:    make(map[interface{}]interface{}),
 	}
@@ -149,9 +151,10 @@ func (s *State) unlock() {
 }
 
 type marshalledState struct {
-	Data    map[string]*json.RawMessage `json:"data"`
-	Changes map[string]*Change          `json:"changes"`
-	Tasks   map[string]*Task            `json:"tasks"`
+	Data     map[string]*json.RawMessage `json:"data"`
+	Changes  map[string]*Change          `json:"changes"`
+	Tasks    map[string]*Task            `json:"tasks"`
+	Warnings []*Warning                  `json:"warnings,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
@@ -162,9 +165,10 @@ type marshalledState struct {
 func (s *State) MarshalJSON() ([]byte, error) {
 	s.reading()
 	return json.Marshal(marshalledState{
-		Data:    s.data,
-		Changes: s.changes,
-		Tasks:   s.tasks,
+		Data:     s.data,
+		Changes:  s.changes,
+		Tasks:    s.tasks,
+		Warnings: s.flattenWarnings(),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
@@ -183,6 +187,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
+	s.unflattenWarnings(unmarshalled.Warnings)
 	s.lastChangeId = unmarshalled.LastChangeId
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
