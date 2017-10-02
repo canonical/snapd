@@ -27,6 +27,9 @@ import (
 	// TODO: consider not using go-flags at all
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -46,6 +49,13 @@ which are used to do emergency repairs on the device.
 `
 )
 
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %v\n", err)
+	}
+}
+
 var errOnClassic = fmt.Errorf("cannot use snap-repair on a classic system")
 
 func main() {
@@ -61,6 +71,7 @@ func run() error {
 	if release.OnClassic {
 		return errOnClassic
 	}
+	httputil.SetUserAgentFromVersion(cmd.Version, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
