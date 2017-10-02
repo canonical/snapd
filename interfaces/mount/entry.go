@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Entry describes an /etc/fstab-like mount entry.
@@ -237,20 +239,20 @@ func (e *Entry) XSnapdUser() (*user.User, error) {
 	return &user.User{Uid: "0"}, nil
 }
 
-// XSnapdGroup returns the user associated with x-snapd-user mount option.  If
+// XSnapdMkdirGid returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func (e *Entry) XSnapdGroup() (*user.Group, error) {
+func (e *Entry) XSnapdMkdirGid() (gid uint64, err error) {
 	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd-group=") {
+		if strings.HasPrefix(opt, "x-snapd-mkdir-gid=") {
 			kv := strings.SplitN(opt, "=", 2)
-			g, err := user.LookupGroup(kv[1])
+			gid, err = osutil.FindGid(kv[1])
 			if err != nil {
 				// The error message is not very useful so just skip it.
-				return nil, fmt.Errorf("cannot resolve group name %q", kv[1])
+				return gid, fmt.Errorf("cannot resolve group name %q", kv[1])
 			}
-			return g, nil
+			return gid, nil
 		}
 	}
-	return &user.Group{Gid: "0"}, nil
+	return 0, nil
 }

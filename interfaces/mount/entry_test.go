@@ -22,6 +22,7 @@ package mount_test
 import (
 	"os"
 	"os/user"
+	"strconv"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -216,23 +217,25 @@ func (s *entrySuite) TestXSnapdUser(c *C) {
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
 }
 
-func (s *entrySuite) TestXSnapdGroup(c *C) {
+func (s *entrySuite) TestXSnapdMkdirGid(c *C) {
 	// Group has a default value.
 	e := &mount.Entry{}
-	grp, err := e.XSnapdGroup()
+	gid, err := e.XSnapdMkdirGid()
 	c.Assert(err, IsNil)
-	c.Assert(grp.Gid, Equals, "0")
+	c.Assert(gid, Equals, uint64(0))
 
 	// Group is parsed from the x-snapd-group= option.
 	daemon, err := user.LookupGroup("daemon")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-group=daemon"}}
-	grp, err = e.XSnapdGroup()
+	daemonGid, err := strconv.ParseUint(daemon.Gid, 10, 64)
 	c.Assert(err, IsNil)
-	c.Assert(grp.Gid, Equals, daemon.Gid)
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=daemon"}}
+	gid, err = e.XSnapdMkdirGid()
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, daemonGid)
 
 	// Unknown group names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-group=.bogus"}}
-	_, err = e.XSnapdGroup()
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=.bogus"}}
+	_, err = e.XSnapdMkdirGid()
 	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
 }
