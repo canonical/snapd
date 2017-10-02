@@ -172,27 +172,27 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	c.Assert(flags, Equals, 0)
 }
 
-func (s *entrySuite) TestXSnapdMode(c *C) {
+func (s *entrySuite) TestXSnapdMkdirMode(c *C) {
 	// Mode has a default value.
 	e := &mount.Entry{}
-	mode, err := e.XSnapdMode()
+	mode, err := e.XSnapdMkdirMode()
 	c.Assert(err, IsNil)
 	c.Assert(mode, Equals, os.FileMode(0755))
 
 	// Mode is parsed from the x-snapd-mode= option.
-	e = &mount.Entry{Options: []string{"x-snapd-mode=0700"}}
-	mode, err = e.XSnapdMode()
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=0700"}}
+	mode, err = e.XSnapdMkdirMode()
 	c.Assert(err, IsNil)
 	c.Assert(mode, Equals, os.FileMode(0700))
 
 	// Empty value is invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mode="}}
-	_, err = e.XSnapdMode()
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode="}}
+	_, err = e.XSnapdMkdirMode()
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
 
 	// As well as other bogus values.
-	e = &mount.Entry{Options: []string{"x-snapd-mode=pasta"}}
-	_, err = e.XSnapdMode()
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=pasta"}}
+	_, err = e.XSnapdMkdirMode()
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
 }
 
