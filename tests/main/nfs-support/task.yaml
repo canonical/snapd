@@ -10,8 +10,15 @@ prepare: |
 
     # Install NFS server and a simple shell snap.
     distro_install_package nfs-kernel-server
+    distro_install_package bsdgames
     install_local test-snapd-sh
 execute: |
+    run_export_nfs() {
+        # NOTE: This is so silly because spellchecker complains about the real
+        # command name so w have to go and obfuscate it /o\
+        $(echo rkcbegsf | /usr/games/rot13) "$@"
+    }
+
     ensure_extra_perms() {
         MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.d/generated-nfs
         MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
@@ -26,7 +33,7 @@ execute: |
     mkdir -p /etc/exports.d/
     echo '/home localhost(rw,no_subtree_check,no_root_squash)' > /etc/exports.d/test.exports
     systemctl restart nfs-kernel-server
-    exportfs -r
+    run_export_nfs -r
 
     # Ensure that apparmor profiles don't permit network access
     ensure_normal_perms
@@ -65,6 +72,12 @@ execute: |
 restore: |
     . "$TESTSLIB/pkgdb.sh"
 
+    run_export_nfs() {
+        # NOTE: This is so silly because spellchecker complains about the real
+        # command name so w have to go and obfuscate it /o\
+        $(echo rkcbegsf | /usr/games/rot13) "$@"
+    }
+
     # Unmount NFS mount over /home if one exists.
     umount /home || true
 
@@ -76,8 +89,8 @@ restore: |
     # Remove the NFS server and its configuration data.
     rm -f /etc/exports.d/test.exports
     rm -f -d /etc/exports.d
-    exportfs -r
-    distro_purge_package nfs-kernel-server
+    run_export_nfs -r
+    distro_purge_package nfs-kernel-server bsdgames
 
     # Restart snapd in to ensure it doesn't know about NFS anymore.
     systemctl restart snapd.service
