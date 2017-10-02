@@ -22,7 +22,6 @@ package mount
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"strconv"
 	"strings"
 	"syscall"
@@ -221,22 +220,22 @@ func (e *Entry) XSnapdMode() (os.FileMode, error) {
 	return mode, nil
 }
 
-// XSnapdUser returns the user associated with x-snapd-user mount option.  If
+// XSnapdMkdirUid returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func (e *Entry) XSnapdUser() (*user.User, error) {
+func (e *Entry) XSnapdMkdirUid() (uid uint64, err error) {
 	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd-user=") {
+		if strings.HasPrefix(opt, "x-snapd-mkdir-uid=") {
 			kv := strings.SplitN(opt, "=", 2)
-			u, err := user.Lookup(kv[1])
+			uid, err = osutil.FindUid(kv[1])
 			if err != nil {
 				// The error message is not very useful so just skip it.
-				return nil, fmt.Errorf("cannot resolve user name %q", kv[1])
+				return uid, fmt.Errorf("cannot resolve user name %q", kv[1])
 			}
-			return u, nil
+			return uid, nil
 		}
 	}
-	return &user.User{Uid: "0"}, nil
+	return uid, nil
 }
 
 // XSnapdMkdirGid returns the user associated with x-snapd-user mount option.  If
