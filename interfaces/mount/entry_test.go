@@ -196,24 +196,26 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
 }
 
-func (s *entrySuite) TestXSnapdUser(c *C) {
+func (s *entrySuite) TestXSnapdMkdirUid(c *C) {
 	// User has a default value.
 	e := &mount.Entry{}
-	usr, err := e.XSnapdUser()
+	uid, err := e.XSnapdMkdirUid()
 	c.Assert(err, IsNil)
-	c.Assert(usr.Uid, Equals, "0")
+	c.Assert(uid, Equals, uint64(0))
 
 	// User is parsed from the x-snapd-user= option.
 	daemon, err := user.Lookup("daemon")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-user=daemon"}}
-	usr, err = e.XSnapdUser()
+	daemonUid, err := strconv.ParseUint(daemon.Uid, 10, 64)
 	c.Assert(err, IsNil)
-	c.Assert(usr.Uid, Equals, daemon.Uid)
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=daemon"}}
+	uid, err = e.XSnapdMkdirUid()
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, daemonUid)
 
 	// Unknown user names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-user=.bogus"}}
-	_, err = e.XSnapdUser()
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=.bogus"}}
+	_, err = e.XSnapdMkdirUid()
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
 }
 
