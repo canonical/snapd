@@ -94,7 +94,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
 	if nfs, err := isHomeUsingNFS(); err != nil {
-		return err
+		logger.Noticef("cannot determine if NFS is in use, %v", err)
 	} else if nfs {
 		policy["generated-nfs"] = &osutil.FileState{
 			Content: []byte(nfsSnippet),

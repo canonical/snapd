@@ -689,9 +689,13 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err := apparmor.SetupSnapConfineGeneratedPolicy()
-	c.Assert(err, ErrorMatches, "cannot parse /proc/self/mountinfo,.*")
+	// NOTE: Errors in determining NFS are non-fatal to prevent snapd from
+	// failing to operate. A warning message is logged but system operates as
+	// if NFS was not active.
+	c.Assert(err, IsNil)
 
-	// While other stuff failed we created the policy directory.
+	// While other stuff failed we created the policy directory and didn't
+	// write any files to it.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
