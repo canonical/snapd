@@ -43,12 +43,20 @@
     /dev/pts/[0-9]* rw,
     /dev/tty rw,
 
-    # cgroups
+    # cgroup: devices
     capability sys_admin,
     capability dac_override,
     /sys/fs/cgroup/devices/snap{,py}.*/ w,
     /sys/fs/cgroup/devices/snap{,py}.*/tasks w,
     /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
+
+    # cgroup: freezer
+    # Allow creating per-snap cgroup freezers and adding snap command (task)
+    # invocations to the freezer. This allows for reliably enumerating all
+    # running tasks for the snap.
+    /sys/fs/cgroup/freezer/ r,
+    /sys/fs/cgroup/freezer/snap.*/ w,
+    /sys/fs/cgroup/freezer/snap.*/tasks w,
 
     # querying udev
     /etc/udev/udev.conf r,

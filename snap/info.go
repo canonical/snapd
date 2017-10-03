@@ -49,9 +49,6 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
-	// HomeDirBase returns the user-specific home directory base of the snap.
-	HomeDirBase(home string) string
-
 	// UserDataDir returns the per user data directory of the snap.
 	UserDataDir(home string) string
 
@@ -271,11 +268,6 @@ func (s *Info) DataDir() string {
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
-}
-
-// HomeDirBase returns the user-specific home directory base of the snap.
-func (s *Info) HomeDirBase(home string) string {
-	return filepath.Join(home, "snap", s.Name())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
