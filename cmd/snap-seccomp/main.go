@@ -653,6 +653,11 @@ func compile(content []byte, out string) error {
 				return err
 			}
 
+			// ActLog is not supported so ActAllow is being used as
+			// the default action. Adding ActAllow rules is not
+			// allowed when the default action is ActAllow so
+			// breaking here without parsing any additional rules
+			// is necessary.
 			if fallback {
 				break
 			}
