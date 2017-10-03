@@ -17,6 +17,9 @@
  * The "tasks" file belonging to the cgroup contains the set of all the
  * processes that originate from the given snap. Examining that file one can
  * reliably determine if the set is empty or not.
+ *
+ * For more details please review:
+ * https://www.kernel.org/doc/Documentation/cgroup-v1/freezer-subsystem.txt
 **/
 void sc_cgroup_freezer_join(const char *snap_name, pid_t pid);
 
