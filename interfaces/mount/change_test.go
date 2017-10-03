@@ -25,11 +25,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type changeSuite struct {
-	sys     *mount.SyscallRecorder
-	restore func()
+	testutil.BaseTest
+	sys *mount.SyscallRecorder
 }
 
 var (
@@ -39,14 +40,10 @@ var (
 var _ = Suite(&changeSuite{})
 
 func (s *changeSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	// Mock and record system interactions.
 	s.sys = &mount.SyscallRecorder{}
-	s.restore = mount.MockSystemCalls(s.sys)
-}
-
-func (s *changeSuite) TearDownTest(c *C) {
-	// Restore real system interactions.
-	s.restore()
+	s.BaseTest.AddCleanup(mount.MockSystemCalls(s.sys))
 }
 
 func (s *changeSuite) TestString(c *C) {
