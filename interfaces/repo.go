@@ -58,8 +58,8 @@ func NewRepository() *Repository {
 }
 
 func (r *Repository) SetSanitizePlugSlots() {
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
-		return r.SanitizePlugsSlots(snapInfo)
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {
+		r.SanitizePlugsSlots(snapInfo)
 	}
 }
 
@@ -823,11 +823,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 }
 
 func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
-	err := snap.Validate(snapInfo)
-	if err != nil {
-		return err
-	}
-
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := r.ifaces[plugInfo.Interface]
 		if !ok {
@@ -881,6 +876,11 @@ func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	err := snap.Validate(snapInfo)
+	if err != nil {
+		return err
+	}
+
 	r.m.Lock()
 	defer r.m.Unlock()
 
