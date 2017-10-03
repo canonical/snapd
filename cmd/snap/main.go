@@ -44,7 +44,8 @@ import (
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error { return nil }
+	// plug/slot sanitization not used nor possible from snap command, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
 // Standard streams, redirected for testing.

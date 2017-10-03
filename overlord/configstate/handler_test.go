@@ -53,7 +53,7 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}

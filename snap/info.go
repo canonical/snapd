@@ -620,13 +620,13 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
-func MockSanitizePlugsSlots(f func(snapInfo *Info) error) (restore func()) {
+func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
 	old := SanitizePlugsSlots
 	SanitizePlugsSlots = f
 	return func() { SanitizePlugsSlots = old }
 }
 
-var SanitizePlugsSlots = func(snapInfo *Info) error {
+var SanitizePlugsSlots = func(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
 
@@ -657,9 +657,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	if err := SanitizePlugsSlots(info); err != nil {
-		return nil, err
-	}
+	SanitizePlugsSlots(info)
 
 	return info, nil
 }

@@ -46,7 +46,7 @@ var _ = Suite(&checkSnapSuite{})
 func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.restore = func() {
 		restoreSanitize()
 	}

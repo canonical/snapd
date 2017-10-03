@@ -43,7 +43,8 @@ var opts struct {
 }
 
 func main() {
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error { return nil }
+	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)

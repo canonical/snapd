@@ -39,14 +39,30 @@ type infoSuite struct {
 	restore func()
 }
 
+type infoSimpleSuite struct{}
+
 var _ = Suite(&infoSuite{})
+var _ = Suite(&infoSimpleSuite{})
+
+func (s *infoSimpleSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *infoSimpleSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	_, err := snap.ReadInfo("sample", si)
+	c.Assert(err, IsNil)
+}
 
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
-	restore1 := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error {
-		return nil
-	})
+	restore1 := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	restore2 := snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 	s.restore = func() {
 		restore1()
@@ -502,17 +518,6 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents st
 	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Check(err, IsNil)
 	checker(c, info)
-}
-
-func (s *infoSuite) TestReadInfoErrorsOnPlugSlotValidation(c *C) {
-	snap.SanitizePlugsSlots = func(info *snap.Info) error {
-		return fmt.Errorf("ERROR")
-	}
-	si := &snap.SideInfo{Revision: snap.R(1)}
-	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
-	_, err := snap.ReadInfo("sample", si)
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "ERROR")
 }
 
 func (s *infoSuite) TestReadInfoNoHooks(c *C) {

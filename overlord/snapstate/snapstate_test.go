@@ -83,7 +83,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 
-	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeStore = &fakeStore{
@@ -4959,7 +4959,7 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.restore = func() {
 		restoreSanitize()
 	}

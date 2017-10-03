@@ -50,7 +50,7 @@ func (s *snapExecSuite) SetUpTest(c *C) {
 	opts.Command = ""
 	opts.Hook = ""
 
-	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil })
+	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
 func (s *snapExecSuite) TearDown(c *C) {

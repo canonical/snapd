@@ -94,7 +94,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.manager = manager
 	s.o.AddManager(s.manager)
 
-	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) error { return nil }))
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	hooksup := &hookstate.HookSetup{
 		Snap:     "test-snap",

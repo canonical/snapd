@@ -76,7 +76,7 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
-	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) error { return nil })
+	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
