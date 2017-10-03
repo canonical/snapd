@@ -46,6 +46,7 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
+	testutil.BaseTest
 	o              *overlord.Overlord
 	state          *state.State
 	db             *asserts.Database
@@ -54,7 +55,6 @@ type interfaceManagerSuite struct {
 	extraIfaces    []interfaces.Interface
 	extraBackends  []interfaces.SecurityBackend
 	secBackend     *ifacetest.TestSecurityBackend
-	restore        func()
 	mockSnapCmd    *testutil.MockCmd
 	storeSigning   *assertstest.StoreStack
 }
@@ -62,6 +62,7 @@ type interfaceManagerSuite struct {
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
@@ -78,7 +79,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, s.db)
@@ -92,21 +93,18 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	// TODO: transition this so that we don't load real backends and instead
 	// just load the test backend here and this is nicely integrated with
 	// extraBackends above.
-	restoreBackends := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
-	s.restore = func() {
-		restoreBackends()
-		restoreSanitize()
-	}
+	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	s.mockSnapCmd.Restore()
 
 	if s.privateMgr != nil {
 		s.privateMgr.Stop()
 	}
 	dirs.SetRootDir("")
-	s.restore()
 }
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {

@@ -33,10 +33,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type infoSuite struct {
-	restore func()
+	testutil.BaseTest
 }
 
 type infoSimpleSuite struct{}
@@ -55,24 +56,20 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
-	_, err := snap.ReadInfo("sample", si)
-	c.Assert(err, IsNil)
+	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
 }
 
 func (s *infoSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
-	restore1 := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	restore2 := snap.MockSupportedHookTypes([]*snap.HookType{hookType})
-	s.restore = func() {
-		restore1()
-		restore2()
-	}
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.BaseTest.AddCleanup(snap.MockSupportedHookTypes([]*snap.HookType{hookType}))
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	s.restore()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {
@@ -554,7 +551,7 @@ version: 1.0`
 
 func (s *infoSuite) TestReadInfoInvalidImplicitHook(c *C) {
 	hookType := snap.NewHookType(regexp.MustCompile("foo"))
-	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+	s.BaseTest.AddCleanup(snap.MockSupportedHookTypes([]*snap.HookType{hookType}))
 
 	yaml := `name: foo
 version: 1.0`
