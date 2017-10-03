@@ -212,14 +212,16 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.filter = (struct sock_filter *)bpf,
 	};
 	if (seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, &prog)) {
-		if (errno == ENOSYS)
+		if (errno == ENOSYS) {
 			debug("kernel doesn't support the seccomp(2) syscall");
-		else if (errno == EINVAL)
+		} else if (errno == EINVAL) {
 			debug("kernel may not support the SECCOMP_FILTER_FLAG_LOG flag");
+		}
 
 		debug("falling back to prctl(2) syscall to load seccomp filter");
-		if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
+		if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
 			die("cannot apply seccomp profile");
+		}
 	}
 	// drop privileges again
 	debug("dropping privileges after loading seccomp profile");
