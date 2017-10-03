@@ -53,10 +53,14 @@ func NewRepository() *Repository {
 		plugSlots: make(map[*Plug]map[*Slot]*Connection),
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
-		return repo.SanitizePlugsSlots(snapInfo)
-	}
+
 	return repo
+}
+
+func (r *Repository) SetSanitizePlugSlots() {
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) error {
+		return r.SanitizePlugsSlots(snapInfo)
+	}
 }
 
 // Interface returns an interface with a given name.
