@@ -82,12 +82,11 @@ func (b *Backend) Initialize() error {
 // profile for snap-confine is reloaded.
 func setupSnapConfineGeneratedPolicyImpl() error {
 	// Location of the generated policy.
-	dir := dirs.SnapConfineAppArmorDir
 	glob := "generated-*"
 	policy := make(map[string]*osutil.FileState)
 
 	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory, %s", err)
 	}
 
@@ -105,7 +104,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dir, glob, policy)
+	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize snap-confine policy, %s", err)
 	}
