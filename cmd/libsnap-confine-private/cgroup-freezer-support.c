@@ -59,7 +59,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 	// limited to 2^29 so a long int is enough to represent it.
 	// See include/linux/threads.h in the kernel source tree for details.
 	int n = sc_must_snprintf(buf, sizeof buf, "%ld", (long)pid);
-	if (write(tasks_fd, buf, n) < 0) {
+	if (write(tasks_fd, buf, n) < n) {
 		die("cannot move process %ld to freezer cgroup hierarchy for snap %s", (long)pid, snap_name);
 	}
 	debug("moved process %ld to freezer cgroup hierarchy for snap %s",
