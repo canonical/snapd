@@ -51,6 +51,9 @@
     /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
 
     # cgroup: freezer
+    # Allow creating per-snap cgroup freezers and adding snap command (task)
+    # invocations to the freezer. This allows for reliably enumerating all
+    # running tasks for the snap.
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/tasks w,

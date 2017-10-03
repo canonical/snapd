@@ -191,6 +191,10 @@ int main(int argc, char **argv)
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
+			// Associate each snap process with a dedicated snap freezer
+			// control group. This simplifies testing if any processes
+			// belonging to a given snap are still alive.
+			// See the documentation of the function for details.
 			sc_cgroup_freezer_join(snap_name, getpid());
 			sc_unlock(snap_name, snap_lock_fd);
 
