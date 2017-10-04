@@ -117,7 +117,7 @@ func (k *keep) shouldExclude(basedir string, file string) bool {
 	}
 
 	// can't happen; can't even find a way to trigger it in testing.
-	panic(fmt.Sprintf("|-composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
+	panic(fmt.Sprintf("internal error: composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
 }
 
 var shouldExcludeDynamic = new(keep).shouldExclude

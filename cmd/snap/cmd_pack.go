@@ -58,7 +58,7 @@ func (x *packCmd) Execute([]string) error {
 
 	snapPath, err := pack.Snap(x.Positional.SnapDir, x.Positional.TargetDir)
 	if err != nil {
-		return fmt.Errorf("cannot pack %q: %v\n", x.Positional.SnapDir, err)
+		return fmt.Errorf("cannot pack %q: %v", x.Positional.SnapDir, err)
 
 	}
 	fmt.Fprintf(Stdout, "built: %s\n", snapPath)
