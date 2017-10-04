@@ -59,6 +59,9 @@ func (sys *SyscallRecorder) Mount(source string, target string, fstype string, f
 }
 
 func (sys *SyscallRecorder) Unmount(target string, flags int) (err error) {
+	if flags == unmountNoFollow {
+		return sys.call(fmt.Sprintf("unmount %q %s", target, "UMOUNT_NOFOLLOW"))
+	}
 	return sys.call(fmt.Sprintf("unmount %q %d", target, flags))
 }
 
