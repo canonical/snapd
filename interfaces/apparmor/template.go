@@ -283,6 +283,7 @@ var defaultTemplate = `
   /etc/{,writable/}localtime r,
   /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
+  owner @{PROC}/@{pid}/cgroup r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
   owner @{PROC}/@{pid}/loginuid r,
