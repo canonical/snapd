@@ -66,6 +66,10 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
 
+# Allow discovering the os-release of the host
+/var/lib/snapd/hostfs/etc/os-release r,
+/var/lib/snapd/hostfs/usr/lib/os-release r,
+
 #include <abstractions/dbus-strict>
 
 dbus (send)
