@@ -292,6 +292,7 @@ var defaultTemplate = `
   @{PROC}/@{pid}/task/[0-9]*/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/sys/kernel/ostype r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
