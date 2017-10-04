@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
-	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
@@ -113,11 +113,10 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
-		struct sc_error *err
-		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));

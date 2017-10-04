@@ -24,7 +24,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 	sc_must_snprintf(buf, sizeof buf, "snap.%s", snap_name);
 
 	// Open the freezer cgroup directory.
-	int cgroup_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int cgroup_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	cgroup_fd = open(freezer_cgroup_dir,
 			 O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (cgroup_fd < 0) {
@@ -36,7 +36,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 		    snap_name);
 	}
 	// Open the hierarchy directory for the given snap.
-	int hierarchy_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int hierarchy_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	hierarchy_fd = openat(cgroup_fd, buf,
 			      O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (hierarchy_fd < 0) {
@@ -49,7 +49,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 		die("cannot change owner of freezer cgroup hierarchy for snap %s to root.root", snap_name);
 	}
 	// Open the tasks file.
-	int tasks_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int tasks_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	tasks_fd = openat(hierarchy_fd, "tasks",
 			  O_WRONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (tasks_fd < 0) {

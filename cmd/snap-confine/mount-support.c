@@ -156,8 +156,7 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 	}
 	if (child == 0) {
 		// We are the child, execute snap-update-ns
-		char *snap_name_copy
-		    __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
 			die("cannot copy snap name");
@@ -545,7 +544,7 @@ static int sc_open_snap_update_ns()
 	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
-	char *bufcopy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
 	bufcopy = strdup(buf);
 	if (bufcopy == NULL) {
 		die("cannot copy buffer");
@@ -566,14 +565,14 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
 	// will try to re-locate to the same directory (if possible).
-	char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
 	vanilla_cwd = get_current_dir_name();
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
 	// Find and open snap-update-ns from the same path as where we
 	// (snap-confine) were called.
-	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	bool on_classic_distro = is_running_on_classic_distribution();
@@ -682,8 +681,7 @@ static bool is_mounted_with_shared_option(const char *dir)
 
 static bool is_mounted_with_shared_option(const char *dir)
 {
-	struct sc_mountinfo *sm
-	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	struct sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	sm = sc_parse_mountinfo(NULL);
 	if (sm == NULL) {
 		die("cannot parse /proc/self/mountinfo");
