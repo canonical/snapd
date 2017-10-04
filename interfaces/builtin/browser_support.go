@@ -57,6 +57,10 @@ owner /var/tmp/etilqs_* rw,
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+# Similar exception for Firefox, which uses some chromium code for IPC without
+# modification of the shared memory path
+# (ref: https://hg.mozilla.org/mozilla-central/file/tip/ipc/chromium/src/base/file_util_posix.cc#l40)
+owner /dev/shm/org.chromium.* mrw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
