@@ -42,12 +42,12 @@ owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
 # data in @{HOME}/snaps and toplevel hidden directories in @{HOME}.
-owner @{HOME}/[^s.]**             rwkix,
-owner @{HOME}/s[^n]**             rwkix,
-owner @{HOME}/sn[^a]**            rwkix,
-owner @{HOME}/sna[^p]**           rwkix,
+owner @{HOME}/[^s.]**             rwklix,
+owner @{HOME}/s[^n]**             rwklix,
+owner @{HOME}/sn[^a]**            rwklix,
+owner @{HOME}/sna[^p]**           rwklix,
 # Allow creating a few files not caught above
-owner @{HOME}/{s,sn,sna}{,/} rwkix,
+owner @{HOME}/{s,sn,sna}{,/} rwklix,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden
 # files; only allow writes to files, not the mount point).
