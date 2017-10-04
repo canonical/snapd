@@ -219,15 +219,15 @@ func (s *changeSuite) TestPerformUnmount(c *C) {
 	chg := &mount.Change{Action: mount.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), IsNil)
 	// The flag 8 is UMOUNT_NOFOLLOW
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" 8`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
 }
 
 // Change.Perform returns errors from unmount system call
 func (s *changeSuite) TestPerformUnountError(c *C) {
-	s.sys.InsertFault(`unmount "target" 8`, errTesting)
+	s.sys.InsertFault(`unmount "target" UMOUNT_NOFOLLOW`, errTesting)
 	chg := &mount.Change{Action: mount.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), Equals, errTesting)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" 8`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
 }
 
 // Change.Perform handles unknown actions.
