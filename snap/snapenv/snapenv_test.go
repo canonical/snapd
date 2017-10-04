@@ -192,7 +192,7 @@ func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
 	found, _ := envValue(env, "TMPDIR")
 	c.Assert(found, Equals, false)
 
-	found, val = envValue(env, PreservedUnsafePrefix+"TMPDIR")
+	found, val := envValue(env, PreservedUnsafePrefix+"TMPDIR")
 	c.Assert(found, Equals, true)
 	c.Assert(val, Equals, "/var/tmp")
 }
