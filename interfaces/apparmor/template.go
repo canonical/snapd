@@ -44,6 +44,8 @@ var defaultTemplate = `
   /etc/ld.so.preload r,
 
   # The base abstraction doesn't yet have this
+  /lib/terminfo/** rk,
+  /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
   owner @{PROC}/@{pid}/maps k,
 
