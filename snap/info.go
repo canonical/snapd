@@ -457,26 +457,12 @@ func (app *AppInfo) DesktopFile() string {
 
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
-
-	return filepath.Join(dirs.SnapBinariesDir, binName)
+	return filepath.Join(dirs.SnapBinariesDir, JoinSnapApp(app.Snap.Name(), app.Name))
 }
 
 // CompleterPath returns the path to the completer snippet for the app binary.
 func (app *AppInfo) CompleterPath() string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
-
-	return filepath.Join(dirs.CompletersDir, binName)
+	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.Name(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
@@ -486,7 +472,7 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if app.Name == app.Snap.Name() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
 	}
-	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), app.Name)
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
