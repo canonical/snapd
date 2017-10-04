@@ -43,6 +43,9 @@ var defaultTemplate = `
   # for series 16 and cross-distro
   /etc/ld.so.preload r,
 
+  # The base abstraction doesn't yet have this
+  /usr/share/zoneinfo/** k,
+
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
