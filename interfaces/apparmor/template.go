@@ -45,6 +45,7 @@ var defaultTemplate = `
 
   # The base abstraction doesn't yet have this
   /usr/share/zoneinfo/** k,
+  owner @{PROC}/@{pid}/maps k,
 
   # for python apps/services
   #include <abstractions/python>
