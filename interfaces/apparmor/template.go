@@ -231,8 +231,9 @@ var defaultTemplate = `
 
   # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
   # which is allowed by the base abstraction, but on 14.04 it is an actual file
-  # so need to add it here.
-  /etc/os-release r,
+  # so need to add it here. Also allow read locks on the file.
+  /etc/os-release rk,
+  /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
