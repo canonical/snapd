@@ -20,15 +20,32 @@
 package main_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type changeSuite struct{}
+type changeSuite struct {
+	testutil.BaseTest
+	sys *update.SyscallRecorder
+}
+
+var (
+	errTesting = errors.New("testing")
+)
 
 var _ = Suite(&changeSuite{})
+
+func (s *changeSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	// Mock and record system interactions.
+	s.sys = &update.SyscallRecorder{}
+	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+}
 
 func (s *changeSuite) TestString(c *C) {
 	change := update.Change{
@@ -174,4 +191,49 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda2"}, Action: update.Mount},
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: update.Mount},
 	})
+}
+
+// Change.Perform calls the mount system call.
+func (s *changeSuite) TestPerformMount(c *C) {
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+}
+
+// Change.Perform returns errors from mount system call
+func (s *changeSuite) TestPerformMountError(c *C) {
+	s.sys.InsertFault(`mount "source" "target" "type" 0 ""`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), Equals, errTesting)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+}
+
+// Change.Perform returns errors from bad flags
+func (s *changeSuite) TestPerformMountOptionError(c *C) {
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bogus"}}}
+	c.Assert(chg.Perform(), ErrorMatches, `unsupported mount option: "bogus"`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+// Change.Perform calls the unmount system call.
+func (s *changeSuite) TestPerformUnmount(c *C) {
+	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), IsNil)
+	// The flag 8 is UMOUNT_NOFOLLOW
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+}
+
+// Change.Perform returns errors from unmount system call
+func (s *changeSuite) TestPerformUnountError(c *C) {
+	s.sys.InsertFault(`unmount "target" UMOUNT_NOFOLLOW`, errTesting)
+	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), Equals, errTesting)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+}
+
+// Change.Perform handles unknown actions.
+func (s *changeSuite) TestPerformUnknownAction(c *C) {
+	chg := &update.Change{Action: update.Action(42)}
+	c.Assert(chg.Perform(), ErrorMatches, `cannot process mount change, unknown action: .*`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
 }
