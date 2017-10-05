@@ -74,8 +74,9 @@ func (s *entrySuite) TestXSnapdUid(c *C) {
 
 	// Unknown user names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=.bogus"}}
-	_, err = update.XSnapdUid(e)
+	uid, err = update.XSnapdUid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
+	c.Assert(uid, Equals, uint64(0))
 }
 
 func (s *entrySuite) TestXSnapdGid(c *C) {
@@ -95,6 +96,7 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 
 	// Unknown group names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=.bogus"}}
-	_, err = update.XSnapdGid(e)
+	gid, err = update.XSnapdGid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
+	c.Assert(gid, Equals, uint64(0))
 }
