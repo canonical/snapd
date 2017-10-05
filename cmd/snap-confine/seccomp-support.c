@@ -66,7 +66,7 @@ static void validate_bpfpath_is_safe(const char *path)
 		die("valid_bpfpath_is_safe needs an absolute path as input");
 	}
 	// strtok_r() modifies its first argument, so work on a copy
-	char *tokenized __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *tokenized SC_CLEANUP(sc_cleanup_string) = NULL;
 	tokenized = strdup(path);
 	if (tokenized == NULL) {
 		die("cannot allocate memory for copy of path");
@@ -74,7 +74,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
 	size_t checked_path_size = strlen(path) + 1;
-	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *checked_path SC_CLEANUP(sc_cleanup_string) = NULL;
 	checked_path = calloc(checked_path_size, 1);
 	if (checked_path == NULL) {
 		die("cannot allocate memory for checked_path");
@@ -93,7 +93,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	// reconstruct the path from '/' down to profile_name
 	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
 	while (buf_token != NULL) {
-		char *prev __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		char *prev SC_CLEANUP(sc_cleanup_string) = NULL;
 		prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
 		if (prev == NULL) {
 			die("cannot allocate memory for copy of checked_path");
