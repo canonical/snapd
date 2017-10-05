@@ -17,7 +17,7 @@
  *
  */
 
-package mount
+package main
 
 import (
 	"fmt"
@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -42,7 +44,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  Entry
+	Entry  mount.Entry
 	Action Action
 }
 
@@ -57,7 +59,7 @@ func (c Change) String() string {
 func (c *Change) Perform() error {
 	switch c.Action {
 	case Mount:
-		flags, err := OptsToFlags(c.Entry.Options)
+		flags, err := mount.OptsToFlags(c.Entry.Options)
 		if err != nil {
 			return err
 		}
@@ -75,11 +77,11 @@ func (c *Change) Perform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
+func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]Entry, len(currentProfile.Entries))
+	current := make([]mount.Entry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]Entry, len(desiredProfile.Entries))
+	desired := make([]mount.Entry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -97,7 +99,7 @@ func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*Entry)
+	desiredMap := make(map[string]*mount.Entry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
