@@ -620,8 +620,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
 	// The new policy was reloaded.
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
-		"apparmor_parser", "--replace", "--write-cache",
-		filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine.real"),
+		"apparmor_parser", "--replace",
+		"-O", "no-expr-simplify",
+		"--write-cache", filepath.Join(
+			dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine.real"),
 		"--cache-loc", filepath.Join(dirs.SystemApparmorCacheDir),
 	}})
 }
