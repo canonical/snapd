@@ -21,4 +21,31 @@ package main
 
 var (
 	ExpandEnvCmdArgs = expandEnvCmdArgs
+	FindCommand      = findCommand
+	ParseArgs        = parseArgs
+	Run              = run
+	ExecApp          = execApp
+	ExecHook         = execHook
 )
+
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	origSyscallExec := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = origSyscallExec
+	}
+}
+
+func SetOptsCommand(s string) {
+	opts.Command = s
+}
+func GetOptsCommand() string {
+	return opts.Command
+}
+
+func SetOptsHook(s string) {
+	opts.Hook = s
+}
+func GetOptsHook() string {
+	return opts.Hook
+}
