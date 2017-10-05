@@ -608,70 +608,58 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 
 var errnoOnDenial int16 = C.EPERM
 
+func preprocess(content []byte) (unrestricted, complain bool) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch line {
+		case "@unrestricted":
+			unrestricted = true
+		case "@complain":
+			complain = true
+		}
+	}
+	return unrestricted, complain
+}
+
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
+	unrestricted, complain := preprocess(content)
+	switch {
+	case unrestricted:
+		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+	case complain:
+		secFilter, err = seccomp.NewFilter(seccomp.ActLog)
+		if err != nil {
+			// ActLog is only supported in newer versions
+			// of the kernel, libseccomp, and
+			// libseccomp-golang. Attempt to fall back to
+			// ActAllow before erroring out.
+			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+			unrestricted = true
+		}
+	default:
+		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
+	}
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}
-
 	if err := addSecondaryArches(secFilter); err != nil {
 		return err
 	}
 
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// special case: unrestricted means we switch to an allow-all
-		//               filter and are done
-		if line == "@unrestricted" {
-			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
-			if err != nil {
-				return fmt.Errorf("cannot create unrestricted seccomp filter: %s", err)
-			}
-			if err := addSecondaryArches(secFilter); err != nil {
-				return err
-			}
-			break
-		} else if line == "@complain" {
-			var fallback bool = false
-
-			secFilter, err = seccomp.NewFilter(seccomp.ActLog)
-			if err != nil {
-				// ActLog is only supported in newer versions
-				// of the kernel, libseccomp, and
-				// libseccomp-golang. Attempt to fall back to
-				// ActAllow before erroring out.
-				fallback = true
-				secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
-				if err != nil {
-					return fmt.Errorf("cannot create complain seccomp filter: %s", err)
-				}
-			}
-			if err := addSecondaryArches(secFilter); err != nil {
-				return err
-			}
-
-			// ActLog is not supported so ActAllow is being used as
-			// the default action. Adding ActAllow rules is not
-			// allowed when the default action is ActAllow so
-			// breaking here without parsing any additional rules
-			// is necessary.
-			if fallback {
-				break
+	if !unrestricted {
+		scanner := bufio.NewScanner(bytes.NewBuffer(content))
+		for scanner.Scan() {
+			if err := parseLine(scanner.Text(), secFilter); err != nil {
+				return fmt.Errorf("cannot parse line: %s", err)
 			}
 		}
-
-		// look for regular syscall/arg rule
-		if err := parseLine(line, secFilter); err != nil {
-			return fmt.Errorf("cannot parse line: %s", err)
+		if scanner.Err(); err != nil {
+			return err
 		}
-	}
-	if scanner.Err(); err != nil {
-		return err
 	}
 
 	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
