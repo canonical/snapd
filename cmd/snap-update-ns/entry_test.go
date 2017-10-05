@@ -41,18 +41,18 @@ func (s *entrySuite) TestXSnapdMkdirMode(c *C) {
 	c.Assert(mode, Equals, os.FileMode(0755))
 
 	// Mode is parsed from the x-snapd-mode= option.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=0700"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-mode=0700"}}
 	mode, err = update.XSnapdMkdirMode(e)
 	c.Assert(err, IsNil)
 	c.Assert(mode, Equals, os.FileMode(0700))
 
 	// Empty value is invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode="}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-mode="}}
 	_, err = update.XSnapdMkdirMode(e)
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
 
 	// As well as other bogus values.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=pasta"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-mode=pasta"}}
 	_, err = update.XSnapdMkdirMode(e)
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
 }
@@ -67,13 +67,13 @@ func (s *entrySuite) TestXSnapdMkdirUid(c *C) {
 	// User is parsed from the x-snapd-user= option.
 	daemonUid, err := osutil.FindUid("daemon")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=daemon"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-uid=daemon"}}
 	uid, err = update.XSnapdMkdirUid(e)
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, daemonUid)
 
 	// Unknown user names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=.bogus"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-uid=.bogus"}}
 	_, err = update.XSnapdMkdirUid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
 }
@@ -88,13 +88,13 @@ func (s *entrySuite) TestXSnapdMkdirGid(c *C) {
 	// Group is parsed from the x-snapd-group= option.
 	daemonGid, err := osutil.FindGid("daemon")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=daemon"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-gid=daemon"}}
 	gid, err = update.XSnapdMkdirGid(e)
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, daemonGid)
 
 	// Unknown group names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=.bogus"}}
+	e = &mount.Entry{Options: []string{"x-snapd.mkdir-gid=.bogus"}}
 	_, err = update.XSnapdMkdirGid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
 }
