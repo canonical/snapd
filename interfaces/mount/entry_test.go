@@ -20,9 +20,6 @@
 package mount_test
 
 import (
-	"os"
-	"os/user"
-	"strconv"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -170,74 +167,4 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	flags, err = mount.OptsToFlags([]string{"x-snapd-foo"})
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, 0)
-}
-
-func (s *entrySuite) TestXSnapdMkdirMode(c *C) {
-	// Mode has a default value.
-	e := &mount.Entry{}
-	mode, err := e.XSnapdMkdirMode()
-	c.Assert(err, IsNil)
-	c.Assert(mode, Equals, os.FileMode(0755))
-
-	// Mode is parsed from the x-snapd-mode= option.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=0700"}}
-	mode, err = e.XSnapdMkdirMode()
-	c.Assert(err, IsNil)
-	c.Assert(mode, Equals, os.FileMode(0700))
-
-	// Empty value is invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode="}}
-	_, err = e.XSnapdMkdirMode()
-	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
-
-	// As well as other bogus values.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=pasta"}}
-	_, err = e.XSnapdMkdirMode()
-	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
-}
-
-func (s *entrySuite) TestXSnapdMkdirUid(c *C) {
-	// User has a default value.
-	e := &mount.Entry{}
-	uid, err := e.XSnapdMkdirUid()
-	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, uint64(0))
-
-	// User is parsed from the x-snapd-user= option.
-	daemon, err := user.Lookup("daemon")
-	c.Assert(err, IsNil)
-	daemonUid, err := strconv.ParseUint(daemon.Uid, 10, 64)
-	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=daemon"}}
-	uid, err = e.XSnapdMkdirUid()
-	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, daemonUid)
-
-	// Unknown user names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=.bogus"}}
-	_, err = e.XSnapdMkdirUid()
-	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
-}
-
-func (s *entrySuite) TestXSnapdMkdirGid(c *C) {
-	// Group has a default value.
-	e := &mount.Entry{}
-	gid, err := e.XSnapdMkdirGid()
-	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, uint64(0))
-
-	// Group is parsed from the x-snapd-group= option.
-	daemon, err := user.LookupGroup("daemon")
-	c.Assert(err, IsNil)
-	daemonGid, err := strconv.ParseUint(daemon.Gid, 10, 64)
-	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=daemon"}}
-	gid, err = e.XSnapdMkdirGid()
-	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, daemonGid)
-
-	// Unknown group names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=.bogus"}}
-	_, err = e.XSnapdMkdirGid()
-	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
 }

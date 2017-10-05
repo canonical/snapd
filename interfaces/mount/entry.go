@@ -21,12 +21,9 @@ package mount
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Entry describes an /etc/fstab-like mount entry.
@@ -201,57 +198,4 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		}
 	}
 	return flags, nil
-}
-
-// XSnapdMkdirMode returns the file mode associated with x-snapd-mode mount option.
-// If the mode is not specified explicitly then a default mode of 0755 is assumed.
-func (e *Entry) XSnapdMkdirMode() (os.FileMode, error) {
-	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd-mkdir-mode=") {
-			kv := strings.SplitN(opt, "=", 2)
-			var mode os.FileMode
-			n, err := fmt.Sscanf(kv[1], "%o", &mode)
-			if err != nil || n != 1 {
-				return 0, fmt.Errorf("cannot parse octal file mode from %q", kv[1])
-			}
-			return mode, nil
-		}
-	}
-	return 0755, nil
-}
-
-// XSnapdMkdirUid returns the user associated with x-snapd-user mount option.  If
-// the mode is not specified explicitly then a default "root" use is
-// returned.
-func (e *Entry) XSnapdMkdirUid() (uid uint64, err error) {
-	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd-mkdir-uid=") {
-			kv := strings.SplitN(opt, "=", 2)
-			uid, err = osutil.FindUid(kv[1])
-			if err != nil {
-				// The error message is not very useful so just skip it.
-				return 0, fmt.Errorf("cannot resolve user name %q", kv[1])
-			}
-			return uid, nil
-		}
-	}
-	return 0, nil
-}
-
-// XSnapdMkdirGid returns the user associated with x-snapd-user mount option.  If
-// the mode is not specified explicitly then a default "root" use is
-// returned.
-func (e *Entry) XSnapdMkdirGid() (gid uint64, err error) {
-	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd-mkdir-gid=") {
-			kv := strings.SplitN(opt, "=", 2)
-			gid, err = osutil.FindGid(kv[1])
-			if err != nil {
-				// The error message is not very useful so just skip it.
-				return 0, fmt.Errorf("cannot resolve group name %q", kv[1])
-			}
-			return gid, nil
-		}
-	}
-	return 0, nil
 }

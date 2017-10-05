@@ -1,0 +1,105 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2017 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package main_test
+
+import (
+	"os"
+	"os/user"
+	"strconv"
+
+	. "gopkg.in/check.v1"
+
+	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/interfaces/mount"
+)
+
+type entrySuite struct{}
+
+var _ = Suite(&entrySuite{})
+
+func (s *entrySuite) TestXSnapdMkdirMode(c *C) {
+	// Mode has a default value.
+	e := &mount.Entry{}
+	mode, err := update.XSnapdMkdirMode(e)
+	c.Assert(err, IsNil)
+	c.Assert(mode, Equals, os.FileMode(0755))
+
+	// Mode is parsed from the x-snapd-mode= option.
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=0700"}}
+	mode, err = update.XSnapdMkdirMode(e)
+	c.Assert(err, IsNil)
+	c.Assert(mode, Equals, os.FileMode(0700))
+
+	// Empty value is invalid.
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode="}}
+	_, err = update.XSnapdMkdirMode(e)
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
+
+	// As well as other bogus values.
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-mode=pasta"}}
+	_, err = update.XSnapdMkdirMode(e)
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
+}
+
+func (s *entrySuite) TestXSnapdMkdirUid(c *C) {
+	// User has a default value.
+	e := &mount.Entry{}
+	uid, err := update.XSnapdMkdirUid(e)
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, uint64(0))
+
+	// User is parsed from the x-snapd-user= option.
+	daemon, err := user.Lookup("daemon")
+	c.Assert(err, IsNil)
+	daemonUid, err := strconv.ParseUint(daemon.Uid, 10, 64)
+	c.Assert(err, IsNil)
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=daemon"}}
+	uid, err = update.XSnapdMkdirUid(e)
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, daemonUid)
+
+	// Unknown user names are invalid.
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=.bogus"}}
+	_, err = update.XSnapdMkdirUid(e)
+	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
+}
+
+func (s *entrySuite) TestXSnapdMkdirGid(c *C) {
+	// Group has a default value.
+	e := &mount.Entry{}
+	gid, err := update.XSnapdMkdirGid(e)
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, uint64(0))
+
+	// Group is parsed from the x-snapd-group= option.
+	daemon, err := user.LookupGroup("daemon")
+	c.Assert(err, IsNil)
+	daemonGid, err := strconv.ParseUint(daemon.Gid, 10, 64)
+	c.Assert(err, IsNil)
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=daemon"}}
+	gid, err = update.XSnapdMkdirGid(e)
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, daemonGid)
+
+	// Unknown group names are invalid.
+	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=.bogus"}}
+	_, err = update.XSnapdMkdirGid(e)
+	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
+}
