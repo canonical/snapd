@@ -366,6 +366,9 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.
 			} else {
+				// Check if NFS is mounted at or under $HOME. Because NFS is not
+				// transparent to apparmor we must alter the profile to counter that and
+				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
 				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
