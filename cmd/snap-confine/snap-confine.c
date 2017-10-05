@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/locking.h"
@@ -66,7 +67,7 @@ int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
-	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
@@ -112,11 +113,10 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
-		struct sc_error *err
-		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
@@ -190,6 +190,11 @@ int main(int argc, char **argv)
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
+			// Associate each snap process with a dedicated snap freezer
+			// control group. This simplifies testing if any processes
+			// belonging to a given snap are still alive.
+			// See the documentation of the function for details.
+			sc_cgroup_freezer_join(snap_name, getpid());
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to

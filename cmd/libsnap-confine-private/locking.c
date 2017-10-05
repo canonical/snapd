@@ -92,7 +92,7 @@ int sc_lock(const char *scope)
 		die("cannot create lock directory %s", sc_lock_dir);
 	}
 	debug("opening lock directory %s", sc_lock_dir);
-	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	dir_fd =
 	    open(sc_lock_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (dir_fd < 0) {
