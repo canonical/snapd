@@ -605,12 +605,34 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
+func MockEnableNFSWorkaroundCondition() (restore func()) {
+	// Mock mountinfo and fstab so that snapd thinks that NFS workaround
+	// is necessary. The details don't matter here. See TestIsHomeUsingNFS
+	// for details about what triggers the workaround.
+	restore1 := apparmor.MockMountInfo("")
+	restore2 := apparmor.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
+func MockDisableNFSWorkaroundCondition() (restore func()) {
+	// Mock mountinfo and fstab so that snapd thinks that NFS workaround is not
+	// necessary. The details don't matter here. See TestIsHomeUsingNFS for
+	// details about what triggers the workaround.
+	restore1 := apparmor.MockMountInfo("")
+	restore2 := apparmor.MockEtcFstab("")
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
 // snap-confine policy when NFS is used and snapd has not re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
-	// Make it appear as if NFS was mounted under /home.
-	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	// Make it appear as if NFS workaround was needed.
+	restore := MockEnableNFSWorkaroundCondition()
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -658,10 +680,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
 
 // snap-confine policy when NFS is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C) {
-	// Make it appear as if NFS was mounted under /home.
-	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	// Make it appear as if NFS workaround was needed.
+	restore := MockEnableNFSWorkaroundCondition()
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -736,10 +756,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 // Test behavior when os.Readlink "/proc/self/exe" fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
-	// Make it appear as if NFS was mounted under /home.
-	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	// Make it appear as if NFS workaround was needed.
+	restore := MockEnableNFSWorkaroundCondition()
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -768,10 +786,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 // Test behavior when exec.Command "apparmor_parser" fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
-	// Make it appear as if NFS was mounted under /home.
-	restore := apparmor.MockMountInfo("680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	// Make it appear as if NFS workaround was needed.
+	restore := MockEnableNFSWorkaroundCondition()
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -818,10 +834,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 		c.Skip("this test cannot run as root")
 	}
 
-	// Intercept interaction with /proc/self/mountinfo and /etc/fstab.
-	restore := apparmor.MockMountInfo("")
-	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	// Make it appear as if NFS workaround was not needed.
+	restore := MockDisableNFSWorkaroundCondition()
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
