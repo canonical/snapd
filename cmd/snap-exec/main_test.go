@@ -343,3 +343,9 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationWithVars(c *C) {
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
 }
+
+func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
+	args := []string{"foo", "$var", "baz"}
+	env := map[string]string{"var": "bar", "unrelated": "env"}
+	c.Check(expandEnvCmdArgs(args, env), DeepEquals, []string{"foo", "bar", "baz"})
+}
