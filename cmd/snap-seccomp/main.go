@@ -606,11 +606,13 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
+var errnoOnDenial int16 = C.EPERM
+
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(C.EPERM))
+	secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}

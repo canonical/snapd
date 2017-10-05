@@ -125,18 +125,22 @@ int main(int argc, char* argv[])
 
 var seccompSyscallRunnerContent = []byte(`
 #define _GNU_SOURCE
+#include <errno.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 int main(int argc, char** argv)
 {
-    int l[7];
+    int l[7], syscall_ret, ret = 0;
     for (int i = 0; i < 7; i++)
         l[i] = atoi(argv[i + 1]);
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
-    syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
-    syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+    syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+    if (syscall_ret < 0 && errno == 911) {
+        ret = 10;
+    }
+    syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
     return 0;
 }
 `)
@@ -151,6 +155,8 @@ func lastKmsg() string {
 }
 
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
+	main.MockErrnoOnDenial(911)
+
 	// build seccomp-load helper
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
 	err := ioutil.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
