@@ -118,10 +118,10 @@ func run() error {
 
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
-	changesNeeded := mount.NeededChanges(currentBefore, desired)
-	var changesMade []mount.Change
+	changesNeeded := NeededChanges(currentBefore, desired)
+	var changesMade []Change
 	for _, change := range changesNeeded {
-		if change.Action == mount.Keep {
+		if change.Action == Keep {
 			changesMade = append(changesMade, change)
 			continue
 		}
@@ -136,7 +136,7 @@ func run() error {
 	// and save it back for next runs.
 	var currentAfter mount.Profile
 	for _, change := range changesMade {
-		if change.Action == mount.Mount || change.Action == mount.Keep {
+		if change.Action == Mount || change.Action == Keep {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
 		}
 	}
