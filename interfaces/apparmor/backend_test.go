@@ -515,21 +515,49 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 			fstab:        "bad syntax",
 			errorPattern: "cannot parse .*/fstab.*, .*",
 		},
-		// NFSv4 currently mounted at /home/zyga/nfs is recognized.
+		// NFSv3 {tcp,udp} and NFSv4 currently mounted at /home/zyga/nfs are recognized.
+		{
+			mountinfo: "1074 28 0:59 / /home/zyga/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=54125,mountproto=tcp,local_lock=none,addr=127.0.0.1",
+			nfs:       true,
+		},
+		{
+			mountinfo: "1074 28 0:59 / /home/zyga/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=32768,wsize=32768,namlen=255,hard,proto=udp,timeo=11,retrans=3,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=47875,mountproto=udp,local_lock=none,addr=127.0.0.1",
+			nfs:       true,
+		},
 		{
 			mountinfo: "680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
 			nfs:       true,
 		},
-		// NFSv4 currently mounted at /mnt/nfs is ignored (not in $HOME).
+		// NFSv3 {tcp,udp} and NFSv4 currently mounted at /home/zyga/nfs are ignored (not in $HOME).
+		{
+			mountinfo: "1074 28 0:59 / /mnt/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=54125,mountproto=tcp,local_lock=none,addr=127.0.0.1",
+		},
+		{
+			mountinfo: "1074 28 0:59 / /mnt/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=32768,wsize=32768,namlen=255,hard,proto=udp,timeo=11,retrans=3,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=47875,mountproto=udp,local_lock=none,addr=127.0.0.1",
+		},
 		{
 			mountinfo: "680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
 		},
-		// NFSv4 that may be mounted at /home/zyga/nfs is recognized.
+		// NFS that may be mounted at /home and /home/zyga/nfs is recognized.
+		// Two spellings are possible, "nfs" and "nfs4" (they are equivalent
+		// nowadays).
+		{
+			fstab: "localhost:/srv/nfs /home nfs defaults 0 0",
+			nfs:   true,
+		},
+		{
+			fstab: "localhost:/srv/nfs /home nfs4 defaults 0 0",
+			nfs:   true,
+		},
 		{
 			fstab: "localhost:/srv/nfs /home/zyga/nfs nfs defaults 0 0",
 			nfs:   true,
 		},
-		// NFSv4 that may be mounted at /mnt/nfs is ignored (not in $HOME).
+		{
+			fstab: "localhost:/srv/nfs /home/zyga/nfs nfs4 defaults 0 0",
+			nfs:   true,
+		},
+		// NFS that may be mounted at /mnt/nfs is ignored (not in $HOME).
 		{
 			fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
 		},
