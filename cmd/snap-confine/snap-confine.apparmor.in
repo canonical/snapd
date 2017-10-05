@@ -492,6 +492,9 @@
         mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
         mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
 
+        # Allow creating missing mount directories under $SNAP_DATA
+        /var/snap/*/** rw,
+
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
         # Allow the desktop interface to bind fonts from the host filesystem
