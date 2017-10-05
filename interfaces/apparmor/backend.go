@@ -72,7 +72,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 
 // Initialize prepares customized apparmor policy for snap-confine.
 func (b *Backend) Initialize() error {
-	// TODO: also generate policy for snap-confine from core.
+	// NOTE: It would be nice if we could also generate the profile for
+	// snap-confine executing from the core snap, right here, and not have to
+	// do this in the Setup function below. I sadly don't think this is
+	// possible because snapd must be able to install a new core and only at
+	// that moment generate it.
 	return setupSnapConfineGeneratedPolicy()
 }
 
