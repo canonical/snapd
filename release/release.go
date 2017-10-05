@@ -26,6 +26,7 @@ import (
 	"unicode"
 
 	"github.com/snapcore/snapd/apparmor"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -33,8 +34,9 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID        string `json:"id"`
-	VersionID string `json:"version-id,omitempty"`
+	ID        string   `json:"id"`
+	IDLike    []string `json:"-"`
+	VersionID string   `json:"version-id,omitempty"`
 }
 
 var (
@@ -57,6 +59,15 @@ var (
 func (o *OS) ForceDevMode() bool {
 	level, _ := apparmor.ProbeKernel().Evaluate()
 	return level != apparmor.Full
+}
+
+func DistroLike(distros ...string) bool {
+	for _, distro := range distros {
+		if ReleaseInfo.ID == distro || strutil.ListContains(ReleaseInfo.IDLike, distro) {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -103,6 +114,9 @@ func readOSRelease() OS {
 			// not being too good at reading comprehension.
 			// Works around e.g. lp:1602317
 			osRelease.ID = strings.Fields(strings.ToLower(v))[0]
+		case "ID_LIKE":
+			// This is like ID, except it's a space separated list... hooray?
+			osRelease.IDLike = strings.Fields(strings.ToLower(v))
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}
