@@ -725,7 +725,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err := apparmor.SetupSnapConfineGeneratedPolicy()
-	c.Assert(err, ErrorMatches, "cannot read /proc/self/exe,.*")
+	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe,.*")
 
 	// We created the policy file.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)

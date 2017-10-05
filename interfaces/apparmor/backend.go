@@ -124,7 +124,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// setupSnapConfineReexec below.
 	exe, err := os.Readlink(procSelfExe)
 	if err != nil {
-		return fmt.Errorf("cannot read /proc/self/exe, %s", err)
+		return fmt.Errorf("cannot read %s, %s", procSelfExe, err)
 	}
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return nil
