@@ -68,7 +68,7 @@ func GetenvInt64(key string, dflt ...int64) int64 {
 // EnvMap takes a list of "key=value" strings and transforms them into
 // a map.
 func EnvMap(env []string) map[string]string {
-	out := make(map[string]string)
+	out := make(map[string]string, len(env))
 	for _, kv := range env {
 		l := strings.SplitN(kv, "=", 2)
 		if len(l) == 2 {
