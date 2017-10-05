@@ -47,7 +47,7 @@ func (c byPlugRef) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-type byPlugSnapAndName []*Plug
+type byPlugSnapAndName []*snap.PlugInfo
 
 func (c byPlugSnapAndName) Len() int      { return len(c) }
 func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
@@ -58,7 +58,7 @@ func (c byPlugSnapAndName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-type bySlotSnapAndName []*Slot
+type bySlotSnapAndName []*snap.SlotInfo
 
 func (c bySlotSnapAndName) Len() int      { return len(c) }
 func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
@@ -77,7 +77,7 @@ func (c byBackendName) Less(i, j int) bool {
 	return c[i].Name() < c[j].Name()
 }
 
-func sortedSnapNamesWithPlugs(m map[string]map[string]*Plug) []string {
+func sortedSnapNamesWithPlugs(m map[string]map[string]*snap.PlugInfo) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
 		keys = append(keys, key)
@@ -86,7 +86,7 @@ func sortedSnapNamesWithPlugs(m map[string]map[string]*Plug) []string {
 	return keys
 }
 
-func sortedPlugNames(m map[string]*Plug) []string {
+func sortedPlugNames(m map[string]*snap.PlugInfo) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
 		keys = append(keys, key)
@@ -95,7 +95,7 @@ func sortedPlugNames(m map[string]*Plug) []string {
 	return keys
 }
 
-func sortedSnapNamesWithSlots(m map[string]map[string]*Slot) []string {
+func sortedSnapNamesWithSlots(m map[string]map[string]*snap.SlotInfo) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
 		keys = append(keys, key)
@@ -104,7 +104,7 @@ func sortedSnapNamesWithSlots(m map[string]map[string]*Slot) []string {
 	return keys
 }
 
-func sortedSlotNames(m map[string]*Slot) []string {
+func sortedSlotNames(m map[string]*snap.SlotInfo) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
 		keys = append(keys, key)
