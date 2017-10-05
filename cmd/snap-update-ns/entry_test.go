@@ -21,13 +21,12 @@ package main_test
 
 import (
 	"os"
-	"os/user"
-	"strconv"
 
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type entrySuite struct{}
@@ -66,9 +65,7 @@ func (s *entrySuite) TestXSnapdMkdirUid(c *C) {
 	c.Assert(uid, Equals, uint64(0))
 
 	// User is parsed from the x-snapd-user= option.
-	daemon, err := user.Lookup("daemon")
-	c.Assert(err, IsNil)
-	daemonUid, err := strconv.ParseUint(daemon.Uid, 10, 64)
+	daemonUid, err := osutil.FindUid("daemon")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd-mkdir-uid=daemon"}}
 	uid, err = update.XSnapdMkdirUid(e)
@@ -89,9 +86,7 @@ func (s *entrySuite) TestXSnapdMkdirGid(c *C) {
 	c.Assert(gid, Equals, uint64(0))
 
 	// Group is parsed from the x-snapd-group= option.
-	daemon, err := user.LookupGroup("daemon")
-	c.Assert(err, IsNil)
-	daemonGid, err := strconv.ParseUint(daemon.Gid, 10, 64)
+	daemonGid, err := osutil.FindGid("daemon")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd-mkdir-gid=daemon"}}
 	gid, err = update.XSnapdMkdirGid(e)
