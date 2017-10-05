@@ -74,6 +74,29 @@ func (c *Change) Perform() error {
 		if err != nil {
 			return err
 		}
+		// If the mount point is not present then create a directory in its
+		// place.  This is very naive, doesn't handle read-only file systems
+		// but it is a good starting point for people working with things like
+		// $SNAP_DATA/subdirectory.
+		//
+		// We use lstat to ensure that we don't follow the symlink in case one
+		// was set up by the snap but this is not coded defensively as the code
+		// may execute concurrently with snap application processes.
+		//
+		// To have better defense we may consider freezing the freezer cgroup
+		// belonging to the snap during the execution of snap-update-ns.
+		if _, err := osLstat(c.Entry.Dir); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			// TODO: use the right mode and ownership.
+			if err := osMkdirAll(c.Entry.Dir, 0755); err != nil {
+				return err
+			}
+			if err := osChown(c.Entry.Dir, 0, 0); err != nil {
+				return err
+			}
+		}
 		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
 	case Unmount:
 		return sysUnmount(c.Entry.Dir, unmountNoFollow)

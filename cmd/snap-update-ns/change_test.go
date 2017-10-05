@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"errors"
+	"os"
 
 	. "gopkg.in/check.v1"
 
@@ -197,7 +198,56 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 func (s *changeSuite) TestPerformMount(c *C) {
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mount "source" "target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform mkdir's the missing mount target.
+func (s *changeSuite) TestPerformMountAutomaticMkdir(c *C) {
+	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mkdirall "target" "-rwxr-xr-x"`,
+		`chown "target" 0 0`,
+		`mount "source" "target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform returns errors from os.Lstat (apart from ErrNotExist)
+func (s *changeSuite) TestPerformMountLstatError(c *C) {
+	s.sys.InsertFault(`lstat "target"`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), Equals, errTesting)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`lstat "target"`})
+}
+
+// Change.Perform returns errors from os.MkdirAll
+func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
+	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirall "target" "-rwxr-xr-x"`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), Equals, errTesting)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mkdirall "target" "-rwxr-xr-x"`,
+	})
+}
+
+// Change.Perform returns errors from os.Chown
+func (s *changeSuite) TestPerformMountChownError(c *C) {
+	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
+	s.sys.InsertFault(`chown "target" 0 0`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	c.Assert(chg.Perform(), Equals, errTesting)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mkdirall "target" "-rwxr-xr-x"`,
+		`chown "target" 0 0`,
+	})
 }
 
 // Change.Perform returns errors from mount system call
@@ -205,7 +255,10 @@ func (s *changeSuite) TestPerformMountError(c *C) {
 	s.sys.InsertFault(`mount "source" "target" "type" 0 ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), Equals, errTesting)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mount "source" "target" "type" 0 ""`,
+	})
 }
 
 // Change.Perform returns errors from bad flags
