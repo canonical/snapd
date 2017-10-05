@@ -34,8 +34,8 @@ import (
 type preserveUnsafeEnvFlag int8
 
 const (
-	noPreserve preserveUnsafeEnvFlag = iota
-	doPreserve
+	discardUnsafeFlag preserveUnsafeEnvFlag = iota
+	preserveUnsafeFlag
 )
 
 // ExecEnv returns the full environment that is required for
@@ -53,9 +53,9 @@ const (
 func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
-	preserve := noPreserve
+	preserve := discardUnsafeFlag
 	if info.NeedsClassic() {
-		preserve = doPreserve
+		preserve = preserveUnsafeFlag
 	}
 	env := envMap(os.Environ(), preserve)
 	snapEnv := snapEnv(info)
@@ -179,7 +179,7 @@ func envMap(env []string, preserveUnsafeEnv preserveUnsafeEnvFlag) map[string]st
 			continue // strange
 		}
 		k, v := l[0], l[1]
-		if preserveUnsafeEnv == doPreserve && unsafeEnv[k] {
+		if preserveUnsafeEnv == preserveUnsafeFlag && unsafeEnv[k] {
 			k = PreservedUnsafePrefix + k
 		}
 		envMap[k] = v
