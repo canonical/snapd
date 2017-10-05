@@ -28,11 +28,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// XSnapdMkdirMode returns the file mode associated with x-snapd.mkdir-mode mount option.
+// XSnapdMode returns the file mode associated with x-snapd.mode mount option.
 // If the mode is not specified explicitly then a default mode of 0755 is assumed.
-func XSnapdMkdirMode(e *mount.Entry) (os.FileMode, error) {
+func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
 	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd.mkdir-mode=") {
+		if strings.HasPrefix(opt, "x-snapd.mode=") {
 			kv := strings.SplitN(opt, "=", 2)
 			var mode os.FileMode
 			n, err := fmt.Sscanf(kv[1], "%o", &mode)
@@ -45,12 +45,12 @@ func XSnapdMkdirMode(e *mount.Entry) (os.FileMode, error) {
 	return 0755, nil
 }
 
-// XSnapdMkdirUid returns the user associated with x-snapd-user mount option.  If
+// XSnapdUid returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdMkdirUid(e *mount.Entry) (uid uint64, err error) {
+func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd.mkdir-uid=") {
+		if strings.HasPrefix(opt, "x-snapd.uid=") {
 			kv := strings.SplitN(opt, "=", 2)
 			uid, err = osutil.FindUid(kv[1])
 			if err != nil {
@@ -63,12 +63,12 @@ func XSnapdMkdirUid(e *mount.Entry) (uid uint64, err error) {
 	return 0, nil
 }
 
-// XSnapdMkdirGid returns the user associated with x-snapd-user mount option.  If
+// XSnapdGid returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdMkdirGid(e *mount.Entry) (gid uint64, err error) {
+func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
 	for _, opt := range e.Options {
-		if strings.HasPrefix(opt, "x-snapd.mkdir-gid=") {
+		if strings.HasPrefix(opt, "x-snapd.gid=") {
 			kv := strings.SplitN(opt, "=", 2)
 			gid, err = osutil.FindGid(kv[1])
 			if err != nil {
