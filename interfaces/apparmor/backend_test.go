@@ -629,8 +629,18 @@ func MockDisableNFSWorkaroundCondition() (restore func()) {
 	}
 }
 
+// Ensure that both names of the snap-confine apparmor profile are supported.
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS1(c *C) {
+	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine")
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
+	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine.real")
+}
+
 // snap-confine policy when NFS is used and snapd has not re-executed.
-func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
+func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
 	restore := MockEnableNFSWorkaroundCondition()
 	defer restore()
@@ -648,6 +658,13 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
 	c.Assert(err, IsNil)
 	restore = apparmor.MockProcSelfExe(fakeExe)
 	defer restore()
+
+	profilePath := filepath.Join(dirs.SystemApparmorDir, profileFname)
+
+	// Create the directory where system apparmor profiles are stored and write
+	// the system apparmor profile of snap-confine.
+	c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
 	err = apparmor.SetupSnapConfineGeneratedPolicy()
@@ -667,14 +684,14 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS(c *C) {
 	c.Assert(string(data), testutil.Contains, "network inet,")
 	c.Assert(string(data), testutil.Contains, "network inet6,")
 
-	// The new policy was reloaded.
+	// The system apparmor profile of snap-confine was reloaded.
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
 		"-O", "no-expr-simplify",
-		"--write-cache", filepath.Join(
-			dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine.real"),
-		"--cache-loc", filepath.Join(dirs.SystemApparmorCacheDir),
+		"--write-cache",
+		"--cache-loc", dirs.SystemApparmorCacheDir,
+		profilePath,
 	}})
 }
 
@@ -800,6 +817,11 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	c.Assert(err, IsNil)
 	restore = apparmor.MockProcSelfExe(fakeExe)
 	defer restore()
+
+	// Create the directory where system apparmor profiles are stored and Write
+	// the system apparmor profile of snap-confine.
+	c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine"), []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
 	err = apparmor.SetupSnapConfineGeneratedPolicy()
