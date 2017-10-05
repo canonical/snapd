@@ -119,7 +119,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 
 	// If snapd is executing from the core snap the it means it has
 	// re-executed. In that case we are no longer using the copy of
-	// snap-confined from the host distribution but our own copy. We don't have
+	// snap-confine from the host distribution but our own copy. We don't have
 	// to re-compile and load the updated profile as that is performed by
 	// setupSnapConfineReexec below.
 	exe, err := os.Readlink(procSelfExe)
