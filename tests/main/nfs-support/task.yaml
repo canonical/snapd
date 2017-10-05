@@ -38,8 +38,8 @@ execute: |
     # Ensure that apparmor profiles don't permit network access
     ensure_normal_perms
 
-    # Mount NFS-exported /home over real /home
-    mount -t nfs localhost:/home /home
+    # Mount NFS-exported /home over real /home using NFSv3 and TCP transport
+    mount -t nfs localhost:/home /home -o nfsvers=3,proto=tcp
 
     # Restart snapd to observe the active NFS mount.
     systemctl restart snapd
@@ -49,10 +49,50 @@ execute: |
     ensure_extra_perms
 
     # As a non-root user perform a write over NFS-mounted /home
-    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke"' test
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
-    sudo umount /home
+    umount /home
+    systemctl restart snapd
+
+    # Ensure that this removed the extra permissions.
+    ensure_normal_perms
+
+    # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
+    mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
+
+    # Restart snapd to observe the active NFS mount.
+    systemctl restart snapd
+
+    # Ensure that snap-confine's apparmor profile and the test snap's apparmor
+    # profile now permit network access.
+    ensure_extra_perms
+
+    # As a non-root user perform a write over NFS-mounted /home
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-udp"' test
+
+    # Unmount /home and restart snapd so that we can check another thing.
+    umount /home
+    systemctl restart snapd
+
+    # Ensure that this removed the extra permissions.
+    ensure_normal_perms
+
+    # Mount NFS-exported /home over real /home using NFSv4
+    mount -t nfs localhost:/home /home -o nfsvers=4
+
+    # Restart snapd to observe the active NFS mount.
+    systemctl restart snapd
+
+    # Ensure that snap-confine's apparmor profile and the test snap's apparmor
+    # profile now permit network access.
+    ensure_extra_perms
+
+    # As a non-root user perform a write over NFS-mounted /home
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs4"' test
+
+    # Unmount /home and restart snapd so that we can check another thing.
+    umount /home
     systemctl restart snapd
 
     # Ensure that this removed the extra permissions.
