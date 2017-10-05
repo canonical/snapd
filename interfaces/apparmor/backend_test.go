@@ -805,10 +805,11 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	err = apparmor.SetupSnapConfineGeneratedPolicy()
 	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: testing")
 
-	// While created the policy file.
+	// While created the policy file initially we also removed it so that
+	// no side-effects remain.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
-	c.Assert(files, HasLen, 1)
+	c.Assert(files, HasLen, 0)
 
 	// We tried to reload the policy.
 	c.Assert(cmd.Calls(), HasLen, 1)

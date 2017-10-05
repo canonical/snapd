@@ -134,12 +134,17 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine.d/.
 	// We are not using apparmor.LoadProfile() because it uses other cache.
-	if output, err := exec.Command("apparmor_parser", "--replace",
+	cmd := exec.Command("apparmor_parser", "--replace",
 		// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 		"-O", "no-expr-simplify",
 		// TODO: the name varies across distros, fix that :/
 		"--write-cache", filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine.real"),
-		"--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
+		"--cache-loc", dirs.SystemApparmorCacheDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		// When we cannot reload the profile then let's remove the generated
+		// policy. Maybe we have caused the problem so it's better to let other
+		// things work.
+		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
 	}
 	return nil
