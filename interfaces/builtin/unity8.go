@@ -86,10 +86,6 @@ dbus (receive)
      path=/
      member={PasteboardChanged,PasteFormatsChanged,PasteSelected,PasteSelectionCancelled}
      peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
-
-# Lttng tracing is very noisy and should not be allowed by confined apps.
-# Can safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 const unity8ConnectedPlugSecComp = `

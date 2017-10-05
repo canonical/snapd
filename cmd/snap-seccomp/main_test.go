@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -341,7 +342,7 @@ restart_syscall
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	// The 'shadow' group is different in different distributions
-	shadowGid, err := main.FindGid("shadow")
+	shadowGid, err := osutil.FindGid("shadow")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
