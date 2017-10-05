@@ -241,6 +241,43 @@ void sc_close_ns_group(struct sc_ns_group *group)
 	free(group);
 }
 
+static dev_t find_base_snap_device(const char *base_snap_name,
+				   const char *base_snap_rev)
+{
+	// Find the backing device of the base snap.
+	// TODO: add support for "try mode" base snaps that also need
+	// consideration of the mie->root component.
+	dev_t base_snap_dev = 0;
+	char base_squashfs_path[PATH_MAX];
+	sc_must_snprintf(base_squashfs_path,
+			 sizeof base_squashfs_path, "%s/%s/%s",
+			 SNAP_MOUNT_DIR, base_snap_name, base_snap_rev);
+	struct sc_mountinfo *mi
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	mi = sc_parse_mountinfo(NULL);
+	if (mi == NULL) {
+		die("cannot parse mountinfo of the current process");
+	}
+	bool found = false;
+	for (struct sc_mountinfo_entry * mie =
+	     sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
+			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
+			debug("found base snap filesystem device %d:%d",
+			      mie->dev_major, mie->dev_minor);
+			// Don't break when found, we are interested in the last
+			// entry as this is the "effective" one.
+			found = true;
+		}
+	}
+	if (!found) {
+		die("cannot find device backing the base snap %s",
+		    base_snap_name);
+	}
+	return base_snap_dev;
+}
+
 void sc_create_or_join_ns_group(struct sc_ns_group *group,
 				struct sc_apparmor *apparmor,
 				const char *base_snap_name,
@@ -299,44 +336,9 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
 			die("readlink truncated");
 		}
-		// Find the backing device of the base snap.
-		// TODO: add support for "try mode" base snaps that also need
-		// consideration of the mie->root component.
-		dev_t base_snap_dev = 0;
-		{
-			char base_squashfs_path[PATH_MAX];
-			sc_must_snprintf(base_squashfs_path,
-					 sizeof base_squashfs_path, "%s/%s/%s",
-					 SNAP_MOUNT_DIR, base_snap_name,
-					 base_snap_rev);
-			struct sc_mountinfo *mi
-			    __attribute__ ((cleanup(sc_cleanup_mountinfo))) =
-			    NULL;
-			mi = sc_parse_mountinfo(NULL);
-			if (mi == NULL) {
-				die("cannot parse mountinfo of the current process");
-			}
-			bool found = false;
-			for (struct sc_mountinfo_entry * mie =
-			     sc_first_mountinfo_entry(mi); mie != NULL;
-			     mie = sc_next_mountinfo_entry(mie)) {
-				if (sc_streq
-				    (mie->mount_dir, base_squashfs_path)) {
-					base_snap_dev =
-					    MKDEV(mie->dev_major,
-						  mie->dev_minor);
-					debug
-					    ("found base snap filesystem device %d:%d",
-					     mie->dev_major, mie->dev_minor);
-					// Don't break when found, we are interested in the last
-					// entry as this is the "effective" one.
-					found = true;
-				}
-			}
-			if (!found) {
-				die("cannot find device backing the base snap %s", base_snap_name);
-			}
-		}
+
+		dev_t base_snap_dev =
+		    find_base_snap_device(base_snap_name, base_snap_rev);
 
 		// Remember the vanilla working directory so that we may attempt to restore it later.
 		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
