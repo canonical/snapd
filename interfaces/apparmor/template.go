@@ -409,6 +409,11 @@ var defaultTemplate = `
   capability sys_chroot,
   /{,usr/}sbin/chroot ixr,
 
+  # Lttng tracing is very noisy and should not be allowed by confined apps. Can
+  # safely deny for the normal case (LP: #1260491). If/when an lttng-trace
+  # interface is needed, we can rework this.
+  deny /{dev,run,var/run}/shm/lttng-ust-* rw,
+
 ###SNIPPETS###
 }
 `
