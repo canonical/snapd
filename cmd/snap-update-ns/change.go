@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -56,6 +57,9 @@ func (c Change) String() string {
 var (
 	sysMount   = syscall.Mount
 	sysUnmount = syscall.Unmount
+	osLstat    = os.Lstat
+	osMkdirAll = os.MkdirAll
+	osChown    = os.Chown
 )
 
 const unmountNoFollow = 8

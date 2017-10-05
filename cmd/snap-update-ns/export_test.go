@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"time"
 )
 
 var (
@@ -31,10 +33,24 @@ var (
 	ProcessArguments = processArguments
 )
 
+// fakeFileInfo implements os.FileInfo for one of the tests.
+// All of the functions panic as we don't expect them to be called.
+type fakeFileInfo struct{}
+
+func (*fakeFileInfo) Name() string       { panic("unexpected call") }
+func (*fakeFileInfo) Size() int64        { panic("unexpected call") }
+func (*fakeFileInfo) Mode() os.FileMode  { panic("unexpected call") }
+func (*fakeFileInfo) ModTime() time.Time { panic("unexpected call") }
+func (*fakeFileInfo) IsDir() bool        { panic("unexpected call") }
+func (*fakeFileInfo) Sys() interface{}   { panic("unexpected call") }
+
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
 	Unmount(target string, flags int) (err error)
+	Lstat(name string) (os.FileInfo, error)
+	MkdirAll(path string, perm os.FileMode) error
+	Chown(name string, uid, gid int) error
 }
 
 // SyscallRecorder stores which system calls were invoked.
@@ -73,16 +89,38 @@ func (sys *SyscallRecorder) Unmount(target string, flags int) (err error) {
 	return sys.call(fmt.Sprintf("unmount %q %d", target, flags))
 }
 
+func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
+	err := sys.call(fmt.Sprintf("lstat %q", name))
+	return &fakeFileInfo{}, err
+}
+
+func (sys *SyscallRecorder) MkdirAll(path string, perm os.FileMode) error {
+	return sys.call(fmt.Sprintf("mkdirall %q %q", path, perm))
+}
+
+func (sys *SyscallRecorder) Chown(name string, uid, gid int) error {
+	return sys.call(fmt.Sprintf("chown %q %d %d", name, uid, gid))
+}
+
 // MockSystemCalls replaces real system calls with those of the argument.
 func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysMount := sysMount
 	oldSysUnmount := sysUnmount
+	oldOsLstat := osLstat
+	oldOsMkdirAll := osMkdirAll
+	oldOsChown := osChown
 
 	sysMount = sc.Mount
 	sysUnmount = sc.Unmount
+	osLstat = sc.Lstat
+	osMkdirAll = sc.MkdirAll
+	osChown = sc.Chown
 
 	return func() {
 		sysMount = oldSysMount
 		sysUnmount = oldSysUnmount
+		osLstat = oldOsLstat
+		osMkdirAll = oldOsMkdirAll
+		osChown = oldOsChown
 	}
 }
