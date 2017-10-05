@@ -155,7 +155,7 @@ var (
 func isHomeUsingNFS() (bool, error) {
 	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse /proc/self/mountinfo, %s", err)
+		return false, fmt.Errorf("cannot parse %s, %s", procSelfMountInfo, err)
 	}
 	for _, entry := range mountinfo {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
