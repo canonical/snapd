@@ -35,7 +35,11 @@ type Plug struct {
 
 // Ref returns reference to a plug
 func (plug *Plug) Ref() PlugRef {
-	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
+	return plugRef(plug.PlugInfo)
+}
+
+func plugRef(plugInfo *snap.PlugInfo) PlugRef {
+	return PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}
 }
 
 // Sanitize plug with a given snapd interface.
@@ -70,7 +74,11 @@ type Slot struct {
 
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
-	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+	return slotRef(slot.SlotInfo)
+}
+
+func slotRef(slotInfo *snap.SlotInfo) SlotRef {
+	return SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}
 }
 
 // Sanitize slot with a given snapd interface.
