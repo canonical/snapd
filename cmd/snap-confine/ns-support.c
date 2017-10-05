@@ -278,6 +278,37 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	return base_snap_dev;
 }
 
+static bool should_discard_current_ns(dev_t base_snap_dev)
+{
+	// Inspect the namespace and check if we should discard it.
+	//
+	// The namespace may become "stale" when the rootfs is not the same
+	// device we found above. This will happen whenever the base snap is
+	// refreshed since the namespace was first created.
+	struct sc_mountinfo_entry *mie;
+	struct sc_mountinfo *mi
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+
+	mi = sc_parse_mountinfo(NULL);
+	if (mi == NULL) {
+		die("cannot parse mountinfo of the current process");
+	}
+	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (!sc_streq(mie->mount_dir, "/")) {
+			continue;
+		}
+		// NOTE: we want the initial rootfs just in case overmount
+		// was used to do something weird. The initial rootfs was
+		// set up by snap-confine and that is the one we want to
+		// measure.
+		debug("found root filesystem inside the mount namespace %d:%d",
+		      mie->dev_major, mie->dev_minor);
+		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+	}
+	die("cannot find mount entry of the root filesystem inside snap namespace");
+}
+
 void sc_create_or_join_ns_group(struct sc_ns_group *group,
 				struct sc_apparmor *apparmor,
 				const char *base_snap_name,
@@ -358,48 +389,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		    ("successfully re-associated the mount namespace with the namespace group %s",
 		     group->name);
 
-		bool should_discard_ns;
-
-		// Inspect the namespace and check if we should discard it.
-		//
-		// The namespace may become "stale" when the rootfs is not the same
-		// device we found above. This will happen whenever the base snap is
-		// refreshed since the namespace was first created.
-		{
-			struct sc_mountinfo *mi
-			    __attribute__ ((cleanup(sc_cleanup_mountinfo))) =
-			    NULL;
-			mi = sc_parse_mountinfo(NULL);
-			if (mi == NULL) {
-				die("cannot parse mountinfo of the current process");
-			}
-			bool found = false;
-			// Assume we should not discard the namespace.
-			should_discard_ns = false;
-			for (struct sc_mountinfo_entry * mie =
-			     sc_first_mountinfo_entry(mi); mie != NULL;
-			     mie = sc_next_mountinfo_entry(mie)) {
-				if (sc_streq(mie->mount_dir, "/")) {
-					found = true;
-					should_discard_ns =
-					    base_snap_dev !=
-					    MKDEV(mie->dev_major,
-						  mie->dev_minor);
-					// NOTE: we want the initial rootfs just in case overmount
-					// was used to do something weird. The initial rootfs was
-					// set up by snap-confine and that is the one we want to
-					// measure.
-					debug
-					    ("found root filesystem inside the mount namespace %d:%d",
-					     mie->dev_major, mie->dev_minor);
-					break;
-				}
-			}
-			if (!found) {
-				die("cannot find mount entry of the root filesystem inside snap namespace");
-			}
-		}
-
+		bool should_discard_ns =
+		    should_discard_current_ns(base_snap_dev);
 		debug("should the namespace be discarded: %s",
 		      should_discard_ns ? "yes" : "no");
 		// Try to re-locate back to vanilla working directory. This can fail
