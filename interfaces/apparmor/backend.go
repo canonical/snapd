@@ -164,7 +164,7 @@ func isHomeUsingNFS() (bool, error) {
 	}
 	fstab, err := mount.LoadProfile(etcFstab)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse /etc/fstab, %s", err)
+		return false, fmt.Errorf("cannot parse %s, %s", etcFstab, err)
 	}
 	for _, entry := range fstab.Entries {
 		if (entry.Type == "nfs4" || entry.Type == "nfs") && (strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home") {

@@ -513,7 +513,7 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 		},
 		{
 			fstab:        "bad syntax",
-			errorPattern: "cannot parse /etc/fstab, .*",
+			errorPattern: "cannot parse .*/fstab.*, .*",
 		},
 		// NFSv4 currently mounted at /home/zyga/nfs is recognized.
 		{
