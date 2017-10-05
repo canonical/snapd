@@ -15,7 +15,7 @@ prepare: |
 execute: |
     run_export_nfs() {
         # NOTE: This is so silly because spellchecker complains about the real
-        # command name so w have to go and obfuscate it /o\
+        # command name so we have to go and obfuscate it /o\
         $(echo rkcbegsf | /usr/games/rot13) "$@"
     }
 
@@ -114,7 +114,7 @@ restore: |
 
     run_export_nfs() {
         # NOTE: This is so silly because spellchecker complains about the real
-        # command name so w have to go and obfuscate it /o\
+        # command name so we have to go and obfuscate it /o\
         $(echo rkcbegsf | /usr/games/rot13) "$@"
     }
 
