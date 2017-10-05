@@ -130,6 +130,7 @@ func userEnv(info *snap.Info, home string) map[string]string {
 
 // Environment variables glibc strips out when running a setuid binary.
 // Taken from https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=sysdeps/generic/unsecvars.h;hb=HEAD
+// TODO: use go generate to obtain this list at build time.
 var unsafeEnv = map[string]bool{
 	"GCONV_PATH":       true,
 	"GETCONF_DIR":      true,
