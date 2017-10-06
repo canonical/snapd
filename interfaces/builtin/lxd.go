@@ -50,6 +50,5 @@ func init() {
 		baseDeclarationSlots:  lxdBaseDeclarationSlots,
 		connectedPlugAppArmor: lxdConnectedPlugAppArmor,
 		connectedPlugSecComp:  lxdConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }
