@@ -35,10 +35,10 @@ type Plug struct {
 
 // Ref returns reference to a plug
 func (plug *Plug) Ref() PlugRef {
-	return plugRef(plug.PlugInfo)
+	return NewPlugRef(plug.PlugInfo)
 }
 
-func plugRef(plugInfo *snap.PlugInfo) PlugRef {
+func NewPlugRef(plugInfo *snap.PlugInfo) PlugRef {
 	return PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}
 }
 
@@ -74,10 +74,10 @@ type Slot struct {
 
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
-	return slotRef(slot.SlotInfo)
+	return NewSlotRef(slot.SlotInfo)
 }
 
-func slotRef(slotInfo *snap.SlotInfo) SlotRef {
+func NewSlotRef(slotInfo *snap.SlotInfo) SlotRef {
 	return SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}
 }
 
@@ -107,8 +107,9 @@ func (ref SlotRef) String() string {
 
 // Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs       []*snap.PlugInfo
+	Slots       []*snap.SlotInfo
+	Connections []*ConnRef
 }
 
 // Info holds information about a given interface and its instances.

@@ -25,6 +25,23 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type byConnRef []*ConnRef
+
+func (c byConnRef) Len() int      { return len(c) }
+func (c byConnRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byConnRef) Less(i, j int) bool {
+	if c[i].PlugRef.Snap != c[j].PlugRef.Snap {
+		return c[i].PlugRef.Snap < c[j].PlugRef.Snap
+	}
+	if c[i].SlotRef.Snap != c[j].SlotRef.Snap {
+		return c[i].SlotRef.Snap < c[j].SlotRef.Snap
+	}
+	if c[i].PlugRef.Name > c[j].PlugRef.Name {
+		return c[i].PlugRef.Name < c[j].PlugRef.Name
+	}
+	return c[i].SlotRef.Name < c[j].SlotRef.Name
+}
+
 type bySlotRef []SlotRef
 
 func (c bySlotRef) Len() int      { return len(c) }
