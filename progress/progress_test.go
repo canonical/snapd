@@ -20,10 +20,8 @@
 package progress_test
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -40,49 +38,15 @@ type ProgressTestSuite struct {
 
 var _ = Suite(&ProgressTestSuite{})
 
-func (ts *ProgressTestSuite) TestSpin(c *C) {
-	f, err := ioutil.TempFile("", "progress-")
-	c.Assert(err, IsNil)
-	defer os.Remove(f.Name())
-	oldStdout := os.Stdout
-	os.Stdout = f
-
-	progress.MockEmptyEscapes()
-
-	t := &progress.ANSIMeter{}
-	for i := 0; i < 6; i++ {
-		t.Spin("msg")
-	}
-
-	os.Stdout = oldStdout
-	f.Sync()
-	f.Seek(0, 0)
-	progress, err := ioutil.ReadAll(f)
-	c.Assert(err, IsNil)
-	c.Assert(string(progress), Equals, strings.Repeat(fmt.Sprintf("\r%-80s", "msg"), 6))
-}
-
 func (ts *ProgressTestSuite) testNotify(c *C, t progress.Meter, desc, expected string) {
-	oldStdout := os.Stdout
-	defer func() {
-		os.Stdout = oldStdout
-	}()
+	var buf bytes.Buffer
+	defer progress.MockStdout(&buf)()
 
 	comment := Commentf(desc)
 
-	fout, err := ioutil.TempFile("", "notify-out-")
-	c.Assert(err, IsNil)
-	defer fout.Close()
-	os.Stdout = fout
-
 	t.Notify("blah blah")
 
-	_, err = fout.Seek(0, 0)
-	c.Assert(err, IsNil, comment)
-
-	out, err := ioutil.ReadAll(fout)
-	c.Assert(err, IsNil, comment)
-	c.Check(string(out), Equals, expected, comment)
+	c.Check(buf.String(), Equals, expected, comment)
 }
 
 func (ts *ProgressTestSuite) TestQuietNotify(c *C) {
@@ -95,5 +59,7 @@ func (ts *ProgressTestSuite) TestANSINotify(c *C) {
 }
 
 func (ts *ProgressTestSuite) TestTestingNotify(c *C) {
-	ts.testNotify(c, &progresstest.Meter{}, "test", "")
+	p := &progresstest.Meter{}
+	ts.testNotify(c, p, "test", "")
+	c.Check(p.Notices, DeepEquals, []string{"blah blah"})
 }

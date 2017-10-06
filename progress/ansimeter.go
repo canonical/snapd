@@ -21,11 +21,15 @@ package progress
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"time"
 	"unicode"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+var stdout io.Writer = os.Stdout
 
 // ANSIMeter is a progress.Meter that uses ANSI escape codes to make
 // better use of the available horizontal space.
@@ -52,7 +56,7 @@ var (
 	exitAttributeMode = "\033[0m"
 )
 
-func getCol() int {
+var termWidth = func() int {
 	col, _, _ := terminal.GetSize(0)
 	if col <= 0 {
 		// give up
@@ -65,10 +69,13 @@ func (p *ANSIMeter) Start(label string, total float64) {
 	p.label = []rune(label)
 	p.total = total
 	p.t0 = time.Now().UTC()
-	fmt.Print(cursorInvisible)
+	fmt.Fprint(stdout, cursorInvisible)
 }
 
 func norm(col int, msg []rune) []rune {
+	if col <= 0 {
+		return []rune{}
+	}
 	out := make([]rune, col)
 	copy(out, msg)
 	d := col - len(msg)
@@ -98,8 +105,15 @@ func (p *ANSIMeter) percent() string {
 }
 
 func (p *ANSIMeter) Set(current float64) {
+	if current < 0 {
+		current = 0
+	}
+	if current > p.total {
+		current = p.total
+	}
+
 	p.written = current
-	col := getCol()
+	col := termWidth()
 	// time left: 5
 	//    gutter: 1
 	//     speed: 8
@@ -108,15 +122,20 @@ func (p *ANSIMeter) Set(current float64) {
 	//    gutter: 1
 	//          =====
 	//           20
+	// and we want to leave at least 10 for the label, so:
+	//  * if      width <= 15, don't show any of this (progress bar is good enough)
+	//  * if 15 < width <= 20, only show time left (time left + gutter = 6)
+	//  * if 20 < width <= 29, also show percentage (percent + gutter = 5
+	//  * if 29 < width      , also show speed (speed+gutter = 9)
 	var percent, speed, timeleft string
 	if col > 15 {
 		since := time.Now().UTC().Sub(p.t0).Seconds()
 		per := since / p.written
 		left := (p.total - p.written) * per
 		timeleft = " " + formatDuration(left)
-		if col > 21 {
+		if col > 20 {
 			percent = " " + p.percent()
-			if col > 30 {
+			if col > 29 {
 				speed = " " + formatBPS(p.written, since, -1)
 			}
 		}
@@ -128,21 +147,14 @@ func (p *ANSIMeter) Set(current float64) {
 	msg = append(msg, []rune(speed)...)
 	msg = append(msg, []rune(timeleft)...)
 	i := int(current * float64(col) / p.total)
-	// the following can't happen... except when they do
-	switch {
-	case i > col:
-		i = col
-	case i < 0:
-		i = 0
-	}
-	fmt.Print("\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
+	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
 func (p *ANSIMeter) Spin(msgstr string) {
 	// spin moves a block a third of the screen's width right and
 	// left across the screen (each call to Spin bummps it left
 	// or right by 1%)
-	col := getCol()
+	col := termWidth()
 	msg := norm(col, []rune(msgstr))
 	p.spin++
 	if p.spin > 66 {
@@ -155,16 +167,16 @@ func (p *ANSIMeter) Spin(msgstr string) {
 	}
 	i := spin * col / 100
 	j := 1 + (spin+33)*col/100
-	fmt.Print("\r", string(msg[:i]), enterReverseMode, string(msg[i:j]), exitAttributeMode, string(msg[j:]))
+	fmt.Fprint(stdout, "\r", string(msg[:i]), enterReverseMode, string(msg[i:j]), exitAttributeMode, string(msg[j:]))
 }
 
 func (*ANSIMeter) Finished() {
-	fmt.Print("\r", exitAttributeMode, cursorVisible, clrEOL)
+	fmt.Fprint(stdout, "\r", exitAttributeMode, cursorVisible, clrEOL)
 }
 
 func (*ANSIMeter) Notify(msgstr string) {
-	col := getCol()
-	fmt.Print("\r", exitAttributeMode, clrEOL)
+	col := termWidth()
+	fmt.Fprint(stdout, "\r", exitAttributeMode, clrEOL)
 
 	msg := []rune(msgstr)
 	var i int
@@ -176,18 +188,17 @@ func (*ANSIMeter) Notify(msgstr string) {
 		}
 		if i < 1 {
 			// didn't find anything; print the whole thing and try again
-			fmt.Println(string(msg[:col]))
+			fmt.Fprintln(stdout, string(msg[:col]))
 			msg = msg[col:]
 		} else {
 			// found a space; print up to but not including it, and skip it
-			fmt.Println(string(msg[:i]))
+			fmt.Fprintln(stdout, string(msg[:i]))
 			msg = msg[i+1:]
 		}
 	}
-	fmt.Println(string(msg))
+	fmt.Fprintln(stdout, string(msg))
 }
 
-// Write does nothing
 func (p *ANSIMeter) Write(bs []byte) (n int, err error) {
 	n = len(bs)
 	// TODO: lock, n'eh

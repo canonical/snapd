@@ -69,7 +69,7 @@ func (NullMeter) Spin(msg string)             {}
 type QuietMeter struct{ NullMeter }
 
 func (QuietMeter) Notify(msg string) {
-	fmt.Println(msg)
+	fmt.Fprintln(stdout, msg)
 }
 
 // testMeter, if set, is returned by MakeProgressBar; set it from tests.
@@ -92,8 +92,8 @@ var inTesting bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") 
 //   minimalistic QuietMeter is returned.
 // * otherwise, an ANSIMeter is returned.
 //
-// TODO: instead of making the pivot at creation time, do it at every call ( ....)
-var MakeProgressBar = func() Meter {
+// TODO: instead of making the pivot at creation time, do it at every call.
+func MakeProgressBar() Meter {
 	if testMeter != nil {
 		return testMeter
 	}
