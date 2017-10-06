@@ -215,10 +215,12 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		if (errno == ENOSYS) {
 			debug("kernel doesn't support the seccomp(2) syscall");
 		} else if (errno == EINVAL) {
-			debug("kernel may not support the SECCOMP_FILTER_FLAG_LOG flag");
+			debug
+			    ("kernel may not support the SECCOMP_FILTER_FLAG_LOG flag");
 		}
 
-		debug("falling back to prctl(2) syscall to load seccomp filter");
+		debug
+		    ("falling back to prctl(2) syscall to load seccomp filter");
 		if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
 			die("cannot apply seccomp profile");
 		}
