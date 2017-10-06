@@ -189,5 +189,14 @@ func formatDuration(dt float64) string {
 		return fmt.Sprintf("%4.1f%s", dt, years)
 	}
 
-	return fmt.Sprintf("%4.f%s", dt, years)
+	if dt < 999.5 {
+		return fmt.Sprintf("%4.f%s", dt, years)
+	}
+
+	if dt > math.MaxUint64 || uint64(dt) == 0 {
+		// TODO: figure out exactly what overflow causes the ==0
+		return "ages!"
+	}
+
+	return formatAmount(uint64(dt), 4) + years
 }

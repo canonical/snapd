@@ -86,6 +86,9 @@ func ExampleFormatDuration() {
 	} {
 		fmt.Printf("%q\n", progress.FormatDuration(dt.Seconds()))
 	}
+	fmt.Printf("%q\n", progress.FormatDuration(float64(math.MaxUint64)*365*24*60*60))
+	fmt.Printf("%q\n", progress.FormatDuration(math.MaxFloat64))
+
 	// Output:
 	// "3.0ns"
 	// " 36µs"
@@ -104,4 +107,6 @@ func ExampleFormatDuration() {
 	// "5.86y"
 	// "29.2y"
 	// " 292y"
+	// " 18Ey"
+	// "ages!"
 }

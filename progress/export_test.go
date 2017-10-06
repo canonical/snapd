@@ -19,19 +19,23 @@
 
 package progress
 
+import (
+	"io"
+)
+
 var FormatAmount = formatAmount
 var FormatBPS = formatBPS
 var FormatDuration = formatDuration
-var ClrEOL = clrEOL
-var ExitAttributeMode = exitAttributeMode
+
+var (
+	ClrEOL            = clrEOL
+	CursorInvisible   = cursorInvisible
+	CursorVisible     = cursorVisible
+	EnterReverseMode  = enterReverseMode
+	ExitAttributeMode = exitAttributeMode
+)
 
 func MockEmptyEscapes() func() {
-	oldClrEOL := clrEOL
-	oldCursorInvisible := cursorInvisible
-	oldCursorVisible := cursorVisible
-	oldEnterReverseMode := enterReverseMode
-	oldExitAttributeMode := exitAttributeMode
-
 	clrEOL = ""
 	cursorInvisible = ""
 	cursorVisible = ""
@@ -39,10 +43,61 @@ func MockEmptyEscapes() func() {
 	exitAttributeMode = ""
 
 	return func() {
-		clrEOL = oldClrEOL
-		cursorInvisible = oldCursorInvisible
-		cursorVisible = oldCursorVisible
-		enterReverseMode = oldEnterReverseMode
-		exitAttributeMode = oldExitAttributeMode
+		clrEOL = ClrEOL
+		cursorInvisible = CursorInvisible
+		cursorVisible = CursorVisible
+		enterReverseMode = EnterReverseMode
+		exitAttributeMode = ExitAttributeMode
 	}
 }
+
+func MockSimpleEscapes() func() {
+	// set them to the tcap name (in all caps)
+	clrEOL = "<CE>"
+	cursorInvisible = "<VI>"
+	cursorVisible = "<VS>"
+	enterReverseMode = "<MR>"
+	exitAttributeMode = "<ME>"
+
+	return func() {
+		clrEOL = ClrEOL
+		cursorInvisible = CursorInvisible
+		cursorVisible = CursorVisible
+		enterReverseMode = EnterReverseMode
+		exitAttributeMode = ExitAttributeMode
+	}
+}
+
+func (p *ANSIMeter) Percent() string {
+	return p.percent()
+}
+
+func (p *ANSIMeter) SetWritten(written float64) {
+	p.written = written
+}
+
+func (p *ANSIMeter) GetWritten() float64 {
+	return p.written
+}
+
+func (p *ANSIMeter) GetTotal() float64 {
+	return p.total
+}
+
+func MockTermWidth(f func() int) func() {
+	origTermWidth := termWidth
+	termWidth = f
+	return func() {
+		termWidth = origTermWidth
+	}
+}
+
+func MockStdout(w io.Writer) func() {
+	origStdout := stdout
+	stdout = w
+	return func() {
+		stdout = origStdout
+	}
+}
+
+var Norm = norm
