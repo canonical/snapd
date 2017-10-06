@@ -17,32 +17,28 @@
  *
  */
 
-package mount
+package main
 
 import (
-	"sort"
+	"strings"
 
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
-type sortSuite struct{}
+// byMagicDir allows sorting an array of entries that automagically assumes
+// each entry ends with a trailing slash.
+type byMagicDir []mount.Entry
 
-var _ = Suite(&sortSuite{})
-
-func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
-	// Naively sorted entries.
-	entries := []Entry{
-		{Dir: "/a/b"},
-		{Dir: "/a/b-1"},
-		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b/c"},
+func (c byMagicDir) Len() int      { return len(c) }
+func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byMagicDir) Less(i, j int) bool {
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
 	}
-	sort.Sort(byMagicDir(entries))
-	// Entries sorted as if they had a trailing slash.
-	c.Assert(entries, DeepEquals, []Entry{
-		{Dir: "/a/b-1"},
-		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b"},
-		{Dir: "/a/b/c"},
-	})
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
 }
