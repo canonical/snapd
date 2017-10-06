@@ -130,7 +130,7 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	}
 
 	debug("bind-mounting all the files from the reference directory");
-	DIR *dirp __attribute__ ((cleanup(sc_cleanup_closedir))) = NULL;
+	DIR *dirp SC_CLEANUP(sc_cleanup_closedir) = NULL;
 	dirp = opendir(ref_dir);
 	if (dirp == NULL) {
 		die("cannot open reference directory %s", ref_dir);

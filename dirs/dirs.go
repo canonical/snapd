@@ -69,6 +69,7 @@ var (
 	SnapRepairStateFile  string
 	SnapRepairRunDir     string
 	SnapRepairAssertsDir string
+	SnapRunRepairDir     string
 
 	SnapCacheDir     string
 	SnapNamesFile    string
@@ -165,10 +166,9 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "arch", "manjaro", "lirios":
+	if release.DistroLike("fedora", "arch") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
-	default:
+	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
@@ -208,6 +208,7 @@ func SetRootDir(rootdir string) {
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
 	SnapRepairRunDir = filepath.Join(SnapRepairDir, "run")
 	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
+	SnapRunRepairDir = filepath.Join(SnapRunDir, "repair")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")

@@ -903,6 +903,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
 	if !(flags.JailMode || flags.DevMode) {
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
@@ -1382,6 +1384,19 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 	flags.Revert = true
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
+	if !(flags.JailMode || flags.DevMode || flags.Classic) {
+		if snapst.Flags.DevMode {
+			flags.DevMode = true
+		}
+		if snapst.Flags.JailMode {
+			flags.JailMode = true
+		}
+		if snapst.Flags.Classic {
+			flags.Classic = true
+		}
+	}
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),

@@ -100,6 +100,10 @@ apps:
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
+
+apps:
+ bin:
+  command: hello.bin
 `
 	const contents = ""
 
@@ -237,6 +241,8 @@ environment:
  KEY: value
 
 apps:
+ bin:
+   command: bin
  foo:
    command: foo
  bar:
@@ -253,7 +259,7 @@ apps:
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png
-Exec=bin
+Exec=hello.bin
 `), 0644), IsNil)
 
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {

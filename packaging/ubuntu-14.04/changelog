@@ -1,3 +1,11 @@
+snapd (2.28.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - snap-confine: update apparmor rules for fedora based basesnaps
+    - snapstate: rename refresh hook to post-refresh for consistency
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Sep 2017 18:01:48 -0400
+
 snapd (2.28~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1714984
