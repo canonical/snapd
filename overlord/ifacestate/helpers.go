@@ -351,13 +351,13 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		if len(candidates) != 1 {
 			crefs := make([]string, 0, len(candidates))
 			for _, candidate := range candidates {
-				crefs = append(crefs, candidate.Ref().String())
+				crefs = append(crefs, interfaces.NewSlotRef(candidate).String())
 			}
-			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug.Ref(), strings.Join(crefs, ", "))
+			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", interfaces.NewPlugRef(plug), strings.Join(crefs, ", "))
 			continue
 		}
 		slot := candidates[0]
-		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		connRef := interfaces.ConnRef{PlugRef: interfaces.NewPlugRef(plug), SlotRef: interfaces.NewSlotRef(slot)}
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
@@ -388,16 +388,16 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// considering auto-connections from plug
 			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
 
-			if len(candSlots) != 1 || candSlots[0].Ref() != slot.Ref() {
+			if len(candSlots) != 1 || interfaces.NewSlotRef(candSlots[0]) != interfaces.NewSlotRef(slot) {
 				crefs := make([]string, 0, len(candSlots))
 				for _, candidate := range candSlots {
-					crefs = append(crefs, candidate.Ref().String())
+					crefs = append(crefs, interfaces.NewSlotRef(candidate).String())
 				}
-				task.Logf("cannot auto connect %s to %s (slot auto-connection), alternatives found: %q", slot.Ref(), plug.Ref(), strings.Join(crefs, ", "))
+				task.Logf("cannot auto connect %s to %s (slot auto-connection), alternatives found: %q", interfaces.NewSlotRef(slot), interfaces.NewPlugRef(plug), strings.Join(crefs, ", "))
 				continue
 			}
 
-			connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+			connRef := interfaces.ConnRef{PlugRef: interfaces.NewPlugRef(plug), SlotRef: interfaces.NewSlotRef(slot)}
 			key := connRef.ID()
 			if _, ok := conns[key]; ok {
 				// Suggested connection already exist so don't clobber it.
