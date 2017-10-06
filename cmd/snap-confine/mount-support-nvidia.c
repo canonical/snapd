@@ -33,6 +33,8 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
+#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
+
 #ifdef NVIDIA_ARCH
 
 // List of globs that describe nvidia userspace libraries.
@@ -93,7 +95,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 						   const char *glob_list[],
 						   size_t glob_list_len)
 {
-	glob_t glob_res __attribute__ ((__cleanup__(globfree))) = {
+	glob_t glob_res SC_CLEANUP(globfree) = {
 	.gl_pathv = NULL};
 	// Find all the entries matching the list of globs
 	for (size_t i = 0; i < glob_list_len; ++i) {
@@ -113,8 +115,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		char symlink_target[512];
 		const char *pathname = glob_res.gl_pathv[i];
 		char *pathname_copy
-		    __attribute__ ((cleanup(sc_cleanup_string))) =
-		    strdup(pathname);
+		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
 		char *filename = basename(pathname_copy);
 		struct stat stat_buf;
 		int err = lstat(pathname, &stat_buf);
@@ -196,12 +197,11 @@ struct sc_nvidia_driver {
 	int minor_version;
 };
 
-#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 #define SC_LIBGL_DIR "/var/lib/snapd/lib/gl"
 
 static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 {
-	FILE *file __attribute__ ((cleanup(sc_cleanup_file))) = NULL;
+	FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
 	debug("opening file describing nvidia driver version");
 	file = fopen(SC_NVIDIA_DRIVER_VERSION_FILE, "rt");
 	if (file == NULL) {
@@ -260,6 +260,10 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
+	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
+	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
+		return;
+	}
 #ifdef NVIDIA_UBUNTU
 	sc_mount_nvidia_driver_ubuntu(rootfs_dir);
 #endif				// ifdef NVIDIA_UBUNTU
