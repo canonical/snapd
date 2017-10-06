@@ -58,7 +58,8 @@ var (
 	sysMount   = syscall.Mount
 	sysUnmount = syscall.Unmount
 	osLstat    = os.Lstat
-	osMkdirAll = os.MkdirAll
+	// NOTE: we're not using os.MkdirAll as it is not careful about symlinks.
+	osMkdirAll = SecureMkdirAll
 	osChown    = os.Chown
 )
 
