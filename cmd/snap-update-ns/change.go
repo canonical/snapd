@@ -64,6 +64,77 @@ var (
 
 const unmountNoFollow = 8
 
+const AT_FDCWD = -100 // not available through syscall
+
+// SecureMkdirAll is the secure variant of os.MkdirAll.
+//
+// Unlike the regular version this implementation does not follow any symbolic
+// links. At all times the new directory segment is created using mkdirat(2)
+// while holding an open file descriptor to the parent directory.
+//
+// The only handled error is mkdirat(2) that fails with EEXIST. All other
+// errors are fatal but there is no attempt to undo anything that was created.
+func SecureMkdirAll(name string, perm os.FileMode) error {
+	// XXX: use O_PATH here?
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+
+	// Declare var and don't assign-declare below to ensure we don't swallow
+	// any errors by mistake.
+	var err error
+	// Start at the current working directory by default.
+	var fd int = AT_FDCWD
+
+	// Keep track of the number of open/close calls
+	var openCloseCount int
+
+	// If path is absolute then open the root directory and start there.
+	if path.IsAbs(name) {
+		fd, err = syscall.Open("/", openFlags, 0)
+		if err != nil {
+			return fmt.Errorf("cannot open root directory, %v", err)
+		}
+		openCloseCount += 1
+	}
+
+	// Split the path by entries and create each element using mkdirat() using
+	// the parent directory as reference. Each time we open the newly created
+	// segment using the O_NOFOLLOW and O_DIRECTORY flag so that symlink
+	// attacks are impossible to carry out.
+	for _, segment := range strings.Split(name, "/") {
+		if segment == "" {
+			// Skip empty element corresponding to the leading slash.
+			continue
+		}
+		if err = syscall.Mkdirat(fd, segment, uint32(perm)); err != nil {
+			if err != syscall.EEXIST {
+				return fmt.Errorf("cannot mkdir path segment %q, %v", segment, err)
+			}
+		}
+		previousFd := fd
+		fd, err = syscall.Openat(fd, segment, openFlags, 0)
+		openCloseCount += 1
+		if previousFd != AT_FDCWD {
+			if err := syscall.Close(previousFd); err != nil {
+				return fmt.Errorf("cannot close previous file descriptor, %v", err)
+			}
+			openCloseCount -= 1
+		}
+		if err != nil {
+			return fmt.Errorf("cannot open path segment %q, %v", segment, err)
+		}
+	}
+	if fd != AT_FDCWD {
+		if err = syscall.Close(fd); err != nil {
+			return fmt.Errorf("cannot close file descriptor, %v", err)
+		}
+		openCloseCount -= 1
+	}
+	if openCloseCount != 0 {
+		panic(fmt.Sprintf("BUG in SecureMkdirAll, open-close count not balanced, %d", openCloseCount))
+	}
+	return nil
+}
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.

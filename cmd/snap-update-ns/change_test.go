@@ -22,6 +22,7 @@ package main_test
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -289,4 +290,21 @@ func (s *changeSuite) TestPerformUnknownAction(c *C) {
 	chg := &update.Change{Action: update.Action(42)}
 	c.Assert(chg.Perform(), ErrorMatches, `cannot process mount change, unknown action: .*`)
 	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+func (s *changeSuite) TestSecureMkdirAll(c *C) {
+	cwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer os.Chdir(cwd)
+
+	d := c.MkDir()
+
+	// Ensure that we can create a directory with an absolute path.
+	err = update.SecureMkdirAll(filepath.Join(d, "subdir-absolute"), 0755)
+	c.Assert(err, IsNil)
+
+	// Ensure that we can create a directory with an relative path.
+	c.Assert(os.Chdir(d), IsNil)
+	err = update.SecureMkdirAll("subdir-relative", 0755)
+	c.Assert(err, IsNil)
 }
