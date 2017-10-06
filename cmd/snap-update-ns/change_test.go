@@ -300,11 +300,19 @@ func (s *changeSuite) TestSecureMkdirAll(c *C) {
 	d := c.MkDir()
 
 	// Ensure that we can create a directory with an absolute path.
-	err = update.SecureMkdirAll(filepath.Join(d, "subdir-absolute"), 0755)
+	p := filepath.Join(d, "subdir-absolute")
+	err = update.SecureMkdirAll(p, 0755)
 	c.Assert(err, IsNil)
+	fi, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(fi.IsDir(), Equals, true)
 
 	// Ensure that we can create a directory with an relative path.
 	c.Assert(os.Chdir(d), IsNil)
-	err = update.SecureMkdirAll("subdir-relative", 0755)
+	p = "subdir-relative"
+	err = update.SecureMkdirAll(p, 0755)
 	c.Assert(err, IsNil)
+	fi, err = os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(fi.IsDir(), Equals, true)
 }
