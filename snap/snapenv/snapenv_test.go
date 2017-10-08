@@ -171,7 +171,7 @@ func setenvWithReset(s *HTestSuite, key string, val string) {
 	}
 }
 
-func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
+func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
 	setenvWithReset(s, "TMPDIR", "/var/tmp")
 
 	env := ExecEnv(mockSnapInfo, map[string]string{})
@@ -184,7 +184,7 @@ func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
 	c.Assert(found, Equals, false)
 }
 
-func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
+func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
 	setenvWithReset(s, "TMPDIR", "/var/tmp")
 
 	env := ExecEnv(mockClassicSnapInfo, map[string]string{})
