@@ -19,10 +19,21 @@
 
 package ctlcmd
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+)
 
 var AttributesTask = attributesTask
 var CopyAttributes = copyAttributes
+
+func MockServiceChangeFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction) (*state.Change, error)) (restore func()) {
+	old := servicechangeImpl
+	servicechangeImpl = f
+	return func() { servicechangeImpl = old }
+}
 
 func AddMockCommand(name string) *MockCommand {
 	mockCommand := NewMockCommand()

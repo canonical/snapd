@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
@@ -6099,7 +6100,7 @@ func (s *appSuite) TestLogsSad(c *check.C) {
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 }
 
-func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall []string) *state.Change {
+func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, systemctlCall []string) *state.Change {
 	postBody, err := json.Marshal(inst)
 	c.Assert(err, check.IsNil)
 
@@ -6127,13 +6128,13 @@ func (s *appSuite) testPostApps(c *check.C, inst appInstruction, systemctlCall [
 }
 
 func (s *appSuite) TestPostAppsStartOne(c *check.C) {
-	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	expected := []string{"systemctl", "start", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
-	inst := appInstruction{Action: "start", Names: []string{"snap-a"}}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
@@ -6141,7 +6142,7 @@ func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
-	inst := appInstruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
@@ -6149,33 +6150,33 @@ func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 }
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {
-	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	expected := []string{"systemctl", "stop", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsRestart(c *check.C) {
-	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	expected := []string{"systemctl", "restart", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsReload(c *check.C) {
-	inst := appInstruction{Action: "restart", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
 	expected := []string{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsEnableNow(c *check.C) {
-	inst := appInstruction{Action: "start", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
 	expected := []string{"systemctl", "enable", "--now", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appSuite) TestPosetAppsDisableNow(c *check.C) {
-	inst := appInstruction{Action: "stop", Names: []string{"snap-a.svc2"}}
+	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
 	expected := []string{"systemctl", "disable", "--now", "snap.snap-a.svc2.service"}
 	s.testPostApps(c, inst, expected)
@@ -6246,7 +6247,7 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
 	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
 }

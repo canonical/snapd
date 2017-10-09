@@ -128,3 +128,11 @@ func AliasInfoLess(snapName1, alias1, cmd1, snapName2, alias2, cmd2 string) bool
 func AssertTypeNameCompletion(match string) []flags.Completion {
 	return assertTypeName("").Complete(match)
 }
+
+func MockIsTerminal(t bool) (restore func()) {
+	oldIsTerminal := isTerminal
+	isTerminal = func() bool { return t }
+	return func() {
+		isTerminal = oldIsTerminal
+	}
+}

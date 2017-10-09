@@ -17,7 +17,7 @@
  *
  */
 
-package mount
+package main
 
 import (
 	"fmt"
@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -42,7 +44,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  Entry
+	Entry  mount.Entry
 	Action Action
 }
 
@@ -51,20 +53,26 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
+var (
+	sysMount   = syscall.Mount
+	sysUnmount = syscall.Unmount
+)
+
+const unmountNoFollow = 8
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
 func (c *Change) Perform() error {
 	switch c.Action {
 	case Mount:
-		flags, err := OptsToFlags(c.Entry.Options)
+		flags, err := mount.OptsToFlags(c.Entry.Options)
 		if err != nil {
 			return err
 		}
-		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
 	case Unmount:
-		const UMOUNT_NOFOLLOW = 8
-		return syscall.Unmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		return sysUnmount(c.Entry.Dir, unmountNoFollow)
 	}
 	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
@@ -75,11 +83,11 @@ func (c *Change) Perform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
+func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]Entry, len(currentProfile.Entries))
+	current := make([]mount.Entry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]Entry, len(desiredProfile.Entries))
+	desired := make([]mount.Entry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -97,7 +105,7 @@ func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*Entry)
+	desiredMap := make(map[string]*mount.Entry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
