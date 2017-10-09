@@ -28,7 +28,7 @@ static void test_cleanup_sanity()
 		called = 1;
 	}
 	{
-		int test __attribute__ ((cleanup(fn)));
+		int test SC_CLEANUP(fn);
 		test = 0;
 		test++;
 	}
