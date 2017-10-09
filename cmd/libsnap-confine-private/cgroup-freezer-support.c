@@ -21,6 +21,8 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 {
 	// Format the name of the cgroup hierarchy. 
 	char buf[PATH_MAX];
+
+	// Format the name of the cgroup hierarchy.
 	sc_must_snprintf(buf, sizeof buf, "snap.%s", snap_name);
 
 	// Open the freezer cgroup directory.
@@ -44,7 +46,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 		    snap_name);
 	}
 	// Since we may be running from a setuid but not setgid executable, ensure
-	// that the group and owner of the hierarchy directory is root.root. 
+	// that the group and owner of the hierarchy directory is root.root.
 	if (fchownat(hierarchy_fd, "", 0, 0, AT_EMPTY_PATH) < 0) {
 		die("cannot change owner of freezer cgroup hierarchy for snap %s to root.root", snap_name);
 	}
