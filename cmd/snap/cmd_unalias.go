@@ -27,7 +27,7 @@ import (
 
 type cmdUnalias struct {
 	Positionals struct {
-		AliasOrSnap string `required:"yes"`
+		AliasOrSnap aliasOrSnap `required:"yes"`
 	} `positional-args:"true"`
 }
 
@@ -50,7 +50,7 @@ func (x *cmdUnalias) Execute(args []string) error {
 	}
 
 	cli := Client()
-	id, err := cli.Unalias(x.Positionals.AliasOrSnap)
+	id, err := cli.Unalias(string(x.Positionals.AliasOrSnap))
 	if err != nil {
 		return err
 	}

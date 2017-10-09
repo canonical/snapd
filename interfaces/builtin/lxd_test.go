@@ -69,8 +69,7 @@ func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
 		Interface: "lxd",
 	}}
 
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
-		"lxd slots are reserved for the core snap")
+	c.Assert(slot.Sanitize(s.iface), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
