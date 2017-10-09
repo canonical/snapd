@@ -45,6 +45,9 @@ case "$ID" in
 		# patches find their way into the distribution.
 		extra_opts="--libexecdir=/usr/lib/snapd --disable-apparmor"
 		;;
+	solus)
+		extra_opts="--enable-nvidia-biarch"
+		;;
 esac
 
 echo "Configuring with: $extra_opts"
