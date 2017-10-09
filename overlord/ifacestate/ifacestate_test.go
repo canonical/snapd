@@ -380,8 +380,6 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
 		c.Check(change.Status(), Equals, state.ErrorStatus)
 
 		repo := s.manager(c).Repository()
-		//plug := repo.Plug("consumer", "plug")
-		//slot := repo.Slot("producer", "slot")
 		ifaces := repo.Interfaces()
 		c.Check(ifaces.Connections, HasLen, 0)
 	})
@@ -537,8 +535,6 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	// Ensure that the connection has been removed from the repository
 	repo := mgr.Repository()
-	//plug := repo.Plug("consumer", "plug")
-	//slot := repo.Slot("producer", "slot")
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
 
