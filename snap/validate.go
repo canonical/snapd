@@ -164,8 +164,9 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 }
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
-// section of snap.yaml
-var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
+// section of snap.yaml. Do not allow any of [',",`] here or snap-exec
+// will get confused.
+var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 // ValidateApp verifies the content in the app info.
