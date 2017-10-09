@@ -78,13 +78,13 @@ struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
 	if (fname == NULL) {
 		fname = "/proc/self/mountinfo";
 	}
-	FILE *f __attribute__ ((cleanup(sc_cleanup_file))) = NULL;
+	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
 	f = fopen(fname, "rt");
 	if (f == NULL) {
 		free(info);
 		return NULL;
 	}
-	char *line __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *line SC_CLEANUP(sc_cleanup_string) = NULL;
 	size_t line_size = 0;
 	struct sc_mountinfo_entry *entry, *last = NULL;
 	for (;;) {
