@@ -4,7 +4,6 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local basic-run
 
-
 execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
