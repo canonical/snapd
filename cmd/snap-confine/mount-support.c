@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -155,8 +156,7 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 	}
 	if (child == 0) {
 		// We are the child, execute snap-update-ns
-		char *snap_name_copy
-		    __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
 			die("cannot copy snap name");
@@ -335,11 +335,28 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// assumes to find snap-exec
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
 				 scratch_dir);
-		// FIXME: take re-exec into account, i.e. this may not
-		//        actually be the path we need, we need snapd
-		//        to tell us what path to use instead.
-		const char *src = LIBEXECDIR;
-		sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+
+		// bind mount the current $ROOT/usr/lib/snapd path,
+		// where $ROOT is either "/" or the "/snap/core/current"
+		// that we are re-execing from
+		char *src = NULL;
+		char self[PATH_MAX + 1] = { 0, };
+		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+			die("cannot read /proc/self/exe");
+		}
+		// this cannot happen except when the kernel is buggy
+		if (strstr(self, "/snap-confine") == NULL) {
+			die("cannot use result from readlink: %s", src);
+		}
+		src = dirname(self);
+		// dirname(path) might return '.' depending on path.
+		// /proc/self/exe should always point
+		// to an absolute path, but let's guarantee that.
+		if (src[0] != '/') {
+			die("cannot use the result of dirname(): %s", src);
+		}
+
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 
 		// FIXME: snapctl tool - our apparmor policy wants it in
@@ -527,7 +544,7 @@ static int sc_open_snap_update_ns()
 	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
-	char *bufcopy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
 	bufcopy = strdup(buf);
 	if (bufcopy == NULL) {
 		die("cannot copy buffer");
@@ -548,14 +565,14 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
 	// will try to re-locate to the same directory (if possible).
-	char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
 	vanilla_cwd = get_current_dir_name();
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
 	// Find and open snap-update-ns from the same path as where we
 	// (snap-confine) were called.
-	int snap_update_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	bool on_classic_distro = is_running_on_classic_distribution();
@@ -664,8 +681,7 @@ static bool is_mounted_with_shared_option(const char *dir)
 
 static bool is_mounted_with_shared_option(const char *dir)
 {
-	struct sc_mountinfo *sm
-	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	struct sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	sm = sc_parse_mountinfo(NULL);
 	if (sm == NULL) {
 		die("cannot parse /proc/self/mountinfo");

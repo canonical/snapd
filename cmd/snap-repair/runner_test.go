@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -66,6 +67,8 @@ type baseRunnerSuite struct {
 	repairsAcctKey    *asserts.AccountKey
 
 	repairsSigning *assertstest.SigningDB
+
+	restoreLogger func()
 }
 
 func (s *baseRunnerSuite) SetUpSuite(c *C) {
@@ -105,6 +108,8 @@ func (s *baseRunnerSuite) SetUpSuite(c *C) {
 }
 
 func (s *baseRunnerSuite) SetUpTest(c *C) {
+	_, s.restoreLogger = logger.MockLogger()
+
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 
@@ -125,12 +130,9 @@ func (s *baseRunnerSuite) SetUpTest(c *C) {
 	s.t0 = time.Now().UTC().Truncate(time.Minute)
 }
 
-func (s *runnerSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-}
-
 func (s *baseRunnerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.restoreLogger()
 }
 
 func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
@@ -147,6 +149,15 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 		seq = append(seq, buf.String())
 	}
 	return seq
+}
+
+const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+
+func (s *baseRunnerSuite) freshState(c *C) {
+	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
+	c.Assert(err, IsNil)
 }
 
 type runnerSuite struct {
@@ -569,15 +580,6 @@ func (s *runnerSuite) TestPeekIdMismatch(c *C) {
 
 	_, err := runner.Peek("canonical", 4)
 	c.Assert(err, ErrorMatches, `cannot peek repair headers, repair id mismatch canonical/2 != canonical/4`)
-}
-
-const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
-
-func (s *runnerSuite) freshState(c *C) {
-	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
-	c.Assert(err, IsNil)
 }
 
 func (s *runnerSuite) TestLoadState(c *C) {
@@ -1615,13 +1617,13 @@ summary: repair one
 output:
 unhappy output
 
-"repair (1; brand-id:canonical)" failed: exit status 1`)
+repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	c.Check(s.errReport.repair, Equals, "canonical/1")
-	c.Check(s.errReport.errMsg, Equals, `"repair (1; brand-id:canonical)" failed: exit status 1`)
+	c.Check(s.errReport.errMsg, Equals, `repair canonical-1 revision 0 failed: exit status 1`)
 	c.Check(s.errReport.dupSig, Equals, `canonical/1
-"repair (1; brand-id:canonical)" failed: exit status 1
+repair canonical-1 revision 0 failed: exit status 1
 output:
 repair: canonical-1
 revision: 0
@@ -1684,7 +1686,7 @@ summary: repair one
 output:
 unhappy output
 
-"repair (1; brand-id:canonical)" failed: exit status 1`)
+repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
 
 	// run again, it will be happy this time
@@ -1739,7 +1741,7 @@ summary: repair one
 output:
 output before timeout
 
-"repair (1; brand-id:canonical)" failed: repair did not finish within 100ms`)
+repair canonical-1 revision 0 failed: repair did not finish within 100ms`)
 	verifyRepairStatus(c, repair.RetryStatus)
 }
 

@@ -184,7 +184,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// run refresh hook when updating existing snap, otherwise run install hook
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupRefreshHook(st, snapsup.Name())
+		refreshHook := SetupPostRefreshHook(st, snapsup.Name())
 		addTask(refreshHook)
 		prev = refreshHook
 	}
@@ -290,8 +290,8 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
 }
 
-var SetupRefreshHook = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.SetupRefreshHook is unset")
+var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPostRefreshHook is unset")
 }
 
 var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
@@ -903,6 +903,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
 	if !(flags.JailMode || flags.DevMode) {
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
@@ -1382,6 +1384,19 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 	flags.Revert = true
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
+	if !(flags.JailMode || flags.DevMode || flags.Classic) {
+		if snapst.Flags.DevMode {
+			flags.DevMode = true
+		}
+		if snapst.Flags.JailMode {
+			flags.JailMode = true
+		}
+		if snapst.Flags.Classic {
+			flags.Classic = true
+		}
+	}
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),

@@ -36,6 +36,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type repairSuite struct {
 	testutil.BaseTest
+	baseRunnerSuite
 
 	rootdir string
 
@@ -45,6 +46,7 @@ type repairSuite struct {
 
 func (r *repairSuite) SetUpTest(c *C) {
 	r.BaseTest.SetUpTest(c)
+	r.baseRunnerSuite.SetUpTest(c)
 
 	r.stdout = bytes.NewBuffer(nil)
 	r.stderr = bytes.NewBuffer(nil)

@@ -43,6 +43,12 @@ var defaultTemplate = `
   # for series 16 and cross-distro
   /etc/ld.so.preload r,
 
+  # The base abstraction doesn't yet have this
+  /lib/terminfo/** rk,
+  /usr/share/terminfo/** k,
+  /usr/share/zoneinfo/** k,
+  owner @{PROC}/@{pid}/maps k,
+
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
@@ -226,8 +232,10 @@ var defaultTemplate = `
   /usr/share/distro-info/*.csv r,
 
   # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
-  # but on 14.04 it is an actual file so it doens't fall under other rules.
-  /etc/os-release r,
+  # which is allowed by the base abstraction, but on 14.04 it is an actual file
+  # so need to add it here. Also allow read locks on the file.
+  /etc/os-release rk,
+  /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
@@ -278,6 +286,7 @@ var defaultTemplate = `
   /etc/{,writable/}localtime r,
   /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
+  owner @{PROC}/@{pid}/cgroup r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
   owner @{PROC}/@{pid}/loginuid r,
@@ -292,6 +301,7 @@ var defaultTemplate = `
   @{PROC}/@{pid}/task/[0-9]*/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/sys/kernel/ostype r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
@@ -299,6 +309,8 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
+  /sys/fs/cgroup/memory/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/snap.@{SNAP_NAME}{,.*}/memory.limit_in_bytes r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
@@ -408,6 +420,11 @@ var defaultTemplate = `
   # Allow all snaps to chroot
   capability sys_chroot,
   /{,usr/}sbin/chroot ixr,
+
+  # Lttng tracing is very noisy and should not be allowed by confined apps. Can
+  # safely deny for the normal case (LP: #1260491). If/when an lttng-trace
+  # interface is needed, we can rework this.
+  deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 
 ###SNIPPETS###
 }

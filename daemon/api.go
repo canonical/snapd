@@ -51,12 +51,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storestate"
@@ -506,21 +506,17 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result, nil)
 }
 
-func webify(result map[string]interface{}, resource string) map[string]interface{} {
-	result["resource"] = resource
-
-	icon, ok := result["icon"].(string)
-	if !ok || icon == "" || strings.HasPrefix(icon, "http") {
+func webify(result *client.Snap, resource string) *client.Snap {
+	if result.Icon == "" || strings.HasPrefix(result.Icon, "http") {
 		return result
 	}
-	result["icon"] = ""
+	result.Icon = ""
 
 	route := appIconCmd.d.router.Get(appIconCmd.Path)
 	if route != nil {
-		name, _ := result["name"].(string)
-		url, err := route.URL("name", name)
+		url, err := route.URL("name", result.Name)
 		if err == nil {
-			result["icon"] = url.String()
+			result.Icon = url.String()
 		}
 	}
 
@@ -2609,16 +2605,8 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
-type appInstruction struct {
-	Action string   `json:"action"`
-	Names  []string `json:"names"`
-	client.StartOptions
-	client.StopOptions
-	client.RestartOptions
-}
-
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	var inst appInstruction
+	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
@@ -2639,56 +2627,13 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	// the argv to call systemctl will need at most one entry per appInfo,
-	// plus one for "systemctl", one for the action, and sometimes one for
-	// an option. That's a maximum of 3+len(appInfos).
-	argv := make([]string, 2, 3+len(appInfos))
-	argv[0] = "systemctl"
-
-	argv[1] = inst.Action
-	switch inst.Action {
-	case "start":
-		if inst.Enable {
-			argv[1] = "enable"
-			argv = append(argv, "--now")
+	chg, err := servicestate.Change(st, appInfos, &inst)
+	if err != nil {
+		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
+			return Conflict(err.Error())
 		}
-	case "stop":
-		if inst.Disable {
-			argv[1] = "disable"
-			argv = append(argv, "--now")
-		}
-	case "restart":
-		if inst.Reload {
-			argv[1] = "reload-or-restart"
-		}
-	default:
-		return BadRequest("unknown action %q", inst.Action)
+		return BadRequest(err.Error())
 	}
-
-	snapNames := make([]string, 0, len(appInfos))
-	lastName := ""
-	names := make([]string, len(appInfos))
-	for i, svc := range appInfos {
-		argv = append(argv, svc.ServiceName())
-		snapName := svc.Snap.Name()
-		names[i] = snapName + "." + svc.Name
-		if snapName != lastName {
-			snapNames = append(snapNames, snapName)
-			lastName = snapName
-		}
-	}
-
-	desc := fmt.Sprintf("%s of %v", inst.Action, names)
-
-	st.Lock()
-	defer st.Unlock()
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
-		return InternalError(err.Error())
-	}
-
-	ts := cmdstate.Exec(st, desc, argv)
-	chg := st.NewChange("service-control", desc)
-	chg.AddAll(ts)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
