@@ -118,6 +118,21 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
+// expandEnvCmdArgs takes the string list of commandline arguments
+// and expands any $VAR with the given var from the env argument.
+func expandEnvCmdArgs(args []string, env map[string]string) []string {
+	cmdArgs := make([]string, 0, len(args))
+	for _, arg := range args {
+		maybeExpanded := os.Expand(arg, func(k string) string {
+			return env[k]
+		})
+		if maybeExpanded != "" {
+			cmdArgs = append(cmdArgs, maybeExpanded)
+		}
+	}
+	return cmdArgs
+}
+
 func snapExecApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
@@ -141,15 +156,16 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	if err != nil {
 		return err
 	}
-	// strings.Split() is ok here because we validate all app fields
-	// and the whitelist is pretty strict (see
-	// snap/validate.go:appContentWhitelist)
-	cmdArgv := strings.Split(cmdAndArgs, " ")
-	cmd := cmdArgv[0]
-	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
 	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
+
+	// strings.Split() is ok here because we validate all app fields
+	// and the whitelist is pretty strict (see
+	// snap/validate.go:appContentWhitelist)
+	tmpArgv := strings.Split(cmdAndArgs, " ")
+	cmd := tmpArgv[0]
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)

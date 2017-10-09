@@ -58,7 +58,7 @@ var mockYaml = []byte(`name: snapname
 version: 1.0
 apps:
  app:
-  command: run-app cmd-arg1
+  command: run-app cmd-arg1 $SNAP_DATA
   stop-command: stop-app
   post-stop-command: post-stop-app
   environment:
@@ -104,7 +104,7 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		cmd      string
 		expected string
 	}{
-		{cmd: "", expected: `run-app cmd-arg1`},
+		{cmd: "", expected: `run-app cmd-arg1 $SNAP_DATA`},
 		{cmd: "stop", expected: "stop-app"},
 		{cmd: "post-stop", expected: "post-stop-app"},
 	} {
@@ -312,4 +312,66 @@ func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
 	c.Check(execArgv0, Equals, "/bin/bash")
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "-c", "echo foo"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
+}
+
+func (s *snapExecSuite) TestSnapExecAppIntegrationWithVars(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		execEnv = env
+		return nil
+	}
+
+	// setup env
+	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
+	defer os.Unsetenv("SNAP_DATA")
+
+	// launch and verify its run the right way
+	err := snapExecApp("snapname.app", "42", "", []string{"user-arg1"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir))
+	c.Check(execArgs, DeepEquals, []string{execArgv0, "cmd-arg1", "/var/snap/snapname/42", "user-arg1"})
+	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
+	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
+}
+
+func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
+	for _, t := range []struct {
+		args     []string
+		env      map[string]string
+		expected []string
+	}{
+		{
+			args:     []string{"foo"},
+			env:      nil,
+			expected: []string{"foo"},
+		},
+		{
+			args:     []string{"$var"},
+			env:      map[string]string{"var": "value"},
+			expected: []string{"value"},
+		},
+		{
+			args:     []string{"foo", "$not_existing"},
+			env:      nil,
+			expected: []string{"foo"},
+		},
+		{
+			args:     []string{"foo", "$var", "baz"},
+			env:      map[string]string{"var": "bar", "unrelated": "env"},
+			expected: []string{"foo", "bar", "baz"},
+		},
+	} {
+		c.Check(expandEnvCmdArgs(t.args, t.env), DeepEquals, t.expected)
+
+	}
 }
