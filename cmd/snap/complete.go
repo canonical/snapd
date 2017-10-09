@@ -11,6 +11,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 )
 
 type installedSnapName string
@@ -363,6 +364,30 @@ func (s interfaceName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+type appName string
+
+func (s appName) Complete(match string) []flags.Completion {
+	cli := Client()
+	apps, err := cli.Apps(nil, client.AppOptions{})
+	if err != nil {
+		return nil
+	}
+
+	var ret []flags.Completion
+	for _, app := range apps {
+		if app.IsService() {
+			continue
+		}
+		name := snap.JoinSnapApp(app.Snap, app.Name)
+		if !strings.HasPrefix(name, match) {
+			continue
+		}
+		ret = append(ret, flags.Completion{Item: name})
+	}
+
+	return ret
+}
+
 type serviceName string
 
 func (s serviceName) Complete(match string) []flags.Completion {
@@ -385,5 +410,29 @@ func (s serviceName) Complete(match string) []flags.Completion {
 		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
 	}
 
+	return ret
+}
+
+type aliasOrSnap string
+
+func (s aliasOrSnap) Complete(match string) []flags.Completion {
+	aliases, err := Client().Aliases()
+	if err != nil {
+		return nil
+	}
+	var ret []flags.Completion
+	for snap, aliases := range aliases {
+		if strings.HasPrefix(snap, match) {
+			ret = append(ret, flags.Completion{Item: snap})
+		}
+		for alias, status := range aliases {
+			if status.Status == "disabled" {
+				continue
+			}
+			if strings.HasPrefix(alias, match) {
+				ret = append(ret, flags.Completion{Item: alias})
+			}
+		}
+	}
 	return ret
 }
