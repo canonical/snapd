@@ -6,7 +6,7 @@ description: |
     The test uses a snap which plugs the network manager interface. Then it is
     validated that the snap autoconects and can create a new connection.
     Connection against network devices cannot be validated on a virtual machine
-    due to network-manager is designed to not manage them.
+    due to network-manager being configured not to managed them.
 
 # run only against the amd64 VM, we cannot run this on arm/arm64
 # boards because the (wifi) network is already managed by netplan
@@ -34,11 +34,12 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "And allows to add a new connection"
-    network-manager.nmcli con add type ethernet con-name nmtest ifname eth0 | MATCH "successfully added"
-    network-manager.nmcli c | MATCH "^test .+ethernet +"
+    conn_name=nmtest
+    network-manager.nmcli con add type ethernet con-name $conn_name ifname eth0 | MATCH "successfully added"
+    network-manager.nmcli c | MATCH "^$conn_name .+ethernet +"
 
     echo "And allows to remove a connection"
-    network-manager.nmcli connection delete id nmtest | MATCH "successfully deleted"
+    network-manager.nmcli connection delete id $conn_name | MATCH "successfully deleted"
 
     echo "When the plug is disconnected"
     snap disconnect network-manager:nmcli
