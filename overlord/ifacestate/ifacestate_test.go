@@ -384,8 +384,6 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
 		//slot := repo.Slot("producer", "slot")
 		ifaces := repo.Interfaces()
 		c.Check(ifaces.Connections, HasLen, 0)
-		//c.Check(plug.Connections, HasLen, 0)
-		//c.Check(slot.Connections, HasLen, 0)
 	})
 }
 
@@ -543,8 +541,6 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	//slot := repo.Slot("producer", "slot")
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
-	//c.Assert(plug.Connections, HasLen, 0)
-	//c.Assert(slot.Connections, HasLen, 0)
 
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
