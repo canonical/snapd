@@ -17,26 +17,10 @@
  *
  */
 
-// snapbuild is a minimal executable wrapper around snap building to use for integration tests that need to build snaps under sudo.
-package main
+package pack
 
-import (
-	"fmt"
-	"os"
-
-	"github.com/snapcore/snapd/snap/snaptest"
+var (
+	CopyToBuildDir       = copyToBuildDir
+	ShouldExcludeDynamic = shouldExcludeDynamic
+	DebArchitecture      = debArchitecture
 )
-
-func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "snapbuild: expected sourceDir and targetDir\n")
-		os.Exit(1)
-	}
-
-	snapPath, err := snaptest.BuildSquashfsSnap(os.Args[1], os.Args[2])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "snapbuild: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stdout, "built: %s\n", snapPath)
-}

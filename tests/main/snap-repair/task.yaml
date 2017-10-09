@@ -17,6 +17,6 @@ execute: |
     systemctl list-timers | MATCH snapd.snap-repair.timer
 
     echo "Check that snap-repair can be run"
-    "${LIBEXECDIR}"/snapd/snap-repair run | MATCH "run is not implemented yet"
+    "${LIBEXECDIR}"/snapd/snap-repair run
 
     

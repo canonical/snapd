@@ -17,12 +17,14 @@
  *
  */
 
-package mount
+package main
 
 import (
 	"sort"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
 type sortSuite struct{}
@@ -31,7 +33,7 @@ var _ = Suite(&sortSuite{})
 
 func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
 	// Naively sorted entries.
-	entries := []Entry{
+	entries := []mount.Entry{
 		{Dir: "/a/b"},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
@@ -39,7 +41,7 @@ func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
 	}
 	sort.Sort(byMagicDir(entries))
 	// Entries sorted as if they had a trailing slash.
-	c.Assert(entries, DeepEquals, []Entry{
+	c.Assert(entries, DeepEquals, []mount.Entry{
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b"},
