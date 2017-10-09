@@ -34,7 +34,7 @@ prepare: |
     echo "Given a snap declaring a plug on browser-support with allow-sandbox set to $ALLOW_SANDBOX is installed"
     cp -ar "$TESTSLIB/snaps/browser-support-consumer" .
     sed "s/@ALLOW_SANDBOX@/$ALLOW_SANDBOX/" browser-support-consumer/meta/snap.yaml.in > browser-support-consumer/meta/snap.yaml
-    snapbuild browser-support-consumer browser-support-consumer
+    snap pack browser-support-consumer browser-support-consumer
     snap install --dangerous browser-support-consumer/*.snap
     rm -rf browser-support-consumer
 

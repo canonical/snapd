@@ -8,7 +8,7 @@ prepare: |
         exit
     fi
 
-    snapbuild "$TESTSLIB/snaps/basic" .
+    snap pack "$TESTSLIB/snaps/basic"
     snap download "--$CORE_CHANNEL" core
 
     "$TESTSLIB/reset.sh" --keep-stopped
