@@ -351,7 +351,33 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationWithVars(c *C) {
 }
 
 func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
-	args := []string{"foo", "$var", "baz"}
-	env := map[string]string{"var": "bar", "unrelated": "env"}
-	c.Check(snapExec.ExpandEnvCmdArgs(args, env), DeepEquals, []string{"foo", "bar", "baz"})
+	for _, t := range []struct {
+		args     []string
+		env      map[string]string
+		expected []string
+	}{
+		{
+			args:     []string{"foo"},
+			env:      nil,
+			expected: []string{"foo"},
+		},
+		{
+			args:     []string{"$var"},
+			env:      map[string]string{"var": "value"},
+			expected: []string{"value"},
+		},
+		{
+			args:     []string{"foo", "$not_existing"},
+			env:      nil,
+			expected: []string{"foo"},
+		},
+		{
+			args:     []string{"foo", "$var", "baz"},
+			env:      map[string]string{"var": "bar", "unrelated": "env"},
+			expected: []string{"foo", "bar", "baz"},
+		},
+	} {
+		c.Check(snapExec.ExpandEnvCmdArgs(t.args, t.env), DeepEquals, t.expected)
+
+	}
 }

@@ -4,7 +4,7 @@ prepare: |
     . $TESTSLIB/pkgdb.sh
     distro_install_package python3-yaml
 
-    snapbuild $TESTSLIB/snaps/basic .
+    snap pack $TESTSLIB/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
 
