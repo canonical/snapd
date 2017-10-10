@@ -201,7 +201,6 @@ func (*ANSIMeter) Notify(msgstr string) {
 
 func (p *ANSIMeter) Write(bs []byte) (n int, err error) {
 	n = len(bs)
-	// TODO: lock, n'eh
 	p.Set(p.written + float64(n))
 
 	return
