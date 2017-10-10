@@ -1,3 +1,12 @@
+snapd (2.28.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces: fix udev rules for tun
+    - release,cmd,dirs: Redo the distro checks to take into account
+      distribution families
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 10 Oct 2017 18:39:58 +0200
+
 snapd (2.28.1) xenial; urgency=medium
 
   * New upstream release, LP: #1714984
