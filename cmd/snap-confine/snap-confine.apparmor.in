@@ -475,6 +475,9 @@
         # Needed to perform mount/unmounts.
         capability sys_admin,
 
+        # Allow freezing and thawing the per-snap cgroup freezers
+        /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
+
         # Support mount profiles via the content interface. This should correspond
         # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
         # $SNAP_{DATA,COMMON} for both reading and writing.
