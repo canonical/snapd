@@ -5,6 +5,7 @@ import (
 	"syscall"
 )
 
+// Generic connection
 type NetlinkConn struct {
 	Fd   int
 	Addr syscall.SockaddrNetlink
@@ -14,8 +15,11 @@ type UEventConn struct {
 	NetlinkConn
 }
 
-// see: http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
-// and see: http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
+// Connect allow to connect to system socket AF_NETLINK with family NETLINK_KOBJECT_UEVENT to
+// catch events about block/char device
+// see:
+// - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
+// - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
 func (c *UEventConn) Connect() (err error) {
 
 	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
@@ -35,30 +39,59 @@ func (c *UEventConn) Connect() (err error) {
 	return
 }
 
+// Close allow to close file descriptor and socket bound
+func (c *UEventConn) Close() error {
+	return syscall.Close(c.Fd)
+}
+
+// ReadMsg allow to read an entire uevent msg
 func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	var n int
 
-	b := make([]byte, os.Getpagesize())
+	buf := make([]byte, os.Getpagesize())
 	for {
-		// Peek at the buffer to see how many bytes are available.
-		if n, _, err = syscall.Recvfrom(c.Fd, b, syscall.MSG_PEEK); err != nil {
+		// Just read how many bytes are available in the socket
+		if n, _, err = syscall.Recvfrom(c.Fd, buf, syscall.MSG_PEEK); err != nil {
 			return
 		}
 
-		// Break when we can read all messages.
-		if n < len(b) {
+		// If all message could be store inside the buffer : break
+		if n < len(buf) {
 			break
 		}
 
-		// Double in size if not enough bytes.
-		b = make([]byte, len(b)*2)
+		// Increase size of buffer if not enough
+		buf = make([]byte, len(buf)+os.Getpagesize())
 	}
 
 	// Now read complete data
-	n, _, _ = syscall.Recvfrom(c.Fd, b, 0)
+	n, _, _ = syscall.Recvfrom(c.Fd, buf, 0)
 
-	// Extract only real data from buffer
-	msg = b[:n]
+	// Extract only real data from buffer and return that
+	msg = buf[:n]
 
 	return
+}
+
+// Monitor run in background a worker to read netlink msg in loop and notify
+// when msg receive inside a queue using channel
+func (c *UEventConn) Monitor(queue chan []byte) chan bool {
+	quit := make(chan bool)
+	go func() {
+		loop := true
+		for loop {
+			select {
+			case <-quit:
+				loop = false
+				break
+			default:
+				msg, err := c.ReadMsg()
+				if err != nil {
+					continue
+				}
+				queue <- msg
+			}
+		}
+	}()
+	return quit
 }
