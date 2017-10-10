@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,9 +17,7 @@
  *
  */
 
-package snaptest
-
-// TODO: replace this using some subset from snapcraft or simplify further!
+package pack
 
 import (
 	"bufio"
@@ -119,7 +117,7 @@ func (k *keep) shouldExclude(basedir string, file string) bool {
 	}
 
 	// can't happen; can't even find a way to trigger it in testing.
-	panic(fmt.Sprintf("|-composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
+	panic(fmt.Sprintf("internal error: composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
 }
 
 var shouldExcludeDynamic = new(keep).shouldExclude
@@ -132,7 +130,7 @@ func shouldExclude(basedir string, file string) bool {
 func debArchitecture(info *snap.Info) string {
 	switch len(info.Architectures) {
 	case 0:
-		return "unknown"
+		return "all"
 	case 1:
 		return info.Architectures[0]
 	default:
@@ -246,9 +244,9 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	return snapName, nil
 }
 
-// BuildSquashfsSnap the given sourceDirectory and return the generated
+// Snap the given sourceDirectory and return the generated
 // snap file
-func BuildSquashfsSnap(sourceDir, targetDir string) (string, error) {
+func Snap(sourceDir, targetDir string) (string, error) {
 	// create build dir
 	buildDir, err := ioutil.TempDir("", "snappy-build-")
 	if err != nil {

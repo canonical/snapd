@@ -86,10 +86,10 @@ func run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return snapExecHook(snapApp, revision, opts.Hook)
+		return execHook(snapApp, revision, opts.Hook)
 	}
 
-	return snapExecApp(snapApp, revision, opts.Command, extraArgs)
+	return execApp(snapApp, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -121,7 +121,22 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func snapExecApp(snapApp, revision, command string, args []string) error {
+// expandEnvCmdArgs takes the string list of commandline arguments
+// and expands any $VAR with the given var from the env argument.
+func expandEnvCmdArgs(args []string, env map[string]string) []string {
+	cmdArgs := make([]string, 0, len(args))
+	for _, arg := range args {
+		maybeExpanded := os.Expand(arg, func(k string) string {
+			return env[k]
+		})
+		if maybeExpanded != "" {
+			cmdArgs = append(cmdArgs, maybeExpanded)
+		}
+	}
+	return cmdArgs
+}
+
+func execApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
@@ -144,15 +159,16 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	if err != nil {
 		return err
 	}
-	// strings.Split() is ok here because we validate all app fields
-	// and the whitelist is pretty strict (see
-	// snap/validate.go:appContentWhitelist)
-	cmdArgv := strings.Split(cmdAndArgs, " ")
-	cmd := cmdArgv[0]
-	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
 	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
+
+	// strings.Split() is ok here because we validate all app fields
+	// and the whitelist is pretty strict (see
+	// snap/validate.go:appContentWhitelist)
+	tmpArgv := strings.Split(cmdAndArgs, " ")
+	cmd := tmpArgv[0]
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
@@ -177,7 +193,7 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	return nil
 }
 
-func snapExecHook(snapName, revision, hookName string) error {
+func execHook(snapName, revision, hookName string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err
