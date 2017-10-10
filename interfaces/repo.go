@@ -777,7 +777,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for plugInfo := range r.slotPlugs[slotInfo] {
-			// FIXME: AddPermanent* methods will take PlugInfo/SlotInfo.
 			plug := &Plug{PlugInfo: plugInfo}
 			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
@@ -793,7 +792,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for slotInfo := range r.plugSlots[plugInfo] {
-			// FIXME: AddPermanent* methods will take PlugInfo/SlotInfo.
 			slot := &Slot{SlotInfo: slotInfo}
 			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
