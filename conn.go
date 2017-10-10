@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"syscall"
 )
@@ -73,10 +74,20 @@ func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	return
 }
 
+// ReadMsg allow to read an entire uevent msg
+func (c *UEventConn) ReadUEvent() (*UEvent, error) {
+	msg, err := c.ReadMsg()
+	if err != nil {
+		return nil, err
+	}
+
+	return ParseUEvent(msg)
+}
+
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel
-func (c *UEventConn) Monitor(queue chan []byte) chan bool {
-	quit := make(chan bool)
+func (c *UEventConn) Monitor(queue chan UEvent) chan bool {
+	quit := make(chan bool, 1)
 	go func() {
 		loop := true
 		for loop {
@@ -85,11 +96,12 @@ func (c *UEventConn) Monitor(queue chan []byte) chan bool {
 				loop = false
 				break
 			default:
-				msg, err := c.ReadMsg()
+				uevent, err := c.ReadUEvent()
 				if err != nil {
+					log.Printf("Unable to parse uevent, err: %s\n", err.Error())
 					continue
 				}
-				queue <- msg
+				queue <- *uevent
 			}
 		}
 	}()

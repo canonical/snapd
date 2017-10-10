@@ -16,7 +16,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	queue := make(chan []byte)
+	queue := make(chan UEvent)
 	quit := conn.Monitor(queue)
 
 	// Signal handler to quit properly monitor mode
@@ -32,8 +32,8 @@ func main() {
 	// Handling message from queue
 	for {
 		select {
-		case msg := <-queue:
-			log.Println("Handle msg:", string(msg))
+		case uevent := <-queue:
+			log.Printf("Handle msg: %#v\n", uevent)
 		}
 	}
 }
