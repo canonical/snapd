@@ -1524,7 +1524,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 
 		if pbar == nil {
-			pbar = &progress.NullProgress{}
+			pbar = progress.Null
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
