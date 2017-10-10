@@ -89,7 +89,7 @@ func run() error {
 	defer lock.Close()
 
 	if opts.FromSnapConfine {
-		// When --from-snap-conifne is passed then we just ensure that the
+		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
