@@ -796,7 +796,7 @@ func (*licenseData) Error() string {
 }
 
 type snapInstruction struct {
-	progress.NullProgress
+	progress.NullMeter
 	Action           string        `json:"action"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
@@ -2593,7 +2593,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)
