@@ -106,7 +106,7 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 
 	p := &progress.ANSIMeter{}
 	msg := "0123456789"
-	ticker := time.NewTicker(time.Second / 100)
+	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 	p.Start(msg, 1E300)
 	for i := 1; i <= 80; i++ {
@@ -127,7 +127,7 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 		case i <= 29:
 			c.Check(out, check.Equals, fmt.Sprintf("\r%*s   0%% ages!", -(i-11), msg), desc)
 		default:
-			c.Check(out, check.Equals, fmt.Sprintf("\r%*s   0%%    99B/s ages!", -(i-20), msg), desc)
+			c.Check(out, check.Matches, fmt.Sprintf("\r%*s   0%%  [ 0-9]{4}B/s ages!", -(i-20), msg), desc)
 		}
 	}
 }
