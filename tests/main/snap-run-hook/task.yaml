@@ -9,11 +9,8 @@ environment:
 
 prepare: |
     echo "Build test hooks package"
-    snapbuild $TESTSLIB/snaps/basic-hooks .
+    snap pack $TESTSLIB/snaps/basic-hooks
     snap install --dangerous basic-hooks_1.0_all.snap
-
-restore: |
-    rm basic-hooks_1.0_all.snap
 
 restore: |
     rm basic-hooks_1.0_all.snap

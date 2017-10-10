@@ -45,7 +45,7 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
 			 sc_cookie_dir, snap_name);
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int fd SC_CLEANUP(sc_cleanup_close) = -1;
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		err =

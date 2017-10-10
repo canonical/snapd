@@ -236,7 +236,6 @@ Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
 Provides:      golang(%{import_path}/httputil) = %{version}-%{release}
 Provides:      golang(%{import_path}/i18n) = %{version}-%{release}
-Provides:      golang(%{import_path}/i18n/dumb) = %{version}-%{release}
 Provides:      golang(%{import_path}/image) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/apparmor) = %{version}-%{release}
@@ -366,9 +365,9 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
-%gobuild -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-# build snap-exec completely static for base snaps
+# build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+%gobuild -o bin/snap-update-ns  --ldflags '-extldflags "-static"' $GOFLAGS %{import_path}/cmd/snap-update-ns
 
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
@@ -427,6 +426,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
+install -d -p %{buildroot}%{_localstatedir}/cache/snapd
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
 
@@ -574,6 +574,7 @@ popd
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
+%dir /var/cache/snapd
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
@@ -590,7 +591,7 @@ popd
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
-%{_mandir}/man5/snap-confine.5*
+%{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
 %{_udevrulesdir}/80-snappy-assign.rules
@@ -937,6 +938,12 @@ fi
  - cmd,tests: fix classic confinement confusing re-execution code
  - store: configurable base api
  - tests: fix how package lists are updated for opensuse and fedora
+
+* Thu Sep 07 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.6
+  - interfaces: add udev netlink support to hardware-observe
+  - interfaces/network-{control,observe}: allow receiving
+    kobject_uevent() messages
 
 * Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.5

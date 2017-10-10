@@ -38,8 +38,9 @@ import (
 )
 
 type servicesTestSuite struct {
-	tempdir    string
-	prevctlCmd func(...string) ([]byte, error)
+	tempdir string
+
+	restorer func()
 }
 
 var _ = Suite(&servicesTestSuite{})
@@ -48,23 +49,23 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.restorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	systemd.SystemctlCmd = s.prevctlCmd
+	s.restorer()
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	var sysdLog [][]string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
@@ -87,7 +88,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	sysdLog = nil
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -96,7 +97,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	})
 
 	sysdLog = nil
-	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
+	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(sysdLog, HasLen, 2)
@@ -109,14 +110,15 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 	defer restore()
 
 	var sysdLog [][]string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl show" that
 		// StopServices generates
 		if cmd[0] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
 		return []byte("ActiveState=active\n"), nil
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, `name: wat
 version: 42
@@ -134,7 +136,7 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -147,10 +149,11 @@ apps:
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
 	var sysdLog [][]string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
@@ -168,10 +171,11 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		return nil, nil
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
@@ -208,7 +212,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		sdcmd := cmd[0]
 		if len(cmd) >= 2 {
@@ -234,7 +238,8 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
 		default:
 			panic("unexpected systemctl command " + sdcmd)
 		}
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
@@ -267,7 +272,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	c.Check(svcFiles, HasLen, 0)
 
 	first := true
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) < 2 {
 			return nil, fmt.Errorf("failed")
@@ -281,7 +286,8 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 		}
 		return nil, nil
 
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
@@ -289,7 +295,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
   daemon: simple
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, &progress.NullProgress{})
+	err := wrappers.AddSnapServices(info, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 
 	// the services are cleaned up
@@ -311,7 +317,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	svc2Name := "snap.hello-snap.svc2.service"
 	numStarts := 0
 
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 2 && cmd[len(cmd)-2] == "start" {
 			numStarts++
@@ -325,7 +331,8 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 			}
 		}
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+	defer r()
 
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
