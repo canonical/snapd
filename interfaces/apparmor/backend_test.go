@@ -293,6 +293,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
@@ -366,6 +369,9 @@ snippet
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
 	// NOTE: replace the real template with a shorter variant
 	restoreTemplate := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
@@ -484,5 +490,9 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
 	})
+
+	// snap-confine.d was created
+	_, err = os.Stat(dirs.SnapAppArmorConfineDir)
+	c.Check(err, IsNil)
 
 }

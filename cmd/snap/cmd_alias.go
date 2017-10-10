@@ -33,8 +33,8 @@ import (
 
 type cmdAlias struct {
 	Positionals struct {
-		SnapApp string `required:"yes"`
-		Alias   string `required:"yes"`
+		SnapApp appName `required:"yes"`
+		Alias   string  `required:"yes"`
 	} `positional-args:"true"`
 }
 
@@ -61,7 +61,7 @@ func (x *cmdAlias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName, appName := snap.SplitSnapApp(x.Positionals.SnapApp)
+	snapName, appName := snap.SplitSnapApp(string(x.Positionals.SnapApp))
 	alias := x.Positionals.Alias
 
 	cli := Client()

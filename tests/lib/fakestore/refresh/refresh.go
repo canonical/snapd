@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
@@ -67,7 +66,7 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 		case 1:
 			return as[0], nil
 		case 0:
-			return nil, &store.AssertionNotFoundError{Ref: ref}
+			return nil, &asserts.NotFoundError{Type: ref.Type, Headers: headers}
 		default:
 			panic(fmt.Sprintf("multiple assertions when retrieving by primary key: %v", ref))
 		}
@@ -192,7 +191,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 
 func buildSnap(snapDir, targetDir string) (*info, error) {
 	// build in /var/tmp (which is not a tempfs)
-	cmd := exec.Command("snapbuild", snapDir, targetDir)
+	cmd := exec.Command("snap", "pack", snapDir, targetDir)
 	cmd.Env = append(os.Environ(), "TMPDIR=/var/tmp")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -22,7 +22,6 @@ package main
 var (
 	Compile         = compile
 	SeccompResolver = seccompResolver
-	FindGid         = findGid
 )
 
 func MockArchUbuntuArchitecture(f func() string) (restore func()) {
