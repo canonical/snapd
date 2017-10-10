@@ -112,7 +112,7 @@ func (r *Repair) Run() error {
 	}
 
 	// ensure the script can use "repair done"
-	repairToolsDir := filepath.Join(dirs.SnapRunDir, "repair/tools")
+	repairToolsDir := filepath.Join(dirs.SnapRunRepairDir, "tools")
 	if err := makeRepairSymlink(repairToolsDir); err != nil {
 		return err
 	}
@@ -142,6 +142,8 @@ func (r *Repair) Run() error {
 	}
 	defer statusR.Close()
 	defer statusW.Close()
+
+	logger.Debugf("executing %s", script)
 
 	// run the script
 	env := os.Environ()
@@ -207,7 +209,7 @@ func (r *Repair) Run() error {
 	// if the script had an error exit status still honor what we
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
-		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
 		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
@@ -229,6 +231,7 @@ func readStatus(r io.Reader) RepairStatus {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
 			status = DoneStatus
+		// TODO: support having a script skip over many and up to a given repair-id #
 		case "skip":
 			status = SkipStatus
 		}
@@ -336,6 +339,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
+			logger.Debugf("fetching repair %s-%d", brandID, repairID)
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,

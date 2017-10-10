@@ -24,7 +24,7 @@ environment:
 
 prepare: |
     echo "Given a snap declaring a plug on the firewall-control interface is installed"
-    snapbuild $TESTSLIB/snaps/firewall-control-consumer .
+    snap pack $TESTSLIB/snaps/firewall-control-consumer
     snap install --dangerous firewall-control-consumer_1.0_all.snap
 
     echo "And a service is listening"

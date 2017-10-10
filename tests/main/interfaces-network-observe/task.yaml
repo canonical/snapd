@@ -21,7 +21,7 @@ prepare: |
     . "$TESTSLIB/systemd.sh"
 
     echo "Given a snap declaring a plug on the network-observe interface is installed"
-    snapbuild $TESTSLIB/snaps/network-observe-consumer .
+    snap pack $TESTSLIB/snaps/network-observe-consumer
     snap install --dangerous network-observe-consumer_1.0_all.snap
 
     echo "And a network service is up"

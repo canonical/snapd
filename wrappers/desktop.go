@@ -122,7 +122,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
-func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
+func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) ([]byte, error) {
 	var newContent bytes.Buffer
 	mountDir := []byte(s.MountDir())
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -139,8 +139,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 			var err error
 			line, err := rewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
-				// something went wrong, ignore the line
-				continue
+				return nil, err
 			}
 			bline = []byte(line)
 		}
@@ -153,7 +152,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		newContent.WriteByte('\n')
 	}
 
-	return newContent.Bytes()
+	return newContent.Bytes(), nil
 }
 
 func updateDesktopDatabase(desktopFiles []string) error {
@@ -201,7 +200,10 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 		}
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
-		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
+		content, err = sanitizeDesktopFile(s, installedDesktopFileName, content)
+		if err != nil {
+			return fmt.Errorf("cannot write %q: %s", df, err)
+		}
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
 		}
