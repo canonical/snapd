@@ -101,6 +101,14 @@ func run() error {
 		}
 	}
 
+	// Freeze the mount namespace and unfreeze it later. This lets us perform
+	// modifications without snap processes attempting to construct symlinks or
+	// perform other malicious activity.
+	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
+		return err
+	}
+	defer thawSnapProcesses(opts.Positionals.SnapName)
+
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.

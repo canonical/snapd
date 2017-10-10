@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -31,7 +32,12 @@ const freezerCgroup = "/sys/fs/cgroup/freezer"
 
 func freezeSnapProcesses(snapName string) error {
 	fname := filepath.Join(freezerCgroup, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := ioutil.WriteFile(fname, []byte("FROZEN"), 0644); err != nil {
+	if err := ioutil.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
+		// When there's no freezer cgroup we don't have to freeze anything.
+		// This can happen when no process belonging to a given snap has been
+		// started yet.
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 	}
 	for i := 0; i < 10; i++ {
@@ -51,7 +57,12 @@ func freezeSnapProcesses(snapName string) error {
 
 func thawSnapProcesses(snapName string) error {
 	fname := filepath.Join(freezerCgroup, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := ioutil.WriteFile(fname, []byte("THAWED"), 0644); err != nil {
+	if err := ioutil.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
+		// When there's no freezer cgroup we don't have to thaw anything.
+		// This can happen when no process belonging to a given snap has been
+		// started yet.
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("cannot thaw processes of snap %q", snapName)
 	}
 	return nil

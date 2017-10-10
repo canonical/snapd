@@ -152,11 +152,8 @@ func (c *Change) Perform() error {
 		// $SNAP_DATA/subdirectory.
 		//
 		// We use lstat to ensure that we don't follow the symlink in case one
-		// was set up by the snap but this is not coded defensively as the code
-		// may execute concurrently with snap application processes.
-		//
-		// To have better defense we may consider freezing the freezer cgroup
-		// belonging to the snap during the execution of snap-update-ns.
+		// was set up by the snap. At the time Change.Perform runs all the
+		// processes in the snap should be frozen.
 		if _, err := osLstat(c.Entry.Dir); err != nil {
 			if !os.IsNotExist(err) {
 				return err
