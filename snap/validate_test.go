@@ -145,7 +145,8 @@ func (s *ValidateSuite) TestValidateAppSockets(c *C) {
 				Revision: Revision{20},
 			},
 		},
-		Name: "foo",
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -166,13 +167,40 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 				Revision: Revision{20},
 			},
 		},
-		Name: "foo",
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
 	}
 	socket.App = &app
 	c.Check(ValidateApp(&app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
+	socket := &SocketInfo{
+		Name:         "sock",
+		ListenStream: "/var/snap/mysnap/common/socket",
+		SocketMode:   0600,
+	}
+	app := AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: Revision{20},
+			},
+		},
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"some-plug": &PlugInfo{}},
+		Sockets: map[string]*SocketInfo{
+			"sock": socket,
+		},
+	}
+	socket.App = &app
+	err := ValidateApp(&app)
+	c.Assert(
+		err, ErrorMatches,
+		`app with sockets must declare the "network-bind" plug`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
@@ -184,7 +212,8 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 				Revision: Revision{20},
 			},
 		},
-		Name: "foo",
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -206,7 +235,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
 				Revision: Revision{20},
 			},
 		},
-		Name: "foo",
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -226,6 +256,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app
@@ -261,6 +292,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app
@@ -288,6 +320,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathVariable(c 
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app
@@ -315,6 +348,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app
@@ -340,6 +374,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app
@@ -365,6 +400,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 			},
 		},
 		Name:    "myapp",
+		Plugs:   map[string]*PlugInfo{"network-bind": &PlugInfo{}},
 		Sockets: map[string]*SocketInfo{"sock": socket},
 	}
 	socket.App = &app

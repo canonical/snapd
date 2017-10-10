@@ -286,6 +286,13 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	// Socket activatin requires the "network-bind" plug
+	if len(app.Sockets) > 0 {
+		if _, ok := app.Plugs["network-bind"]; !ok {
+			return fmt.Errorf(`app with sockets must declare the "network-bind" plug`)
+		}
+	}
+
 	for _, socket := range app.Sockets {
 		err := validateAppSocket(socket)
 		if err != nil {

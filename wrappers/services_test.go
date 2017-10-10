@@ -111,6 +111,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
+  plugs: [network-bind]
   sockets:
     sock1:
       listen-stream: $SNAP_DATA/sock1.socket
@@ -190,6 +191,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
+  plugs: [network-bind]
   sockets:
     sock1:
       listen-stream: $SNAP_COMMON/sock1.socket
@@ -387,6 +389,7 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
+  plugs: [network-bind]
   sockets:
     sock1:
       listen-stream: $SNAP_COMMON/sock1.socket

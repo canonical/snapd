@@ -248,6 +248,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 		Name:    "xkcd-webserver",
 		Command: "bin/foo start",
 		Daemon:  "simple",
+		Plugs:   map[string]*snap.PlugInfo{"network-bind": &snap.PlugInfo{}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
