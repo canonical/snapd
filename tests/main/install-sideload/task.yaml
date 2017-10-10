@@ -3,7 +3,7 @@ summary: Checks for snap sideload install
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
-        snapbuild $TESTSLIB/snaps/$snap .
+        snap pack $TESTSLIB/snaps/$snap
     done
 
 environment:

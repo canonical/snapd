@@ -88,7 +88,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	sysdLog = nil
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -97,7 +97,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	})
 
 	sysdLog = nil
-	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
+	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(sysdLog, HasLen, 2)
@@ -136,7 +136,7 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -295,7 +295,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
   daemon: simple
 `, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, &progress.NullProgress{})
+	err := wrappers.AddSnapServices(info, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 
 	// the services are cleaned up

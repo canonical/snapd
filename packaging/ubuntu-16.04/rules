@@ -70,7 +70,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
@@ -161,68 +161,6 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
 endif
-
-override_dh_systemd_enable:
-	# enable auto-import
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	# we want the auto-update timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but the auto-update service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# we want the repair timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.timer
-	# but the repair service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.service
-	# enable snapd
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.system-shutdown.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
-
-override_dh_systemd_start:
-	# we want to start the auto-update timer
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but not start the service
-	dh_systemd_start \
-		--no-start \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# start snapd
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.service
-	# start autoimport
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
