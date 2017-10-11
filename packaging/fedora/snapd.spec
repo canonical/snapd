@@ -938,6 +938,12 @@ fi
  - store: configurable base api
  - tests: fix how package lists are updated for opensuse and fedora
 
+* Thu Sep 07 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.27.6
+  - interfaces: add udev netlink support to hardware-observe
+  - interfaces/network-{control,observe}: allow receiving
+    kobject_uevent() messages
+
 * Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.5
   - interfaces: fix network-manager plug regression
