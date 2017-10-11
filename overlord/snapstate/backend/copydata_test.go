@@ -192,7 +192,8 @@ func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revisio
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), []byte(fmt.Sprintln(revision)), 0644)
 	c.Assert(err, IsNil)
-	return
+
+	return homedir
 }
 
 func (s *copydataSuite) TestCopyDataDoUndo(c *C) {

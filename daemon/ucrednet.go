@@ -57,7 +57,8 @@ func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, err error) {
 	if pid == ucrednetNoProcess || uid == ucrednetNobody {
 		err = errNoID
 	}
-	return
+
+	return pid, uid, err
 }
 
 type ucrednetAddr struct {
