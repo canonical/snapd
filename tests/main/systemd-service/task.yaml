@@ -5,7 +5,7 @@ environment:
 
 execute: |
     echo "Given a service snap is installed"
-    snapbuild $TESTSLIB/snaps/network-bind-consumer .
+    snap pack $TESTSLIB/snaps/network-bind-consumer
     snap install --dangerous network-bind-consumer_1.0_all.snap
 
     echo "When the service state is reported as active"
