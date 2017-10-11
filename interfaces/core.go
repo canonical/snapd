@@ -128,12 +128,20 @@ type ConnRef struct {
 }
 
 type Connection struct {
+	plug *ConnectedPlug
+	slot *ConnectedSlot
+}
+
+type ConnectedPlug struct {
 	plugInfo *snap.PlugInfo
+}
+
+type ConnectedSlot struct {
 	slotInfo *snap.SlotInfo
 }
 
 func (conn *Connection) Interface() string {
-	return conn.plugInfo.Interface
+	return conn.plug.plugInfo.Interface
 }
 
 // ID returns a string identifying a given connection.
