@@ -206,7 +206,7 @@ func (s *changeSuite) TestPerformMount(c *C) {
 }
 
 // Change.Perform mkdir's the missing mount target.
-func (s *changeSuite) TestPerformMountAutomaticMkdir(c *C) {
+func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), IsNil)
@@ -215,6 +215,23 @@ func (s *changeSuite) TestPerformMountAutomaticMkdir(c *C) {
 		`mkdirall "target" "-rwxr-xr-x"`,
 		`chown "target" 0 0`,
 		`mount "source" "target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform mkdir's the missing bind-mount source.
+func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
+	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
+	s.sys.InsertFault(`lstat "source"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bind"}}}
+	c.Assert(chg.Perform(), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mkdirall "target" "-rwxr-xr-x"`,
+		`chown "target" 0 0`,
+		`lstat "source"`,
+		`mkdirall "source" "-rwxr-xr-x"`,
+		`chown "source" 0 0`,
+		`mount "source" "target" "type" 4096 ""`, // 4096 is MS_BIND
 	})
 }
 

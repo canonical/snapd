@@ -136,6 +136,31 @@ func SecureMkdirAll(name string, perm os.FileMode) error {
 	return nil
 }
 
+func ensureMountPoint(path string) error {
+	// If the mount point is not present then create a directory in its
+	// place.  This is very naive, doesn't handle read-only file systems
+	// but it is a good starting point for people working with things like
+	// $SNAP_DATA/subdirectory.
+	//
+	// We use lstat to ensure that we don't follow the symlink in case one
+	// was set up by the snap. At the time Change.Perform runs all the
+	// processes in the snap should be frozen.
+	if _, err := osLstat(path); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		// TODO: use the right mode and ownership.
+		if err := osMkdirAll(path, 0755); err != nil {
+			return err
+		}
+		// TODO: change ownership recursively.
+		if err := osChown(path, 0, 0); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
@@ -146,23 +171,14 @@ func (c *Change) Perform() error {
 		if err != nil {
 			return err
 		}
-		// If the mount point is not present then create a directory in its
-		// place.  This is very naive, doesn't handle read-only file systems
-		// but it is a good starting point for people working with things like
-		// $SNAP_DATA/subdirectory.
-		//
-		// We use lstat to ensure that we don't follow the symlink in case one
-		// was set up by the snap. At the time Change.Perform runs all the
-		// processes in the snap should be frozen.
-		if _, err := osLstat(c.Entry.Dir); err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-			// TODO: use the right mode and ownership.
-			if err := osMkdirAll(c.Entry.Dir, 0755); err != nil {
-				return err
-			}
-			if err := osChown(c.Entry.Dir, 0, 0); err != nil {
+		// Create target mount directory if needed.
+		if err := ensureMountPoint(c.Entry.Dir); err != nil {
+			return err
+		}
+		// If this is a bind mount then create the source directory as well.
+		// This allows snaps to share a subset of their data easily.
+		if flags&syscall.MS_BIND != 0 {
+			if err := ensureMountPoint(c.Entry.Name); err != nil {
 				return err
 			}
 		}
