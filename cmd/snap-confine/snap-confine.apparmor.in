@@ -492,7 +492,15 @@
         mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
         mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
 
-        # Allow creating missing mount directories under $SNAP_DATA
+        # Allow creating missing mount directories under $SNAP_DATA.
+        #
+        # The "tree" of permissions is needed for SecureMkdirAll that uses
+        # open(..., O_NOFOLLOW) and mkdirat() using the resulting file
+        # descriptor.
+        / r,
+        /var/ r,
+        /var/snap/ r,
+        /var/snap/*/ r,
         /var/snap/*/** rw,
 
         # Allow the content interface to bind fonts from the host filesystem
