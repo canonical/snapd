@@ -18,7 +18,7 @@ environment:
 
 prepare: |
     echo "Given a snap declaring the home plug is installed"
-    snapbuild $TESTSLIB/snaps/home-consumer .
+    snap pack $TESTSLIB/snaps/home-consumer
     snap install --dangerous $SNAP_FILE
 
     echo "And there is a readable file in HOME"

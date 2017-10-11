@@ -283,9 +283,9 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 		io.WriteString(w, mockStoreReturnNonce)
 	}))
 	defer mockServer.Close()
-	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
-	nonce, err := requestStoreDeviceNonce()
+	deviceNonceAPI := mockServer.URL + "/api/v1/snaps/auth/nonces"
+	nonce, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, IsNil)
 	c.Assert(nonce, Equals, "the-nonce")
 }
@@ -301,9 +301,9 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceRetry500(c *C) {
 		}
 	}))
 	defer mockServer.Close()
-	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
-	nonce, err := requestStoreDeviceNonce()
+	deviceNonceAPI := mockServer.URL + "/api/v1/snaps/auth/nonces"
+	nonce, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, IsNil)
 	c.Assert(nonce, Equals, "the-nonce")
 	c.Assert(n, Equals, 4)
@@ -316,17 +316,17 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce500(c *C) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
-	_, err := requestStoreDeviceNonce()
+	deviceNonceAPI := mockServer.URL + "/api/v1/snaps/auth/nonces"
+	_, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get nonce from store: store server returned status 500`)
 	c.Assert(n, Equals, 5)
 }
 
 func (s *authTestSuite) TestRequestStoreDeviceNonceFailureOnDNS(c *C) {
-	DeviceNonceAPI = "http://nonexistingserver121321.com/api/v1/snaps/auth/nonces"
-	_, err := requestStoreDeviceNonce()
+	deviceNonceAPI := "http://nonexistingserver121321.com/api/v1/snaps/auth/nonces"
+	_, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get nonce from store.*`)
 }
@@ -336,9 +336,9 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 		io.WriteString(w, mockStoreReturnNoNonce)
 	}))
 	defer mockServer.Close()
-	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
-	nonce, err := requestStoreDeviceNonce()
+	deviceNonceAPI := mockServer.URL + "/api/v1/snaps/auth/nonces"
+	nonce, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
 	c.Assert(nonce, Equals, "")
 }
@@ -350,9 +350,9 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	DeviceNonceAPI = mockServer.URL + "/api/v1/snaps/auth/nonces"
 
-	nonce, err := requestStoreDeviceNonce()
+	deviceNonceAPI := mockServer.URL + "/api/v1/snaps/auth/nonces"
+	nonce, err := requestStoreDeviceNonce(deviceNonceAPI)
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
 	c.Assert(n, Equals, 5)
 	c.Assert(nonce, Equals, "")
@@ -382,9 +382,9 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
+	deviceSessionAPI := mockServer.URL + "/api/v1/snaps/auth/sessions"
+	macaroon, err := requestDeviceSession(deviceSessionAPI, &testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -399,9 +399,9 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "previous-session")
+	deviceSessionAPI := mockServer.URL + "/api/v1/snaps/auth/sessions"
+	macaroon, err := requestDeviceSession(deviceSessionAPI, &testDeviceSessionRequestParamsEncoder{}, "previous-session")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -411,9 +411,9 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
+	deviceSessionAPI := mockServer.URL + "/api/v1/snaps/auth/sessions"
+	macaroon, err := requestDeviceSession(deviceSessionAPI, &testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -426,9 +426,9 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	DeviceSessionAPI = mockServer.URL + "/api/v1/snaps/auth/sessions"
 
-	macaroon, err := requestDeviceSession(&testDeviceSessionRequestParamsEncoder{}, "")
+	deviceSessionAPI := mockServer.URL + "/api/v1/snaps/auth/sessions"
+	macaroon, err := requestDeviceSession(deviceSessionAPI, &testDeviceSessionRequestParamsEncoder{}, "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")

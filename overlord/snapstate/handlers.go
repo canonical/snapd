@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -114,6 +115,107 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
     SnapManger.blockedTask and TaskRunner.SetBlocked
 
 */
+
+const defaultCoreSnapName = "core"
+const defaultBaseSnapsChannel = "stable"
+
+func changeInFlight(st *state.State, snapName string) (bool, error) {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, tc := range chg.Tasks() {
+			if tc.Kind() == "link-snap" || tc.Kind() == "discard-snap" {
+				snapsup, err := TaskSnapSetup(tc)
+				if err != nil {
+					return false, err
+				}
+				// some other change aleady inflight
+				if snapsup.Name() == snapName {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// timeout for tasks to check if the prerequisites are ready
+var prerequisitesRetryTimeout = 30 * time.Second
+
+func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// check if we need to inject tasks to install core
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// core/ubuntu-core can not have prerequisites
+	snapName := snapsup.Name()
+	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+		return nil
+	}
+
+	// check prereqs
+	prereqName := defaultCoreSnapName
+	if snapsup.Base != "" {
+		prereqName = snapsup.Base
+	}
+
+	var prereqState SnapState
+	err = Get(st, prereqName, &prereqState)
+	// we have the prereq already
+	if err == nil {
+		return nil
+	}
+	// if it is a real error, report
+	if err != state.ErrNoState {
+		return err
+	}
+
+	// check that there is no task that installs the prereq already
+	prereqPending, err := changeInFlight(st, prereqName)
+	if err != nil {
+		return err
+	}
+	if prereqPending {
+		// if something else installs core already we need to
+		// wait for that to either finish successfully or fail
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+
+	// not installed, nor queued for install -> install it
+	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	// something might have triggered an explicit install of core while
+	// the state was unlocked -> deal with that here
+	if _, ok := err.(changeDuringInstallError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	if _, ok := err.(changeConflictError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	if err != nil {
+		return err
+	}
+	ts.JoinLane(st.NewLane())
+
+	// inject install for core into this change
+	chg := t.Change()
+	for _, t := range chg.Tasks() {
+		t.WaitAll(ts)
+	}
+	chg.AddAll(ts)
+	// make sure that the new change is committed to the state
+	// together with marking this task done
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -223,7 +325,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {

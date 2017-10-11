@@ -64,6 +64,9 @@ type SystemdTestSuite struct {
 	jfollows []bool
 
 	rep *testreporter
+
+	restoreSystemctl  func()
+	restoreJournalctl func()
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -76,13 +79,13 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	SystemctlCmd = s.myRun
+	s.restoreSystemctl = MockSystemctl(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
 
-	JournalctlCmd = s.myJctl
+	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
 	s.jns = nil
 	s.jsvcs = nil
@@ -94,8 +97,8 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
-	SystemctlCmd = SystemdRun
-	JournalctlCmd = Jctl
+	s.restoreSystemctl()
+	s.restoreJournalctl()
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -334,6 +337,12 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	err := New("xyzzy", s.rep).Disable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestAvailable(c *C) {
+	err := Available()
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {

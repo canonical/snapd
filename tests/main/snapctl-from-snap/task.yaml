@@ -3,7 +3,7 @@ summary: Check that `snapctl` can be run from the snap
 prepare: |
     snap install --devmode jq
     echo "Build basic test package"
-    snapbuild $TESTSLIB/snaps/snapctl-from-snap .
+    snap pack $TESTSLIB/snaps/snapctl-from-snap
   
 restore: |
     rm snapctl-from-snap_1.0_all.snap

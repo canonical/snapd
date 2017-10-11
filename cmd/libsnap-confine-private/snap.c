@@ -99,6 +99,8 @@ static int skip_one_char(const char **p, char c)
 
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: validate_snap_name and snap.ValidateName.
 	struct sc_error *err = NULL;
 
 	// Ensure that name is not NULL
