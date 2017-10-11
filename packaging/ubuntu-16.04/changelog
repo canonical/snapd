@@ -1,3 +1,11 @@
+snapd (2.28.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/lxd: lxd slot implementation can also be an app
+      snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 08:20:26 +0200
+
 snapd (2.28.2) xenial; urgency=medium
 
   * New upstream release, LP: #1714984
