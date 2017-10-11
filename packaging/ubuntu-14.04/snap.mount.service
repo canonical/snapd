@@ -1,3 +1,4 @@
+# trusty needs this to make /snap rshared
 [Unit]
 Description=Apply special mount sharing to /snap directory
 ConditionPathExists=!/run/systemd/initctl/fifo

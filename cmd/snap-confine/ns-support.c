@@ -78,8 +78,7 @@ static const char *sc_ns_dir = SC_NS_DIR;
  **/
 static bool sc_is_ns_group_dir_private()
 {
-	struct sc_mountinfo *info
-	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
 	if (info == NULL) {
 		die("cannot parse /proc/self/mountinfo");
@@ -101,8 +100,8 @@ static bool sc_is_ns_group_dir_private()
 
 void sc_reassociate_with_pid1_mount_ns()
 {
-	int init_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
-	int self_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	int self_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	debug("checking if the current process shares mount namespace"
 	      " with the init process");
@@ -141,8 +140,7 @@ void sc_reassociate_with_pid1_mount_ns()
 		      "the init process, re-association required");
 		// NOTE: we cannot use O_NOFOLLOW here because that file will always be a
 		// symbolic link. We actually want to open it this way.
-		int init_mnt_fd_real
-		    __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+		int init_mnt_fd_real SC_CLEANUP(sc_cleanup_close) = -1;
 		init_mnt_fd_real = open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC);
 		if (init_mnt_fd_real < 0) {
 			die("cannot open mount namespace of the init process");
@@ -247,7 +245,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 	char mnt_fname[PATH_MAX];
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
 			 SC_NS_MNT_FILE);
-	int mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
 	//
@@ -276,8 +274,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 #define NSFS_MAGIC 0x6e736673
 #endif
 	if (buf.f_type == NSFS_MAGIC || buf.f_type == PROC_SUPER_MAGIC) {
-		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
-		    NULL;
+		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
 		vanilla_cwd = get_current_dir_name();
 		if (vanilla_cwd == NULL) {
 			die("cannot get the current working directory");
@@ -438,7 +435,7 @@ void sc_preserve_populated_ns_group(struct sc_ns_group *group)
 void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 {
 	// Remember the current working directory
-	int old_dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int old_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	old_dir_fd = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
 	if (old_dir_fd < 0) {
 		die("cannot open current directory");

@@ -247,7 +247,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, s.localDB)
 	// cannot find signatures with metadata for snap
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
