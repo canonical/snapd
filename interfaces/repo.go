@@ -57,12 +57,6 @@ func NewRepository() *Repository {
 	return repo
 }
 
-func (r *Repository) SetSanitizePlugSlots() {
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {
-		r.SanitizePlugsSlots(snapInfo)
-	}
-}
-
 // Interface returns an interface with a given name.
 func (r *Repository) Interface(interfaceName string) Interface {
 	r.m.Lock()
@@ -799,46 +793,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		}
 	}
 	return spec, nil
-}
-
-func (r *Repository) SanitizePlugsSlots(snapInfo *snap.Info) error {
-	for plugName, plugInfo := range snapInfo.Plugs {
-		iface, ok := r.ifaces[plugInfo.Interface]
-		if !ok {
-			snapInfo.BadInterfaces[plugName] = "unknown interface"
-			continue
-		}
-		// Reject plug with invalid name
-		if err := ValidateName(plugName); err != nil {
-			snapInfo.BadInterfaces[plugName] = err.Error()
-			continue
-		}
-		plug := &Plug{PlugInfo: plugInfo}
-		if err := plug.Sanitize(iface); err != nil {
-			snapInfo.BadInterfaces[plugName] = err.Error()
-			continue
-		}
-	}
-
-	for slotName, slotInfo := range snapInfo.Slots {
-		iface, ok := r.ifaces[slotInfo.Interface]
-		if !ok {
-			snapInfo.BadInterfaces[slotName] = "unknown interface"
-			continue
-		}
-		// Reject slot with invalid name
-		if err := ValidateName(slotName); err != nil {
-			snapInfo.BadInterfaces[slotName] = err.Error()
-			continue
-		}
-		slot := &Slot{SlotInfo: slotInfo}
-		if err := slot.Sanitize(iface); err != nil {
-			snapInfo.BadInterfaces[slotName] = err.Error()
-			continue
-		}
-	}
-
-	return nil
 }
 
 // AddSnap adds plugs and slots declared by the given snap to the repository.

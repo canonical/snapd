@@ -24,7 +24,12 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
+
+func init() {
+	snap.SanitizePlugsSlots = SanitizePlugsSlots
+}
 
 var (
 	allInterfaces map[string]interfaces.Interface
@@ -49,6 +54,44 @@ func registerIface(iface interfaces.Interface) {
 		allInterfaces = make(map[string]interfaces.Interface)
 	}
 	allInterfaces[iface.Name()] = iface
+}
+
+func SanitizePlugsSlots(snapInfo *snap.Info) {
+	for plugName, plugInfo := range snapInfo.Plugs {
+		iface, ok := allInterfaces[plugInfo.Interface]
+		if !ok {
+			snapInfo.BadInterfaces[plugName] = "unknown interface"
+			continue
+		}
+		// Reject plug with invalid name
+		if err := interfaces.ValidateName(plugName); err != nil {
+			snapInfo.BadInterfaces[plugName] = err.Error()
+			continue
+		}
+		plug := &interfaces.Plug{PlugInfo: plugInfo}
+		if err := plug.Sanitize(iface); err != nil {
+			snapInfo.BadInterfaces[plugName] = err.Error()
+			continue
+		}
+	}
+
+	for slotName, slotInfo := range snapInfo.Slots {
+		iface, ok := allInterfaces[slotInfo.Interface]
+		if !ok {
+			snapInfo.BadInterfaces[slotName] = "unknown interface"
+			continue
+		}
+		// Reject slot with invalid name
+		if err := interfaces.ValidateName(slotName); err != nil {
+			snapInfo.BadInterfaces[slotName] = err.Error()
+			continue
+		}
+		slot := &interfaces.Slot{SlotInfo: slotInfo}
+		if err := slot.Sanitize(iface); err != nil {
+			snapInfo.BadInterfaces[slotName] = err.Error()
+			continue
+		}
+	}
 }
 
 type byIfaceName []interfaces.Interface
