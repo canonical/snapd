@@ -250,10 +250,8 @@
     # able to bind mount the nvidia dir
     /sys/module/nvidia/version r,
     /sys/bus/pci/drivers/nvidia/uevent r,
-    /sys/module/nvidia_uvm/uevent r,
-    /sys/module/nvidia_modeset/uevent r,
-    /sys/module/nvidia_drm/uevent r,
-    /sys/module/nvidia/uevent r,
+    /sys/**/nvidia*/uevent r,
+    /sys/module/nvidia/* r,
     /dev/nvidia[0-9]* r,
     /dev/nvidiactl r,
     /dev/nvidia-uvm r,
