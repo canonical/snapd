@@ -65,6 +65,19 @@ func GetenvInt64(key string, dflt ...int64) int64 {
 	return 0
 }
 
+// EnvMap takes a list of "key=value" strings and transforms them into
+// a map.
+func EnvMap(env []string) map[string]string {
+	out := make(map[string]string, len(env))
+	for _, kv := range env {
+		l := strings.SplitN(kv, "=", 2)
+		if len(l) == 2 {
+			out[l[0]] = l[1]
+		}
+	}
+	return out
+}
+
 // SubstituteEnv takes a list of environment strings like:
 // - K1=BAR
 // - K2=$K1

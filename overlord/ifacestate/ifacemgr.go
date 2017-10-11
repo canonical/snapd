@@ -51,7 +51,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
-	m.repo.SetSanitizePlugSlots()
 
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,10 +17,28 @@
  *
  */
 
-package snaptest
+package main
 
-var (
-	CopyToBuildDir       = copyToBuildDir
-	ShouldExcludeDynamic = shouldExcludeDynamic
-	DebArchitecture      = debArchitecture
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces/mount"
 )
+
+// byMagicDir allows sorting an array of entries that automagically assumes
+// each entry ends with a trailing slash.
+type byMagicDir []mount.Entry
+
+func (c byMagicDir) Len() int      { return len(c) }
+func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byMagicDir) Less(i, j int) bool {
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
+	}
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
+}
