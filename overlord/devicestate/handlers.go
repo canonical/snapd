@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 )
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
@@ -429,7 +430,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
-	if err != nil && err != asserts.ErrNotFound {
+	if err != nil && !asserts.IsNotFound(err) {
 		return err
 	}
 
@@ -490,7 +491,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 var repeatRequestSerial string // for tests
 
 func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
-	sto := snapstate.Store(st)
+	sto := storestate.Store(st)
 	db := assertstate.DB(st)
 	for {
 		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
@@ -499,7 +500,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		if err == nil {
 			return nil, nil
 		}
-		if err != asserts.ErrNotFound {
+		if !asserts.IsNotFound(err) {
 			return nil, err
 		}
 		st.Unlock()
