@@ -70,7 +70,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
@@ -124,12 +124,14 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
-	# Generate static snap-exec - it somehow includes CGO so we must
-	# force a static build here. We need a static snap-exec inside
-	# the core snap because not all bases will have a libc
+	# Generate static snap-exec and snap-update-ns - it somehow includes CGO so
+	# we must force a static build here. We need a static snap-{exec,update-ns}
+	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
+	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
@@ -147,73 +149,18 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 2 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
+	# same for snap-repair
+	[ $$(strings _build/bin/snap-repair|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 3 ]
+	# common with snapd
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
+	# repair-root
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t$$"
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
 endif
-
-override_dh_systemd_enable:
-	# enable auto-import
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	# we want the auto-update timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but the auto-update service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# we want the repair timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.timer
-	# but the repair service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.snap-repair.service
-	# enable snapd
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.system-shutdown.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
-
-override_dh_systemd_start:
-	# we want to start the auto-update timer
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but not start the service
-	dh_systemd_start \
-		--no-start \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# start snapd
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.service
-	# start autoimport
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.core-fixup.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build

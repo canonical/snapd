@@ -132,3 +132,31 @@ func (s *envSuite) TestSubstitueEnv(c *check.C) {
 		c.Check(strings.Join(env, ","), check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }
+
+func (s *envSuite) TestEnvMap(c *check.C) {
+	for _, t := range []struct {
+		env      []string
+		expected map[string]string
+	}{
+		{
+			[]string{"K=V"},
+			map[string]string{"K": "V"},
+		},
+		{
+			[]string{"K=V=V=V"},
+			map[string]string{"K": "V=V=V"},
+		},
+		{
+			[]string{"K1=V1", "K2=V2"},
+			map[string]string{"K1": "V1", "K2": "V2"},
+		},
+		{
+			// invalid input is handled gracefully
+			[]string{"KEY_ONLY"},
+			map[string]string{},
+		},
+	} {
+		m := osutil.EnvMap(t.env)
+		c.Check(m, check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, m, t.expected))
+	}
+}

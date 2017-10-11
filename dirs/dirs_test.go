@@ -58,7 +58,7 @@ func (s *DirsTestSuite) TestClassicConfinementSupport(c *C) {
 	dirs.SetRootDir("/")
 	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
 
-	dirs.SetRootDir("/alt")
+	dirs.SnapMountDir = "/alt"
 	defer dirs.SetRootDir("/")
 	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
 }

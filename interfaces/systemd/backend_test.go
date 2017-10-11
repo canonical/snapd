@@ -29,14 +29,15 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/systemd"
-	"github.com/snapcore/snapd/testutil"
 
 	sysd "github.com/snapcore/snapd/systemd"
 )
 
 type backendSuite struct {
 	ifacetest.BackendSuite
-	systemctlCmd *testutil.MockCmd
+
+	systemctlArgs     [][]string
+	systemctlRestorer func()
 }
 
 var _ = Suite(&backendSuite{})
@@ -52,11 +53,14 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &systemd.Backend{}
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
-	s.systemctlCmd = testutil.MockCommand(c, "systemctl", "echo ActiveState=inactive")
+	s.systemctlRestorer = sysd.MockSystemctl(func(args ...string) ([]byte, error) {
+		s.systemctlArgs = append(s.systemctlArgs, append([]string{"systemctl"}, args...))
+		return []byte("ActiveState=inactive"), nil
+	})
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
-	s.systemctlCmd.Restore()
+	s.systemctlRestorer()
 	s.BackendSuite.TearDownTest(c)
 }
 
@@ -65,17 +69,17 @@ func (s *backendSuite) TestName(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
-	prevctlCmd := sysd.SystemctlCmd
-	defer func() { sysd.SystemctlCmd = prevctlCmd }()
-
 	var sysdLog [][]string
-	sysd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+
+	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
 		}
 		return []byte{}, nil
-	}
+	})
+	defer r()
+
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
 		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
@@ -100,14 +104,14 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 1)
-		s.systemctlCmd.ForgetCalls()
+		s.systemctlArgs = nil
 		s.RemoveSnap(c, snapInfo)
 		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 		// the service file was removed
 		_, err := os.Stat(service)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
-		c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
+		c.Check(s.systemctlArgs, DeepEquals, [][]string{
 			{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"},
 			{"systemctl", "stop", "snap.samba.interface.foo.service"},
 			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
@@ -125,7 +129,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 		return spec.AddService("snap.samba.interface.bar.service", &systemd.Service{ExecStart: "/bin/false"})
 	}
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
-	s.systemctlCmd.ForgetCalls()
+	s.systemctlArgs = nil
 	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.bar.service")
 	// the services were created
@@ -141,7 +145,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	// Update over to the same snap to regenerate security
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
 	// The bar service should have been stopped
-	c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.bar.service"},
 		{"systemctl", "stop", "snap.samba.interface.bar.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
