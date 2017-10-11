@@ -145,10 +145,9 @@ func ensureMountPoint(path string) error {
 	// We use lstat to ensure that we don't follow the symlink in case one
 	// was set up by the snap. At the time Change.Perform runs all the
 	// processes in the snap should be frozen.
-	if _, err := osLstat(path); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
+	fi, err := osLstat(path)
+	switch {
+	case err != nil && os.IsNotExist(err):
 		// TODO: use the right mode and ownership.
 		if err := osMkdirAll(path, 0755); err != nil {
 			return err
@@ -156,6 +155,13 @@ func ensureMountPoint(path string) error {
 		// TODO: change ownership recursively.
 		if err := osChown(path, 0, 0); err != nil {
 			return err
+		}
+	case err != nil:
+		return err
+	case err == nil:
+		// Ensure that mount point is a directory.
+		if !fi.IsDir() {
+			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
 		}
 	}
 	return nil

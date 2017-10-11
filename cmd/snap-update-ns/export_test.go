@@ -35,14 +35,23 @@ var (
 
 // fakeFileInfo implements os.FileInfo for one of the tests.
 // All of the functions panic as we don't expect them to be called.
-type fakeFileInfo struct{}
+type fakeFileInfo struct {
+	mode os.FileMode
+}
 
-func (*fakeFileInfo) Name() string       { panic("unexpected call") }
-func (*fakeFileInfo) Size() int64        { panic("unexpected call") }
-func (*fakeFileInfo) Mode() os.FileMode  { panic("unexpected call") }
-func (*fakeFileInfo) ModTime() time.Time { panic("unexpected call") }
-func (*fakeFileInfo) IsDir() bool        { panic("unexpected call") }
-func (*fakeFileInfo) Sys() interface{}   { panic("unexpected call") }
+func (*fakeFileInfo) Name() string         { panic("unexpected call") }
+func (*fakeFileInfo) Size() int64          { panic("unexpected call") }
+func (fi *fakeFileInfo) Mode() os.FileMode { return fi.mode }
+func (*fakeFileInfo) ModTime() time.Time   { panic("unexpected call") }
+func (fi *fakeFileInfo) IsDir() bool       { return fi.Mode().IsDir() }
+func (*fakeFileInfo) Sys() interface{}     { panic("unexpected call") }
+
+// Fake FileInfo objects for InsertLstatResult
+var (
+	FileInfoFile    = &fakeFileInfo{}
+	FileInfoDir     = &fakeFileInfo{mode: os.ModeDir}
+	FileInfoSymlink = &fakeFileInfo{mode: os.ModeSymlink}
+)
 
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
@@ -57,6 +66,7 @@ type SystemCalls interface {
 type SyscallRecorder struct {
 	calls  []string
 	errors map[string]error
+	lstats map[string]*fakeFileInfo
 }
 
 // InsertFault makes given subsequent call to return the specified error.
@@ -65,6 +75,14 @@ func (sys *SyscallRecorder) InsertFault(call string, err error) {
 		sys.errors = make(map[string]error)
 	}
 	sys.errors[call] = err
+}
+
+// InsertLstatResult makes given subsequent call lstat return the specified fake file info.
+func (sys *SyscallRecorder) InsertLstatResult(call string, fi *fakeFileInfo) {
+	if sys.lstats == nil {
+		sys.lstats = make(map[string]*fakeFileInfo)
+	}
+	sys.lstats[call] = fi
 }
 
 // Calls returns the sequence of mocked calls that have been made.
@@ -90,8 +108,14 @@ func (sys *SyscallRecorder) Unmount(target string, flags int) (err error) {
 }
 
 func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
-	err := sys.call(fmt.Sprintf("lstat %q", name))
-	return &fakeFileInfo{}, err
+	call := fmt.Sprintf("lstat %q", name)
+	if err := sys.call(call); err != nil {
+		return nil, err
+	}
+	if fi := sys.lstats[call]; fi != nil {
+		return fi, nil
+	}
+	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
 }
 
 func (sys *SyscallRecorder) MkdirAll(path string, perm os.FileMode) error {
