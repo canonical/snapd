@@ -8,7 +8,7 @@ install_local() {
     # assigned in a separate step to avoid hiding a failure
     SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
-        snapbuild "$SNAP_DIR" "$SNAP_DIR"
+        snap pack "$SNAP_DIR" "$SNAP_DIR"
     fi
     snap install --dangerous "$@" "$SNAP_FILE"
 }
@@ -39,7 +39,7 @@ install_generic_consumer() {
     local INTERFACE_NAME="$1"
     cp -ar "$TESTSLIB/snaps/generic-consumer" .
     sed "s/@INTERFACE@/$INTERFACE_NAME/" generic-consumer/meta/snap.yaml.in > generic-consumer/meta/snap.yaml
-    snapbuild generic-consumer generic-consumer
+    snap pack generic-consumer generic-consumer
     snap install --dangerous generic-consumer/*.snap
     rm -rf generic-consumer
 }

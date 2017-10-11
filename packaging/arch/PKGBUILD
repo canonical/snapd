@@ -69,7 +69,7 @@ build() {
     --libexecdir=/usr/lib/snapd \
     --with-snap-mount-dir=/var/lib/snapd/snap \
     --disable-apparmor \
-    --enable-nvidia-arch \
+    --enable-nvidia-biarch \
     --enable-merged-usr
   make
 }

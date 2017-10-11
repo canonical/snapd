@@ -155,6 +155,12 @@ func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo"}), IsNil)
 }
 
+func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo $SNAP_DATA"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo $SNAP_DATA"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo $SNAP_DATA"}), IsNil)
+}
+
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
@@ -190,7 +196,7 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:$-]*$')`)
 }
 
 // Validate

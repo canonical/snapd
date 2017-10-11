@@ -17,7 +17,7 @@
  *
  */
 
-package snaptest_test
+package pack_test
 
 import (
 	"fmt"
@@ -28,22 +28,25 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"testing"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
-type BuildTestSuite struct {
+func Test(t *testing.T) { TestingT(t) }
+
+type packSuite struct {
 	testutil.BaseTest
 }
 
-var _ = Suite(&BuildTestSuite{})
+var _ = Suite(&packSuite{})
 
-func (s *BuildTestSuite) SetUpTest(c *C) {
+func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	// chdir into a tempdir
@@ -100,24 +103,24 @@ printf "hello world"
 	return tempdir
 }
 
-func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
+func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := snaptest.BuildSquashfsSnap(sourceDir, "")
+	_, err := pack.Snap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
-func (s *BuildTestSuite) TestCopyCopies(c *C) {
+func (s *packSuite) TestCopyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	// actually this'll be on /tmp so it'll be a link
 	target := c.MkDir()
-	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
 }
 
-func (s *BuildTestSuite) TestCopyActuallyCopies(c *C) {
+func (s *packSuite) TestCopyActuallyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 
 	// hoping to get the non-linking behaviour via /dev/shm
@@ -129,18 +132,18 @@ func (s *BuildTestSuite) TestCopyActuallyCopies(c *C) {
 	}
 	c.Assert(err, IsNil)
 
-	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
 }
 
-func (s *BuildTestSuite) TestCopyExcludesBackups(c *C) {
+func (s *packSuite) TestCopyExcludesBackups(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -148,14 +151,14 @@ func (s *BuildTestSuite) TestCopyExcludesBackups(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
 
-func (s *BuildTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
+func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -165,13 +168,13 @@ func (s *BuildTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	c.Check(strings.Count(string(out), "Only in"), Equals, 1)
 }
 
-func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
+func (s *packSuite) TestCopyExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
 	c.Check(string(out), Not(Equals), "")
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
@@ -181,46 +184,46 @@ func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
 
-func (s *BuildTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
+func (s *packSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
 	basedir := c.MkDir()
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "foo"), Equals, false)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "foo"), Equals, false)
 }
 
-func (s *BuildTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
+func (s *packSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "foo"), Equals, true)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "bar"), Equals, true)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "bzr"), Equals, true)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "baz"), Equals, false)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "foo"), Equals, true)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "bar"), Equals, true)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "bzr"), Equals, true)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "baz"), Equals, false)
 }
 
-func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
+func (s *packSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
 	// note "*hello" is not a valid regexp, so will be taken literally (not globbed!)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "ahello"), Equals, false)
-	c.Check(snaptest.ShouldExcludeDynamic(basedir, "*hello"), Equals, true)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "ahello"), Equals, false)
+	c.Check(pack.ShouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
-func (s *BuildTestSuite) TestDebArchitecture(c *C) {
-	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: []string{"foo"}}), Equals, "foo")
-	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: []string{"foo", "bar"}}), Equals, "multi")
-	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: nil}), Equals, "unknown")
+func (s *packSuite) TestDebArchitecture(c *C) {
+	c.Check(pack.DebArchitecture(&snap.Info{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(pack.DebArchitecture(&snap.Info{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(pack.DebArchitecture(&snap.Info{Architectures: nil}), Equals, "all")
 }
 
-func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {
+func (s *packSuite) TestPackFailsForUnknownType(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 `)
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snaptest.BuildSquashfsSnap(sourceDir, "")
+	_, err = pack.Snap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "cannot handle type of file .*")
 }
 
-func (s *BuildTestSuite) TestBuildSquashfsSimple(c *C) {
+func (s *packSuite) TestPackSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architectures: ["i386", "amd64"]
@@ -229,7 +232,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := snaptest.BuildSquashfsSnap(sourceDir, "")
+	resultSnap, err := pack.Snap(sourceDir, "")
 	c.Assert(err, IsNil)
 
 	// check that there is result
@@ -250,7 +253,7 @@ integration:
 	}
 }
 
-func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
+func (s *packSuite) TestPackSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architectures: ["i386", "amd64"]
@@ -261,7 +264,7 @@ integration:
 
 	outputDir := filepath.Join(c.MkDir(), "output")
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := snaptest.BuildSquashfsSnap(sourceDir, outputDir)
+	resultSnap, err := pack.Snap(sourceDir, outputDir)
 	c.Assert(err, IsNil)
 
 	// check that there is result
