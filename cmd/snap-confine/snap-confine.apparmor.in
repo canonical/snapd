@@ -249,9 +249,9 @@
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
     /sys/module/nvidia/version r,
-    /sys/bus/pci/drivers/nvidia/uevent r,
+    /sys/**/drivers/nvidia{,_*}/* r,
     /sys/**/nvidia*/uevent r,
-    /sys/module/nvidia/* r,
+    /sys/module/nvidia{,_*}/* r,
     /dev/nvidia[0-9]* r,
     /dev/nvidiactl r,
     /dev/nvidia-uvm r,
