@@ -56,6 +56,8 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		// snappy-add-dev
 		char *env[] = { NULL };
 		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
+		      path, buf);
 		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
 		       "add", udev_s->tagname, path, buf, NULL, env);
 		die("execl failed");
