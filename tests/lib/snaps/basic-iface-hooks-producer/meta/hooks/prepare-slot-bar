@@ -24,7 +24,7 @@ if ! output=$(snapctl get --plug :bar target); then
     echo "Expected prepare-slot-bar hook to be able to read the value of 'target' attribute of the plug"
     exit 1
 fi
-expected_output="plugtarget"
+expected_output="initialtarget"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1

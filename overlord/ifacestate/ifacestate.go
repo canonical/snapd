@@ -92,6 +92,9 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
+	// to modify them but all attributes will be checked against assertions after the hooks are run.
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
@@ -134,7 +137,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 		return err
 	}
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		ts.Set("plug-attrs", plug.Attrs)
+		attrs := make(map[string]interface{})
+		attrs["static"] = plug.Attrs
+		attrs["dynamic"] = make(map[string]interface{})
+		ts.Set("plug-attrs", attrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -148,7 +154,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	}
 	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		ts.Set("slot-attrs", slot.Attrs)
+		attrs := make(map[string]interface{})
+		attrs["static"] = slot.Attrs
+		attrs["dynamic"] = make(map[string]interface{})
+		ts.Set("slot-attrs", attrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}

@@ -332,6 +332,22 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+func getTaskHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
+	var plugAttrs map[string]map[string]interface{}
+	var slotAttrs map[string]map[string]interface{}
+
+	var err error
+	if err = task.Get("plug-attrs", &plugAttrs); err != nil {
+		return nil, nil, err
+	}
+	err = task.Get("slot-attrs", &slotAttrs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return plugAttrs["dynamic"], slotAttrs["dynamic"], nil
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
