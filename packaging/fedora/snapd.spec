@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.28.3
+Version:        2.28.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,6 +659,12 @@ fi
 
 
 %changelog
+* Tue Oct 11 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.4
+  - interfaces/opengl: don't udev tag nvidia devices and use snap-
+    confine instead
+  - debian: fix replaces/breaks for snap-xdg-open (thanks to apw!)
+
 * Tue Oct 11 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.3
   - interfaces/lxd: lxd slot implementation can also be an app

@@ -1,3 +1,12 @@
+snapd (2.28.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/opengl: don't udev tag nvidia devices and use snap-
+      confine instead
+    - debian: fix replaces/breaks for snap-xdg-open (thanks to apw!)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 19:40:57 +0200
+
 snapd (2.28.3) xenial; urgency=medium
 
   * New upstream release, LP: #1714984
