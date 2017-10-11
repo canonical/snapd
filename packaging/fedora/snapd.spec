@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.28.1
+Version:        2.28.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,6 +659,12 @@ fi
 
 
 %changelog
+* Tue Oct 10 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.2
+  - interfaces: fix udev rules for tun
+  - release,cmd,dirs: Redo the distro checks to take into account
+    distribution families
+
 * Wed Sep 27 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.1
   - snap-confine: update apparmor rules for fedora based basesnaps
