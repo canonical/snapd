@@ -32,13 +32,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type servicectlSuite struct {
+	testutil.BaseTest
 	mockContext *hookstate.Context
 	mockHandler *hooktest.MockHandler
-
-	restore func()
 }
 
 var _ = Suite(&servicectlSuite{})
@@ -77,11 +77,14 @@ func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInf
 }
 
 func (s *servicectlSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
-	s.restore = func() {
+
+	s.BaseTest.AddCleanup(func() {
 		dirs.SetRootDir(oldRoot)
-	}
+	})
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.mockHandler = hooktest.NewMockHandler()
 
@@ -128,7 +131,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 }
 
 func (s *servicectlSuite) TearDownTest(c *C) {
-	s.restore()
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {

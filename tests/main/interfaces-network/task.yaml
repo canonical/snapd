@@ -21,7 +21,7 @@ environment:
 prepare: |
     . $TESTSLIB/systemd.sh
     echo "Given a snap declaring the network plug is installed"
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+    snap pack $TESTSLIB/snaps/$SNAP_NAME
     snap install --dangerous $SNAP_FILE
 
     echo "And a service is listening"
