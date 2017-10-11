@@ -32,6 +32,44 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
+void
+_run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
+			       const char *path, unsigned major, unsigned minor)
+{
+	int status = 0;
+	pid_t pid = fork();
+	if (pid < 0) {
+		die("could not fork");
+	}
+	if (pid == 0) {
+		uid_t real_uid, effective_uid, saved_uid;
+		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+			die("could not find user IDs");
+		// can't update the cgroup unless the real_uid is 0, euid as
+		// 0 is not enough
+		if (real_uid != 0 && effective_uid == 0)
+			if (setuid(0) != 0)
+				die("setuid failed");
+		char buf[64];
+		// pass snappy-add-dev an empty environment so the
+		// user-controlled environment can't be used to subvert
+		// snappy-add-dev
+		char *env[] = { NULL };
+		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
+		      path, buf);
+		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
+		       "add", udev_s->tagname, path, buf, NULL, env);
+		die("execl failed");
+	}
+	if (waitpid(pid, &status, 0) < 0)
+		die("waitpid failed");
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+		die("child exited with status %i", WEXITSTATUS(status));
+	else if (WIFSIGNALED(status))
+		die("child died with signal %i", WTERMSIG(status));
+}
+
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {
 	if (udev_s == NULL)
@@ -53,38 +91,9 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	int status = 0;
-	pid_t pid = fork();
-	if (pid < 0) {
-		die("could not fork");
-	}
-	if (pid == 0) {
-		uid_t real_uid, effective_uid, saved_uid;
-		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-			die("could not find user IDs");
-		// can't update the cgroup unless the real_uid is 0, euid as
-		// 0 is not enough
-		if (real_uid != 0 && effective_uid == 0)
-			if (setuid(0) != 0)
-				die("setuid failed");
-		char buf[64];
-		// pass snappy-add-dev an empty environment so the
-		// user-controlled environment can't be used to subvert
-		// snappy-add-dev
-		char *env[] = { NULL };
-		unsigned major = MAJOR(devnum);
-		unsigned minor = MINOR(devnum);
-		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
-		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
-		       "add", udev_s->tagname, path, buf, NULL, env);
-		die("execl failed");
-	}
-	if (waitpid(pid, &status, 0) < 0)
-		die("waitpid failed");
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-		die("child exited with status %i", WEXITSTATUS(status));
-	else if (WIFSIGNALED(status))
-		die("child died with signal %i", WTERMSIG(status));
+	unsigned major = MAJOR(devnum);
+	unsigned minor = MINOR(devnum);
+	_run_snappy_app_dev_add_majmin(udev_s, path, major, minor);
 }
 
 /*
@@ -197,6 +206,49 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	for (int i = 0; static_devices[i] != NULL; i++)
 		run_snappy_app_dev_add(udev_s, static_devices[i]);
 
+	// nvidia modules are proprietary and therefore aren't in sysfs and
+	// can't be udev tagged. For now, just add existing nvidia devices to
+	// the cgroup unconditionally (AppArmor will still mediate the access).
+	// We'll want to rethink this if snapd needs to mediate access to other
+	// proprietary devices.
+	//
+	// Device major and minor numbers are described in (though nvidia-uvm
+	// currently isn't listed):
+	// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+	char nv_path[15] = { 0 };	// /dev/nvidiaXXX
+	const unsigned nv_major = 195;
+	const char *nvctl_path = "/dev/nvidiactl";
+	const unsigned nvctl_minor = 255;
+	const char *nvuvm_path = "/dev/nvidia-uvm";
+	const unsigned nvuvm_major = 247;
+	const unsigned nvuvm_minor = 0;
+	struct stat sbuf;
+
+	// /dev/nvidia0 through /dev/nvidia254
+	for (unsigned nv_minor = 0; nv_minor < 255; nv_minor++) {
+		sc_must_snprintf(nv_path, sizeof(nv_path), "/dev/nvidia%u",
+				 nv_minor);
+
+		// Stop trying to find devices after one is not found. In this
+		// manner, we'll add /dev/nvidia0 and /dev/nvidia1 but stop
+		// trying to find nvidia3 - nvidia254 if nvidia2 is not found.
+		if (stat(nv_path, &sbuf) != 0) {
+			break;
+		}
+		_run_snappy_app_dev_add_majmin(udev_s, nv_path, nv_major,
+					       nv_minor);
+	}
+
+	// /dev/nvidiactl
+	if (stat(nvctl_path, &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
+					       nv_major, nvctl_minor);
+	}
+	// /dev/nvidia-uvm
+	if (stat(nvuvm_path, &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
+					       nvuvm_major, nvuvm_minor);
+	}
 	// add the assigned devices
 	while (udev_s->assigned != NULL) {
 		const char *path = udev_list_entry_get_name(udev_s->assigned);
