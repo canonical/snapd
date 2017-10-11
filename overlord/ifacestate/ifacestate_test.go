@@ -182,10 +182,21 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	var attrs map[string]interface{}
 	err = task.Get("plug-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr1"], Equals, "value1")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr1": "value1",
+		},
+		"dynamic": map[string]interface{}{},
+	})
 	err = task.Get("slot-attrs", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr2"], Equals, "value2")
+	c.Assert(attrs, DeepEquals, map[string]interface{}{
+		"static": map[string]interface{}{
+			"attr2": "value2",
+		},
+		"dynamic": map[string]interface{}{},
+	})
+
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")

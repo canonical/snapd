@@ -20,12 +20,14 @@
 package ctlcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -113,6 +115,28 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
+func setInterfaceAttribute(context *hookstate.Context, attributes map[string]interface{}, key string, value interface{}) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
+	}
+	raw := json.RawMessage(data)
+
+	subkeys, err := config.ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	var existing interface{}
+	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, attributes["static"].(map[string]interface{}), &existing)
+	if err == nil {
+		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
+	}
+
+	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, attributes["dynamic"], &raw)
+	return err
+}
+
 func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
@@ -137,9 +161,8 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		which = "slot-attrs"
 	}
 
-	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	context.Lock()
+	defer context.Unlock()
 
 	attributes := make(map[string]interface{})
 	if err := attrsTask.Get(which, &attributes); err != nil {
@@ -157,7 +180,10 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attributes[parts[0]] = value
+		err = setInterfaceAttribute(context, attributes, parts[0], value)
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
+		}
 	}
 
 	attrsTask.Set(which, attributes)

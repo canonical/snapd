@@ -151,6 +151,26 @@ func (s *getSuite) TestCommandWithoutContext(c *C) {
 	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
 }
 
+func (s *setSuite) TestNull(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
+	c.Check(err, IsNil)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
+	c.Check(err, IsNil)
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify config value
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Assert(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Assert(value, IsNil)
+	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Assert(value, DeepEquals, []interface{}{nil})
+}
 func (s *getAttrSuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
 
@@ -161,11 +181,20 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	plugAttrs := make(map[string]interface{})
-	slotAttrs := make(map[string]interface{})
-	plugAttrs["aattr"] = "foo"
-	plugAttrs["baz"] = []string{"a", "b"}
-	slotAttrs["battr"] = "bar"
+	plugAttrs := map[string]interface{}{
+		"static": map[string]interface{}{
+			"aattr":   "foo",
+			"baz":     []string{"a", "b"},
+			"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
+		},
+		"dynamic": map[string]interface{}{},
+	}
+	slotAttrs := map[string]interface{}{
+		"static": map[string]interface{}{
+			"battr": "bar",
+		},
+		"dynamic": map[string]interface{}{},
+	}
 	attrsTask.Set("plug-attrs", plugAttrs)
 	attrsTask.Set("slot-attrs", slotAttrs)
 	ch.AddTask(attrsTask)
@@ -214,6 +243,16 @@ func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
 	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "mapval1\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --plug parameter doesn't do anything if used on plug side
@@ -295,25 +334,4 @@ func (s *getAttrSuite) TestPlugOrSlotEmpty(c *C) {
 	c.Check(err.Error(), Equals, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
-}
-
-func (s *setSuite) TestNull(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
-	c.Check(err, IsNil)
-
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
-	c.Check(err, IsNil)
-
-	// Notify the context that we're done. This should save the config.
-	s.mockContext.Lock()
-	defer s.mockContext.Unlock()
-	c.Check(s.mockContext.Done(), IsNil)
-
-	// Verify config value
-	var value interface{}
-	tr := config.NewTransaction(s.mockContext.State())
-	c.Assert(tr.Get("test-snap", "foo", &value), IsNil)
-	c.Assert(value, IsNil)
-	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
-	c.Assert(value, DeepEquals, []interface{}{nil})
 }
