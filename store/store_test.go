@@ -4860,3 +4860,72 @@ func (t *remoteRepoTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
 	_, err = sto.doRequest(context.TODO(), sto.client, reqOptions, t.user)
 	c.Assert(err, IsNil)
 }
+
+type cacheObserver struct {
+	lookupResult bool
+
+	gets    []string
+	puts    []string
+	lookups []string
+}
+
+func (co *cacheObserver) Get(sha3_384, targetPath string) error {
+	co.gets = append(co.gets, fmt.Sprintf("%s:%s", sha3_384, targetPath))
+	return nil
+}
+func (co *cacheObserver) Put(sourcePath string) error {
+	co.puts = append(co.puts, sourcePath)
+	return nil
+}
+func (co *cacheObserver) Lookup(sha3_384 string) bool {
+	co.lookups = append(co.lookups, sha3_384)
+	return co.lookupResult
+}
+
+func (t *remoteRepoTestSuite) TestDownloadCacheHit(c *C) {
+	oldCache := t.store.cacher
+	defer func() { t.store.cacher = oldCache }()
+	obs := &cacheObserver{lookupResult: true}
+	t.store.cacher = obs
+
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		c.Fatalf("download should not be called when results come from the cache")
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.Sha3_384 = "the-snaps-sha3_384"
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
+	c.Check(obs.puts, IsNil)
+	c.Check(obs.lookups, DeepEquals, []string{snap.Sha3_384})
+}
+
+func (t *remoteRepoTestSuite) TestDownloadCacheMiss(c *C) {
+	oldCache := t.store.cacher
+	defer func() { t.store.cacher = oldCache }()
+	obs := &cacheObserver{lookupResult: false}
+	t.store.cacher = obs
+
+	downloadWasCalled := false
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		downloadWasCalled = true
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.Sha3_384 = "the-snaps-sha3_384"
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(downloadWasCalled, Equals, true)
+
+	c.Check(obs.gets, IsNil)
+	c.Check(obs.puts, DeepEquals, []string{path})
+	c.Check(obs.lookups, DeepEquals, []string{snap.Sha3_384})
+}
