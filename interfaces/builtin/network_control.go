@@ -254,7 +254,6 @@ const networkControlConnectedPlugUDev = `
 KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
 KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
