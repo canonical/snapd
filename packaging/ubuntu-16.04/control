@@ -20,9 +20,13 @@ Build-Depends: autoconf,
                golang-any (>=2:1.6) | golang-1.6,
                indent,
                init-system-helpers,
-               libcap-dev,
                libapparmor-dev,
+               libcap-dev,
+               libfuse-dev,
                libglib2.0-dev,
+               liblz4-dev,
+               liblzma-dev,
+               liblzo2-dev,
                libseccomp-dev,
                libudev-dev,
                openssh-client,
@@ -32,7 +36,8 @@ Build-Depends: autoconf,
                python3-markdown,
                squashfs-tools,
                udev,
-               xfslibs-dev
+               xfslibs-dev,
+               zlib1g-dev
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
