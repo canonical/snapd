@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
@@ -157,7 +158,7 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	old := "###CONNECTED_SECURITY_TAGS###"
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
@@ -167,7 +168,7 @@ func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	return nil
 }
 
-func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
 	return nil
 }
@@ -177,7 +178,7 @@ func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
 	return nil
 }

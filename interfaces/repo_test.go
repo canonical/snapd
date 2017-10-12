@@ -1278,7 +1278,7 @@ const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
-	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *snap.PlugInfo) error {
 		spec.AddSnippet("static plug snippet")
 		return nil
 	},
@@ -1286,7 +1286,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("connection-specific plug snippet")
 		return nil
 	},
-	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("static slot snippet")
 		return nil
 	},
@@ -1368,10 +1368,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	var testSecurity SecuritySystem = "security"
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *snap.SlotInfo) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *snap.PlugInfo) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
