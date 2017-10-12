@@ -1,0 +1,18 @@
+These are the most useful options to ./configure:
+
+  --disable-high-level      Disable the `squashfuse' program, which uses the regular FUSE API
+  --disable-low-level       Disable the `squashfuse_ll' program, which uses the low-level API
+  --disable-fuse            Disable both the above
+  --disable-demo            Disable the `squashfuse_ls' program, a demo of libsquashfuse
+  
+  --with-fuse=PREFIX        Look for FUSE in this prefix directory
+  --with-fuse-include=DIR   Look for FUSE headers here (default: PREFIX/include/fuse)
+  --with-fuse-lib=DIR       Look for FUSE libraries here (default: PREFIX/lib)
+  --with-fuse-soname=NAME   Look for a FUSE library named libNAME (default: fuse)
+  
+  --with-zlib=PREFIX        Look for this compression library in this prefix directory
+  --with-xz=PREFIX
+  --with-lzo=PREFIX
+  --with-lz4=PREFIX
+  
+More options are available in `./configure --help'

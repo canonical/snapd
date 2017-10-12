@@ -1,0 +1,114 @@
+Overview
+--------
+The following operating systems are known to be supported:
+* Linux
+* Mac OS X
+* FreeBSD
+* NetBSD
+* OpenIndiana
+* Android
+
+These don't seem to work yet:
+* Windows
+* Solaris
+* QNX
+* Minix
+* Haiku
+* Hurd
+
+These don't have FUSE:
+* iOS
+* OpenBSD
+* DragonFly BSD - NetBSD's `puffs' is in HEAD
+* Commercial UNIX: AIX, HP-UX, etc
+
+
+Details
+-------
+* Linux
+  + Versions: Kernel 2.4.20 or later, most distros since ~2004
+  + Tested on:
+    - Debian / squeeze 6.0              / i386, ppc
+    - Ubuntu / Trusty 14.04             / amd64
+    - Ubuntu / Precise  12.04           / amd64
+    - Ubuntu / Natty  11.10             / amd64
+    - Ubuntu / Lucid  10.04             / amd64
+    - CentOS / 3.9                      / i386      / FUSE 2.5
+  + Requirements: CONFIG_FUSE_FS kernel option
+  + Packages:
+    - apt-get
+      Build: gcc make libc-dev libfuse-dev libz-dev liblzo2-dev
+        liblzma-dev liblz4-dev libattr1-dev pkg-config
+      Runtime: libfuse2 zlib1g liblzo2-2 liblzma2
+
+* Mac OS X
+  + Versions: Mac OS X 10.4 and later
+  + Tested on:
+    - 10.9 Lion         / x86_64 / OSXFUSE
+    - 10.7 Lion         / x86_64 / Tuxera FUSE, fuse4x, OSXFUSE
+    - 10.6 Snow Leopard / x86_64 / MacFUSE, fuse4x
+    - 10.5 Leopard      / ppc    / MacFUSE
+    - 10.4 Tiger        / i386   / MacFUSE
+  + Requirements
+    - Command-line developer tools
+    - OSXFUSE, fuse4x or MacFUSE: http://osxfuse.github.com/,
+      http://fuse4x.org/, http://code.google.com/p/macfuse/
+  + Packages:
+    - Not necessary just to build a basic zlib-supporting squashfuse.
+    - All package managers require the full Xcode for FUSE,
+      not just command-line tools.
+    - MacPorts
+      port install lzo2 liblzma zlib lz4 osxfuse
+    - Fink
+      fink install automake1.11 libtool2
+      fink install lzo2 liblzma5 osxfuse-dev osxfuse-shlibs pkgconfig
+    - Homebrew
+      brew install lzo xz lz4 osxfuse
+      # follow instructions from `brew info osxfuse'
+  + Configure: If using a package manager, use --with-lzo=/wherever and/or
+    --with-lz4=/wherever
+  + Notes:
+    - OS X uses a different naming scheme for extended attributes, so
+      they may not be very useful
+    - LZ4 often builds a dynamic liblz4 with a bad install_name on OS X.
+      Either link statically, or use install_name_tool to correct it.
+
+* FreeBSD
+  + Versions: FreeBSD 6.0 and later
+  + Tested on: FreeBSD 9.0 / amd64
+  + Packages: From ports or packages: fusefs-libs fusefs-kmod lzo2 lz4
+  + Notes: FreeBSD FUSE doesn't support extended attributes
+
+* NetBSD
+  + Versions: NetBSD 6.0 and later
+  + Tested on: NetBSD 6.0 BETA / i386
+  + Requirements: puffs enabled in kernel (present by default)
+  + Packages: From pkgsrc: libfuse libperfuse lzo
+  + Configure: ./configure --with-fuse=/usr/pkg --with-lzo=/usr/pkg
+  + Notes:
+    - Mounting seems to require root
+    - NetBSD FUSE doesn't support extended attributes
+    - perfused crashes mysteriously on some archives
+
+* OpenIndiana
+  + Tested on: OpenIndiana 151a / i386
+  + Requirements: C compiler: gcc or Sun Studio 12.3 work
+  + Packages: From `Spec Files Extra` repo: fusefs libfuse lzo xz
+  + Installation: Must ensure device is where libfuse expects it:
+    ln -s "/devices/pseudo/fuse@0:fuse" /dev/fuse
+  + Notes:
+    - Mounting requires root
+    - OpenIndiana FUSE doesn't support extended attributes
+
+* Android
+  + Tested on: Android emulator / 2.3.3 / armel
+  + Requirements:
+    - CONFIG_FUSE_FS enabled in kernel. Most Android kernels have this
+      disabled, so the kernel must be rebuilt.
+    - fuse-android: https://github.com/seth-hg/fuse-android
+  + Configure:
+    - Cross-compile from Linux by passing --host flag to configure
+    - Use CPPFLAGS/LDFLAGS/LIBS that fuse-android used for fusexmp
+    - May need `-nodefaultlibs' in LDFLAGS, since configure likes linking
+      and compiling together in a single gcc invokation, and
+      Android's build system doesn't.

@@ -1,0 +1,69 @@
+For 0.1
+	Submit squashfs-tools patches
+
+Build system
+	Autotools versioning
+		Currently autoconf 2.68, automake 1.11 tested. Use AC_PREREQ?
+		Test older versions
+	libsquashfuse
+		Separate out a library with a proper API
+		Try connecting it to File Roller, The Unarchiver, etc
+		Support win32api?
+	Debug builds: configure option?
+	Mac builds
+		Support specifying SDK, arch, universal builds
+		Why don't builds on Lion with 10.4 SDK work?
+	Test suite?
+	Fully process squashfs_fs.h direct from kernel
+		Remove [0] lines for Windows
+		Add __le## for many OSes
+		Remove function macros
+		Redefine INVALID_BLK
+		etc...
+
+Features
+	Design a good API for libsquashfuse
+	Use better error codes, error reporting, sanity checks
+	Support/emulate non-namespaced xattrs, for OS X
+	Write a clone of unsquashfs using libsquashfuse?
+	squashfs 3 and earlier support?
+	LZMA1 compression?
+
+Performance
+	Multi-threading
+		Caches, blockidx aren't thread safe
+		Use a thread pool? Or one thread per request?
+		Read metadata (eg: UIDs) in parallel?
+		How do we get FUSE to do multi-threading? On some OSes it just doesn't
+	Byte swapping
+		Use platform-specific optimizations (eg: libkern/OSByteOrder.h)
+		Also arch-specific
+	Block index: Create incrementally, as needed?
+	Speculative read-ahead?
+	Caching and threading strategy delegation?
+		eg: Small caches for low-memory; huge caches for complete extraction 
+	Profile for optimization opportunities
+
+Misc
+	mksquashfs is slow, write a faster version?
+
+Platform support
+	Known bad
+		QNX 6.5 (qfuse)
+			fuse_session_add_chan() crashes
+			High-level crashes too
+		Windows (fuse4win/dokan)
+			Dokan sample bluescreens, fuse4win sample crashes
+			CBFS? Totally different API, expensive
+			Pismo File Mount?
+			Explorer Namespace Extension?
+			FUSE-NT?
+			7-zip can browse squashfs archives, just not in explorer
+	Linux kernel < 2.4.20
+		Requires fuse < 2.4.0. Maybe high-level?
+		LUFS?
+	No low-level fuse
+		Solaris 11 (uvfs/fuse): High-level sort-of works
+		Minix 3.2 (puffs/refuse): High-level won't work
+		Haiku (userlandfs): High-level won't work, userlandfs hard to build
+		Hurd (libfuse): High-level works fine, version 2.5
