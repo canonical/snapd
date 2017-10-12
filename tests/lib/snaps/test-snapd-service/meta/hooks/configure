@@ -1,5 +1,5 @@
 #!/bin/sh
 COMMAND=$(snapctl get command)
 if [ "$COMMAND" != "" ]; then
-    snapctl $COMMAND test-snapd-service.test-snapd-service
+    snapctl "$COMMAND" test-snapd-service.test-snapd-service
 fi
