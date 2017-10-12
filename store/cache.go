@@ -45,9 +45,11 @@ type downloadCache interface {
 // nullCache is cache that does not cache
 type nullCache struct{}
 
-func (cm *nullCache) Get(sha3_384, targetPath string) error { return nil }
-func (cm *nullCache) Put(sourcePath string) error           { return nil }
-func (cm *nullCache) Lookup(sha3_384 string) bool           { return false }
+func (cm *nullCache) Get(sha3_384, targetPath string) error {
+	return fmt.Errorf("cannot get items from the nullCache")
+}
+func (cm *nullCache) Put(sourcePath string) error { return nil }
+func (cm *nullCache) Lookup(sha3_384 string) bool { return false }
 
 // changesByReverseMtime sorts by the mtime of files
 type changesByReverseMtime []os.FileInfo
