@@ -692,6 +692,23 @@ func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModel(c *C
 	c.Check(storeID, Equals, "env-store-id")
 }
 
+func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C) {
+	model, err := asserts.Decode([]byte(exModel))
+	c.Assert(err, IsNil)
+	// (ab)use the example as the generic classic model
+	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
+	defer r()
+	// having assertions in state
+	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	// for the generic classic model we continue to consider the env var
+	// but when the env var is unset we don't do anything wrong.
+	os.Unsetenv("UBUNTU_STORE_ID")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "store-id")
+}
+
 func (as *authSuite) TestUsers(c *C) {
 	as.state.Lock()
 	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})
