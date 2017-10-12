@@ -50,7 +50,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // setupDbusServiceForUserd will setup the service file for the new
-// `snap us erd` instance on re-exec
+// `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreRoot := snapInfo.MountDir()
 	dst := "/usr/share/dbus-1/services/io.snapcraft.Launcher.service"
@@ -74,7 +74,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
 	}
 
