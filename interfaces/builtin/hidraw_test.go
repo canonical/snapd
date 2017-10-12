@@ -180,13 +180,13 @@ func (s *HidrawInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2} {
-		c.Assert(spec.AddPermanentSlot(s.iface, slot), IsNil)
+		c.Assert(spec.AddPermanentSlot(s.iface, slot.SlotInfo), IsNil)
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
 	expectedSnippet1 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="hidraw-canbus"`
-	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev1), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev1.SlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
@@ -194,7 +194,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct
 	expectedSnippet2 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="hidraw-mydevice"`
 	spec = &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev2), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev2.SlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
