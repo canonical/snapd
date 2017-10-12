@@ -34,7 +34,7 @@ var (
 )
 
 // fakeFileInfo implements os.FileInfo for one of the tests.
-// All of the functions panic as we don't expect them to be called.
+// Most of the functions panic as we don't expect them to be called.
 type fakeFileInfo struct {
 	mode os.FileMode
 }
