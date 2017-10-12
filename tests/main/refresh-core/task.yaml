@@ -1,23 +1,16 @@
 summary: Check refresh will ensure dbus serivce file is there
 
-# FIXME: for now only
 systems: [-ubuntu-core-*]
-
-environment:
-    BROKEN_CORE_SNAP: core_broken.snap
-
-restore:
-    rm -rf squashfs-root
-    rm -f $BROKEN_CORE_SNAP
 
 execute: |
     snap list | awk "/^core / {print(\$3)}" > prevBoot
 
     echo "Ensure service file is created if missing (e.g. on re-exec)"
-    rm -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+    mv /usr/share/dbus-1/services/io.snapcraft.Launcher.service /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig
 
     echo "Install new core"
     snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap
 
     echo "Ensure the dbus service file got created"
     test -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+    diff -u /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig /usr/share/dbus-1/services/io.snapcraft.Launcher.service
