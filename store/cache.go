@@ -63,8 +63,19 @@ type CacheManager struct {
 }
 
 // NewCacheManager returns a new CacheManager with the given cacheDir
-// and the given maximum amount of items. It works as outlined in:
-//   https://forum.snapcraft.io/t/2374
+// and the given maximum amount of items. The idea behind it is the
+// following algorithm:
+//
+// 1. When starting a download, check if it exists in $cacheDir
+// 2. If found, update its mtime, hardlink into target location, and
+//    return success
+// 3. If not found, download the snap
+// 4. On success, hardlink into $cacheDir/<digest>
+// 5. If cache dir has more than maxItems entries, remove oldest mtimes
+//    until it has maxItems
+//
+// The caching part is done here, the downloading happens in the store.go
+// code.
 func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 	return &CacheManager{
 		cacheDir: cacheDir,
@@ -115,11 +126,10 @@ func (cm *CacheManager) Lookup(sha3_384 string) bool {
 
 // Count returns the number of items in the cache
 func (cm *CacheManager) Count() int {
-	l, err := ioutil.ReadDir(cm.cacheDir)
-	if err != nil {
-		return 0
+	if l, err := ioutil.ReadDir(cm.cacheDir); err == nil {
+		return len(l)
 	}
-	return len(l)
+	return 0
 }
 
 // digest returns the sha3 of the given path
@@ -143,13 +153,14 @@ func (cm *CacheManager) cleanup() error {
 	if err != nil {
 		return err
 	}
-	sort.Sort(changesByReverseMtime(fil))
+	if len(fil) <= cm.maxItems {
+		return nil
+	}
 
-	for i, fi := range fil {
-		if i >= cm.maxItems {
-			if err := os.Remove(cm.path(fi.Name())); err != nil {
-				return err
-			}
+	sort.Sort(changesByReverseMtime(fil))
+	for _, fi := range fil[cm.maxItems:] {
+		if err := os.Remove(cm.path(fi.Name())); err != nil {
+			return err
 		}
 	}
 	return nil
