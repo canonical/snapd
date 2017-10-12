@@ -256,8 +256,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
  * are virtual and don't show up in /dev
  */
 const networkControlConnectedPlugUDev = `
-KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",    TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
