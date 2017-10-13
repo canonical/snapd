@@ -18,6 +18,7 @@
 #include "config.h"
 #endif
 
+#include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,26 @@ void sc_maybe_fixup_permissions()
 		if (chown("/var/lib", 0, 0) != 0) {
 			die("cannot chown /var/lib");
 		}
+	}
+}
+
+// sc_maybe_fixup_udev will remove incorrectly created udev tags
+// that cause libudev on 16.04 to fail with "udev_enumerate_scan failed".
+// See also:
+// https://forum.snapcraft.io/t/weird-udev-enumerate-error/2360/17
+void sc_maybe_fixup_udev()
+{
+	glob_t glob_res SC_CLEANUP(globfree) = {
+	.gl_pathv = NULL};
+	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
+	int err = glob(glob_pattern, 0, NULL, &glob_res);
+	if (err != 0 && err != GLOB_NOMATCH) {
+		die("cannot search using glob pattern %s: %d",
+		    glob_pattern, err);
+	}
+	// killem'all
+	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+		unlink(glob_res.gl_pathv[i]);
 	}
 }
 
@@ -190,6 +211,8 @@ int main(int argc, char **argv)
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
+			sc_maybe_fixup_udev();
+
 			// Associate each snap process with a dedicated snap freezer
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
