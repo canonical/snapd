@@ -38,9 +38,9 @@ import (
 )
 
 type linkSuite struct {
-	be           backend.Backend
-	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
+	be backend.Backend
+
+	systemctlRestorer func()
 }
 
 var _ = Suite(&linkSuite{})
@@ -48,15 +48,14 @@ var _ = Suite(&linkSuite{})
 func (s *linkSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
 }
 
 func (s *linkSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	systemd.SystemctlCmd = s.prevctlCmd
+	s.systemctlRestorer()
 }
 
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
@@ -87,7 +86,7 @@ apps:
 	c.Assert(l, HasLen, 1)
 
 	// undo will remove
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -101,6 +100,10 @@ apps:
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
+
+apps:
+ bin:
+  command: hello.bin
 `
 	const contents = ""
 
@@ -122,7 +125,7 @@ version: 1.0
 	c.Assert(currentDataDir, Equals, dataDir)
 
 	// undo will remove the symlinks
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
@@ -193,10 +196,10 @@ apps:
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// no wrappers
@@ -238,6 +241,8 @@ environment:
  KEY: value
 
 apps:
+ bin:
+   command: bin
  foo:
    command: foo
  bar:
@@ -254,12 +259,13 @@ apps:
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png
-Exec=bin
+Exec=hello.bin
 `), 0644), IsNil)
 
-	systemd.SystemctlCmd = func(...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, nil
-	}
+	})
+	defer r()
 
 	// sanity checks
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -300,9 +306,11 @@ func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
-	systemd.SystemctlCmd = func(...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, errors.New("ouchie")
-	}
+	})
+	defer r()
+
 	err := s.be.LinkSnap(s.info)
 	c.Assert(err, ErrorMatches, "ouchie")
 

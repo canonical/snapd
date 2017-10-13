@@ -1,17 +1,18 @@
 summary: Check that base snaps work
+systems: [-opensuse-*]
 
 execute: |
     . $TESTSLIB/snaps.sh
 
     echo "Ensure a snap that requires a unavailable base snap can not be installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-requires-base .
+    snap pack $TESTSLIB/snaps/test-snapd-requires-base
     if install_local test-snapd-requires-base; then
         echo "ERROR: test-snapd-requires-base should not be installable without test-snapd-base"
         exit 1
     fi
 
     echo "Ensure a base snap can be installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-base .
+    snap pack $TESTSLIB/snaps/test-snapd-base
     install_local test-snapd-base
     snap list | MATCH test-snapd-base
 
@@ -33,7 +34,7 @@ execute: |
     # FIXME: we need to pull in test-snapd-base-bare explicitly here for now
     #        once snapd can do that on its own we can remove this
     # This will be fixed via:
-    #  https://github.com/mvo5/snappy/tree/ensure-core-in-snapstate-with-bases
+    #  https://bugs.launchpad.net/snapstore/+bug/1715824
     #
     snap install --edge test-snapd-base-bare
     snap install --edge --devmode test-snapd-busybox-static

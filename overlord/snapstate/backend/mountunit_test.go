@@ -37,9 +37,9 @@ import (
 )
 
 type mountunitSuite struct {
-	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
-	umount       *testutil.MockCmd
+	umount *testutil.MockCmd
+
+	systemctlRestorer func()
 }
 
 var _ = Suite(&mountunitSuite{})
@@ -50,17 +50,16 @@ func (s *mountunitSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
 	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *mountunitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	systemd.SystemctlCmd = s.prevctlCmd
 	s.umount.Restore()
+	s.systemctlRestorer()
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
@@ -72,7 +71,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -104,7 +103,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -113,7 +112,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), &s.nullProgress)
+	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)

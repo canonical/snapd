@@ -1,7 +1,7 @@
 summary: Ensure that ECONNRESET is handled
 restore: |
     echo "Remove the firewall rule again"
-    iptables -D OUTPUT -m owner --uid-owner $(id -u test) -j REJECT  -p tcp --reject-with tcp-reset
+    iptables -D OUTPUT -m owner --uid-owner $(id -u test) -j REJECT -p tcp --reject-with tcp-reset || true
 
     rm -f test-snapd-huge_*
 

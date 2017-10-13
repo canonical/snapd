@@ -165,14 +165,10 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 
 // Config represents the configuration to access the snap store
 type Config struct {
-	SearchURI      *url.URL
-	DetailsURI     *url.URL
-	BulkURI        *url.URL
-	AssertionsURI  *url.URL
-	OrdersURI      *url.URL
-	BuyURI         *url.URL
-	CustomersMeURI *url.URL
-	SectionsURI    *url.URL
+	// Store API base URLs. The assertions url is only separate because it can
+	// be overridden by its own env var.
+	StoreBaseURL      *url.URL
+	AssertionsBaseURL *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
@@ -184,9 +180,10 @@ type Config struct {
 	DeltaFormat  string
 }
 
-// SetAPI updates API URLs in the Config. Must not be used to change active config.
-func (cfg *Config) SetAPI(api *url.URL) error {
-	storeBaseURI, err := storeURL(api)
+// SetBaseURL updates the store API's base URL in the Config. Must not be used
+// to change active config.
+func (cfg *Config) SetBaseURL(u *url.URL) error {
+	storeBaseURI, err := storeURL(u)
 	if err != nil {
 		return err
 	}
@@ -195,21 +192,8 @@ func (cfg *Config) SetAPI(api *url.URL) error {
 		return err
 	}
 
-	// XXX: Repeating "api/" here is cumbersome, but the next generation
-	// of store APIs will probably drop that prefix (since it now
-	// duplicates the hostname), and we may want to switch to v2 APIs
-	// one at a time; so it's better to consider that as part of
-	// individual endpoint paths.
-	cfg.SearchURI = urlJoin(storeBaseURI, "api/v1/snaps/search")
-	// slash at the end because snap name is appended to this with .Parse(snapName)
-	cfg.DetailsURI = urlJoin(storeBaseURI, "api/v1/snaps/details/")
-	cfg.BulkURI = urlJoin(storeBaseURI, "api/v1/snaps/metadata")
-	cfg.SectionsURI = urlJoin(storeBaseURI, "api/v1/snaps/sections")
-	cfg.OrdersURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/orders")
-	cfg.BuyURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/buy")
-	cfg.CustomersMeURI = urlJoin(storeBaseURI, "api/v1/snaps/purchases/customers/me")
-
-	cfg.AssertionsURI = urlJoin(assertsBaseURI, "assertions/")
+	cfg.StoreBaseURL = storeBaseURI
+	cfg.AssertionsBaseURL = assertsBaseURI
 
 	return nil
 }
@@ -224,6 +208,13 @@ type Store struct {
 	buyURI         *url.URL
 	customersMeURI *url.URL
 	sectionsURI    *url.URL
+	commandsURI    *url.URL
+
+	// Device auth endpoints.
+	// - deviceNonceURI points to endpoint to get a nonce
+	// - deviceSessionURI points to endpoint to get a device session
+	deviceNonceURI   *url.URL
+	deviceSessionURI *url.URL
 
 	architecture string
 	series       string
@@ -287,18 +278,17 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-// Extend a base URL with additional unescaped paths.  (url.Parse handles
-// resolving relative links, which isn't quite what we want: that goes wrong if
-// the base URL doesn't end with a slash.)
-func urlJoin(base *url.URL, paths ...string) *url.URL {
-	if len(paths) == 0 {
-		return base
+// Clone a base URL and update with optional path and query.
+func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
+	u := *base
+	if path != "" {
+		u.Path = strings.TrimSuffix(u.Path, "/") + "/" + strings.TrimPrefix(path, "/")
+		u.RawQuery = ""
 	}
-	url := *base
-	url.RawQuery = ""
-	paths = append([]string{strings.TrimSuffix(url.Path, "/")}, paths...)
-	url.Path = strings.Join(paths, "/")
-	return &url
+	if len(query) != 0 {
+		u.RawQuery = query.Encode()
+	}
+	return &u
 }
 
 // apiURL returns the system default base API URL.
@@ -358,9 +348,9 @@ func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
 		}
 		return u, nil
 	}
-	// XXX: This will eventually become urlJoin(storeBaseURI, "v2/")
+	// XXX: This will eventually become endpointURL(storeBaseURI, "v2/", nil)
 	// once new bulk-friendly APIs are designed and implemented.
-	return urlJoin(storeBaseURI, "api/v1/snaps/"), nil
+	return endpointURL(storeBaseURI, "api/v1/snaps", nil), nil
 }
 
 func myappsURL() string {
@@ -386,7 +376,7 @@ func init() {
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	err = defaultConfig.SetAPI(storeBaseURI)
+	err = defaultConfig.SetBaseURL(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
@@ -424,32 +414,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		fields = detailFields
 	}
 
-	rawQuery := ""
-	if len(fields) > 0 {
-		v := url.Values{}
-		v.Set("fields", strings.Join(fields, ","))
-		rawQuery = v.Encode()
-	}
-
-	var searchURI *url.URL
-	if cfg.SearchURI != nil {
-		uri := *cfg.SearchURI
-		uri.RawQuery = rawQuery
-		searchURI = &uri
-	}
-
-	var detailsURI *url.URL
-	if cfg.DetailsURI != nil {
-		uri := *cfg.DetailsURI
-		uri.RawQuery = rawQuery
-		detailsURI = &uri
-	}
-
-	var sectionsURI *url.URL
-	if cfg.SectionsURI != nil {
-		sectionsURI = cfg.SectionsURI
-	}
-
 	architecture := arch.UbuntuArchitecture()
 	if cfg.Architecture != "" {
 		architecture = cfg.Architecture
@@ -465,16 +429,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
-	return &Store{
-		searchURI:       searchURI,
-		detailsURI:      detailsURI,
-		bulkURI:         cfg.BulkURI,
-		assertionsURI:   cfg.AssertionsURI,
-		ordersURI:       cfg.OrdersURI,
-		buyURI:          cfg.BuyURI,
-		customersMeURI:  cfg.CustomersMeURI,
-		sectionsURI:     sectionsURI,
+	store := &Store{
 		series:          series,
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
@@ -488,6 +443,40 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 			MayLogBody: true,
 		}),
 	}
+
+	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
+	// XXX: These are all required in real system but optional makes it
+	// convenient for tests.
+	// XXX: Repeating "api/" here is cumbersome, but the next generation
+	// of store APIs will probably drop that prefix (since it now
+	// duplicates the hostname), and we may want to switch to v2 APIs
+	// one at a time; so it's better to consider that as part of
+	// individual endpoint paths.
+	if cfg.StoreBaseURL != nil {
+		store.searchURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/search", nil)
+		store.detailsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/details", nil)
+		store.bulkURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/metadata", nil)
+		store.ordersURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/orders", nil)
+		store.buyURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/buy", nil)
+		store.customersMeURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/customers/me", nil)
+		store.sectionsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/sections", nil)
+		store.commandsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/names", nil)
+		store.deviceNonceURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/nonces", nil)
+		store.deviceSessionURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/sessions", nil)
+	}
+	if cfg.AssertionsBaseURL != nil {
+		store.assertionsURI = endpointURL(cfg.AssertionsBaseURL, "assertions", nil)
+	}
+
+	return store
+}
+
+func (s *Store) defaultSnapQuery() url.Values {
+	q := url.Values{}
+	if len(s.detailFields) != 0 {
+		q.Set("fields", strings.Join(s.detailFields, ","))
+	}
+	return q
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -616,7 +605,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce(s.deviceNonceURI.String())
 	if err != nil {
 		return err
 	}
@@ -626,7 +615,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.deviceSessionURI.String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -679,6 +668,47 @@ func cancelled(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+var expectedCatalogPreamble = []interface{}{
+	json.Delim('{'),
+	"_embedded",
+	json.Delim('{'),
+	"clickindex:package",
+	json.Delim('['),
+}
+
+type catalogItem struct {
+	Name string `json:"package_name"`
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer) error {
+	const what = "decode new commands catalog"
+	if resp.StatusCode != 200 {
+		return respToError(resp, what)
+	}
+	dec := json.NewDecoder(resp.Body)
+	for _, expectedToken := range expectedCatalogPreamble {
+		token, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if token != expectedToken {
+			return fmt.Errorf(what+": bad catalog preamble: expected %#v, got %#v", expectedToken, token)
+		}
+	}
+
+	for dec.More() {
+		var v catalogItem
+		if err := dec.Decode(&v); err != nil {
+			return fmt.Errorf(what+": %v", err)
+		}
+		if v.Name != "" {
+			fmt.Fprintln(names, v.Name)
+		}
+	}
+
+	return nil
 }
 
 func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
@@ -939,12 +969,7 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	// get the query before doing Parse, as that overwrites it
-	query := s.detailsURI.Query()
-	u, err := s.detailsURI.Parse(snapSpec.Name)
-	if err != nil {
-		return nil, err
-	}
+	query := s.defaultSnapQuery()
 
 	channel := snapSpec.Channel
 	var sel string
@@ -964,8 +989,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 	query.Set("channel", channel)
 
-	u.RawQuery = query.Encode()
-
+	u := endpointURL(s.detailsURI, snapSpec.Name, query)
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    u,
@@ -1030,8 +1054,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, ErrBadQuery
 	}
 
-	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
+	q := s.defaultSnapQuery()
 
 	if search.Private {
 		if search.Prefix {
@@ -1057,11 +1080,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	} else {
 		q.Set("confinement", "strict")
 	}
-	u.RawQuery = q.Encode()
 
+	u := endpointURL(s.searchURI, "", q)
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    &u,
+		URL:    u,
 		Accept: halJsonContentType,
 	}
 
@@ -1096,15 +1119,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(user *auth.UserState) ([]string, error) {
-	u := *s.sectionsURI // make a copy, so we can mutate it
-
-	q := u.Query()
-
-	u.RawQuery = q.Encode()
-
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    &u,
+		URL:    s.sectionsURI,
 		Accept: halJsonContentType,
 	}
 
@@ -1128,6 +1145,43 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	return sectionNames, nil
+}
+
+// WriteCatalogs queries the "commands" endpoint and writes the
+// command names into the given io.Writer.
+func (s *Store) WriteCatalogs(names io.Writer) error {
+	u := *s.commandsURI
+
+	q := u.Query()
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u.RawQuery = q.Encode()
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
+	}
+
+	doRequest := func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}
+	readResponse := func(resp *http.Response) error {
+		return decodeCatalog(resp, names)
+	}
+
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return respToError(resp, "refresh commands catalog")
+	}
+
+	return nil
 }
 
 // RefreshCandidate contains information for the store about the currently
@@ -1470,7 +1524,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 
 		if pbar == nil {
-			pbar = &progress.NullProgress{}
+			pbar = progress.Null
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
@@ -1626,13 +1680,9 @@ type assertionSvcError struct {
 
 // Assertion retrivies the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	u, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
-	if err != nil {
-		return nil, err
-	}
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
-	u.RawQuery = v.Encode()
+	u := endpointURL(s.assertionsURI, path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
 	reqOptions := &requestOptions{
 		Method: "GET",
@@ -1659,7 +1709,12 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
 				}
 				if svcErr.Status == 404 {
-					return &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+					// best-effort
+					headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
+					return &asserts.NotFoundError{
+						Type:    assertType,
+						Headers: headers,
+					}
 				}
 				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 			}

@@ -48,6 +48,9 @@ var (
 	ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
 )
 
+// IMPORTANT: all the code in this section may be run with elevated privileges
+// when invoking snap-update-ns from the setuid snap-confine.
+
 // BootstrapError returns error (if any) encountered in pre-main C code.
 func BootstrapError() error {
 	if C.bootstrap_msg == nil {
@@ -64,32 +67,53 @@ func BootstrapError() error {
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
 }
 
+// END IMPORTANT
+
 // readCmdline is a wrapper around the C function read_cmdline.
 func readCmdline(buf []byte) C.ssize_t {
 	return C.read_cmdline((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(cap(buf)))
 }
 
-// findArgv0 parses the argv-like array and finds the 0st argument.
-func findArgv0(buf []byte) *string {
-	if ptr := C.find_argv0((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))); ptr != nil {
-		str := C.GoString(ptr)
-		return &str
-	}
-	return nil
-}
-
 // findSnapName parses the argv-like array and finds the 1st argument.
 func findSnapName(buf []byte) *string {
-	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))); ptr != nil {
+	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
 		str := C.GoString(ptr)
 		return &str
 	}
 	return nil
 }
 
-// partiallyValidateSnapName checks if snap name is seemingly valid.
-// The real part of the validation happens on the go side.
-func partiallyValidateSnapName(snapName string) int {
+// findFirstOption returns the first "-option" string in argv-like array.
+func findFirstOption(buf []byte) *string {
+	if ptr := C.find_1st_option((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
+		str := C.GoString(ptr)
+		return &str
+	}
+	return nil
+}
+
+// validateSnapName checks if snap name is valid.
+// This also sets bootstrap_msg on failure.
+func validateSnapName(snapName string) int {
 	cStr := C.CString(snapName)
-	return int(C.partially_validate_snap_name(cStr))
+	return int(C.validate_snap_name(cStr))
+}
+
+// processArguments parses commnad line arguments.
+// The argument cmdline is a string with embedded
+// NUL bytes, separating particular arguments.
+func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
+	var snapNameOut *C.char
+	var shouldSetNsOut C.bool
+	var buf *C.char
+	if len(cmdline) > 0 {
+		buf = (*C.char)(unsafe.Pointer(&cmdline[0]))
+	}
+	C.process_arguments(buf, &snapNameOut, &shouldSetNsOut)
+	if snapNameOut != nil {
+		snapName = C.GoString(snapNameOut)
+	}
+	shouldSetNs = bool(shouldSetNsOut)
+
+	return snapName, shouldSetNs
 }

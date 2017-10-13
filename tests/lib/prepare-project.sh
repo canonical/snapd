@@ -155,13 +155,6 @@ fi
 . "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
-   # build test binaries
-   if [ ! -f "$GOHOME/bin/snapbuild" ]; then
-       mkdir -p "$GOHOME/bin"
-       snap install --edge test-snapd-snapbuild
-       cp "$SNAP_MOUNT_DIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
-       snap remove test-snapd-snapbuild
-   fi
    # stop and disable autorefresh
    if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
        systemctl disable --now snapd.refresh.timer
@@ -255,10 +248,7 @@ else
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
 fi
 
-# Build snapbuild.
-go get ./tests/lib/snapbuild
 # Build fakestore.
-
 fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"

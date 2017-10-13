@@ -20,6 +20,7 @@
 package main
 
 import (
+	"net/url"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -33,6 +34,18 @@ var (
 	ParseArgs = parseArgs
 	Run       = run
 )
+
+func MockBaseURL(baseurl string) (restore func()) {
+	orig := baseURL
+	u, err := url.Parse(baseurl)
+	if err != nil {
+		panic(err)
+	}
+	baseURL = u
+	return func() {
+		baseURL = orig
+	}
+}
 
 func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
 	originalFetchRetryStrategy := fetchRetryStrategy
@@ -64,6 +77,10 @@ func MockTrustedRepairRootKeys(keys []*asserts.AccountKey) (restore func()) {
 	return func() {
 		trustedRepairRootKeys = original
 	}
+}
+
+func TrustedRepairRootKeys() []*asserts.AccountKey {
+	return trustedRepairRootKeys
 }
 
 func (run *Runner) BrandModel() (brand, model string) {
@@ -98,8 +115,28 @@ func (run *Runner) SetSequence(brand string, sequence []*RepairState) {
 	run.state.Sequences[brand] = sequence
 }
 
+func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
+	orig := defaultRepairTimeout
+	defaultRepairTimeout = d
+	return func() {
+		defaultRepairTimeout = orig
+	}
+}
+
+func MockErrtrackerReportRepair(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReportRepair
+	errtrackerReportRepair = mock
+	return func() { errtrackerReportRepair = prev }
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	origTimeNow := timeNow
 	timeNow = f
 	return func() { timeNow = origTimeNow }
+}
+
+func NewCmdShow(args ...string) *cmdShow {
+	cmdShow := &cmdShow{}
+	cmdShow.Positional.Repair = args
+	return cmdShow
 }

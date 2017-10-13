@@ -23,6 +23,7 @@ package devicestate
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -50,7 +51,7 @@ func Model(st *state.State) (*asserts.Model, error) {
 		"brand-id": device.Brand,
 		"model":    device.Model,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -76,7 +77,7 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 		"model":    device.Model,
 		"serial":   device.Serial,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil, state.ErrNoState
 	}
 	if err != nil {
@@ -188,7 +189,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	return nil
 }
 
-func init() {
-	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+var once sync.Once
+
+func delayedCrossMgrInit() {
+	once.Do(func() {
+		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 }
