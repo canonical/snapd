@@ -38,6 +38,46 @@ type UEvent struct {
 	Env    map[string]string
 }
 
+func (e UEvent) String() string {
+	rv := fmt.Sprintf("%s@%s\000", e.Action.String(), e.KObj)
+	for k, v := range e.Env {
+		rv += k + "=" + v + "\000"
+	}
+	return rv
+}
+
+func (e UEvent) Bytes() []byte {
+	return []byte(e.String())
+}
+
+func (e UEvent) Equal(e2 UEvent) (bool, error) {
+	if e.Action != e2.Action {
+		return false, fmt.Errorf("Wrong action (got: %s, wanted: %s)", e.Action, e2.Action)
+	}
+
+	if e.KObj != e2.KObj {
+		return false, fmt.Errorf("Wrong kobject (got: %s, wanted: %s)", e.KObj, e2.KObj)
+	}
+
+	if len(e.Env) != len(e2.Env) {
+		return false, fmt.Errorf("Wrong length of env (got: %d, wanted: %d)", len(e.Env), len(e2.Env))
+	}
+
+	var found bool
+	for k, v := range e.Env {
+		found = false
+		for i, e := range e2.Env {
+			if i == k && v == e {
+				found = true
+			}
+		}
+		if !found {
+			return false, fmt.Errorf("Unable to find %s=%s env var from uevent", k, v)
+		}
+	}
+	return true, nil
+}
+
 func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
 
