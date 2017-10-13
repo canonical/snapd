@@ -65,5 +65,7 @@ static void test_is_on_classic_with_long_line()
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
+	g_test_add_func("/classic/on-classic-with-long-line",
+			test_is_on_classic_with_long_line);
 	g_test_add_func("/classic/on-core", test_is_on_core);
 }
