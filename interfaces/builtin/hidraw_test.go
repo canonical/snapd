@@ -46,9 +46,12 @@ type HidrawInterfaceSuite struct {
 	// Gadget Snap
 	testUDev1         *interfaces.Slot
 	testUDev2         *interfaces.Slot
+	testUDev3         *interfaces.Slot
 	testUDevBadValue1 *interfaces.Slot
 	testUDevBadValue2 *interfaces.Slot
 	testUDevBadValue3 *interfaces.Slot
+	testUDevBadValue4 *interfaces.Slot
+	testUDevBadValue5 *interfaces.Slot
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
@@ -104,6 +107,12 @@ slots:
       usb-vendor: 0xffff
       usb-product: 0xffff
       path: /dev/hidraw-mydevice
+  test-udev-3:
+      interface: hidraw
+      usb-vendor: 0xabcd
+      usb-product: 0x1234
+      usb-interface-number: 0
+      path: /dev/hidraw-myhidraw
   test-udev-bad-value-1:
       interface: hidraw
       usb-vendor: -1
@@ -119,12 +128,27 @@ slots:
       usb-vendor: 0x789a
       usb-product: 0x4321
       path: /dev/my-device
+  test-udev-bad-value-4:
+      interface: hidraw
+      usb-vendor: 0x1234
+      usb-product: 0x4321
+      usb-interface-number: -1
+      path: /dev/hidraw-mybadinterfac
+  test-udev-bad-value-5:
+      interface: hidraw
+      usb-vendor: 0x1234
+      usb-product: 0x4321
+      usb-interface-number: 33
+      path: /dev/hidraw-overinterfacenumber
 `, nil)
 	s.testUDev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
 	s.testUDev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
+	s.testUDev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-3"]}
 	s.testUDevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
 	s.testUDevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
 	s.testUDevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
+	s.testUDevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-4"]}
+	s.testUDevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
@@ -169,12 +193,15 @@ func (s *HidrawInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 func (s *HidrawInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
 	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
 	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev3.Sanitize(s.iface), IsNil)
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "hidraw usb-vendor attribute not valid: -1")
 	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "hidraw usb-product attribute not valid: 65536")
 	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "hidraw path attribute specifies invalid symlink location")
+	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "hidraw usb-interface-number attribute not valid: -1")
+	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "hidraw usb-interface-number attribute not valid: 33")
 }
 
 func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
@@ -198,6 +225,14 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+
+	expectedSnippet3 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="hidraw-myhidraw"`
+	spec = &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev3), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 }
 
 func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
@@ -219,6 +254,14 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
+
+	expectedSnippet3 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", TAG+="snap_client-snap_app-accessing-2-devices"`
+	spec = &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev3, nil), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
@@ -245,6 +288,14 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
 	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+
+	expectedSnippet4 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,`
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev3, nil)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
+	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
+	c.Assert(snippet, DeepEquals, expectedSnippet4, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet4, snippet))
 }
 
 func (s *HidrawInterfaceSuite) TestInterfaces(c *C) {
