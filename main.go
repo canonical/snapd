@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/kr/pretty"
 )
 
 func main() {
@@ -33,7 +35,7 @@ func main() {
 	for {
 		select {
 		case uevent := <-queue:
-			log.Printf("Handle msg: %#v\n", uevent)
+			log.Printf("Handle %s\n", pretty.Sprint(uevent))
 		}
 	}
 }
