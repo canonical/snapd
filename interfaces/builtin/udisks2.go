@@ -112,7 +112,7 @@ const udisks2ConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service. This gives privileged
 # access to the system.
 
-dbus (send)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties

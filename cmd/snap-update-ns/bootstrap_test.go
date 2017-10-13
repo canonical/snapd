@@ -80,29 +80,94 @@ func (s *bootstrapSuite) TestFindSnapName5(c *C) {
 	c.Assert(result, Equals, (*string)(nil))
 }
 
-// Check that if argv0 is returned as expected
-func (s *bootstrapSuite) TestFindArgv0(c *C) {
-	buf := []byte("arg0\x00argv1\x00")
-	result := update.FindArgv0(buf)
+// Check that if the 1st argument is an option then it is skipped.
+func (s *bootstrapSuite) TestFindSnapName6(c *C) {
+	buf := []byte("arg0\x00--option\x00snap\x00\x00")
+	result := update.FindSnapName(buf)
 	c.Assert(result, NotNil)
-	c.Assert(*result, Equals, "arg0")
+	c.Assert(*result, Equals, "snap")
 }
 
-// Check that if argv0 is unterminated we return NULL.
-func (s *bootstrapSuite) TestFindArgv0Unterminated(c *C) {
-	buf := []byte("arg0")
-	result := update.FindArgv0(buf)
-	c.Assert(result, Equals, (*string)(nil))
+// Check that if many options are skipped.
+func (s *bootstrapSuite) TestFindSnapName7(c *C) {
+	buf := []byte("arg0\x00--option\x00--another\x00snap\x00\x00")
+	result := update.FindSnapName(buf)
+	c.Assert(result, NotNil)
+	c.Assert(*result, Equals, "snap")
 }
 
-// Check that PartiallyValidateSnapName rejects "/" and "..".
-func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
-	c.Assert(update.PartiallyValidateSnapName("hello-world"), Equals, 0)
-	c.Assert(update.PartiallyValidateSnapName("hello/world"), Equals, -1)
-	c.Assert(update.PartiallyValidateSnapName("hello..world"), Equals, -1)
+// Check that if there are no options we just return nil.
+func (s *bootstrapSuite) TestFindFirstOption1(c *C) {
+	for _, str := range []string{"\x00", "arg0\x00", "arg0\x00arg1\x00"} {
+		result := update.FindFirstOption([]byte(str))
+		c.Assert(result, Equals, (*string)(nil))
+	}
 }
 
-// Check that pre-go bootstrap code is disabled while testing.
-func (s *bootstrapSuite) TestBootstrapDisabled(c *C) {
-	c.Assert(update.BootstrapError(), ErrorMatches, "bootstrap is not enabled while testing")
+// Check that if there are are options we return the first one.
+func (s *bootstrapSuite) TestFindFirstOption2(c *C) {
+	expected := "-o1"
+	for _, str := range []string{
+		"\x00-o1\x00",
+		"arg0\x00-o1\x00",
+		"arg0\x00-o1\x00arg1\x00",
+		"arg0\x00-o1\x00-o2\x00",
+		"arg0\x00-o1\x00-o2\x00arg1\x00",
+	} {
+		result := update.FindFirstOption([]byte(str))
+		c.Assert(result, DeepEquals, &expected, Commentf("got %q", *result))
+	}
+}
+
+// Check that ValidateSnapName rejects "/" and "..".
+func (s *bootstrapSuite) TestValidateSnapName(c *C) {
+	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
+	c.Assert(update.ValidateSnapName("hello/world"), Equals, -1)
+	c.Assert(update.ValidateSnapName("hello..world"), Equals, -1)
+	c.Assert(update.ValidateSnapName("INVALID"), Equals, -1)
+	c.Assert(update.ValidateSnapName("-invalid"), Equals, -1)
+}
+
+// Test various cases of command line handling.
+func (s *bootstrapSuite) TestProcessArguments(c *C) {
+	cases := []struct {
+		cmdline     string
+		snapName    string
+		shouldSetNs bool
+		errPattern  string
+	}{
+		// Corrupted buffer is dealt with.
+		{"", "", false, "argv0 is corrupted"},
+		// When testing real bootstrap is identified and disabled.
+		{"argv0.test\x00", "", false, "bootstrap is not enabled while testing"},
+		// Snap name is mandatory.
+		{"argv0\x00", "", false, "snap name not provided"},
+		{"argv0\x00\x00", "", false, "snap name not provided"},
+		// Snap name is parsed correctly.
+		{"argv0\x00snapname\x00", "snapname", true, ""},
+		// Snap name is validated correctly.
+		{"argv0\x00in--valid\x00", "", false, "snap name cannot contain two consecutive dashes"},
+		{"argv0\x00invalid-\x00", "", false, "snap name cannot end with a dash"},
+		{"argv0\x00@invalid\x00", "", false, "snap name must use lower case letters, digits or dashes"},
+		{"argv0\x00INVALID\x00", "", false, "snap name must use lower case letters, digits or dashes"},
+		// The option --from-snap-confine disables setns.
+		{"argv0\x00--from-snap-confine\x00snapname\x00", "snapname", false, ""},
+		// Unknown options are reported.
+		{"argv0\x00-invalid\x00", "", false, "unsupported option"},
+		{"argv0\x00--option\x00", "", false, "unsupported option"},
+	}
+	for _, tc := range cases {
+		buf := []byte(tc.cmdline)
+		snapName, shouldSetNs := update.ProcessArguments(buf)
+		err := update.BootstrapError()
+		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",
+			tc.cmdline, tc.errPattern, err)
+		if tc.errPattern != "" {
+			c.Assert(err, ErrorMatches, tc.errPattern, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+		c.Check(snapName, Equals, tc.snapName)
+		c.Check(shouldSetNs, Equals, tc.shouldSetNs)
+	}
 }

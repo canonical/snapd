@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	unix "syscall"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -86,6 +87,8 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// then the /root user (including GlobalRootDir for tests)
+	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/")))
 	// then system data
 	found = append(found, snap.DataDir())
 

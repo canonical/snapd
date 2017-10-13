@@ -83,7 +83,7 @@ func readMachineID() ([]byte, error) {
 }
 
 func snapConfineProfileDigest(suffix string) string {
-	profileText, err := ioutil.ReadFile(snapConfineProfile + suffix)
+	profileText, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, snapConfineProfile+suffix))
 	if err != nil {
 		return ""
 	}
@@ -98,9 +98,35 @@ func didSnapdReExec() string {
 	return "no"
 }
 
+// Report reports an error with the given snap to the error tracker
 func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
+	if extra == nil {
+		extra = make(map[string]string)
+	}
+	extra["ProblemType"] = "Snap"
+	extra["Snap"] = snap
+
+	return report(errMsg, dupSig, extra)
+}
+
+// ReportRepair reports an error with the given repair assertion script
+// to the error tracker
+func ReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
+	if extra == nil {
+		extra = make(map[string]string)
+	}
+	extra["ProblemType"] = "Repair"
+	extra["Repair"] = repair
+
+	return report(errMsg, dupSig, extra)
+}
+
+func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
+	}
+	if extra == nil || extra["ProblemType"] == "" {
+		return "", fmt.Errorf(`key "ProblemType" not set in %v`, extra)
 	}
 
 	machineID, err := readMachineID()
@@ -130,14 +156,12 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	}
 
 	report := map[string]string{
-		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
 		"SnapdVersion":       SnapdVersion,
 		"DistroRelease":      distroRelease(),
 		"HostSnapdBuildID":   hostBuildID,
 		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
-		"Snap":               snap,
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,

@@ -18,6 +18,7 @@ environment:
     MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    SPREAD_DEBUG_EACH: "$(HOST: echo ${SPREAD_DEBUG_EACH:-1})"
     LANG: "$(echo ${LANG:-C.UTF-8})"
     LANGUAGE: "$(echo ${LANGUAGE:-en})"
     # important to ensure adhoc and linode/qemu behave the same
@@ -39,8 +40,6 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
-    # This skips various sync calls which can greatly speed up test execution.
-    SNAPD_UNSAFE_IO: 1
 
 backends:
     linode:
@@ -260,14 +259,16 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
-    echo '# journal messages for snapd'
-    journalctl -u snapd
-    echo '# apparmor denials '
-    dmesg --ctime | grep DENIED || true
-    echo '# seccomp denials (kills) '
-    dmesg --ctime | grep type=1326 || true
-    echo '# snap interfaces'
-    snap interfaces || true
+    if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        echo '# journal messages for snapd'
+        journalctl -u snapd
+        echo '# apparmor denials '
+        dmesg --ctime | grep DENIED || true
+        echo '# seccomp denials (kills) '
+        dmesg --ctime | grep type=1326 || true
+        echo '# snap interfaces'
+        snap interfaces || true
+    fi
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -298,6 +299,21 @@ prepare: |
     if systemd-detect-virt -c; then
         echo "Tests cannot run inside a container"
         exit 1
+    fi
+    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
+        # There's a packaging bug in Debian sid lately where some packages
+        # conflict on manual page file. To work around it simply remove the
+        # manpages package.
+        apt-get remove --purge -y manpages
+    fi
+
+    # FIXME: remove once the following bug is fixed:
+    #   https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=876128
+    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
+        # There's a packaging bug in Debian sid lately where some packages
+        # conflict on manual page file. To work around it simply remove the
+        # manpages package.
+        apt-get remove --purge -y manpages
     fi
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6

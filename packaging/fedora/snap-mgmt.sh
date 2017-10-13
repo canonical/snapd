@@ -89,6 +89,10 @@ purge() {
     # opportunistic as those might not be actually mounted
     for mnt in /run/snapd/ns/*.mnt; do
         umount -l "$mnt" || true
+        rm -f "$mnt"
+    done
+    for fstab in /run/snapd/ns/*.fstab; do
+        rm -f "$fstab"
     done
     umount -l /run/snapd/ns/ || true
 
@@ -105,6 +109,9 @@ purge() {
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+
+    echo "Removing snapd catalog cache"
+    rm -f /var/cache/snapd/*
 }
 
 while [ -n "$1" ]; do

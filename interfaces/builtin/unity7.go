@@ -543,10 +543,6 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
-
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 const unity7ConnectedPlugSeccomp = `
