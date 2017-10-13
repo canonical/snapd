@@ -58,9 +58,12 @@ type SerialPortInterfaceSuite struct {
 	// Gadget Snap
 	testUDev1         *interfaces.Slot
 	testUDev2         *interfaces.Slot
+	testUDev3         *interfaces.Slot
 	testUDevBadValue1 *interfaces.Slot
 	testUDevBadValue2 *interfaces.Slot
 	testUDevBadValue3 *interfaces.Slot
+	testUDevBadValue4 *interfaces.Slot
+	testUDevBadValue5 *interfaces.Slot
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
@@ -164,6 +167,12 @@ slots:
       usb-vendor: 0xffff
       usb-product: 0xffff
       path: /dev/serial-port-mydevice
+  test-udev-3:
+      interface: serial-port
+      usb-vendor: 0xabcd
+      usb-product: 0x1234
+      usb-interface-number: 0
+      path: /dev/serial-port-myserial
   test-udev-bad-value-1:
       interface: serial-port
       usb-vendor: -1
@@ -179,12 +188,27 @@ slots:
       usb-vendor: 0x789a
       usb-product: 0x4321
       path: /dev/my-device
+  test-udev-bad-value-4:
+      interface: serial-port
+      usb-vendor: 0x1234
+      usb-product: 0x4321
+      usb-interface-number: -1
+      path: /dev/serial-port-mybadinterface
+  test-udev-bad-value-5:
+      interface: serial-port
+      usb-vendor: 0x1234
+      usb-product: 0x4321
+      usb-interface-number: 33
+      path: /dev/serial-port-overinterfacenumber
 `, nil)
 	s.testUDev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
 	s.testUDev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
+	s.testUDev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-3"]}
 	s.testUDevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
 	s.testUDevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
 	s.testUDevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
+	s.testUDevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-4"]}
+	s.testUDevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
@@ -229,12 +253,15 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 func (s *SerialPortInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
 	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
 	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
+	c.Assert(s.testUDev3.Sanitize(s.iface), IsNil)
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
 	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "serial-port usb-product attribute not valid: 65536")
 	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "serial-port path attribute specifies invalid symlink location")
+	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute not valid: -1")
+	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute not valid: 33")
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
@@ -261,6 +288,15 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
+
+	spec = &udev.Specification{}
+	expectedSnippet3 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="serial-port-myserial"`
+	err = spec.AddPermanentSlot(s.iface, s.testUDev3)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
@@ -285,6 +321,15 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	expectedSnippet2 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet2)
+
+	spec = &udev.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev3, nil)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	expectedSnippet3 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", TAG+="snap_client-snap_app-accessing-2-ports"`
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
@@ -323,6 +368,9 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rw,`
 	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet9)
+
+	expectedSnippet10 := `/dev/tty[A-Z]*[0-9] rw,`
+	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev3, expectedSnippet10)
 }
 
 func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
