@@ -31,10 +31,13 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -46,6 +49,17 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
+// setupDbusServiceForUserd will setup the service file for the new
+// `snap userd` instance on re-exec
+func setupDbusServiceForUserd(snapInfo *snap.Info) error {
+	coreRoot := snapInfo.MountDir()
+	dst := "/usr/share/dbus-1/services/io.snapcraft.Launcher.service"
+	if osutil.FileExists(dst) {
+		return nil
+	}
+	return osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll)
+}
+
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
@@ -55,6 +69,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
+	}
+
+	// core on classic is special
+	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
+		if err := setupDbusServiceForUserd(snapInfo); err != nil {
+			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		}
 	}
 
 	// Get the files that this snap should have
