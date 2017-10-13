@@ -49,17 +49,18 @@ BuildRequires:  glibc-devel-static
 BuildRequires:  golang-packaging
 BuildRequires:  gpg2
 BuildRequires:  indent
+BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
+BuildRequires:  openssh
 BuildRequires:  pkg-config
 BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
-BuildRequires:  openssh
 BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
@@ -73,6 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
+Requires:       apparmor
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
