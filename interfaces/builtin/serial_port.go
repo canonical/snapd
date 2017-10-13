@@ -112,6 +112,11 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
 			return fmt.Errorf("serial-port usb-product attribute not valid: %d", usbProduct)
 		}
+
+		usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
+		if pOk && (usbInterfaceNumber < 0x0) || (usbInterfaceNumber > UsbMaxInterfaces) {
+			return fmt.Errorf("serial-port usb-interface-number attribute not valid: %d", usbInterfaceNumber)
+		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
 		// Check the path attribute is in the allowable pattern
@@ -131,11 +136,17 @@ func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	if !pOk {
 		return nil
 	}
+	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
+	if !pOk {
+		// usb-interface-number attribute is optional
+		// Set usbInterfaceNumber < 0 would remove the ENV{ID_USB_INTERFACE_NUM} in udev rule
+		usbInterfaceNumber = -1
+	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
+	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
 	return nil
 }
 
@@ -167,9 +178,13 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	if !pOk {
 		return nil
 	}
+	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
+	if !pOk {
+		usbInterfaceNumber = -1
+	}
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
+		spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
 	}
 	return nil
 }
@@ -184,6 +199,9 @@ func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 		return true
 	}
 	if _, ok := slot.Attrs["usb-product"]; ok {
+		return true
+	}
+	if _, ok := slot.Attrs["usb-interface-number"]; ok {
 		return true
 	}
 	return false
