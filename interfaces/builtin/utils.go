@@ -23,10 +23,14 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
+
+// The maximum number of Usb bInterfaceNumber.
+const UsbMaxInterfaces = 32
 
 // AppLabelExpr returns the specification of the apparmor label describing
 // all the apps bound to a given slot. The result has one of three forms,
@@ -71,14 +75,19 @@ func plugAppLabelExpr(plug *interfaces.Plug) string {
 }
 
 // Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) string {
+func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, usbIterfaceNumber int64, key string, data string) string {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
-	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
+	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02d"`
 	const udevSuffix string = `, %s+="%s"`
 
 	var udevSnippet bytes.Buffer
 	udevSnippet.WriteString(udevHeader + "\n")
-	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
+	if usbIterfaceNumber < 0 || usbIterfaceNumber > UsbMaxInterfaces {
+		udevDevicePrefixNoInterface := strings.Replace(udevDevicePrefix, `, ENV{ID_USB_INTERFACE_NUM}=="%02d"`, "", -1)
+		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefixNoInterface, subsystem, usbVendor, usbProduct))
+	} else {
+		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct, usbIterfaceNumber))
+	}
 	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
 	return udevSnippet.String()
 }
