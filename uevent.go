@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"strings"
 )
 
 // See: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
@@ -47,7 +46,7 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 		return
 	}
 
-	headers := bytes.Split(fields[0], []byte{0x40}) // 0x40 = @
+	headers := bytes.Split(fields[0], []byte("@")) // 0x40 = @
 	if len(headers) != 2 {
 		err = fmt.Errorf("Wrong uevent header")
 		return
@@ -65,13 +64,12 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	}
 
 	for _, envs := range fields[1 : len(fields)-1] {
-		// log.Printf("v: %s", envs)
-		env := strings.Split(string(envs), "=")
+		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
 			err = fmt.Errorf("Wrong uevent env")
 			return
 		}
-		e.Env[env[0]] = env[1]
+		e.Env[string(env[0])] = string(env[1])
 	}
 	return
 }
