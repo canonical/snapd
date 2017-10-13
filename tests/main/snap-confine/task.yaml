@@ -1,0 +1,32 @@
+summary: Test that snap-confine errors in the right way
+
+# the error message can only happen on classic systems
+systems: [-ubuntu-core-16-*]
+
+prepare: |
+    echo "Install test snap"
+    snap install test-snapd-tools
+
+restore: |
+    . $TESTSLIB/dirs.sh
+
+    echo "Restore current symlink"
+    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
+    rm -f snap-confine.stderr
+
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    echo "Test nvidia device fix"
+    # For https://github.com/snapcore/snapd/pull/4042
+    echo "Simulate nvidia device tags"
+    mkdir -p /run/udev/tags/snap_test-snapd-tools_echo
+    for f in c226:0 +module:nvidia +module:nvidia_modeset; do
+        touch /run/udev/tags/snap_test-snapd-tools_echo/$f
+    done
+    test-snapd-tools.echo hello | MATCH hello
+    echo "Non nvidia files are still there"
+    test -f /run/udev/tags/snap_test-snapd-tools_echo/c226:0
+    echo "But nvidia files are gone"
+    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
+    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
