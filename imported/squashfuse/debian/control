@@ -1,0 +1,24 @@
+Source: squashfuse
+Section: utils
+Priority: optional
+Maintainer: Stéphane Graber <stgraber@ubuntu.com>
+Build-Depends: autotools-dev,
+               debhelper (>=9),
+               libfuse-dev,
+               liblz4-dev,
+               liblzma-dev,
+               liblzo2-dev,
+               zlib1g-dev
+Standards-Version: 3.9.7
+Homepage: https://github.com/vasi/squashfuse
+
+Package: squashfuse
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: FUSE filesystem to mount squashfs archives
+ This lets you mount SquashFS archives in user-space. It supports almost
+ all features of the SquashFS format, yet is still fast and memory-efficient.
+ .
+ SquashFS is an efficiently compressed, read-only storage format.
+ Support for it  has been built into the Linux kernel since 2009. It is
+ very common on Live CDs  and embedded Linux distributions.

@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+# Setup the environment
+TEMP=$(mktemp -d)
+mkdir "${TEMP}/orig" "${TEMP}/mnt"
+
+cleanup() {
+    set +e
+    fusermount -u "${TEMP}/mnt"
+    rm -Rf "${TEMP}"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+# Create a minimal test tree
+mkdir "${TEMP}/orig/dir"
+echo blah > "${TEMP}/orig/dir/file"
+
+# Create a squashfs
+mksquashfs "${TEMP}/orig/" "${TEMP}/out.squashfs" -no-progress >/dev/null
+
+# Mount the squashfs
+mount -t fuse.squashfuse "${TEMP}/out.squashfs" "${TEMP}/mnt/"
+
+# Diff the trees
+diff -Nrup "${TEMP}/orig/" "${TEMP}/mnt/"

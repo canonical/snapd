@@ -1,0 +1,19 @@
+0.1.100
+
+  * minor bugfixes around symlink handling
+  * performance improvements
+  * support for offset mounting
+  * variety of other fixes since 0.1.99
+
+0.1.99 - unreleased
+  
+  * Support for LZ4 compression.
+  * Faster directory listing.
+  * Squashfuse now uses the high-level FUSE API. The old low-level squashfuse
+    is renamed to squashfuse_ll.
+  
+  * Squashfuse core now builds as a library. Demo program is included.
+  * New API for simple recursive traversal of a squashfs filesystem.
+  * Changed API for directories, uses less memory and exposes fewer internals.
+  
+  * Windows support for the core library and demo.

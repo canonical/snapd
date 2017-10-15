@@ -1,0 +1,11 @@
+squashfuse (0.1.100-0ubuntu2) zesty; urgency=medium
+
+  * Add a basic test.
+
+ -- Stéphane Graber <stgraber@ubuntu.com>  Tue, 14 Feb 2017 11:04:15 -0500
+
+squashfuse (0.1.100-0ubuntu1) yakkety; urgency=medium
+
+  * Initial release.
+
+ -- Stéphane Graber <stgraber@ubuntu.com>  Tue, 21 Jun 2016 18:46:54 -0400

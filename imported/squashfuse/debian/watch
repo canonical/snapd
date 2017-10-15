@@ -1,0 +1,3 @@
+version=3
+opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/squashfuse-$1\.tar\.gz/ \
+  https://github.com/vasi/squashfuse/tags .*/v?(\d\S*)\.tar\.gz

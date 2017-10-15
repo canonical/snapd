@@ -116,6 +116,8 @@ endif
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# XXX: hacky^2
+	(cd imported/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -140,6 +142,9 @@ override_dh_auto_build:
 
 	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
+
+	# build squashfuse and rename to snapfuse
+	(cd imported/squashfuse && cp /usr/share/misc/config.* build-aux && ./configure --disable-demo && make && mv squashfuse snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)

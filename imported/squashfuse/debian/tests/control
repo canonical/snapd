@@ -1,0 +1,4 @@
+Tests: exercise
+Depends: squashfs-tools,
+         @
+Restrictions: needs-root allow-stderr isolation-machine

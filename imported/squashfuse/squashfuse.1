@@ -1,0 +1,69 @@
+.\"Copyright (c) 2012 Dave Vasilevsky <dave@vasilevsky.ca>
+.\"All rights reserved.
+.\"
+.\"Redistribution and use in source and binary forms, with or without
+.\"modification, are permitted provided that the following conditions
+.\"are met:
+.\"1. Redistributions of source code must retain the above copyright
+.\"   notice, this list of conditions and the following disclaimer.
+.\"2. Redistributions in binary form must reproduce the above copyright
+.\"   notice, this list of conditions and the following disclaimer in the
+.\"   documentation and/or other materials provided with the distribution.
+.\"
+.\"THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+.\"IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+.\"OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+.\"IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+.\"INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+.\"NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+.\"DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+.\"THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+.\"(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+.\"THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.Dd March 19, 2012 
+.Dt squashfuse 1
+.Os
+.Sh NAME
+.Nm squashfuse
+.Nd mount a SquashFS archive with FUSE
+.Sh SYNOPSIS
+.Nm
+.Op Fl o Ar options
+.Ar archive
+.Ar mountpoint
+.Sh DESCRIPTION
+.Nm
+mounts the SquashFS filesystem
+.Ar archive
+on the directory
+.Ar mountpoint .
+The filesystem can be unmounted using
+.Xr umount 8
+or
+.Xr fusermount 8 .
+.Pp
+A selection of FUSE options:
+.Bl -tag -width -indent
+.It Fl V, -version
+show FUSE version
+.It Fl h, -help
+print help
+.It Fl d, o Cm debug
+enable debug output (implies
+.Fl f )
+.It Fl f
+foreground operation
+.It Fl o Cm allow_other
+allow access by other users
+.It Fl o Cm allow_root
+allow access by the superuser
+.El
+.Sh SEE ALSO
+.Xr fusermount 8 ,
+.Xr mount 8 ,
+.Xr umount 8
+.Pp
+.mso www.tmac
+.URL "http://squashfs.sourceforge.net/" SquashFS
+.Pp
+.URL "http://fuse.sourceforge.net/" FUSE

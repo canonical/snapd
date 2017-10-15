@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+%:
+	dh $@  --with autotools_dev
+
+override_dh_auto_configure:
+	dh_auto_configure -- --disable-demo
+
+override_dh_auto_install:
+	dh_auto_install
+	mv debian/squashfuse/usr/bin/squashfuse_ll debian/squashfuse/usr/bin/squashfuse
