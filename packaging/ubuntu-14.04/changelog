@@ -1,3 +1,16 @@
+snapd (2.28.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - snap-confine: cleanup broken nvidia udev tags
+    - cmd/snap-confine: update valid security tag regexp
+    - overlord/ifacestate: refresh udev backend on startup
+    - dbus: ensure io.snapcraft.Launcher.service is created on re-
+      exec
+    - snap-confine: add support for handling /dev/nvidia-modeset
+    - interfaces/network-control: remove incorrect rules for tun
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Oct 2017 23:25:46 +0200
+
 snapd (2.28.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1714984
