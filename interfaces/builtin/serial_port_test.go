@@ -340,7 +340,7 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})
 		snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-ports")
-		c.Assert(snippet, DeepEquals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, snippet))
+		c.Assert(snippet, DeepEquals, expectedSnippet)
 	}
 
 	expectedSnippet1 := `/dev/ttyS0 rw,`
