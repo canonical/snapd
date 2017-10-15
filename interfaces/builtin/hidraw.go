@@ -108,8 +108,8 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 
 		usbInterfaceNumber, _ := slot.Attrs["usb-interface-number"].(int64)
-		if (usbInterfaceNumber < 0x0) || (usbInterfaceNumber > UsbMaxInterfaces) {
-			return fmt.Errorf("hidraw usb-interface-number attribute not valid: %d", usbInterfaceNumber)
+		if (usbInterfaceNumber < 0x0) || (usbInterfaceNumber >= UsbMaxInterfaces) {
+			return fmt.Errorf("hidraw usb-interface-number attribute cannot be negative and larger than 31")
 		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
@@ -130,8 +130,8 @@ func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
-	if !pOk {
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
 		// usb-interface-number attribute is optional
 		// Set usbInterfaceNumber < 0 would remove the ENV{ID_USB_INTERFACE_NUM} in udev rule
 		usbInterfaceNumber = -1
@@ -172,8 +172,8 @@ func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
-	if !pOk {
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
 		usbInterfaceNumber = -1
 	}
 	for appName := range plug.Apps {

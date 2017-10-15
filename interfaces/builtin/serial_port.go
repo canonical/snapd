@@ -113,9 +113,9 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("serial-port usb-product attribute not valid: %d", usbProduct)
 		}
 
-		usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
-		if pOk && (usbInterfaceNumber < 0x0) || (usbInterfaceNumber > UsbMaxInterfaces) {
-			return fmt.Errorf("serial-port usb-interface-number attribute not valid: %d", usbInterfaceNumber)
+		usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+		if ok && (usbInterfaceNumber < 0x0) || (usbInterfaceNumber >= UsbMaxInterfaces) {
+			return fmt.Errorf("serial-port usb-interface-number attribute cannot be negative and larger than 31")
 		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
@@ -178,8 +178,8 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
-	if !pOk {
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
 		usbInterfaceNumber = -1
 	}
 	for appName := range plug.Apps {

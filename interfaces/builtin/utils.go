@@ -82,7 +82,7 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, u
 
 	var udevSnippet bytes.Buffer
 	udevSnippet.WriteString(udevHeader + "\n")
-	if usbIterfaceNumber < 0 || usbIterfaceNumber > UsbMaxInterfaces {
+	if usbIterfaceNumber < 0 || usbIterfaceNumber >= UsbMaxInterfaces {
 		udevDevicePrefixNoInterface := strings.Replace(udevDevicePrefix, `, ENV{ID_USB_INTERFACE_NUM}=="%02d"`, "", -1)
 		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefixNoInterface, subsystem, usbVendor, usbProduct))
 	} else {
