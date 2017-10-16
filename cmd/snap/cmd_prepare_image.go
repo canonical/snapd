@@ -49,10 +49,14 @@ func init() {
 			"channel":     "The channel to use",
 		}, []argDesc{
 			{
+				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<model-assertion>"),
+				// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 				desc: i18n.G("The model assertion name"),
 			}, {
+				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<root-dir>"),
+				// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 				desc: i18n.G("The output directory"),
 			},
 		})

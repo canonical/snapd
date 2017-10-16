@@ -46,6 +46,7 @@ func init() {
 		return &cmdBuy{}
 	}, map[string]string{}, []argDesc{{
 		name: "<snap>",
+		// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 		desc: i18n.G("Snap name"),
 	}})
 }

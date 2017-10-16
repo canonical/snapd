@@ -43,6 +43,11 @@ import (
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+
+	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
+		// in tests or when debugging, enforce the "tidy" lint checks
+		tidyNoticef = logger.Panicf
+	}
 }
 
 // Standard streams, redirected for testing.
@@ -51,6 +56,7 @@ var (
 	Stdout       io.Writer = os.Stdout
 	Stderr       io.Writer = os.Stderr
 	ReadPassword           = terminal.ReadPassword
+	tidyNoticef            = logger.Noticef
 )
 
 type options struct {
@@ -125,7 +131,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 	}
 	if len(desc) > 0 {
 		if !unicode.IsUpper(([]rune)(desc)[0]) {
-			logger.Panicf("description of %s's %q not uppercase: %q", cmdName, optName, desc)
+			tidyNoticef("description of %s's %q not uppercase: %q", cmdName, optName, desc)
 		}
 	}
 }
@@ -133,7 +139,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
 	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		logger.Panicf("argument %q's %q should have <>s", cmdName, optName)
+		tidyNoticef("argument %q's %q should have <>s", cmdName, optName)
 	}
 }
 
