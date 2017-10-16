@@ -43,7 +43,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdCreateKey{}
 		}, nil, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<key-name>"),
+			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 			desc: i18n.G("Name of key to create; defaults to 'default'"),
 		}})
 	cmd.hidden = true
