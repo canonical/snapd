@@ -138,12 +138,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 		// For each backend:
 		for _, backend := range securityBackends {
-			// The issue this is attempting to fix is only
-			// affecting seccomp/apparmor so limit the work just to
-			// this backend.
-			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
-			if !shouldRefresh {
-				continue
+			if backend.Name() == "" {
+				continue // Test backends have no name, skip them to simplify testing.
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {

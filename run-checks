@@ -158,6 +158,16 @@ if [ "$STATIC" = 1 ]; then
     fi
     # ineffassign knows about ignoring vendor/ \o/
     ineffassign .
+
+    echo Checking for naked returns
+    if ! which nakedret >/dev/null; then
+        go get -u github.com/alexkohler/nakedret
+    fi
+    got=$(nakedret ./... 2>&1)
+    if [ -n "$got" ]; then
+        echo "$got"
+        exit 1
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then

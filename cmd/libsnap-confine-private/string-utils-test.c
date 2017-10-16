@@ -829,5 +829,8 @@ static void __attribute__ ((constructor)) init()
 			test_sc_string_append_char_pair__normal);
 	g_test_add_func("/string-utils/sc_string_quote__NULL_buf",
 			test_sc_string_quote_NULL_str);
+	g_test_add_func
+	    ("/string-utils/sc_string_append_char_pair__uninitialized_buf",
+	     test_sc_string_append_char_pair__uninitialized_buf);
 	g_test_add_func("/string-utils/sc_string_quote", test_sc_string_quote);
 }
