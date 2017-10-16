@@ -106,11 +106,6 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
 			return fmt.Errorf("hidraw usb-product attribute not valid: %d", usbProduct)
 		}
-
-		usbInterfaceNumber, _ := slot.Attrs["usb-interface-number"].(int64)
-		if (usbInterfaceNumber < 0x0) || (usbInterfaceNumber >= UsbMaxInterfaces) {
-			return fmt.Errorf("hidraw usb-interface-number attribute cannot be negative and larger than 31")
-		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
 		// Check the path attribute is in the allowable pattern
@@ -130,17 +125,11 @@ func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-	if !ok {
-		// usb-interface-number attribute is optional
-		// Set usbInterfaceNumber < 0 would remove the ENV{ID_USB_INTERFACE_NUM} in udev rule
-		usbInterfaceNumber = -1
-	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, usbInterfaceNumber, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, -1, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
@@ -172,13 +161,9 @@ func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-	if !ok {
-		usbInterfaceNumber = -1
-	}
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
+		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, -1, "TAG", tag))
 	}
 	return nil
 }
