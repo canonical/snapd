@@ -59,8 +59,7 @@ var (
 	sysUnmount = syscall.Unmount
 	osLstat    = os.Lstat
 	// NOTE: we're not using os.MkdirAll as it is not careful about symlinks.
-	osMkdirAll = SecureMkdirAll
-	osChown    = os.Chown
+	secureMkdirAll = SecureMkdirAll
 )
 
 const unmountNoFollow = 8
@@ -75,7 +74,11 @@ const AT_FDCWD = -100 // not available through syscall
 //
 // The only handled error is mkdirat(2) that fails with EEXIST. All other
 // errors are fatal but there is no attempt to undo anything that was created.
-func SecureMkdirAll(name string, perm os.FileMode) error {
+//
+// The uid and gid are used for the fchown(2) system call which is performed
+// after each segment is created and opened. The special value -1 may be used
+// to request that ownership is not changed.
+func SecureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	// XXX: use O_PATH here?
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
@@ -106,10 +109,12 @@ func SecureMkdirAll(name string, perm os.FileMode) error {
 			// Skip empty element corresponding to the leading slash.
 			continue
 		}
+		made := true
 		if err = syscall.Mkdirat(fd, segment, uint32(perm)); err != nil {
 			if err != syscall.EEXIST {
 				return fmt.Errorf("cannot mkdir path segment %q, %v", segment, err)
 			}
+			made = false
 		}
 		previousFd := fd
 		fd, err = syscall.Openat(fd, segment, openFlags, 0)
@@ -123,6 +128,13 @@ func SecureMkdirAll(name string, perm os.FileMode) error {
 		if err != nil {
 			return fmt.Errorf("cannot open path segment %q, %v", segment, err)
 		}
+		if made {
+			// Chown each segment that we made.
+			if err := syscall.Fchown(fd, uid, gid); err != nil {
+				return fmt.Errorf("cannot chown path segment %q to %d.%d, %v", segment, uid, gid, err)
+			}
+		}
+
 	}
 	if fd != AT_FDCWD {
 		if err = syscall.Close(fd); err != nil {
@@ -149,11 +161,7 @@ func ensureMountPoint(path string) error {
 	switch {
 	case err != nil && os.IsNotExist(err):
 		// TODO: use the right mode and ownership.
-		if err := osMkdirAll(path, 0755); err != nil {
-			return err
-		}
-		// TODO: change ownership recursively.
-		if err := osChown(path, 0, 0); err != nil {
+		if err := secureMkdirAll(path, 0755, 0, 0); err != nil {
 			return err
 		}
 	case err != nil:

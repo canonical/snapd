@@ -232,8 +232,7 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 	c.Assert(chg.Perform(), IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "target"`,
-		`mkdirall "target" "-rwxr-xr-x"`,
-		`chown "target" 0 0`,
+		`secure-mkdir-all "target" "-rwxr-xr-x" 0 0`,
 		`mount "source" "target" "type" 0 ""`,
 	})
 }
@@ -247,8 +246,7 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "target"`,
 		`lstat "source"`,
-		`mkdirall "source" "-rwxr-xr-x"`,
-		`chown "source" 0 0`,
+		`secure-mkdir-all "source" "-rwxr-xr-x" 0 0`,
 		`mount "source" "target" "type" 4096 ""`, // 4096 is MS_BIND
 	})
 }
@@ -296,25 +294,12 @@ func (s *changeSuite) TestPerformMountLstatError(c *C) {
 // Change.Perform returns errors from os.MkdirAll
 func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
-	s.sys.InsertFault(`mkdirall "target" "-rwxr-xr-x"`, errTesting)
+	s.sys.InsertFault(`secure-mkdir-all "target" "-rwxr-xr-x" 0 0`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	c.Assert(chg.Perform(), Equals, errTesting)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "target"`,
-		`mkdirall "target" "-rwxr-xr-x"`,
-	})
-}
-
-// Change.Perform returns errors from os.Chown
-func (s *changeSuite) TestPerformMountChownError(c *C) {
-	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
-	s.sys.InsertFault(`chown "target" 0 0`, errTesting)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
-	c.Assert(chg.Perform(), Equals, errTesting)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mkdirall "target" "-rwxr-xr-x"`,
-		`chown "target" 0 0`,
+		`secure-mkdir-all "target" "-rwxr-xr-x" 0 0`,
 	})
 }
 
@@ -369,7 +354,7 @@ func (s *changeSuite) TestSecureMkdirAll(c *C) {
 
 	// Ensure that we can create a directory with an absolute path.
 	p := filepath.Join(d, "subdir-absolute")
-	err = update.SecureMkdirAll(p, 0755)
+	err = update.SecureMkdirAll(p, 0755, -1, -1)
 	c.Assert(err, IsNil)
 	fi, err := os.Stat(p)
 	c.Assert(err, IsNil)
@@ -378,7 +363,7 @@ func (s *changeSuite) TestSecureMkdirAll(c *C) {
 	// Ensure that we can create a directory with an relative path.
 	c.Assert(os.Chdir(d), IsNil)
 	p = "subdir-relative"
-	err = update.SecureMkdirAll(p, 0755)
+	err = update.SecureMkdirAll(p, 0755, -1, -1)
 	c.Assert(err, IsNil)
 	fi, err = os.Stat(p)
 	c.Assert(err, IsNil)

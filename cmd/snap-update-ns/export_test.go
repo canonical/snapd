@@ -64,8 +64,7 @@ type SystemCalls interface {
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
 	Unmount(target string, flags int) (err error)
 	Lstat(name string) (os.FileInfo, error)
-	MkdirAll(path string, perm os.FileMode) error
-	Chown(name string, uid, gid int) error
+	SecureMkdirAll(path string, perm os.FileMode, uid, gid int) error
 }
 
 // SyscallRecorder stores which system calls were invoked.
@@ -124,12 +123,8 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
 }
 
-func (sys *SyscallRecorder) MkdirAll(path string, perm os.FileMode) error {
-	return sys.call(fmt.Sprintf("mkdirall %q %q", path, perm))
-}
-
-func (sys *SyscallRecorder) Chown(name string, uid, gid int) error {
-	return sys.call(fmt.Sprintf("chown %q %d %d", name, uid, gid))
+func (sys *SyscallRecorder) SecureMkdirAll(path string, perm os.FileMode, uid, gid int) error {
+	return sys.call(fmt.Sprintf("secure-mkdir-all %q %q %d %d", path, perm, uid, gid))
 }
 
 // MockSystemCalls replaces real system calls with those of the argument.
@@ -137,21 +132,18 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysMount := sysMount
 	oldSysUnmount := sysUnmount
 	oldOsLstat := osLstat
-	oldOsMkdirAll := osMkdirAll
-	oldOsChown := osChown
+	oldSecureMkdirAll := secureMkdirAll
 
 	sysMount = sc.Mount
 	sysUnmount = sc.Unmount
 	osLstat = sc.Lstat
-	osMkdirAll = sc.MkdirAll
-	osChown = sc.Chown
+	secureMkdirAll = sc.SecureMkdirAll
 
 	return func() {
 		sysMount = oldSysMount
 		sysUnmount = oldSysUnmount
 		osLstat = oldOsLstat
-		osMkdirAll = oldOsMkdirAll
-		osChown = oldOsChown
+		secureMkdirAll = oldSecureMkdirAll
 	}
 }
 
