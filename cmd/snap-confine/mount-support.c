@@ -236,8 +236,8 @@ struct sc_mount_config {
 static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 {
 	char scratch_dir[] = "/tmp/snap.rootfs_XXXXXX";
-	char src[PATH_MAX];
-	char dst[PATH_MAX];
+	char src[PATH_MAX] = { 0, };
+	char dst[PATH_MAX] = { 0, };
 	if (mkdtemp(scratch_dir) == NULL) {
 		die("cannot create temporary directory for the root file system");
 	}
@@ -602,7 +602,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
 			{},
 		};
-		char rootfs_dir[PATH_MAX];
+		char rootfs_dir[PATH_MAX] = { 0, };
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
 				 base_snap_name);
