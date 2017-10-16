@@ -54,9 +54,12 @@ func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, []argDesc{
 		{
 			name: "<snap>",
+			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 			desc: i18n.G("The snap to configure (e.g. hello-world)"),
 		}, {
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<conf value>"),
+			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 			desc: i18n.G("Configuration value (key=value)"),
 		},
 	})

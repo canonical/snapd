@@ -45,7 +45,9 @@ func init() {
 		}, map[string]string{
 			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
 		}, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<key-name>"),
+			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
 			desc: i18n.G("Name of key to export"),
 		}})
 	cmd.hidden = true
