@@ -229,6 +229,8 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 var ClientConfig = client.Config{
 	// we need the powerful snapd socket
 	Socket: dirs.SnapdSocket,
+	// Allow interactivity if we have a terminal
+	Interactive: terminal.IsTerminal(0),
 }
 
 // Client returns a new client using ClientConfig as configuration.

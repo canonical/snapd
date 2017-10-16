@@ -228,6 +228,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
 	}
 
+	// TODO: support a stream of assertions instead of just the serial
+
 	// decode body with serial assertion
 	dec := asserts.NewDecoder(resp.Body)
 	got, err := dec.Decode()
@@ -318,69 +320,83 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 }
 
 func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
-	gadgetInfo, err := snapstate.GadgetInfo(t.State())
-	if err != nil {
-		return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
-	}
-	gadgetName := gadgetInfo.Name()
-
-	tr := config.NewTransaction(t.State())
 	var svcURL string
-	err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+
+	// gadget is optional on classic
+	model, err := Model(t.State())
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	var gadgetName string
+	var tr *config.Transaction
+	if model != nil && model.Gadget() != "" {
+		// model specifies a gadget
+		gadgetInfo, err := snapstate.GadgetInfo(t.State())
+		if err != nil {
+			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
+		}
+		gadgetName = gadgetInfo.Name()
+
+		tr = config.NewTransaction(t.State())
+		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if svcURL == "" {
+		// no gadget or no device-service.url, use the fallback
+		// service in the store
+		return &serialRequestConfig{
+			requestIDURL:     requestIDURL,
+			serialRequestURL: serialRequestURL,
+		}, nil
+	}
+
+	baseURL, err := url.Parse(svcURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
+	}
+
+	var headers map[string]string
+	err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
 	if err != nil {
 		return nil, err
 	}
 
-	if svcURL != "" {
-		baseURL, err := url.Parse(svcURL)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
-		}
-
-		var headers map[string]string
-		err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg := serialRequestConfig{
-			headers: headers,
-		}
-
-		reqIDURL, err := baseURL.Parse("request-id")
-		if err != nil {
-			return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
-		}
-		cfg.requestIDURL = reqIDURL.String()
-
-		var bodyStr string
-		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg.body = []byte(bodyStr)
-
-		serialURL, err := baseURL.Parse("serial")
-		if err != nil {
-			return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
-		}
-		cfg.serialRequestURL = serialURL.String()
-
-		var proposedSerial string
-		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
-		if err != nil {
-			return nil, err
-		}
-		cfg.proposedSerial = proposedSerial
-
-		return &cfg, nil
+	cfg := serialRequestConfig{
+		headers: headers,
 	}
 
-	return &serialRequestConfig{
-		requestIDURL:     requestIDURL,
-		serialRequestURL: serialRequestURL,
-	}, nil
+	reqIDURL, err := baseURL.Parse("request-id")
+	if err != nil {
+		return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
+	}
+	cfg.requestIDURL = reqIDURL.String()
+
+	var bodyStr string
+	err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.body = []byte(bodyStr)
+
+	serialURL, err := baseURL.Parse("serial")
+	if err != nil {
+		return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
+	}
+	cfg.serialRequestURL = serialURL.String()
+
+	var proposedSerial string
+	err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
+	if err != nil {
+		return nil, err
+	}
+	cfg.proposedSerial = proposedSerial
+
+	return &cfg, nil
 }
 
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
@@ -440,18 +456,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	sto := snapstate.Store(st)
-	// try to fetch the signing key of the serial
-	st.Unlock()
-	a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{serial.SignKeyID()}, nil)
-	st.Lock()
-	if errAcctKey == nil {
-		err := assertstate.Add(st, a)
-		if err != nil {
-			if !asserts.IsUnaccceptedUpdate(err) {
-				return err
-			}
-		}
+	// try to fetch the signing key chain of the serial
+	errAcctKey, err := fetchKeys(st, serial.SignKeyID())
+	if err != nil {
+		return err
 	}
 
 	// add the serial assertion to the system assertion db
@@ -480,3 +488,32 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 }
 
 var repeatRequestSerial string // for tests
+
+func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
+	sto := snapstate.Store(st)
+	db := assertstate.DB(st)
+	for {
+		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
+			"public-key-sha3-384": keyID,
+		})
+		if err == nil {
+			return nil, nil
+		}
+		if err != asserts.ErrNotFound {
+			return nil, err
+		}
+		st.Unlock()
+		a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{keyID}, nil)
+		st.Lock()
+		if errAcctKey != nil {
+			return errAcctKey, nil
+		}
+		err = assertstate.Add(st, a)
+		if err != nil {
+			if !asserts.IsUnaccceptedUpdate(err) {
+				return nil, err
+			}
+		}
+		keyID = a.SignKeyID()
+	}
+}

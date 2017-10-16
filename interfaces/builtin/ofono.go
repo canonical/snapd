@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,6 +88,7 @@ network packet,
 network bluetooth,
 
 include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # DBus accesses
 include <abstractions/dbus-strict>
@@ -288,14 +289,28 @@ ATTRS{idVendor}=="1c9e", ATTRS{idProduct}=="9605", ENV{ID_USB_INTERFACE_NUM}=="0
 LABEL="ofono_speedup_end"
 `
 
+/*
+  1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
+    to the actual device to /dev/ttyS*
+  2./dev/socket/rild is just a socket, not device node created by rild daemon.
+    Similar case for chnlat*.
+  So we intetionally skipped modem, rild and chnlat.
+*/
+const ofonoPermanentSlotUDevTag = `
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",          TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="dsp",          TAG+="###CONNECTED_SECURITY_TAGS###"
+`
+
 type ofonoInterface struct{}
 
 func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *ofonoInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
+func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
 		Summary:              ofonoSummary,
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
@@ -325,7 +340,14 @@ func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *i
 }
 
 func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(ofonoPermanentSlotUDev)
+	old := "###CONNECTED_SECURITY_TAGS###"
+	udevRule := ofonoPermanentSlotUDev
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule += strings.Replace(ofonoPermanentSlotUDevTag, old, tag, -1)
+		spec.AddSnippet(udevRule)
+	}
+	spec.AddSnippet(udevRule)
 	return nil
 }
 
@@ -338,14 +360,6 @@ func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 
 func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 

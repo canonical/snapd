@@ -1,0 +1,6 @@
+#!/bin/sh
+N="${1:-0}"
+echo "recurse: $N"
+if [ "$N" -gt 0 ]; then
+	exec /snap/bin/test-snapd-classic-confinement.recurse $(( N - 1 ))
+fi

@@ -30,6 +30,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -217,6 +218,7 @@ struct sc_mount_config {
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
 	bool on_classic_distro;
+	bool uses_base_snap;
 };
 
 /**
@@ -330,15 +332,66 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
+			struct stat buf;
 			if (access(dir, F_OK) == 0) {
 				sc_must_snprintf(src, sizeof src, "%s%s",
 						 config->rootfs_dir, dir);
 				sc_must_snprintf(dst, sizeof dst, "%s%s",
 						 scratch_dir, dir);
-				sc_do_mount(src, dst, NULL, MS_BIND, NULL);
-				sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+				if (lstat(src, &buf) == 0
+				    && lstat(dst, &buf) == 0) {
+					sc_do_mount(src, dst, NULL, MS_BIND,
+						    NULL);
+					sc_do_mount("none", dst, NULL, MS_SLAVE,
+						    NULL);
+				}
 			}
 		}
+	}
+	if (config->uses_base_snap) {
+		// when bases are used we need to bind-mount the libexecdir
+		// (that contains snap-exec) into /usr/lib/snapd of the
+		// base snap so that snap-exec is available for the snaps
+		// (base snaps do not ship snapd)
+
+		// dst is always /usr/lib/snapd as this is where snapd
+		// assumes to find snap-exec
+		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
+				 scratch_dir);
+
+		// bind mount the current $ROOT/usr/lib/snapd path,
+		// where $ROOT is either "/" or the "/snap/core/current"
+		// that we are re-execing from
+		char *src = NULL;
+		char self[PATH_MAX + 1] = { 0, };
+		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+			die("cannot read /proc/self/exe");
+		}
+		// this cannot happen except when the kernel is buggy
+		if (strstr(self, "/snap-confine") == NULL) {
+			die("cannot use result from readlink: %s", src);
+		}
+		src = dirname(self);
+		// dirname(path) might return '.' depending on path.
+		// /proc/self/exe should always point
+		// to an absolute path, but let's guarantee that.
+		if (src[0] != '/') {
+			die("cannot use the result of dirname(): %s", src);
+		}
+
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
+		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+
+		// FIXME: snapctl tool - our apparmor policy wants it in
+		//        /usr/bin/snapctl, we will need an empty file
+		//        here from the base snap or we need to move it
+		//        into a different location and just symlink it
+		//        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
+		//        and in the base snap case adjust PATH
+		//src = "/usr/bin/snapctl";
+		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
+		//sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
+		//sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -512,9 +565,10 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Remember if we are on classic, some things behave differently there.
 	bool on_classic_distro = is_running_on_classic_distribution();
-	if (on_classic_distro) {
+	// on classic or with alternative base snaps we need to setup
+	// a different confinement
+	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -557,6 +611,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.on_classic_distro = true,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -573,6 +628,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		struct sc_mount_config all_snap_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
+			.uses_base_snap = !sc_streq(base_snap_name, "core"),
 		};
 		sc_bootstrap_mount_namespace(&all_snap_config);
 	}

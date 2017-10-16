@@ -21,11 +21,12 @@ package release
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/snapcore/snapd/apparmor"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -33,8 +34,9 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID        string `json:"id"`
-	VersionID string `json:"version-id,omitempty"`
+	ID        string   `json:"id"`
+	IDLike    []string `json:"-"`
+	VersionID string   `json:"version-id,omitempty"`
 }
 
 var (
@@ -55,15 +57,16 @@ var (
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	for _, req := range requiredApparmorFeatures {
-		// Also ensure appamor is enabled (cannot use
-		// osutil.FileExists() here because of cyclic imports)
-		p := filepath.Join(apparmorFeaturesSysPath, req)
-		if _, err := os.Stat(p); err != nil {
+	level, _ := apparmor.ProbeKernel().Evaluate()
+	return level != apparmor.Full
+}
+
+func DistroLike(distros ...string) bool {
+	for _, distro := range distros {
+		if ReleaseInfo.ID == distro || strutil.ListContains(ReleaseInfo.IDLike, distro) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -76,7 +79,6 @@ var (
 func readOSRelease() OS {
 	// TODO: separate this out into its own thing maybe (if made more general)
 	osRelease := OS{
-		VersionID: "unknown",
 		// from os-release(5): If not set, defaults to "ID=linux".
 		ID: "linux",
 	}
@@ -112,6 +114,9 @@ func readOSRelease() OS {
 			// not being too good at reading comprehension.
 			// Works around e.g. lp:1602317
 			osRelease.ID = strings.Fields(strings.ToLower(v))[0]
+		case "ID_LIKE":
+			// This is like ID, except it's a space separated list... hooray?
+			osRelease.IDLike = strings.Fields(strings.ToLower(v))
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}
@@ -152,26 +157,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	oldApparmorFeaturesSysPath := apparmorFeaturesSysPath
-
-	temp, err := ioutil.TempDir("", "mock-forced-devmode")
-	if err != nil {
-		panic(err)
+	level := apparmor.Full
+	if isDevmode {
+		level = apparmor.None
 	}
-	fakeApparmorFeaturesSysPath := filepath.Join(temp, "apparmor")
-	if !isDevmode {
-		for _, req := range requiredApparmorFeatures {
-			if err := os.MkdirAll(filepath.Join(fakeApparmorFeaturesSysPath, req), 0755); err != nil {
-				panic(err)
-			}
-		}
-	}
-	apparmorFeaturesSysPath = fakeApparmorFeaturesSysPath
-
-	return func() {
-		if err := os.RemoveAll(temp); err != nil {
-			panic(err)
-		}
-		apparmorFeaturesSysPath = oldApparmorFeaturesSysPath
-	}
+	return apparmor.MockFeatureLevel(level)
 }
