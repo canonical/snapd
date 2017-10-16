@@ -136,8 +136,8 @@ func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	if !pOk {
 		return nil
 	}
-	usbInterfaceNumber, pOk := slot.Attrs["usb-interface-number"].(int64)
-	if !pOk {
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
 		// usb-interface-number attribute is optional
 		// Set usbInterfaceNumber < 0 would remove the ENV{ID_USB_INTERFACE_NUM} in udev rule
 		usbInterfaceNumber = -1
