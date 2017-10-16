@@ -109,7 +109,7 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 #undef F
 	// Render any flags that are unaccounted for.
 	if (flags) {
-		char of[128];
+		char of[128] = { 0, };
 		sc_must_snprintf(of, sizeof of, "%#lx", flags);
 		sc_string_append(buf, buf_size, of);
 	}
@@ -197,7 +197,7 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
-		char opts_buf[1000];
+		char opts_buf[1000] = { 0, };
 		sc_mount_opt2str(opts_buf, sizeof opts_buf, mountflags &
 				 ~used_special_flags);
 		sc_string_append(buf, buf_size, " -o ");
@@ -249,7 +249,7 @@ void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data)
 {
-	char buf[10000];
+	char buf[10000] = { 0, };
 	const char *mount_cmd = NULL;
 
 	void ensure_mount_cmd() {
@@ -288,7 +288,7 @@ void sc_do_mount(const char *source, const char *target,
 
 void sc_do_umount(const char *target, int flags)
 {
-	char buf[10000];
+	char buf[10000] = { 0, };
 	const char *umount_cmd = NULL;
 
 	void ensure_umount_cmd() {

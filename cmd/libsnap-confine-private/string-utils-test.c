@@ -55,7 +55,7 @@ static void test_sc_endswith()
 
 static void test_sc_must_snprintf()
 {
-	char buf[5];
+	char buf[5] = { 0, };
 	sc_must_snprintf(buf, sizeof buf, "1234");
 	g_assert_cmpstr(buf, ==, "1234");
 }
