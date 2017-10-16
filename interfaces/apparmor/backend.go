@@ -85,14 +85,21 @@ func (b *Backend) Initialize() error {
 // system-wide policy. If the local policy has changed then the apparmor
 // profile for snap-confine is reloaded.
 func setupSnapConfineGeneratedPolicyImpl() error {
-	// Location of the generated policy.
-	glob := "generated-*"
-	policy := make(map[string]*osutil.FileState)
-
 	// Create the local policy directory if it is not there.
 	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory, %s", err)
 	}
+
+	// Check the /proc/self/exe symlink, this is needed below but we want to
+	// fail early if this fails for whatever reason.
+	exe, err := os.Readlink(procSelfExe)
+	if err != nil {
+		return fmt.Errorf("cannot read %s, %s", procSelfExe, err)
+	}
+
+	// Location of the generated policy.
+	glob := "generated-*"
+	policy := make(map[string]*osutil.FileState)
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
@@ -122,10 +129,6 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// snap-confine from the host distribution but our own copy. We don't have
 	// to re-compile and load the updated profile as that is performed by
 	// setupSnapConfineReexec below.
-	exe, err := os.Readlink(procSelfExe)
-	if err != nil {
-		return fmt.Errorf("cannot read %s, %s", procSelfExe, err)
-	}
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return nil
 	}

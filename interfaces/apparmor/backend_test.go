@@ -737,7 +737,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-// Test behavior when issHomeUsingNFS fails.
+// Test behavior when isHomeUsingNFS fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	// Make corrupt mountinfo.
 	restore := apparmor.MockMountInfo("corrupt")
@@ -748,14 +748,16 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	defer cmd.Restore()
 
 	// Intercept the /proc/self/exe symlink and point it to the snapd from the
-	// mounted core snap. This indicates that snapd has re-executed and
-	// should not reload snap-confine policy.
-	fakeExe := filepath.Join(s.RootDir, "corrupt-proc-self-exe")
+	// distribution.  This indicates that snapd has not re-executed and should
+	// reload snap-confine policy.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink(filepath.Join(dirs.SnapMountDir, "/usr/lib/snapd/snapd"), fakeExe)
+	c.Assert(err, IsNil)
 	restore = apparmor.MockProcSelfExe(fakeExe)
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err := apparmor.SetupSnapConfineGeneratedPolicy()
+	err = apparmor.SetupSnapConfineGeneratedPolicy()
 	// NOTE: Errors in determining NFS are non-fatal to prevent snapd from
 	// failing to operate. A warning message is logged but system operates as
 	// if NFS was not active.
@@ -781,9 +783,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 
-	// Intercept the /proc/self/exe symlink and point it to the snapd from the
-	// mounted core snap. This indicates that snapd has re-executed and
-	// should not reload snap-confine policy.
+	// Intercept the /proc/self/exe symlink and make it point to something that
+	// doesn't exist (break it).
 	fakeExe := filepath.Join(s.RootDir, "corrupt-proc-self-exe")
 	restore = apparmor.MockProcSelfExe(fakeExe)
 	defer restore()
@@ -792,10 +793,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	err := apparmor.SetupSnapConfineGeneratedPolicy()
 	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe,.*")
 
-	// We created the policy file.
+	// We didn't create the policy file.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
-	c.Assert(files, HasLen, 1)
+	c.Assert(files, HasLen, 0)
 
 	// We didn't reload the policy though.
 	c.Assert(cmd.Calls(), HasLen, 0)
