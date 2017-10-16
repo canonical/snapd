@@ -160,12 +160,13 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
+// - trim whitespace
 // - word wrap at "max" chars
 // - keep \n intact and break here
 // - ignore \r
 func formatDescr(descr string, max int) string {
 	out := bytes.NewBuffer(nil)
-	for _, line := range strings.Split(descr, "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(descr), "\n") {
 		if len(line) > max {
 			for _, chunk := range strutil.WordWrap(line, max) {
 				fmt.Fprintf(out, "  %s\n", chunk)
@@ -242,7 +243,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 	fmt.Fprintf(w, "channels:\t\t\t\n")
 
 	// order by tracks
-	for i, tr := range remote.Tracks {
+	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
 		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
@@ -265,10 +266,6 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 				}
 			}
 			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
-		}
-		// add separator between tracks
-		if i < len(remote.Tracks)-1 {
-			fmt.Fprintf(w, "  \t\t\t\t\n")
 		}
 	}
 }

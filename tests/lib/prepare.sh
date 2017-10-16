@@ -56,6 +56,13 @@ update_core_snap_for_classic_reexec() {
             ;;
     esac
 
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # also load snap-confine's apparmor profile
+            apparmor_parser -r squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            ;;
+    esac
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -73,7 +80,7 @@ update_core_snap_for_classic_reexec() {
     }
 
     # Make sure we're running with the correct copied bits
-    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd"; do
+    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
     for p in /usr/bin/snapctl /usr/bin/snap; do
@@ -152,6 +159,10 @@ EOF
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
+        # reset seeding data that is likely tainted with production keys
+        systemctl stop snapd.service snapd.socket
+        rm -rf /var/lib/snapd/assertions/*
+        rm -f /var/lib/snapd/state.json
         setup_staging_store
     fi
 
@@ -164,15 +175,15 @@ EOF
             set -x
             cd /tmp
             for snap_name in ${PRE_CACHE_SNAPS:-}; do
-                snap download $snap_name
+                snap download "$snap_name"
             done
             for snap_file in *.snap; do
-                mv $snap_file $snap_file.partial
+                mv "$snap_file" "$snap_file.partial"
                 # There is a bug in snapd where partial file must be a proper
                 # prefix of the full file or we make a wrong request to the
                 # store.
-                truncate --size=-1 $snap_file.partial
-                mv $snap_file.partial /var/lib/snapd/snaps/
+                truncate --size=-1 "$snap_file.partial"
+                mv "$snap_file.partial" /var/lib/snapd/snaps/
             done
             set +x
         )
@@ -217,6 +228,7 @@ EOF
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        # shellcheck disable=SC2086
         tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
@@ -326,7 +338,7 @@ slots:
 EOF
 
         # build new core snap for the image
-        snapbuild "$UNPACKD" "$IMAGE_HOME"
+        snap pack "$UNPACKD" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"

@@ -31,6 +31,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -440,10 +441,11 @@ func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (
 	return cur, nil
 }
 
-// StoreID returns the store set in the model assertion, if mod != nil,
-// or the override from the UBUNTU_STORE_ID envvar.
+// StoreID returns the store set in the model assertion, if mod != nil
+// and it's not the generic classic model, or the override from the
+// UBUNTU_STORE_ID envvar.
 func StoreID(mod *asserts.Model) string {
-	if mod != nil {
+	if mod != nil && mod.Ref().Unique() != sysdb.GenericClassicModel().Ref().Unique() {
 		return mod.Store()
 	}
 	return os.Getenv("UBUNTU_STORE_ID")

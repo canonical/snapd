@@ -49,9 +49,6 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
-	// HomeDirBase returns the user-specific home directory base of the snap.
-	HomeDirBase(home string) string
-
 	// UserDataDir returns the per user data directory of the snap.
 	UserDataDir(home string) string
 
@@ -155,6 +152,7 @@ type Info struct {
 
 	LicenseAgreement string
 	LicenseVersion   string
+	License          string
 	Epoch            string
 	Base             string
 	Confinement      ConfinementType
@@ -270,11 +268,6 @@ func (s *Info) DataDir() string {
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
-}
-
-// HomeDirBase returns the user-specific home directory base of the snap.
-func (s *Info) HomeDirBase(home string) string {
-	return filepath.Join(home, "snap", s.Name())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
@@ -464,14 +457,12 @@ func (app *AppInfo) DesktopFile() string {
 
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
+	return filepath.Join(dirs.SnapBinariesDir, JoinSnapApp(app.Snap.Name(), app.Name))
+}
 
-	return filepath.Join(dirs.SnapBinariesDir, binName)
+// CompleterPath returns the path to the completer snippet for the app binary.
+func (app *AppInfo) CompleterPath() string {
+	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.Name(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
@@ -481,7 +472,7 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if app.Name == app.Snap.Name() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
 	}
-	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), app.Name)
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.

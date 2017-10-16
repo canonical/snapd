@@ -20,11 +20,11 @@
 package ctlcmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
@@ -102,8 +102,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		}
 		key := parts[0]
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON-- just save the string as-is.
 			value = parts[1]
 		}
@@ -154,8 +153,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}

@@ -110,6 +110,18 @@ apps:
 	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
 
+func (s *infoSuite) TestAppInfoCompleterPath(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["bar"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo.bar"))
+	c.Check(info.Apps["foo"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo"))
+}
+
 func (s *infoSuite) TestAppInfoLauncherCommand(c *C) {
 	dirs.SetRootDir("")
 
@@ -431,12 +443,12 @@ func (s *infoSuite) TestJoinSnapApp(c *C) {
 	}
 }
 
-func ExampleSpltiSnapApp() {
+func ExampleSplitSnapApp() {
 	fmt.Println(snap.SplitSnapApp("hello-world.env"))
 	// Output: hello-world env
 }
 
-func ExampleSpltiSnapAppShort() {
+func ExampleSplitSnapAppShort() {
 	fmt.Println(snap.SplitSnapApp("hello-world"))
 	// Output: hello-world hello-world
 }
@@ -592,7 +604,6 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(info.DataDir(), Equals, "/var/snap/name/1")
 	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
-	c.Check(info.HomeDirBase("/home/bob"), Equals, "/home/bob/snap/name")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")

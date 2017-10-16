@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -113,6 +114,7 @@ network packet,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # Explicitly deny plugging snaps from ptracing the slot to silence noisy
 # denials. Neither the NetworkManager service nor nmcli require ptrace
@@ -248,6 +250,11 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const networkManagerConnectedPlugSecComp = `
+# Description: This is needed to talk to the network-manager service
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const networkManagerPermanentSlotSecComp = `
@@ -407,6 +414,8 @@ const networkManagerPermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
+const networkManagerPermanentSlotUdev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
+
 type networkManagerInterface struct{}
 
 func (iface *networkManagerInterface) Name() string {
@@ -456,6 +465,21 @@ func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification
 
 func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
+	return nil
+}
+
+func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	old := "###CONNECTED_SECURITY_TAGS###"
+	for appName := range slot.Apps {
+		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
+		udevRule := strings.Replace(networkManagerPermanentSlotUdev, old, tag, -1)
+		spec.AddSnippet(udevRule)
+	}
+	return nil
+}
+
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 

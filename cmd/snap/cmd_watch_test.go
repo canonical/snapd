@@ -21,15 +21,14 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/progress/progresstest"
 )
 
 var fmtWatchChangeJSON = `{"type": "sync", "result": {
@@ -42,6 +41,8 @@ var fmtWatchChangeJSON = `{"type": "sync", "result": {
 }}`
 
 func (s *SnapSuite) TestCmdWatch(c *C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
@@ -64,22 +65,9 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 		n++
 	})
 
-	oldStdout := os.Stdout
-	stdout, err := ioutil.TempFile("", "stdout")
-	c.Assert(err, IsNil)
-	defer func() {
-		os.Stdout = oldStdout
-		stdout.Close()
-		os.Remove(stdout.Name())
-	}()
-	os.Stdout = stdout
-
-	_, err = snap.Parser().ParseArgs([]string{"watch", "42"})
-	os.Stdout = oldStdout
+	_, err := snap.Parser().ParseArgs([]string{"watch", "42"})
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)
 
-	buf, err := ioutil.ReadFile(stdout.Name())
-	c.Assert(err, IsNil)
-	c.Check(string(buf), testutil.Contains, "\rmy-snap 50.00 KB / 100.00 KB")
+	c.Check(meter.Values, DeepEquals, []float64{51200})
 }

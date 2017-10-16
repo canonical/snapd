@@ -143,7 +143,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -508,6 +508,18 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
 			value, err = readNumber(arg[1:])
+		} else if strings.HasPrefix(arg, "u:") {
+			cmpOp = seccomp.CompareEqual
+			value, err = findUid(arg[2:])
+			if err != nil {
+				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
+			}
+		} else if strings.HasPrefix(arg, "g:") {
+			cmpOp = seccomp.CompareEqual
+			value, err = findGid(arg[2:])
+			if err != nil {
+				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
+			}
 		} else {
 			cmpOp = seccomp.CompareEqual
 			value, err = readNumber(arg)
@@ -638,27 +650,36 @@ func compile(content []byte, out string) error {
 	}
 
 	// write atomically
-	dir, err := os.Open(filepath.Dir(out))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	fout, err := os.Create(out + ".tmp")
+	fout, err := osutil.NewAtomicFile(out, 0644, 0, -1, -1)
 	if err != nil {
 		return err
 	}
 	defer fout.Close()
-	if err := secFilter.ExportBPF(fout); err != nil {
+
+	if err := secFilter.ExportBPF(fout.File); err != nil {
 		return err
 	}
-	if err := fout.Sync(); err != nil {
-		return err
+	return fout.Commit()
+}
+
+// Be very strict so usernames and groups specified in policy are widely
+// compatible. From NAME_REGEX in /etc/adduser.conf
+var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
+
+// findUid returns the identifier of the given UNIX user name.
+func findUid(username string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(username) {
+		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	if err := os.Rename(out+".tmp", out); err != nil {
-		return err
+	return osutil.FindUid(username)
+}
+
+// findGid returns the identifier of the given UNIX group name.
+func findGid(group string) (uint64, error) {
+	if !userGroupNamePattern.MatchString(group) {
+		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	return dir.Sync()
+	return osutil.FindGid(group)
 }
 
 func showSeccompLibraryVersion() error {

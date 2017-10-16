@@ -29,6 +29,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -525,6 +526,7 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }
+
 func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
@@ -665,9 +667,46 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	c.Check(strings.Contains(model, "model: baz-3000\n"), Equals, true)
 	c.Check(strings.Contains(model, "serial:\n"), Equals, false)
 
+	// going to be ignored
+	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
+	defer os.Unsetenv("UBUNTU_STORE_ID")
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
+}
+
+func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModel(c *C) {
+	model, err := asserts.Decode([]byte(exModel))
+	c.Assert(err, IsNil)
+	// (ab)use the example as the generic classic model
+	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
+	defer r()
+	// having assertions in state
+	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	// for the generic classic model we continue to consider the env var
+	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
+	defer os.Unsetenv("UBUNTU_STORE_ID")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "env-store-id")
+}
+
+func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C) {
+	model, err := asserts.Decode([]byte(exModel))
+	c.Assert(err, IsNil)
+	// (ab)use the example as the generic classic model
+	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
+	defer r()
+	// having assertions in state
+	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	// for the generic classic model we continue to consider the env var
+	// but when the env var is unset we don't do anything wrong.
+	os.Unsetenv("UBUNTU_STORE_ID")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "store-id")
 }
 
 func (as *authSuite) TestUsers(c *C) {

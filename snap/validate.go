@@ -24,6 +24,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/spdx"
 )
 
 // Regular expression describing correct identifiers.
@@ -33,6 +35,8 @@ var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: sc_snap_name_validate and validate_snap_name .
 	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)
@@ -45,6 +49,14 @@ func ValidateEpoch(epoch string) error {
 	valid := validEpoch.MatchString(epoch)
 	if !valid {
 		return fmt.Errorf("invalid snap epoch: %q", epoch)
+	}
+	return nil
+}
+
+// ValidateLicense checks if a string is a valid SPDX expression.
+func ValidateLicense(license string) error {
+	if err := spdx.ValidateLicense(license); err != nil {
+		return fmt.Errorf("cannot validate license %q: %s", license, err)
 	}
 	return nil
 }
@@ -87,6 +99,14 @@ func Validate(info *Info) error {
 	err = ValidateEpoch(epoch)
 	if err != nil {
 		return err
+	}
+
+	license := info.License
+	if license != "" {
+		err := ValidateLicense(license)
+		if err != nil {
+			return err
+		}
 	}
 
 	// validate app entries
@@ -144,8 +164,9 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 }
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
-// section of snap.yaml
-var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
+// section of snap.yaml. Do not allow any of [',",`] here or snap-exec
+// will get confused.
+var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 // ValidateApp verifies the content in the app info.

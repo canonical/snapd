@@ -71,7 +71,7 @@ func (wmx *waitMixin) wait(cli *client.Client, id string) (*client.Change, error
 }
 
 func wait(cli *client.Client, id string) (*client.Change, error) {
-	pb := progress.NewTextProgress()
+	pb := progress.MakeProgressBar()
 	defer func() {
 		pb.Finished()
 	}()
@@ -122,7 +122,7 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				pb.Start(t.Progress.Label, float64(t.Progress.Total))
+				pb.Start(t.Summary, float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break
@@ -948,6 +948,47 @@ func (x *cmdRevert) Execute(args []string) error {
 	return nil
 }
 
+var shortSwitchHelp = i18n.G("Switches snap to a different channel")
+var longSwitchHelp = i18n.G(`
+The switch command switches the given snap to a different channel without
+doing a refresh.
+`)
+
+type cmdSwitch struct {
+	channelMixin
+
+	Positional struct {
+		Snap installedSnapName `positional-arg-name:"<snap>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x cmdSwitch) Execute(args []string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if x.Channel == "" {
+		return fmt.Errorf("missing --channel=<channel-name> parameter")
+	}
+
+	cli := Client()
+	name := string(x.Positional.Snap)
+	channel := string(x.Channel)
+	opts := &client.SnapOptions{
+		Channel: channel,
+	}
+	changeID, err := cli.Switch(name, opts)
+	if err != nil {
+		return err
+	}
+
+	if _, err = wait(cli, changeID); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("%q switched to the %q channel\n"), name, channel)
+	return nil
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
 		waitDescs.also(map[string]string{"revision": i18n.G("Remove only the given revision")}), nil)
@@ -971,4 +1012,6 @@ func init() {
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
 		"revision": "Revert to the given revision",
 	}), nil)
+	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, nil, nil)
+
 }

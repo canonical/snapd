@@ -86,10 +86,21 @@ const unity7ConnectedPlugAppArmor = `
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
+
+# This allow access to the first version of the snapd-xdg-open
+# version which was shipped outside of snapd
 dbus (send)
     bus=session
     path=/
     interface=com.canonical.SafeLauncher
+    member=OpenURL
+    peer=(label=unconfined),
+# ... and this allows access to the new xdg-open service which
+# is now part of snapd itself.
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Launcher
+    interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
 
@@ -302,6 +313,11 @@ dbus (send)
 dbus (send)
     bus=session
     interface=com.canonical.SafeLauncher.OpenURL
+    peer=(label=unconfined),
+# new url helper (part of snap userd)
+dbus (send)
+    bus=session
+    interface=io.snapcraft.Launcher.OpenURL
     peer=(label=unconfined),
 
 # dbusmenu
@@ -527,10 +543,6 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
-
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 const unity7ConnectedPlugSeccomp = `

@@ -22,12 +22,12 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
 	"golang.org/x/net/context"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 )
 
 type fakeOp struct {
@@ -90,6 +91,8 @@ type fakeDownload struct {
 }
 
 type fakeStore struct {
+	storetest.Store
+
 	downloads           []fakeDownload
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
@@ -145,10 +148,6 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
-}
-
-func (f *fakeStore) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
-	panic("Find called")
 }
 
 func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
@@ -271,20 +270,22 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	return nil
 }
 
-func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
-	panic("Never expected fakeStore.Buy to be called")
+func (f *fakeStore) WriteCatalogs(io.Writer) error {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-commands",
+	})
+
+	return nil
 }
 
-func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
-	panic("Never expected fakeStore.ReadyToBuy to be called")
-}
+func (f *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-sections",
+	})
 
-func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
-	panic("Never expected fakeStore.Assertion to be called")
-}
-
-func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
-	panic("Sections called")
+	return nil, nil
 }
 
 type fakeSnappyBackend struct {

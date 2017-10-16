@@ -33,6 +33,12 @@ const opticalDriveConnectedPlugAppArmor = `
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
 @{PROC}/sys/dev/cdrom/info r,
+/run/udev/data/b11:[0-9]* r,
+`
+
+const opticalDriveConnectedPlugUDev = `
+KERNEL=="sr[0-9]*",  TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="scd[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
@@ -42,6 +48,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
+		connectedPlugUDev:     opticalDriveConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

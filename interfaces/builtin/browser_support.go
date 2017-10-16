@@ -55,11 +55,14 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
+owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
+
+# miscellaneous accesses
+@{PROC}/vmstat r,
 
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
@@ -69,10 +72,6 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
-
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
@@ -126,7 +125,8 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/c108:[0-9]* r, # /dev/ppp
 /run/udev/data/c189:[0-9]* r, # USB serial converters
 /run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
-/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
+/run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
+/run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
@@ -136,6 +136,7 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/product r,
 /sys/devices/**/revision r,
 /sys/devices/**/serial r,
+/sys/devices/**/vendor r,
 /sys/devices/system/node/node[0-9]*/meminfo r,
 
 # Chromium content api tries to read these. It is an information disclosure
@@ -153,22 +154,16 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/b1:[0-9]* r,   # /dev/ram*
 /run/udev/data/b7:[0-9]* r,   # /dev/loop*
 /run/udev/data/b8:[0-9]* r,   # /dev/sd*
+/run/udev/data/b11:[0-9]* r,  # /dev/scd* and sr*
 /run/udev/data/c21:[0-9]* r,  # /dev/sg*
 /run/udev/data/+usb:[0-9]* r,
 
 # experimental
+/run/udev/data/b252:[0-9]* r,
 /run/udev/data/b253:[0-9]* r,
 /run/udev/data/b259:[0-9]* r,
-/run/udev/data/c242:[0-9]* r,
-/run/udev/data/c243:[0-9]* r,
-/run/udev/data/c245:[0-9]* r,
-/run/udev/data/c246:[0-9]* r,
-/run/udev/data/c247:[0-9]* r,
-/run/udev/data/c248:[0-9]* r,
-/run/udev/data/c249:[0-9]* r,
-/run/udev/data/c250:[0-9]* r,
-/run/udev/data/c251:[0-9]* r,
-/run/udev/data/c254:[0-9]* r,
+/run/udev/data/c24[2-9]:[0-9]* r,
+/run/udev/data/c25[0-4]:[0-9]* r,
 
 /sys/bus/**/devices/ r,
 

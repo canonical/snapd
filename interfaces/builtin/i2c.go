@@ -41,6 +41,15 @@ const i2cBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const i2cConnectedPlugAppArmor = `
+# Description: Can access I2C controller
+
+%s rw,
+/sys/devices/platform/{*,**.i2c}/%s/** rw,
+`
+
+const i2cConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
+
 // The type for i2c interface
 type i2cInterface struct{}
 
@@ -93,8 +102,7 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**.i2c/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmor, cleanedPath, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
@@ -104,10 +112,9 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 		return nil
 	}
 	const pathPrefix = "/dev/"
-	const udevRule string = `KERNEL=="%s", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
 	}
 	return nil
 }

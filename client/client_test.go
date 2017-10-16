@@ -170,6 +170,21 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	c.Check(authorization, Equals, "")
 }
 
+func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
+	var v string
+	cli := client.New(&client.Config{Interactive: false})
+	cli.SetDoer(cs)
+	_ = cli.Do("GET", "/this", nil, nil, &v)
+	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
+	c.Check(interactive, Equals, "")
+
+	cli = client.New(&client.Config{Interactive: true})
+	cli.SetDoer(cs)
+	_ = cli.Do("GET", "/this", nil, nil, &v)
+	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
+	c.Check(interactive, Equals, "true")
+}
+
 func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
 	email, err := cs.cli.WhoAmI()
 	c.Assert(err, IsNil)

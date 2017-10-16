@@ -36,6 +36,7 @@ const alsaConnectedPlugAppArmor = `
 /dev/snd/* rw,
 
 /run/udev/data/c116:[0-9]* r, # alsa
+/run/udev/data/+sound:card[0-9]* r,
 
 # Allow access to the alsa state dir
 /var/lib/alsa/{,*}         r,
@@ -43,6 +44,16 @@ const alsaConnectedPlugAppArmor = `
 # Allow access to alsa /proc entries
 @{PROC}/asound/   r,
 @{PROC}/asound/** rw,
+`
+
+const alsaConnectedPlugUDev = `
+KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="hwC[0-9]*D[0-9]*",      TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="midiC[0-9]*D[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="seq",                   TAG+="###CONNECTED_SECURITY_TAGS###"
+SUBSYSTEM=="sound", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
@@ -53,6 +64,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  alsaBaseDeclarationSlots,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
+		connectedPlugUDev:     alsaConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

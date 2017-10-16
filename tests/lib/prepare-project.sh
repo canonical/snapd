@@ -74,8 +74,9 @@ build_rpm() {
 
     # Create a source tarball for the current snapd sources
     mkdir -p "/tmp/pkg/snapd-$version"
-    cp -rav -- * "/tmp/pkg/snapd-$version/"
+    cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
+    # shellcheck disable=SC2086
     (cd /tmp/pkg && tar c${archive_compression}f "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
@@ -154,13 +155,6 @@ fi
 . "$TESTSLIB/dirs.sh"
 
 if [ "$SPREAD_BACKEND" = external ]; then
-   # build test binaries
-   if [ ! -f "$GOHOME/bin/snapbuild" ]; then
-       mkdir -p "$GOHOME/bin"
-       snap install --edge test-snapd-snapbuild
-       cp "$SNAP_MOUNT_DIR/test-snapd-snapbuild/current/bin/snapbuild" "$GOHOME/bin/snapbuild"
-       snap remove test-snapd-snapbuild
-   fi
    # stop and disable autorefresh
    if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
        systemctl disable --now snapd.refresh.timer
@@ -254,10 +248,7 @@ else
     install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
 fi
 
-# Build snapbuild.
-go get ./tests/lib/snapbuild
 # Build fakestore.
-
 fakestore_tags=
 if [ "$REMOTE_STORE" = staging ]; then
     fakestore_tags="-tags withstagingkeys"

@@ -68,6 +68,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
 )
@@ -92,6 +93,7 @@ var typeRegistry = map[string]*AssertionType{
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
 	RepairType.Name:          RepairType,
+	StoreType.Name:           StoreType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -151,6 +153,39 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 	return formatnum, nil
 }
 
+// HeadersFromPrimaryKey constructs a headers mapping from the
+// primaryKey values and the assertion type, it errors if primaryKey
+// has the wrong length.
+func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
+	if len(primaryKey) != len(assertType.PrimaryKey) {
+		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
+	}
+	headers = make(map[string]string, len(assertType.PrimaryKey))
+	for i, name := range assertType.PrimaryKey {
+		keyVal := primaryKey[i]
+		if keyVal == "" {
+			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		}
+		headers[name] = keyVal
+	}
+	return headers, nil
+}
+
+// PrimaryKeyFromHeaders extracts the tuple of values from headers
+// corresponding to a primary key under the assertion type, it errors
+// if there are missing primary key headers.
+func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
+	primaryKey = make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			return nil, fmt.Errorf("must provide primary key: %v", k)
+		}
+		primaryKey[i] = keyVal
+	}
+	return primaryKey, nil
+}
+
 // Ref expresses a reference to an assertion.
 type Ref struct {
 	Type       *AssertionType
@@ -182,12 +217,9 @@ func (ref *Ref) Unique() string {
 
 // Resolve resolves the reference using the given find function.
 func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
-	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {
+	headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+	if err != nil {
 		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
-	}
-	headers := make(map[string]string, len(ref.PrimaryKey))
-	for i, name := range ref.Type.PrimaryKey {
-		headers[name] = ref.PrimaryKey[i]
 	}
 	return find(ref.Type, headers)
 }

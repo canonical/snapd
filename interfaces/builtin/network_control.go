@@ -36,6 +36,7 @@ const networkControlConnectedPlugAppArmor = `
 # trusted apps.
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
@@ -164,11 +165,11 @@ capability setuid,
 
 /etc/rpc r,
 
-# TUN/TAP
+# TUN/TAP - https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+#
+# We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+# are virtual and don't show up in /dev
 /dev/net/tun rw,
-# These are dynamically created via ioctl() on /dev/net/tun
-/dev/tun[0-9]{,[0-9]*} rw,
-/dev/tap[0-9]{,[0-9]*} rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,
@@ -244,6 +245,19 @@ socket AF_NETLINK - NETLINK_DNRTMSG
 socket AF_NETLINK - NETLINK_ISCSI
 socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
+
+# for receiving kobject_uevent() net messages from the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
+/* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+ *
+ * We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+ * are virtual and don't show up in /dev
+ */
+const networkControlConnectedPlugUDev = `
+KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"
+KERNEL=="tun",    TAG+="###CONNECTED_SECURITY_TAGS###"
 `
 
 func init() {
@@ -255,6 +269,8 @@ func init() {
 		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
+
 }

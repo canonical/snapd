@@ -32,8 +32,8 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27.1
-Release:        1
+Version:        2.28.4
+Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
 Group:          System/Packages
@@ -49,17 +49,18 @@ BuildRequires:  glibc-devel-static
 BuildRequires:  golang-packaging
 BuildRequires:  gpg2
 BuildRequires:  indent
+BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
+BuildRequires:  openssh
 BuildRequires:  pkg-config
 BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
-BuildRequires:  openssh
 BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
@@ -73,6 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
+Requires:       apparmor
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
@@ -128,11 +130,11 @@ export CXXFLAGS
 %goprep %{import_path}
 
 %if 0%{?with_test_keys}
-# The %gobuild macro doesn't allow us to pass any additional parameters
+# The gobuild macro doesn't allow us to pass any additional parameters
 # so we we have to invoke `go install` here manually.
 export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
 export GOBIN=%{_builddir}/go/bin
-# Options used are the same as the %gobuild macro does but as it
+# Options used are the same as the gobuild macro does but as it
 # doesn't allow us to amend new flags we have to repeat them here:
 # -s: tell long running tests to shorten their build time
 # -v: be verbose
@@ -144,9 +146,12 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %endif
 
 %gobuild cmd/snap
-%gobuild cmd/snap-exec
 %gobuild cmd/snapctl
-%gobuild cmd/snap-update-ns
+# build snap-exec and snap-update-ns completely static for base snaps
+CGO_ENABLED=0 %gobuild cmd/snap-exec
+# gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
+# FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
+%gobuild bin/snap-update-ns
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
@@ -174,8 +179,8 @@ mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
 # Install profile.d-based PATH integration for /snap/bin
-install -m 755 -d %{buildroot}/etc/profile.d/
-install -m 644 etc/profile.d/apps-bin-path.sh %{buildroot}/etc/profile.d/snapd.sh
+#   and XDG_DATA_DIRS for /var/lib/snapd/desktop
+make -C data/env install DESTDIR=%{buildroot}
 
 # Generate and install man page for snap command
 install -m 755 -d %{buildroot}%{_mandir}/man1
@@ -198,6 +203,7 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %buildroot/var/cache/snapd
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -206,8 +212,8 @@ install -d %buildroot/snap/bin
 install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/permissions.d/snapd
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
-make -C data/systemd install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
-for s in snapd.autoimport.service snapd.system-shutdown.service snap-repair.timer snap-repair.service snapd.core-fixup.service; do
+make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
+for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
     rm -f %buildroot/%{_unitdir}/$s
 done
 # Remove snappy core specific scripts
@@ -243,6 +249,9 @@ esac
 
 %preun
 %service_del_preun %{systemd_services_list}
+if [ $1 -eq 0 ]; then
+    rm -f /var/cache/snapd/*
+fi
 
 %postun
 %service_del_postun %{systemd_services_list}
@@ -259,6 +268,7 @@ esac
 %dir /var/lib/snapd
 %dir /var/lib/snapd/apparmor
 %dir /var/lib/snapd/apparmor/profiles
+%dir /var/lib/snapd/apparmor/snap-confine.d
 %dir /var/lib/snapd/assertions
 %dir /var/lib/snapd/desktop
 %dir /var/lib/snapd/desktop/applications
@@ -268,8 +278,9 @@ esac
 %dir /var/lib/snapd/seccomp
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
+%dir /var/cache/snapd
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man5/snap-confine.5.gz
+%{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_udevrulesdir}/80-snappy-assign.rules
 %{_unitdir}/snapd.refresh.service
@@ -291,6 +302,7 @@ esac
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
+/usr/share/dbus-1/services/io.snapcraft.Launcher.service
 
 %changelog
 
