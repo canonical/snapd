@@ -386,8 +386,11 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 
 		bool should_discard_ns =
 		    should_discard_current_ns(base_snap_dev);
-		debug("should the namespace be discarded: %s",
-		      should_discard_ns ? "yes" : "no");
+
+		if (should_discard_ns) {
+			debug("discarding obsolete base filesystem namespace");
+			debug("(not yet implemented)");
+		}
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
