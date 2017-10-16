@@ -17,7 +17,7 @@
  *
  */
 
-package snaptest
+package pack
 
 var (
 	CopyToBuildDir       = copyToBuildDir
