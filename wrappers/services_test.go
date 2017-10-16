@@ -123,10 +123,10 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), &progress.Null)
 	c.Assert(err, IsNil)
 
-	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
+	err = wrappers.RemoveSnapServices(info, &progress.Null)
 	c.Assert(err, IsNil)
 
 	app := info.Apps["svc1"]
@@ -205,7 +205,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 
 	sysdLog = nil
 
-	err = wrappers.StopServices(info.Services(), &progress.NullProgress{})
+	err = wrappers.StopServices(info.Services(), &progress.Null)
 	c.Assert(err, IsNil)
 
 	sort.Strings(sysdLog)
