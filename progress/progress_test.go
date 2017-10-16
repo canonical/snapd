@@ -17,134 +17,49 @@
  *
  */
 
-package progress
+package progress_test
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/progress/progresstest"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type ProgressTestSuite struct {
-	attachedToTerminalReturn bool
-
-	originalAttachedToTerminal func() bool
 }
 
 var _ = Suite(&ProgressTestSuite{})
 
-func (ts *ProgressTestSuite) MockAttachedToTerminal() bool {
-	return ts.attachedToTerminalReturn
-}
+func (ts *ProgressTestSuite) testNotify(c *C, t progress.Meter, desc, expected string) {
+	var buf bytes.Buffer
+	defer progress.MockStdout(&buf)()
 
-func (ts *ProgressTestSuite) TestSpin(c *C) {
-	f, err := ioutil.TempFile("", "progress-")
-	c.Assert(err, IsNil)
-	defer os.Remove(f.Name())
-	oldStdout := os.Stdout
-	os.Stdout = f
+	comment := Commentf(desc)
 
-	t := NewTextProgress()
-	for i := 0; i < 6; i++ {
-		t.Spin("msg")
-	}
-
-	os.Stdout = oldStdout
-	f.Sync()
-	f.Seek(0, 0)
-	progress, err := ioutil.ReadAll(f)
-	c.Assert(err, IsNil)
-	c.Assert(string(progress), Equals, "\r[|] msg\x1b[K\r[/] msg\x1b[K\r[-] msg\x1b[K\r[\\] msg\x1b[K\r[|] msg\x1b[K\r[/] msg\x1b[K")
-}
-
-func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
-	fout, err := ioutil.TempFile("", "progress-out-")
-	c.Assert(err, IsNil)
-	oldStdout := os.Stdout
-	os.Stdout = fout
-	defer func() {
-		os.Stdout = oldStdout
-		os.Remove(fout.Name())
-		fout.Close()
-	}()
-
-	fin, err := ioutil.TempFile("", "progress-in-")
-	c.Assert(err, IsNil)
-	oldStdin := os.Stdin
-	os.Stdin = fin
-	defer func() {
-		os.Stdin = oldStdin
-		os.Remove(fin.Name())
-		fin.Close()
-	}()
-
-	_, err = fmt.Fprintln(fin, answer)
-	c.Assert(err, IsNil)
-	_, err = fin.Seek(0, 0)
-	c.Assert(err, IsNil)
-
-	license := "Void where empty."
-
-	t := NewTextProgress()
-	c.Check(t.Agreed("blah blah", license), Equals, value)
-
-	_, err = fout.Seek(0, 0)
-	c.Assert(err, IsNil)
-	out, err := ioutil.ReadAll(fout)
-	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "blah blah\n"+license+"\nDo you agree? [y/n] ")
-}
-
-func (ts *ProgressTestSuite) TestAgreed(c *C) {
-	ts.testAgreed("Y", true, c)
-	ts.testAgreed("N", false, c)
-}
-
-func (ts *ProgressTestSuite) TestNotify(c *C) {
-	fout, err := ioutil.TempFile("", "notify-out-")
-	c.Assert(err, IsNil)
-	oldStdout := os.Stdout
-	os.Stdout = fout
-	defer func() {
-		os.Stdout = oldStdout
-		os.Remove(fout.Name())
-		fout.Close()
-	}()
-
-	t := NewTextProgress()
 	t.Notify("blah blah")
 
-	_, err = fout.Seek(0, 0)
-	c.Assert(err, IsNil)
-	out, err := ioutil.ReadAll(fout)
-	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, fmt.Sprintf("\rblah blah%s\n", clearUntilEOL))
+	c.Check(buf.String(), Equals, expected, comment)
 }
 
-func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
-	var pbar Meter
+func (ts *ProgressTestSuite) TestQuietNotify(c *C) {
+	ts.testNotify(c, &progress.QuietMeter{}, "quiet", "blah blah\n")
+}
 
-	ts.originalAttachedToTerminal = attachedToTerminal
-	attachedToTerminal = ts.MockAttachedToTerminal
-	defer func() {
-		// reset
-		attachedToTerminal = ts.originalAttachedToTerminal
-	}()
+func (ts *ProgressTestSuite) TestANSINotify(c *C) {
+	expected := fmt.Sprint("\r", progress.ExitAttributeMode, progress.ClrEOL, "blah blah\n")
+	ts.testNotify(c, &progress.ANSIMeter{}, "ansi", expected)
+}
 
-	ts.attachedToTerminalReturn = true
-
-	pbar = MakeProgressBar()
-	c.Assert(pbar, FitsTypeOf, NewTextProgress())
-
-	ts.attachedToTerminalReturn = false
-
-	pbar = MakeProgressBar()
-	c.Assert(pbar, FitsTypeOf, &NullProgress{})
-
+func (ts *ProgressTestSuite) TestTestingNotify(c *C) {
+	p := &progresstest.Meter{}
+	ts.testNotify(c, p, "test", "")
+	c.Check(p.Notices, DeepEquals, []string{"blah blah"})
 }

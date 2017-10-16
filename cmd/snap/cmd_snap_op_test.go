@@ -26,7 +26,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"regexp"
 	"time"
@@ -35,6 +34,9 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/progress/progresstest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type snapOpTestServer struct {
@@ -103,6 +105,8 @@ func (s *SnapOpSuite) TearDownTest(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestWait(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
@@ -111,27 +115,16 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 	snap.ClientConfig.BaseURL = server.URL
 	server.Close()
 
-	d := c.MkDir()
-	oldStdout := os.Stdout
-	stdout, err := ioutil.TempFile(d, "stdout")
-	c.Assert(err, check.IsNil)
-	defer func() {
-		os.Stdout = oldStdout
-		stdout.Close()
-		os.Remove(stdout.Name())
-	}()
-	os.Stdout = stdout
-
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
 	c.Assert(chg, check.IsNil)
 	c.Assert(err, check.NotNil)
-	buf, err := ioutil.ReadFile(stdout.Name())
-	c.Assert(err, check.IsNil)
-	c.Check(string(buf), check.Matches, "(?ms).*Waiting for server to restart.*")
+	c.Check(meter.Labels, testutil.Contains, "Waiting for server to restart")
 }
 
 func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
@@ -144,27 +137,14 @@ func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
 	})
 
-	d := c.MkDir()
-	oldStdout := os.Stdout
-	stdout, err := ioutil.TempFile(d, "stdout")
-	c.Assert(err, check.IsNil)
-	defer func() {
-		os.Stdout = oldStdout
-		stdout.Close()
-		os.Remove(stdout.Name())
-	}()
-	os.Stdout = stdout
-
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
 	// we got the change
 	c.Assert(chg, check.NotNil)
 	c.Assert(err, check.IsNil)
-	buf, err := ioutil.ReadFile(stdout.Name())
-	c.Assert(err, check.IsNil)
 
 	// but only after recovering
-	c.Check(string(buf), check.Matches, "(?ms).*Waiting for server to restart.*")
+	c.Check(meter.Labels, testutil.Contains, "Waiting for server to restart")
 }
 
 func (s *SnapOpSuite) TestInstall(c *check.C) {

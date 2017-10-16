@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,32 +17,35 @@
  *
  */
 
-package mount
+package main
 
-import (
-	"sort"
-
-	. "gopkg.in/check.v1"
+var (
+	ExpandEnvCmdArgs = expandEnvCmdArgs
+	FindCommand      = findCommand
+	ParseArgs        = parseArgs
+	Run              = run
+	ExecApp          = execApp
+	ExecHook         = execHook
 )
 
-type sortSuite struct{}
-
-var _ = Suite(&sortSuite{})
-
-func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
-	// Naively sorted entries.
-	entries := []Entry{
-		{Dir: "/a/b"},
-		{Dir: "/a/b-1"},
-		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b/c"},
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	origSyscallExec := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = origSyscallExec
 	}
-	sort.Sort(byMagicDir(entries))
-	// Entries sorted as if they had a trailing slash.
-	c.Assert(entries, DeepEquals, []Entry{
-		{Dir: "/a/b-1"},
-		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b"},
-		{Dir: "/a/b/c"},
-	})
+}
+
+func SetOptsCommand(s string) {
+	opts.Command = s
+}
+func GetOptsCommand() string {
+	return opts.Command
+}
+
+func SetOptsHook(s string) {
+	opts.Hook = s
+}
+func GetOptsHook() string {
+	return opts.Hook
 }
