@@ -1,3 +1,15 @@
+snapd (2.28.5-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+  * Remove several patches:
+    - 0001-osutil-adjust-StreamCommand-tests-for-golang-1.9.patch: included in
+      release.
+    - apparmor-compat.patch, no-reexec-on-debian.patch: Removed as upstream
+      now implements a better solution to the problem.
+    - pb.v1-canonical-path.patch: applied upstream.
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Mon, 16 Oct 2017 20:10:45 +1300
+
 snapd (2.28.5) xenial; urgency=medium
 
   * New upstream release, LP: #1714984
