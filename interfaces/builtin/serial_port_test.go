@@ -290,6 +290,8 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	c.Assert(snippet, Equals, expectedSnippet2)
 
 	spec = &udev.Specification{}
+	// The ENV{ID_USB_INTERFACE_NUM} is set to two hex digits
+	// For instance, the expectedSnippet3 is set to 00
 	expectedSnippet3 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="serial-port-myserial"`
 	err = spec.AddPermanentSlot(s.iface, s.testUDev3)
