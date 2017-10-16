@@ -23,14 +23,20 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	. "gopkg.in/check.v1"
 )
 
 var (
+	// change
 	ReadCmdline      = readCmdline
 	FindSnapName     = findSnapName
 	FindFirstOption  = findFirstOption
 	ValidateSnapName = validateSnapName
 	ProcessArguments = processArguments
+	// freezer
+	FreezeSnapProcesses = freezeSnapProcesses
+	ThawSnapProcesses   = thawSnapProcesses
 )
 
 // fakeFileInfo implements os.FileInfo for one of the tests.
@@ -147,4 +153,16 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		osMkdirAll = oldOsMkdirAll
 		osChown = oldOsChown
 	}
+}
+
+func MockFreezerCgroupDir(c *C) (restore func()) {
+	old := freezerCgroupDir
+	freezerCgroupDir = c.MkDir()
+	return func() {
+		freezerCgroupDir = old
+	}
+}
+
+func FreezerCgroupDir() string {
+	return freezerCgroupDir
 }
