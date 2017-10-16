@@ -114,7 +114,7 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 
 		usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-		if ok && (usbInterfaceNumber < 0x0) || (usbInterfaceNumber >= UsbMaxInterfaces) {
+		if ok && ((usbInterfaceNumber < 0x0) || (usbInterfaceNumber >= UsbMaxInterfaces)) {
 			return fmt.Errorf("serial-port usb-interface-number attribute cannot be negative and larger than 31")
 		}
 	} else {
