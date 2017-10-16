@@ -360,7 +360,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 			die("cannot read symlink %s", fname);
 		}
 		if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
-			die("readlink truncated");
+			die("cannot use symbolic link %s - value is too long",
+			    fname);
 		}
 
 		dev_t base_snap_dev =
