@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,35 @@
  *
  */
 
-// snapbuild is a minimal executable wrapper around snap building to use for integration tests that need to build snaps under sudo.
 package main
 
-import (
-	"fmt"
-	"os"
-
-	"github.com/snapcore/snapd/snap/snaptest"
+var (
+	ExpandEnvCmdArgs = expandEnvCmdArgs
+	FindCommand      = findCommand
+	ParseArgs        = parseArgs
+	Run              = run
+	ExecApp          = execApp
+	ExecHook         = execHook
 )
 
-func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "snapbuild: expected sourceDir and targetDir\n")
-		os.Exit(1)
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	origSyscallExec := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = origSyscallExec
 	}
+}
 
-	snapPath, err := snaptest.BuildSquashfsSnap(os.Args[1], os.Args[2])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "snapbuild: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stdout, "built: %s\n", snapPath)
+func SetOptsCommand(s string) {
+	opts.Command = s
+}
+func GetOptsCommand() string {
+	return opts.Command
+}
+
+func SetOptsHook(s string) {
+	opts.Hook = s
+}
+func GetOptsHook() string {
+	return opts.Hook
 }
