@@ -77,13 +77,13 @@ func plugAppLabelExpr(plug *interfaces.Plug) string {
 // Function to support creation of udev snippet
 func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, usbIterfaceNumber int64, key string, data string) string {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
-	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02d"`
+	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`
 	const udevSuffix string = `, %s+="%s"`
 
 	var udevSnippet bytes.Buffer
 	udevSnippet.WriteString(udevHeader + "\n")
 	if usbIterfaceNumber < 0 || usbIterfaceNumber >= UsbMaxInterfaces {
-		udevDevicePrefixNoInterface := strings.Replace(udevDevicePrefix, `, ENV{ID_USB_INTERFACE_NUM}=="%02d"`, "", -1)
+		udevDevicePrefixNoInterface := strings.Replace(udevDevicePrefix, `, ENV{ID_USB_INTERFACE_NUM}=="%02x"`, "", -1)
 		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefixNoInterface, subsystem, usbVendor, usbProduct))
 	} else {
 		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct, usbIterfaceNumber))
