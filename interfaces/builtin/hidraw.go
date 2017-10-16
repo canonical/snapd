@@ -180,9 +180,6 @@ func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	if _, ok := slot.Attrs["usb-product"]; ok {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-interface-number"]; ok {
-		return true
-	}
 	return false
 }
 
