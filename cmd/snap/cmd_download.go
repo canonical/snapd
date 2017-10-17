@@ -56,7 +56,7 @@ func init() {
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
 	}), []argDesc{{
 		name: "<snap>",
-		// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+		// TRANSLATORS: This should probably not start with a lowercase letter.
 		desc: i18n.G("Snap name"),
 	}})
 }

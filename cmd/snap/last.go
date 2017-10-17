@@ -40,7 +40,7 @@ var changeIDMixinOptDesc = map[string]string{
 var changeIDMixinArgDesc = []argDesc{{
 	// TRANSLATORS: This needs to be wrapped in <>s.
 	name: i18n.G("<change-id>"),
-	// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+	// TRANSLATORS: This should probably not start with a lowercase letter.
 	desc: i18n.G("Change ID"),
 }}
 

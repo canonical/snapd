@@ -51,12 +51,12 @@ func init() {
 			{
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<model-assertion>"),
-				// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("The model assertion name"),
 			}, {
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<root-dir>"),
-				// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("The output directory"),
 			},
 		})

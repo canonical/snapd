@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
@@ -134,7 +135,14 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		logger.Panicf("description of %s's %q of %q set from tag (=> no i18n)", cmdName, optName, origDesc)
 	}
 	if len(desc) > 0 {
-		if !unicode.IsUpper(([]rune)(desc)[0]) {
+		// decode the first rune instead of converting all of desc into []rune
+		r, _ := utf8.DecodeRuneInString(desc)
+		// note IsLower != !IsUpper for runes with no upper/lower.
+		// Also note that login.u.c. is the only exception we're allowing for
+		// now, but the list of exceptions could grow -- if it does, we might
+		// want to change it to check for urlish things instead of just
+		// login.u.c.
+		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") {
 			tidyNoticef("description of %s's %q not uppercase: %q", cmdName, optName, desc)
 		}
 	}
