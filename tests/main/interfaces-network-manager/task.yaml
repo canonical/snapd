@@ -41,6 +41,9 @@ execute: |
     echo "And allows to remove a connection"
     network-manager.nmcli connection delete id $conn_name | MATCH "successfully deleted"
 
+    echo "And allows to show devices information"
+    network-manager.nmcli d show
+
     echo "When the plug is disconnected"
     snap disconnect network-manager:nmcli
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
