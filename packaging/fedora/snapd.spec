@@ -122,8 +122,10 @@ BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  gnupg
 BuildRequires:  indent
+BuildRequires:  pkgconfig(fuse)
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
+BuildRequires:  pkgconfig(liblzma)
 BuildRequires:  pkgconfig(libseccomp)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(systemd)
@@ -547,6 +549,7 @@ popd
 %doc README.md docs/*
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_bindir}/snapfuse
 %dir %{_libexecdir}/snapd
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec

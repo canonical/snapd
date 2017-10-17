@@ -109,6 +109,9 @@ AS_IF([test "x$enable_apparmor" = "xyes"], [
 # Those are now used unconditionally even if apparmor is disabled.
 PKG_CHECK_MODULES([LIBUDEV], [libudev])
 PKG_CHECK_MODULES([UDEV], [udev])
+PKG_CHECK_MODULES([FUSE], [fuse])
+PKG_CHECK_MODULES([XZ], [liblzma])
+AC_DEFINE([HAVE_LZMA_H], [1], [Build with XZ support])
 
 # Check if libcap is available.
 # PKG_CHECK_MODULES([LIBCAP], [libcap])
@@ -208,6 +211,8 @@ AC_ARG_ENABLE([static-libseccomp],
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
     esac], [enable_static_libseccomp=no])
 AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
+
+AC_DEFINE([FUSE_USE_VERSION], [26], [Version of FUSE API to use])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

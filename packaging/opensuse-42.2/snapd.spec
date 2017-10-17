@@ -51,6 +51,8 @@ BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
+BuildRequires:  libfuse-devel
+BuildRequires:  liblzma-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
@@ -289,6 +291,7 @@ fi
 %{_unitdir}/snapd.socket
 /usr/bin/snap
 /usr/bin/snapctl
+/usr/bin/snapfuse
 /usr/sbin/rcsnapd
 /usr/sbin/rcsnapd.refresh
 %{_libexecdir}/snapd/info

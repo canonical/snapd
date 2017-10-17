@@ -28,6 +28,10 @@ cmd/snap-update-ns/unit-tests
 cmd/system-shutdown/system-shutdown
 cmd/system-shutdown/unit-tests
 
+# snapfuse
+cmd/swap.[ch].inc
+cmd/snapfuse/snapfuse
+
 # manual pages
 cmd/*/*.[1-9]
 
