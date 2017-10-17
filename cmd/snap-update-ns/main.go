@@ -129,17 +129,17 @@ func run() error {
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
-	var changesMade []Change
+	var changesMade []*Change
 	for _, change := range changesNeeded {
-		if change.Action == Keep {
-			changesMade = append(changesMade, change)
-			continue
-		}
-		if err := change.Perform(); err != nil {
+		synthesised, err := change.Perform()
+		// NOTE: we may have done something even if Perform itself has failed.
+		// We need to collect synthesized changes and store them.
+		changesMade = append(changesMade, synthesised...)
+		if err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
-		changesMade = append(changesMade, change)
+		changesMade = append(changesMade, &change)
 	}
 
 	// Compute the new current profile so that it contains only changes that were made
