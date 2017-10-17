@@ -55,12 +55,12 @@ func init() {
 		{
 			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<assertion type>"),
-			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Assertion type name"),
 		}, {
 			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<header filter>"),
-			// TRANSLATORS: This needs to start with an uppercase letter (unicode OK).
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Constrain listing to those matching header=value"),
 		},
 	})
