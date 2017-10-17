@@ -1388,8 +1388,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	if s.cacher.Lookup(downloadInfo.Sha3_384) {
-		return s.cacher.Get(downloadInfo.Sha3_384, targetPath)
+	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		return nil
 	}
 
 	if useDeltas() {
@@ -1475,7 +1475,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	return s.cacher.Put(targetPath)
+	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
 // download writes an http.Request showing a progress.Meter

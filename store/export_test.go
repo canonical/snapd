@@ -34,10 +34,6 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
-func (cm *CacheManager) Digest(path string) (string, error) {
-	return cm.digest(path)
-}
-
 func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }

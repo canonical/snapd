@@ -20,8 +20,6 @@
 package store
 
 import (
-	"crypto"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -34,22 +32,19 @@ import (
 
 // downloadCache is the interface that a store download cache must provide
 type downloadCache interface {
-	// Get gets the given sha3 content and puts it into targetPath
-	Get(sha3_384, targetPath string) error
+	// Get gets the given cacheKey content and puts it into targetPath
+	Get(cacheKey, targetPath string) error
 	// Put adds a new file to the cache
-	Put(sourcePath string) error
-	// Lookup checks if the given sha3 content is available in the cache
-	Lookup(sha3_384 string) bool
+	Put(cacheKey, sourcePath string) error
 }
 
 // nullCache is cache that does not cache
 type nullCache struct{}
 
-func (cm *nullCache) Get(sha3_384, targetPath string) error {
+func (cm *nullCache) Get(cacheKey, targetPath string) error {
 	return fmt.Errorf("cannot get items from the nullCache")
 }
-func (cm *nullCache) Put(sourcePath string) error { return nil }
-func (cm *nullCache) Lookup(sha3_384 string) bool { return false }
+func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
 // changesByReverseMtime sorts by the mtime of files
 type changesByReverseMtime []os.FileInfo
@@ -85,43 +80,31 @@ func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 	}
 }
 
-// Get gets the given sha3 content and puts it into targetPath
-func (cm *CacheManager) Get(sha3_384, targetPath string) error {
-	if !cm.Lookup(sha3_384) {
-		return fmt.Errorf("cannot find %s in %s", sha3_384, cm.cacheDir)
-	}
-	if err := os.Link(cm.path(sha3_384), targetPath); err != nil {
+// Get gets the given cacheKey content and puts it into targetPath
+func (cm *CacheManager) Get(cacheKey, targetPath string) error {
+	if err := os.Link(cm.path(cacheKey), targetPath); err != nil {
 		return err
 	}
 	now := time.Now()
 	return os.Chtimes(targetPath, now, now)
 }
 
-// Put adds a new file to the cache
-func (cm *CacheManager) Put(sourcePath string) error {
+// Put adds a new file to the cache with the given cacheKey
+func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	// happens on e.g. `snap download` which runs as the user
 	if !osutil.IsWritable(cm.cacheDir) {
 		return nil
 	}
 
-	sha3_384, err := cm.digest(sourcePath)
+	err := os.Link(sourcePath, cm.path(cacheKey))
+	if os.IsExist(err) {
+		now := time.Now()
+		return os.Chtimes(cm.path(cacheKey), now, now)
+	}
 	if err != nil {
 		return err
 	}
-	if cm.Lookup(sha3_384) {
-		now := time.Now()
-		return os.Chtimes(cm.path(sha3_384), now, now)
-	}
-
-	if err := os.Link(sourcePath, cm.path(sha3_384)); err != nil {
-		return err
-	}
 	return cm.cleanup()
-}
-
-// Lookup checks if the given sha3 content is available in the cache
-func (cm *CacheManager) Lookup(sha3_384 string) bool {
-	return osutil.FileExists(cm.path(sha3_384))
 }
 
 // Count returns the number of items in the cache
@@ -132,19 +115,9 @@ func (cm *CacheManager) Count() int {
 	return 0
 }
 
-// digest returns the sha3 of the given path
-func (cm *CacheManager) digest(path string) (string, error) {
-	sha3_384_raw, _, err := osutil.FileDigest(path, crypto.SHA3_384)
-	if err != nil {
-		return "", err
-	}
-	sha3_384 := hex.EncodeToString(sha3_384_raw)
-	return sha3_384, nil
-}
-
 // path returns the full path of the given content in the cache
-func (cm *CacheManager) path(sha3_384 string) string {
-	return filepath.Join(cm.cacheDir, sha3_384)
+func (cm *CacheManager) path(cacheKey string) string {
+	return filepath.Join(cm.cacheDir, cacheKey)
 }
 
 // cleanup ensures that only maxItems are stored in the cache

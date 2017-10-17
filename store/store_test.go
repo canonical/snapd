@@ -4862,30 +4862,28 @@ func (t *remoteRepoTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
 }
 
 type cacheObserver struct {
-	lookupResult bool
+	inCache map[string]bool
 
-	gets    []string
-	puts    []string
-	lookups []string
+	gets []string
+	puts []string
 }
 
-func (co *cacheObserver) Get(sha3_384, targetPath string) error {
-	co.gets = append(co.gets, fmt.Sprintf("%s:%s", sha3_384, targetPath))
+func (co *cacheObserver) Get(cacheKey, targetPath string) error {
+	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
+	if !co.inCache[cacheKey] {
+		return fmt.Errorf("cannot find %s in cache", cacheKey)
+	}
 	return nil
 }
-func (co *cacheObserver) Put(sourcePath string) error {
-	co.puts = append(co.puts, sourcePath)
+func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
+	co.puts = append(co.puts, fmt.Sprintf("%s:%s", cacheKey, sourcePath))
 	return nil
-}
-func (co *cacheObserver) Lookup(sha3_384 string) bool {
-	co.lookups = append(co.lookups, sha3_384)
-	return co.lookupResult
 }
 
 func (t *remoteRepoTestSuite) TestDownloadCacheHit(c *C) {
 	oldCache := t.store.cacher
 	defer func() { t.store.cacher = oldCache }()
-	obs := &cacheObserver{lookupResult: true}
+	obs := &cacheObserver{inCache: map[string]bool{"the-snaps-sha3_384": true}}
 	t.store.cacher = obs
 
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
@@ -4902,13 +4900,12 @@ func (t *remoteRepoTestSuite) TestDownloadCacheHit(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
-	c.Check(obs.lookups, DeepEquals, []string{snap.Sha3_384})
 }
 
 func (t *remoteRepoTestSuite) TestDownloadCacheMiss(c *C) {
 	oldCache := t.store.cacher
 	defer func() { t.store.cacher = oldCache }()
-	obs := &cacheObserver{lookupResult: false}
+	obs := &cacheObserver{inCache: map[string]bool{}}
 	t.store.cacher = obs
 
 	downloadWasCalled := false
@@ -4925,7 +4922,6 @@ func (t *remoteRepoTestSuite) TestDownloadCacheMiss(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(downloadWasCalled, Equals, true)
 
-	c.Check(obs.gets, IsNil)
-	c.Check(obs.puts, DeepEquals, []string{path})
-	c.Check(obs.lookups, DeepEquals, []string{snap.Sha3_384})
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
 }
