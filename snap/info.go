@@ -153,7 +153,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	License          string
-	Epoch            string
+	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
@@ -209,7 +209,7 @@ type ChannelSnapInfo struct {
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
-	Epoch       string          `json:"epoch"`
+	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 }
 

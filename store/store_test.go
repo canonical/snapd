@@ -1974,7 +1974,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
-	c.Check(result.Epoch, Equals, "0")
+	c.Check(result.Epoch.String(), Equals, "0")
 
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 
@@ -2137,7 +2137,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
 			Size:        12345,
-			Epoch:       "0",
+			Epoch:       *snap.E("0"),
 		},
 		"latest/candidate": {
 			Revision:    snap.R(2),
@@ -2145,7 +2145,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.StrictConfinement,
 			Channel:     "candidate",
 			Size:        12345,
-			Epoch:       "0",
+			Epoch:       *snap.E("0"),
 		},
 		"latest/beta": {
 			Revision:    snap.R(8),
@@ -2153,7 +2153,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.DevModeConfinement,
 			Channel:     "beta",
 			Size:        12345,
-			Epoch:       "0",
+			Epoch:       *snap.E("0"),
 		},
 		"latest/edge": {
 			Revision:    snap.R(9),
@@ -2161,7 +2161,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Confinement: snap.DevModeConfinement,
 			Channel:     "edge",
 			Size:        12345,
-			Epoch:       "0",
+			Epoch:       *snap.E("0"),
 		},
 	})
 
@@ -2844,13 +2844,13 @@ func (t *remoteRepoTestSuite) TestCurrentSnap(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-		Epoch:    "1",
+		Epoch:    *snap.E("1"),
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Channel, Equals, cand.Channel)
-	c.Check(cs.Epoch, Equals, cand.Epoch)
+	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
 	c.Check(cs.Revision, Equals, cand.Revision.N)
 	c.Check(t.logbuf.String(), Equals, "")
 }
@@ -2859,13 +2859,13 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNoChannel(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R(1),
-		Epoch:    "1",
+		Epoch:    *snap.E("1"),
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Channel, Equals, "stable")
-	c.Check(cs.Epoch, Equals, cand.Epoch)
+	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
 	c.Check(cs.Revision, Equals, cand.Revision.N)
 	c.Check(t.logbuf.String(), Equals, "")
 }
@@ -2986,7 +2986,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-			Epoch:    "0",
 		},
 	}, nil)
 
@@ -3036,7 +3035,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesRetri
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
@@ -3058,7 +3056,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-			Epoch:    "0",
+			Epoch:    *snap.E("0"),
 		}})
 		return []*snapDetails{{
 			Name:        "hello-world",
@@ -3076,7 +3074,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-		Epoch:    "0",
+		Epoch:    *snap.E("0"),
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result.Name(), Equals, "hello-world")
@@ -3199,7 +3197,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: snap.R(1),
-			Epoch:    "0",
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -3256,7 +3253,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannel
 		{
 			SnapID:   helloWorldSnapID,
 			Revision: snap.R(1),
-			Epoch:    "0",
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -3305,7 +3301,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
@@ -3348,7 +3343,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-			Epoch:    "0",
 		}}, nil)
 		return err
 	}
@@ -3394,7 +3388,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `^Post http://127.0.0.1:.*?/metadata: EOF$`)
@@ -3427,7 +3420,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnaut
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(n, Equals, 1)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/metadata"`)
@@ -3447,7 +3439,6 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-		Epoch:    "0",
 	}}, nil)
 	// the error differs depending on whether a proxy is in use (e.g. on travis), so don't inspect error message
 	c.Assert(err, NotNil)
@@ -3475,7 +3466,6 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/metadata"`)
 	c.Assert(n, Equals, 5)
@@ -3504,7 +3494,6 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/metadata"`)
 	c.Assert(n, Equals, 1)
@@ -3562,7 +3551,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(26),
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
@@ -3607,7 +3595,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(25),
-		Epoch:    "0",
 		Block:    []snap.Revision{snap.R(26)},
 	}}, nil)
 	c.Assert(err, IsNil)
@@ -3699,7 +3686,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOn
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-			Epoch:    "0",
 		}}, nil)
 	}
 }
@@ -3749,7 +3735,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
@@ -3820,7 +3805,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
@@ -3847,7 +3831,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(-2),
-		Epoch:    "0",
 	}}, nil)
 	c.Assert(err, IsNil)
 }
