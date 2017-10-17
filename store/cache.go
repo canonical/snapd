@@ -103,7 +103,14 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	err := os.Link(sourcePath, cm.path(cacheKey))
 	if os.IsExist(err) {
 		now := time.Now()
-		return os.Chtimes(cm.path(cacheKey), now, now)
+		err := os.Chtimes(cm.path(cacheKey), now, now)
+		// this can happen if a cleanup happens in parallel, ie.
+		// the file was there but cleanup() removed it between
+		// the os.Link/os.Chtimes - no biggie, just link it again
+		if os.IsNotExist(err) {
+			return os.Link(sourcePath, cm.path(cacheKey))
+		}
+		return err
 	}
 	if err != nil {
 		return err
