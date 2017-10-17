@@ -83,7 +83,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
-	info.Epoch = "0"
+	info.Epoch = d.Epoch
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
@@ -1189,7 +1189,7 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
-	Epoch    string
+	Epoch    snap.Epoch
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1198,11 +1198,11 @@ type RefreshCandidate struct {
 
 // the exact bits that we need to send to the store
 type currentSnapJSON struct {
-	SnapID      string `json:"snap_id"`
-	Channel     string `json:"channel"`
-	Revision    int    `json:"revision,omitempty"`
-	Epoch       string `json:"epoch"`
-	Confinement string `json:"confinement"`
+	SnapID      string     `json:"snap_id"`
+	Channel     string     `json:"channel"`
+	Revision    int        `json:"revision,omitempty"`
+	Epoch       snap.Epoch `json:"epoch"`
+	Confinement string     `json:"confinement"`
 }
 
 type metadataWrapper struct {
