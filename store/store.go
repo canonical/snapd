@@ -179,8 +179,8 @@ type Config struct {
 	DetailFields []string
 	DeltaFormat  string
 
-	// CacheItemCount is the amount of downloads that should be cached
-	CacheItemCount int
+	// CacheDownloads is the number of downloads that should be cached
+	CacheDownloads int
 }
 
 // SetBaseURL updates the store API's base URL in the Config. Must not be used
@@ -435,8 +435,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	}
 
 	var cacher downloadCache
-	if cfg.CacheItemCount > 0 {
-		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheItemCount)
+	if cfg.CacheDownloads > 0 {
+		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
 	} else {
 		cacher = &nullCache{}
 	}

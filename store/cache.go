@@ -88,12 +88,13 @@ func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 // Get gets the given sha3 content and puts it into targetPath
 func (cm *CacheManager) Get(sha3_384, targetPath string) error {
 	if !cm.Lookup(sha3_384) {
-		return fmt.Errorf("cannot find %q in %q", sha3_384, cm.cacheDir)
+		return fmt.Errorf("cannot find %s in %s", sha3_384, cm.cacheDir)
 	}
 	if err := os.Link(cm.path(sha3_384), targetPath); err != nil {
 		return err
 	}
-	return os.Chtimes(targetPath, time.Now(), time.Now())
+	now := time.Now()
+	return os.Chtimes(targetPath, now, now)
 }
 
 // Put adds a new file to the cache
@@ -103,16 +104,13 @@ func (cm *CacheManager) Put(sourcePath string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(cm.cacheDir, 0700); err != nil && !os.IsExist(err) {
-		return err
-	}
-
 	sha3_384, err := cm.digest(sourcePath)
 	if err != nil {
 		return err
 	}
 	if cm.Lookup(sha3_384) {
-		return os.Chtimes(cm.path(sha3_384), time.Now(), time.Now())
+		now := time.Now()
+		return os.Chtimes(cm.path(sha3_384), now, now)
 	}
 
 	if err := os.Link(sourcePath, cm.path(sha3_384)); err != nil {
@@ -161,7 +159,7 @@ func (cm *CacheManager) cleanup() error {
 
 	sort.Sort(changesByReverseMtime(fil))
 	for _, fi := range fil[cm.maxItems:] {
-		if err := os.Remove(cm.path(fi.Name())); err != nil {
+		if err := os.Remove(cm.path(fi.Name())); err != nil && os.IsNotExist(err) {
 			return err
 		}
 	}

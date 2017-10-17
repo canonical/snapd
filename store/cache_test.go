@@ -82,7 +82,7 @@ func (s *cacheSuite) TestPutMany(c *C) {
 
 func (s *cacheSuite) TestGetNotExistant(c *C) {
 	err := s.cm.Get("hash-not-in-cache", "some-target-path")
-	c.Check(err, ErrorMatches, `cannot find "hash-not-in-cache" in .*`)
+	c.Check(err, ErrorMatches, `cannot find hash-not-in-cache in .*`)
 }
 
 func (s *cacheSuite) TestGet(c *C) {
