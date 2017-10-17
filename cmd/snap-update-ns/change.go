@@ -57,25 +57,28 @@ func (c Change) String() string {
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
-func (c *Change) Perform() error {
+//
+// Perform may synthesize *additional* changes that were necessary to perform
+// the this change (such as mounted tmpfs or overlayfs).
+func (c *Change) Perform() ([]*Change, error) {
 	if c.Action == Mount {
 		mode := os.FileMode(0755)
 		uid := 0
 		gid := 0
 		// Create target mount directory if needed.
 		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
-			return err
+			return nil, err
 		}
 		// If this is a bind mount then create the source directory as well.
 		// This allows snaps to share a subset of their data easily.
 		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
 		if flags&syscall.MS_BIND != 0 {
 			if err := ensureMountPoint(c.Entry.Name, mode, uid, gid); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return c.lowLevelPerform()
+	return nil, c.lowLevelPerform()
 }
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
