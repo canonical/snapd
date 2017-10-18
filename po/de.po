@@ -998,7 +998,7 @@ msgid "Xauthority file isn't owned by the current user %s"
 msgstr ""
 
 msgid "Yes, yes it does."
-msgstr ""
+msgstr "Ja, ja, allerdings."
 
 msgid ""
 "You need to be logged in to purchase software. Please run 'snap login' and "
