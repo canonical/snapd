@@ -419,3 +419,52 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+bin_PROGRAMS = snapfuse/snapfuse
+snapfuse_snapfuse_CFLAGS = $(FUSE_CFLAGS) $(XZ_CFLAGS)
+snapfuse_snapfuse_LDADD = $(FUSE_LIBS) $(XZ_LIBS)
+snapfuse_snapfuse_SOURCES = \
+	snapfuse/cache.c \
+	snapfuse/cache.h \
+	snapfuse/common.h \
+	snapfuse/decompress.c \
+	snapfuse/decompress.h \
+	snapfuse/dir.c \
+	snapfuse/dir.h \
+	snapfuse/file.c \
+	snapfuse/file.h \
+	snapfuse/fs.c \
+	snapfuse/fs.h \
+	snapfuse/fuseprivate.c \
+	snapfuse/fuseprivate.h \
+	snapfuse/hash.c \
+	snapfuse/hash.h \
+	snapfuse/hl.c \
+	snapfuse/nonstd-enoattr.c \
+	snapfuse/nonstd-internal.h \
+	snapfuse/nonstd-makedev.c \
+	snapfuse/nonstd-pread.c \
+	snapfuse/nonstd-stat.c \
+	snapfuse/nonstd.h \
+	snapfuse/squashfs_fs.h \
+	snapfuse/squashfuse.h \
+	snapfuse/stack.c \
+	snapfuse/stack.h \
+	snapfuse/swap.c \
+	snapfuse/swap.h \
+	snapfuse/table.c \
+	snapfuse/table.h \
+	snapfuse/traverse.c \
+	snapfuse/traverse.h \
+	snapfuse/util.c \
+	snapfuse/util.h \
+	snapfuse/xattr.c \
+	snapfuse/xattr.h
+
+$(snapfuse_snapfuse_OBJECTS): swap.c.inc
+
+# Handle generation of swap include files
+CLEANFILES += swap.h.inc swap.c.inc
+EXTRA_DIST += swap.h.inc swap.c.inc
+swap.h.inc swap.c.inc: snapfuse/gen_swap.sh snapfuse/squashfs_fs.h
+	SED="sed" $(srcdir)/snapfuse/gen_swap.sh $(srcdir)/snapfuse/squashfs_fs.h
