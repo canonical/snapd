@@ -143,7 +143,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// want to change it to check for urlish things instead of just
 		// login.u.c.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") {
-			tidyNoticef("description of %s's %q not uppercase: %q", cmdName, optName, desc)
+			tidyNoticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
 		}
 	}
 }
@@ -151,7 +151,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
 	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		tidyNoticef("argument %q's %q should have <>s", cmdName, optName)
+		tidyNoticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
 	}
 }
 
