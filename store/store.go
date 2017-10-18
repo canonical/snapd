@@ -178,6 +178,9 @@ type Config struct {
 
 	DetailFields []string
 	DeltaFormat  string
+
+	// CacheDownloads is the number of downloads that should be cached
+	CacheDownloads int
 }
 
 // SetBaseURL updates the store API's base URL in the Config. Must not be used
@@ -232,6 +235,8 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+
+	cacher downloadCache
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -429,6 +434,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
+	var cacher downloadCache
+	if cfg.CacheDownloads > 0 {
+		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
+	} else {
+		cacher = &nullCache{}
+	}
+
 	store := &Store{
 		series:          series,
 		architecture:    architecture,
@@ -437,6 +449,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+		cacher:          cacher,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
@@ -1374,6 +1387,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
+
+	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		return nil
+	}
+
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
@@ -1453,7 +1471,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	return w.Sync()
+	if err := w.Sync(); err != nil {
+		return err
+	}
+
+	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
 // download writes an http.Request showing a progress.Meter
