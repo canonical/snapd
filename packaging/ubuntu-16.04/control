@@ -24,9 +24,7 @@ Build-Depends: autoconf,
                libcap-dev,
                libfuse-dev,
                libglib2.0-dev,
-               liblz4-dev,
                liblzma-dev,
-               liblzo2-dev,
                libseccomp-dev,
                libudev-dev,
                openssh-client,
@@ -36,8 +34,7 @@ Build-Depends: autoconf,
                python3-markdown,
                squashfs-tools,
                udev,
-               xfslibs-dev,
-               zlib1g-dev
+               xfslibs-dev
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
