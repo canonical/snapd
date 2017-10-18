@@ -13,4 +13,11 @@ execute: |
     fi
 
     echo "Ensure that i18n works"
-    LANG=de_DE.UTF-8 snap changes everything | MATCH "Ja, ja, allerdings."
+    LANG=de snap changes everything | MATCH "Ja, ja, allerdings."
+
+    echo "Basic smoke test to ensure no locale causes crashes"
+    for p in /usr/share/locale/*; do
+        export LANG=$(basename $p)
+        snap >/dev/null
+        unset LANG
+    done
