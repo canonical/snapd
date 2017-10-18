@@ -99,7 +99,7 @@ int sc_lock(const char *scope)
 		die("cannot open lock directory");
 	}
 	// Construct the name of the lock file.
-	char lock_fname[PATH_MAX] = { 0, };
+	char lock_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
 			 sc_lock_dir, scope ? : "");
 

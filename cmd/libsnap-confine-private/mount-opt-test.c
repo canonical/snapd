@@ -25,7 +25,7 @@
 
 static void test_sc_mount_opt2str()
 {
-	char buf[1000] = { 0, };
+	char buf[1000] = { 0 };
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, 0), ==, "");
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_RDONLY), ==, "ro");
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOSUID), ==,
@@ -93,7 +93,7 @@ static void test_sc_mount_opt2str()
 
 static void test_sc_mount_cmd()
 {
-	char cmd[10000] = { 0, };
+	char cmd[10000] = { 0 };
 
 	// Typical mount
 	sc_mount_cmd(cmd, sizeof cmd, "/dev/sda3", "/mnt", "ext4", MS_RDONLY,
@@ -146,8 +146,8 @@ static void test_sc_mount_cmd()
 	g_assert_cmpstr(cmd, ==, "mount --move /from /to");
 
 	// Monster (invalid but let's format it)
-	char from[PATH_MAX] = { 0, };
-	char to[PATH_MAX] = { 0, };
+	char from[PATH_MAX] = { 0 };
+	char to[PATH_MAX] = { 0 };
 	for (int i = 1; i < PATH_MAX - 1; ++i) {
 		from[i] = 'a';
 		to[i] = 'b';
@@ -176,7 +176,7 @@ static void test_sc_mount_cmd()
 
 static void test_sc_umount_cmd()
 {
-	char cmd[1000] = { 0, };
+	char cmd[1000] = { 0 };
 
 	// Typical umount
 	sc_umount_cmd(cmd, sizeof cmd, "/mnt/foo", 0);
