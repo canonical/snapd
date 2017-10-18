@@ -20,7 +20,7 @@ static const char *freezer_cgroup_dir = "/sys/fs/cgroup/freezer";
 void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 {
 	// Format the name of the cgroup hierarchy. 
-	char buf[PATH_MAX] = { 0, };
+	char buf[PATH_MAX] = { 0 };
 	sc_must_snprintf(buf, sizeof buf, "snap.%s", snap_name);
 
 	// Open the freezer cgroup directory.

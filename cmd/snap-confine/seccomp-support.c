@@ -116,7 +116,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
 
-	char profile_path[PATH_MAX] = { 0, };
+	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
@@ -154,7 +154,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1] = { 0, };	// account for EOF
+	unsigned char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL) {
 		die("cannot read %s", profile_path);
