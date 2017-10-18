@@ -141,8 +141,8 @@ func ParseEntry(s string) (Entry, error) {
 	return e, nil
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
-func OptsToFlags(opts []string) (flags int, err error) {
+// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
+func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
 		case "ro":
@@ -191,6 +191,19 @@ func OptsToFlags(opts []string) (flags int, err error) {
 			flags |= syscall.MS_RELATIME
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
+		default:
+			unparsed = append(unparsed, opt)
+		}
+	}
+	return flags, unparsed
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	flags, unparsed := OptsToCommonFlags(opts)
+	for _, opt := range unparsed {
+		switch opt {
+		// TODO: add x-snapd. flag handling here.
 		default:
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)
 		}
