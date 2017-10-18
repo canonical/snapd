@@ -50,7 +50,7 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		if (real_uid != 0 && effective_uid == 0)
 			if (setuid(0) != 0)
 				die("setuid failed");
-		char buf[64];
+		char buf[64] = { 0 };
 		// pass snappy-add-dev an empty environment so the
 		// user-controlled environment can't be used to subvert
 		// snappy-add-dev
@@ -177,7 +177,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("snappy_udev->tagname has invalid length");
 
 	// create devices cgroup controller
-	char cgroup_dir[PATH_MAX];
+	char cgroup_dir[PATH_MAX] = { 0 };
 
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
@@ -186,11 +186,11 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("mkdir failed");
 
 	// move ourselves into it
-	char cgroup_file[PATH_MAX];
+	char cgroup_file[PATH_MAX] = { 0 };
 	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 			 "tasks");
 
-	char buf[128];
+	char buf[128] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
