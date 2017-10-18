@@ -103,7 +103,7 @@ msgid "<alias>"
 msgstr ""
 
 msgid "<assertion file>"
-msgstr "forutsetningsfil>"
+msgstr "<forutsetningsfil>"
 
 msgid "<assertion type>"
 msgstr "<forutsetningstype>"
