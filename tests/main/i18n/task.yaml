@@ -15,9 +15,12 @@ execute: |
     echo "Ensure that i18n works"
     LANG=de snap changes everything | MATCH "Ja, ja, allerdings."
 
-    echo "Basic smoke test to ensure no locale causes crashes"
+    echo "Basic smoke test to ensure no locale causes crashes nor warnings"
     for p in /usr/share/locale/*; do
-        export LANG=$(basename $p)
-        snap >/dev/null
-        unset LANG
+        out=$( LANG=$(basename $p) snap 2>&1 >/dev/null )
+        if [ -n "$out" ]; then
+            echo "$p"
+            echo "$out"
+            exit 1
+        fi
     done
