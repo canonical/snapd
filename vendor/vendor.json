@@ -67,10 +67,10 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
-			"checksumSHA1": "KF1072ga8v3PrfxDqA+6yfFuErU=",
+			"checksumSHA1": "aVZhm1h2R8QzHNfOzDzBxIm1iN8=",
 			"path": "github.com/snapcore/squashfuse",
-			"revision": "74c50efab7827d581bea8485415cc1c89466c079",
-			"revisionTime": "2017-10-17T08:58:17Z"
+			"revision": "b766b36c79f4fce1f257115118ebb9cd46efc84d",
+			"revisionTime": "2017-10-18T06:21:48Z"
 		},
 		{
 			"checksumSHA1": "FT/AZHDQR0L2dJo5lrmgQGkre2U=",
