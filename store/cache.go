@@ -93,7 +93,7 @@ func (cm *CacheManager) Get(cacheKey, targetPath string) error {
 func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	// always try to create the cache dir first or the following
 	// osutil.IsWritable will always fail if the dir is missing
-	_ := os.MkdirAll(cm.cacheDir, 0700)
+	_ = os.MkdirAll(cm.cacheDir, 0700)
 
 	// happens on e.g. `snap download` which runs as the user
 	if !osutil.IsWritable(cm.cacheDir) {
