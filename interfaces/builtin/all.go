@@ -60,7 +60,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := allInterfaces[plugInfo.Interface]
 		if !ok {
-			snapInfo.BadInterfaces[plugName] = "unknown interface"
+			snapInfo.BadInterfaces[plugName] = fmt.Sprintf("unknown interface %q", plugInfo.Interface)
 			continue
 		}
 		// Reject plug with invalid name
@@ -78,7 +78,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 	for slotName, slotInfo := range snapInfo.Slots {
 		iface, ok := allInterfaces[slotInfo.Interface]
 		if !ok {
-			snapInfo.BadInterfaces[slotName] = "unknown interface"
+			snapInfo.BadInterfaces[slotName] = fmt.Sprintf("unknown interface %q", slotInfo.Interface)
 			continue
 		}
 		// Reject slot with invalid name
