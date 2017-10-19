@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -387,7 +388,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n")
 	defer restoreClassicTemplate()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *interfaces.Slot) error {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if scenario.snippet == "" {
 				return nil
 			}

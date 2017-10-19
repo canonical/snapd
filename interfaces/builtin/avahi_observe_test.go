@@ -122,7 +122,7 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
     bus=system
@@ -154,7 +154,7 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -164,7 +164,7 @@ func (s *AvahiObserveInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
 
@@ -173,7 +173,7 @@ func (s *AvahiObserveInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
