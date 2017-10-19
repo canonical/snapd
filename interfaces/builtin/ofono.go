@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ofonoSummary = `allows operating as the ofono service`
@@ -329,17 +330,17 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	old := "###CONNECTED_SECURITY_TAGS###"
 	udevRule := ofonoPermanentSlotUDev
 	for appName := range slot.Apps {
@@ -358,7 +359,7 @@ func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }

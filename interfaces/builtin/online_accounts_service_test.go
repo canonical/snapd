@@ -89,7 +89,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.OnlineAccounts.Manager"`)
@@ -97,7 +97,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "listen\n")
 }
 

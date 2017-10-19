@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
@@ -246,17 +247,17 @@ func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 	return nil
 }
 
-func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotDBus)
 	return nil
 }

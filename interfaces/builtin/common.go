@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 type evalSymlinksFn func(string) (string, error)
@@ -121,7 +122,7 @@ func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
+func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *snap.PlugInfo) error {
 	for _, m := range iface.permanentPlugKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err
@@ -130,7 +131,7 @@ func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *
 	return nil
 }
 
-func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
+func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *snap.SlotInfo) error {
 	for _, m := range iface.permanentSlotKModModules {
 		if err := spec.AddModule(m); err != nil {
 			return err

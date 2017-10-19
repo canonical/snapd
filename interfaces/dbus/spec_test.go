@@ -46,11 +46,11 @@ var _ = Suite(&specSuite{
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		DBusPermanentPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		DBusPermanentPlugCallback: func(spec *dbus.Specification, plug *snap.PlugInfo) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		DBusPermanentSlotCallback: func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		DBusPermanentSlotCallback: func(spec *dbus.Specification, slot *snap.SlotInfo) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -92,8 +92,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},

@@ -54,10 +54,10 @@ type apparmorDefiner2 interface {
 	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type apparmorDefiner3 interface {
-	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
+	AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error
 }
 type apparmorDefiner4 interface {
-	AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error
+	AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error
 }
 
 type dbusDefiner1 interface {
@@ -70,7 +70,7 @@ type dbusDefiner3 interface {
 	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
 }
 type dbusDefiner4 interface {
-	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
+	DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error
 }
 
 type kmodDefiner1 interface {
@@ -80,10 +80,10 @@ type kmodDefiner2 interface {
 	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type kmodDefiner3 interface {
-	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
+	KModPermanentPlug(spec *kmod.Specification, plug *snap.PlugInfo) error
 }
 type kmodDefiner4 interface {
-	KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error
+	KModPermanentSlot(spec *kmod.Specification, slot *snap.SlotInfo) error
 }
 
 type mountDefiner1 interface {
@@ -93,10 +93,10 @@ type mountDefiner2 interface {
 	MountConnectedSlot(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type mountDefiner3 interface {
-	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
+	MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error
 }
 type mountDefiner4 interface {
-	MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error
+	MountPermanentSlot(spec *mount.Specification, slot *snap.SlotInfo) error
 }
 
 type seccompDefiner1 interface {
@@ -106,10 +106,10 @@ type seccompDefiner2 interface {
 	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type seccompDefiner3 interface {
-	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
+	SecCompPermanentPlug(spec *seccomp.Specification, plug *snap.PlugInfo) error
 }
 type seccompDefiner4 interface {
-	SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error
+	SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error
 }
 
 type systemdDefiner1 interface {
@@ -119,10 +119,10 @@ type systemdDefiner2 interface {
 	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 }
 type systemdDefiner3 interface {
-	SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error
+	SystemdPermanentPlug(spec *systemd.Specification, plug *snap.PlugInfo) error
 }
 type systemdDefiner4 interface {
-	SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.Slot) error
+	SystemdPermanentSlot(spec *systemd.Specification, slot *snap.SlotInfo) error
 }
 
 type udevDefiner1 interface {
@@ -132,10 +132,10 @@ type udevDefiner2 interface {
 	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type udevDefiner3 interface {
-	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error
+	UDevPermanentPlug(spec *udev.Specification, plug *snap.PlugInfo) error
 }
 type udevDefiner4 interface {
-	UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error
+	UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error
 }
 
 // allGoodDefiners contains all valid specification definers for all known backends.
@@ -200,10 +200,10 @@ type snippetDefiner2 interface {
 	ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
 }
 type snippetDefiner3 interface {
-	PermanentPlugSnippet(plug *interfaces.Plug, sec interfaces.SecuritySystem) error
+	PermanentPlugSnippet(plug *snap.PlugInfo, sec interfaces.SecuritySystem) error
 }
 type snippetDefiner4 interface {
-	PermanentSlotSnippet(slot *interfaces.Slot, sec interfaces.SecuritySystem) error
+	PermanentSlotSnippet(slot *snap.SlotInfo, sec interfaces.SecuritySystem) error
 }
 
 // old auto-connect function

@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
@@ -118,7 +119,7 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(thumbnailerServicePermanentSlotAppArmor)
 	return nil
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const mirSummary = `allows operating as the Mir server`
@@ -128,17 +129,17 @@ func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	for appName := range slot.Apps {
 		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(mirPermanentSlotUdev, tag))

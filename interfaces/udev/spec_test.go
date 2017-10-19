@@ -46,11 +46,11 @@ var _ = Suite(&specSuite{
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
+		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *snap.PlugInfo) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
+		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *snap.SlotInfo) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -85,7 +85,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }

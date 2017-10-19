@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const storageFrameworkServiceSummary = `allows operating as or interacting with the Storage Framework`
@@ -133,7 +134,7 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *appar
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotAppArmor)
 	return nil
 }
@@ -147,7 +148,7 @@ func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *appar
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(storageFrameworkServicePermanentSlotSecComp)
 	return nil
 }

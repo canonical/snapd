@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
@@ -219,7 +220,7 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmo
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(downloadPermanentSlotAppArmor)
 	return nil
 }
