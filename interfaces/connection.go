@@ -33,25 +33,31 @@ type Connection struct {
 type ConnectedPlug struct {
 	dynamicAttrs map[string]interface{}
 	plugInfo     *snap.PlugInfo
+
+	// FIXME temporary
+	Attrs map[string]interface{}
 }
 
 type ConnectedSlot struct {
 	dynamicAttrs map[string]interface{}
 	slotInfo     *snap.SlotInfo
+
+	// FIXME temporary
+	Attrs map[string]interface{}
 }
 
-func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) (*ConnectedSlot, error) {
+func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	return &ConnectedSlot{
 		slotInfo:     slot,
 		dynamicAttrs: dynamicAttrs,
-	}, nil
+	}
 }
 
-func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) (*ConnectedPlug, error) {
+func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	return &ConnectedPlug{
 		plugInfo:     plug,
 		dynamicAttrs: dynamicAttrs,
-	}, nil
+	}
 }
 
 func (plug *ConnectedPlug) Interface() string {
@@ -102,7 +108,8 @@ func (plug *ConnectedPlug) Attr(key string) (interface{}, error) {
 	return plug.StaticAttr(key)
 }
 
-func (plug *ConnectedPlug) Attrs() (map[string]interface{}, error) {
+// FIXME: rename back to Attrs()
+func (plug *ConnectedPlug) DynamicAttrs() (map[string]interface{}, error) {
 	if plug.dynamicAttrs == nil {
 		return nil, fmt.Errorf("dynamic attributes not initialized")
 	}
@@ -164,7 +171,8 @@ func (slot *ConnectedSlot) Attr(key string) (interface{}, error) {
 	return slot.StaticAttr(key)
 }
 
-func (slot *ConnectedSlot) Attrs() (map[string]interface{}, error) {
+// FIXME: rename back to Attrs()
+func (slot *ConnectedSlot) DynamicAttrs() (map[string]interface{}, error) {
 	if slot.dynamicAttrs == nil {
 		return nil, fmt.Errorf("dynamic attributes not initialized")
 	}

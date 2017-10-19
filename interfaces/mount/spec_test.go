@@ -38,10 +38,10 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddMountEntry(mount.Entry{Name: "connected-plug"})
 		},
-		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddMountEntry(mount.Entry{Name: "connected-slot"})
 		},
 		MountPermanentPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug) error {

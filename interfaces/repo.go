@@ -775,10 +775,8 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		if err := spec.AddPermanentSlot(iface, slot); err != nil {
 			return nil, err
 		}
-		for plugInfo := range r.slotPlugs[slotInfo] {
-			plug := &Plug{PlugInfo: plugInfo}
-			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
-			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.slotPlugs[slotInfo] {
+			if err := spec.AddConnectedSlot(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}
@@ -791,10 +789,8 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		if err := spec.AddPermanentPlug(iface, plug); err != nil {
 			return nil, err
 		}
-		for slotInfo := range r.plugSlots[plugInfo] {
-			slot := &Slot{SlotInfo: slotInfo}
-			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
-			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.plugSlots[plugInfo] {
+			if err := spec.AddConnectedPlug(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}

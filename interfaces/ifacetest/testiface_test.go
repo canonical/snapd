@@ -132,7 +132,7 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}
@@ -149,7 +149,7 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}

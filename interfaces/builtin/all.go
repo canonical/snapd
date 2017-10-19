@@ -68,8 +68,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			snapInfo.BadInterfaces[plugName] = err.Error()
 			continue
 		}
-		plug := &interfaces.Plug{PlugInfo: plugInfo}
-		if err := plug.Sanitize(iface); err != nil {
+		if err := interfaces.SanitizePlug(iface, plugInfo); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
 			continue
 		}
@@ -86,8 +85,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			snapInfo.BadInterfaces[slotName] = err.Error()
 			continue
 		}
-		slot := &interfaces.Slot{SlotInfo: slotInfo}
-		if err := slot.Sanitize(iface); err != nil {
+		if err := interfaces.SanitizeSlot(iface, slotInfo); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
 			continue
 		}

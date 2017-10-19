@@ -79,7 +79,7 @@ func (s *WaylandInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/*/wayland-[0-9]* rw,")
 

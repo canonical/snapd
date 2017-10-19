@@ -89,7 +89,7 @@ func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
@@ -113,7 +113,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 
 	// On all-snaps systems, no mount entries are added
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot, nil), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 0)
 
 	// On classic systems, a number of font related directories
@@ -121,7 +121,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	spec = &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot, nil), IsNil)
 
 	entries := spec.MountEntries()
 	c.Assert(entries, HasLen, 3)

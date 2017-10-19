@@ -80,14 +80,14 @@ func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/ppp rw,`)
 }
 
 func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 	spec := &kmod.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,
 	})
@@ -95,7 +95,7 @@ func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 
 func (s *PppInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="ppp", TAG+="snap_consumer_app"`)
 }

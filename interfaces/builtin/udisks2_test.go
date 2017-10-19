@@ -103,21 +103,21 @@ func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 	// The label uses short form when exactly one app is bound to the udisks2 slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 
 	// The label glob when all apps are bound to the udisks2 slot
 	slot := MockSlot(c, udisks2ProducerTwoAppsYaml, nil, "udisks2")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the udisks2 slot
 	slot = MockSlot(c, udisks2ProducerThreeAppsYaml, nil, "udisks2")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.{app1,app3}"),`)
 
@@ -143,7 +143,7 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent slot have a non-nil security snippet for apparmor
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
@@ -152,7 +152,7 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `<policy context="default">`)
 

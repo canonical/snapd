@@ -38,10 +38,10 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface1: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		KModConnectedPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		KModConnectedPlugCallback: func(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddModule("module1")
 		},
-		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddModule("module2")
 		},
 		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug) error {
@@ -53,10 +53,10 @@ var _ = Suite(&specSuite{
 	},
 	iface2: &ifacetest.TestInterface{
 		InterfaceName: "test-two",
-		KModConnectedPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		KModConnectedPlugCallback: func(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddModule("module1")
 		},
-		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddModule("module2")
 		},
 		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug) error {

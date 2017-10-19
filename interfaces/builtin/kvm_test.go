@@ -78,7 +78,7 @@ func (s *kvmInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Allow write access to kvm.
@@ -90,7 +90,7 @@ func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="kvm", TAG+="snap_consumer_app"`)
 }
