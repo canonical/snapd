@@ -54,8 +54,8 @@ slots:
 `
 
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, kernelmodctlConsumerYaml, nil, "kernel-module-control")
-	s.slot = MockSlot(c, kernelmodctlCoreYaml, nil, "kernel-module-control")
+	s.plug = builtin.MockPlug(c, kernelmodctlConsumerYaml, nil, "kernel-module-control")
+	s.slot = builtin.MockSlot(c, kernelmodctlCoreYaml, nil, "kernel-module-control")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {

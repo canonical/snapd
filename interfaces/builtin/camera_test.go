@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *CameraInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, cameraConsumerYaml, nil, "camera")
-	s.slot = MockSlot(c, cameraCoreYaml, nil, "camera")
+	s.plug = builtin.MockPlug(c, cameraConsumerYaml, nil, "camera")
+	s.slot = builtin.MockSlot(c, cameraCoreYaml, nil, "camera")
 }
 
 func (s *CameraInterfaceSuite) TestName(c *C) {

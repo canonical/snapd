@@ -61,8 +61,8 @@ slots:
 `
 
 func (s *TimeControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, timectlConsumerYaml, nil, "time-control")
-	s.slot = MockSlot(c, timectlCoreYaml, nil, "time-control")
+	s.plug = builtin.MockPlug(c, timectlConsumerYaml, nil, "time-control")
+	s.slot = builtin.MockSlot(c, timectlCoreYaml, nil, "time-control")
 }
 
 func (s *TimeControlInterfaceSuite) TestName(c *C) {

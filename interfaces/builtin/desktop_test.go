@@ -58,8 +58,8 @@ slots:
 `
 
 func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, desktopConsumerYaml, nil, "desktop")
-	s.coreSlot = MockSlot(c, desktopCoreYaml, nil, "desktop")
+	s.plug = builtin.MockPlug(c, desktopConsumerYaml, nil, "desktop")
+	s.coreSlot = builtin.MockSlot(c, desktopCoreYaml, nil, "desktop")
 }
 
 func (s *DesktopInterfaceSuite) TearDownTest(c *C) {

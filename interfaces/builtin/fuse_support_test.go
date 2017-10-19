@@ -55,8 +55,8 @@ var _ = Suite(&FuseSupportInterfaceSuite{
 })
 
 func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, fuseSupportConsumerYaml, nil, "fuse-support")
-	s.slot = MockSlot(c, fuseSupportCoreYaml, nil, "fuse-support")
+	s.plug = builtin.MockPlug(c, fuseSupportConsumerYaml, nil, "fuse-support")
+	s.slot = builtin.MockSlot(c, fuseSupportCoreYaml, nil, "fuse-support")
 }
 
 func (s *FuseSupportInterfaceSuite) TestName(c *C) {

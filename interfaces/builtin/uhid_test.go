@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *UhidInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, uhidConsumerYaml, nil, "uhid")
-	s.slot = MockSlot(c, uhidCoreYaml, nil, "uhid")
+	s.plug = builtin.MockPlug(c, uhidConsumerYaml, nil, "uhid")
+	s.slot = builtin.MockSlot(c, uhidCoreYaml, nil, "uhid")
 }
 
 func (s *UhidInterfaceSuite) TestName(c *C) {

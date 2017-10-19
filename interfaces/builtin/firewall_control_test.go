@@ -54,8 +54,8 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 })
 
 func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, firewallControlConsumerYaml, nil, "firewall-control")
-	s.slot = MockSlot(c, firewallControlCoreYaml, nil, "firewall-control")
+	s.plug = builtin.MockPlug(c, firewallControlConsumerYaml, nil, "firewall-control")
+	s.slot = builtin.MockSlot(c, firewallControlCoreYaml, nil, "firewall-control")
 }
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {

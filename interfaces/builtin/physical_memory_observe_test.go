@@ -54,8 +54,8 @@ slots:
 `
 
 func (s *PhysicalMemoryObserveInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, physicalMemoryObserveConsumerYaml, nil, "physical-memory-observe")
-	s.slot = MockSlot(c, physicalMemoryObserveCoreYaml, nil, "physical-memory-observe")
+	s.plug = builtin.MockPlug(c, physicalMemoryObserveConsumerYaml, nil, "physical-memory-observe")
+	s.slot = builtin.MockSlot(c, physicalMemoryObserveCoreYaml, nil, "physical-memory-observe")
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestName(c *C) {

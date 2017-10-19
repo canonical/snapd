@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, joystickConsumerYaml, nil, "joystick")
-	s.slot = MockSlot(c, joystickCoreYaml, nil, "joystick")
+	s.plug = builtin.MockPlug(c, joystickConsumerYaml, nil, "joystick")
+	s.slot = builtin.MockSlot(c, joystickCoreYaml, nil, "joystick")
 }
 
 func (s *JoystickInterfaceSuite) TestName(c *C) {

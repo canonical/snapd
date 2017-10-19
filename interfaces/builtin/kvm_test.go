@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *kvmInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, kvmConsumerYaml, nil, "kvm")
-	s.slot = MockSlot(c, kvmCoreYaml, nil, "kvm")
+	s.plug = builtin.MockPlug(c, kvmConsumerYaml, nil, "kvm")
+	s.slot = builtin.MockSlot(c, kvmCoreYaml, nil, "kvm")
 }
 
 func (s *kvmInterfaceSuite) TestName(c *C) {

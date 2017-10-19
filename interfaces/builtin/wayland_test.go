@@ -52,8 +52,8 @@ slots:
 `
 
 func (s *WaylandInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, waylandConsumerYaml, nil, "wayland")
-	s.coreSlot = MockSlot(c, waylandCoreYaml, nil, "wayland")
+	s.plug = builtin.MockPlug(c, waylandConsumerYaml, nil, "wayland")
+	s.coreSlot = builtin.MockSlot(c, waylandCoreYaml, nil, "wayland")
 }
 
 func (s *WaylandInterfaceSuite) TestName(c *C) {

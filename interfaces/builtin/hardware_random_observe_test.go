@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *HardwareRandomObserveInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, hardwareRandomObserveConsumerYaml, nil, "hardware-random-observe")
-	s.slot = MockSlot(c, hardwareRandomObserveCoreYaml, nil, "hardware-random-observe")
+	s.plug = builtin.MockPlug(c, hardwareRandomObserveConsumerYaml, nil, "hardware-random-observe")
+	s.slot = builtin.MockSlot(c, hardwareRandomObserveCoreYaml, nil, "hardware-random-observe")
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestName(c *C) {

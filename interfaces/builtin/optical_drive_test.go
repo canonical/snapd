@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
-	s.slot = MockSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
+	s.plug = builtin.MockPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
+	s.slot = builtin.MockSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestName(c *C) {

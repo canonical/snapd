@@ -54,8 +54,8 @@ slots:
 `
 
 func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, networkControlConsumerYaml, nil, "network-control")
-	s.slot = MockSlot(c, networkControlCoreYaml, nil, "network-control")
+	s.plug = builtin.MockPlug(c, networkControlConsumerYaml, nil, "network-control")
+	s.slot = builtin.MockSlot(c, networkControlCoreYaml, nil, "network-control")
 }
 
 func (s *NetworkControlInterfaceSuite) TestName(c *C) {

@@ -54,8 +54,8 @@ slots:
 `
 
 func (s *PppInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, pppConsumerYaml, nil, "ppp")
-	s.slot = MockSlot(c, pppCoreYaml, nil, "ppp")
+	s.plug = builtin.MockPlug(c, pppConsumerYaml, nil, "ppp")
+	s.slot = builtin.MockSlot(c, pppCoreYaml, nil, "ppp")
 }
 
 func (s *PppInterfaceSuite) TestName(c *C) {

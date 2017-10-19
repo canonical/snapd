@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, alsaConsumerYaml, nil, "alsa")
-	s.slot = MockSlot(c, alsaCoreYaml, nil, "alsa")
+	s.plug = builtin.MockPlug(c, alsaConsumerYaml, nil, "alsa")
+	s.slot = builtin.MockSlot(c, alsaCoreYaml, nil, "alsa")
 }
 
 func (s *AlsaInterfaceSuite) TestName(c *C) {

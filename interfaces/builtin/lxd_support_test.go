@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, lxdSupportConsumerYaml, nil, "lxd-support")
-	s.slot = MockSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
+	s.plug = builtin.MockPlug(c, lxdSupportConsumerYaml, nil, "lxd-support")
+	s.slot = builtin.MockSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
 }
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {

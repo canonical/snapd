@@ -60,9 +60,9 @@ slots:
 `
 
 func (s *AvahiControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, avahiControlConsumerYaml, nil, "avahi-control")
-	s.appSlot = MockSlot(c, avahiControlProducerYaml, nil, "avahi-control")
-	s.coreSlot = MockSlot(c, avahiControlCoreYaml, nil, "avahi-control")
+	s.plug = builtin.MockPlug(c, avahiControlConsumerYaml, nil, "avahi-control")
+	s.appSlot = builtin.MockSlot(c, avahiControlProducerYaml, nil, "avahi-control")
+	s.coreSlot = builtin.MockSlot(c, avahiControlCoreYaml, nil, "avahi-control")
 }
 
 func (s *AvahiControlInterfaceSuite) TestName(c *C) {
