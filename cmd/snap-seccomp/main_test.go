@@ -208,10 +208,6 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 //   sync_file_range, and truncate64.
 // Once we start using those. See `man syscall`
 func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
-	outPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(seccompWhitelist), outPath)
-	c.Assert(err, IsNil)
-
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
@@ -239,7 +235,7 @@ faccessat
 restart_syscall
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
-	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
 	// default syscall runner
@@ -327,6 +323,18 @@ restart_syscall
 	}
 }
 
+func (s *snapSeccompSuite) TestUnrestricted(c *C) {
+	inp := "@unrestricted"
+	outPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(inp), outPath)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(outPath)
+	c.Assert(err, IsNil)
+	c.Check(content, DeepEquals, []byte(inp))
+
+}
+
 // TestCompile iterates over a range of textual seccomp whitelist rules and
 // mocked kernel syscall input. For each rule, the test consists of compiling
 // the rule into a bpf program and then running that program on a virtual bpf
@@ -351,7 +359,6 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		expected         int
 	}{
 		// special
-		{"@unrestricted", "execve", main.SeccompRetAllow},
 		{"@complain", "execve", main.SeccompRetAllow},
 
 		// trivial allow
