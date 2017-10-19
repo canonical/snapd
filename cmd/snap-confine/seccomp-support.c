@@ -170,6 +170,10 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
+	if (memcmp(bpf, "@unrestricted", strlen("@unrestricted")) == 0) {
+		return 0;
+	}
+
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
 		die("cannot call getresuid");
