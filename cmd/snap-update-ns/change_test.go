@@ -49,7 +49,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
-func (s *changeSuite) TestFakeFIleInfo(c *C) {
+func (s *changeSuite) TestFakeFileInfo(c *C) {
 	c.Assert(update.FileInfoDir.IsDir(), Equals, true)
 	c.Assert(update.FileInfoFile.IsDir(), Equals, false)
 	c.Assert(update.FileInfoSymlink.IsDir(), Equals, false)
