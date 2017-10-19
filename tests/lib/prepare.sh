@@ -294,30 +294,6 @@ setup_reflash_magic() {
         # FIXME: netplan workaround
         mkdir -p "$UNPACKD/etc/netplan"
 
-        # set root pw by concating root line from host and rest from core
-        want_pw="$(grep ^root /etc/shadow)"
-        echo "$want_pw" > /tmp/new-shadow
-        tail -n +2 /etc/shadow >> /tmp/new-shadow
-        cp -v /tmp/new-shadow "$UNPACKD/etc/shadow"
-        cp -v /etc/passwd "$UNPACKD/etc/passwd"
-
-        # ensure spread -reuse works in the core image as well
-        if [ -e /.spread.yaml ]; then
-            cp -av /.spread.yaml "$UNPACKD"
-        fi
-
-        # we need the test user in the image
-        # see the comment in spread.yaml about 12345
-        sed -i 's/^test.*$//' "$UNPACKD"/etc/{shadow,passwd}
-        chroot "$UNPACKD" addgroup --quiet --gid 12345 test
-        chroot "$UNPACKD" adduser --quiet --no-create-home --uid 12345 --gid 12345 --disabled-password --gecos '' test
-        echo 'test ALL=(ALL) NOPASSWD:ALL' >> "$UNPACKD/etc/sudoers.d/99-test-user"
-
-        echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> "$UNPACKD/etc/sudoers.d/99-ubuntu-user"
-
-        # modify sshd so that we can connect as root
-        sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' "$UNPACKD/etc/ssh/sshd_config"
-
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new core snap
@@ -380,8 +356,30 @@ EOF
         mkdir -p /mnt/user-data/
         cp -ar /home/gopath /mnt/user-data/
 
-        # create test user home dir
+        # create test user and ubuntu user inside the writable partition
+        # so that we can use a stock core in tests
         mkdir -p /mnt/user-data/test
+
+        # create test user, see the comment in spread.yaml about 12345
+        mkdir -p /mnt/system-data/etc/sudoers.d/
+        echo 'test ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-test-user
+        echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
+        # modify sshd so that we can connect as root
+        mkdir -p /mnt/system-data/etc/ssh
+        cp -a "$UNPACKD/etc/ssh/sshd_config" /mnt/system-data/etc/ssh/
+        sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
+
+        # append ubuntu user
+        mkdir -p /mnt/system-data/var/lib/extrausers/
+        tail -n2 /etc/passwd >> /mnt/system-data/var/lib/extrausers/passwd
+        tail -n2 /etc/shadow >> /mnt/system-data/var/lib/extrausers/shadow
+        tail -n2 /etc/group >> /mnt/system-data/var/lib/extrausers/group
+
+        # ensure spread -reuse works in the core image as well
+        if [ -e /.spread.yaml ]; then
+            cp -av /.spread.yaml /mnt/system-data
+        fi
+
         # using symbolic names requires test:test have the same ids
         # inside and outside which is a pain (see 12345 above), but
         # using the ids directly is the wrong kind of fragile
