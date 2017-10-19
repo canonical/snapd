@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -37,6 +39,9 @@ var (
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+	// utils
+	SecureMkdirAll   = secureMkdirAll
+	EnsureMountPoint = ensureMountPoint
 )
 
 // fakeFileInfo implements os.FileInfo for one of the tests.
@@ -59,12 +64,57 @@ var (
 	FileInfoSymlink = &fakeFileInfo{mode: os.ModeSymlink}
 )
 
+// Formatter for flags passed to open syscall.
+func formatOpenFlags(flags int) string {
+	var fl []string
+	if flags&syscall.O_NOFOLLOW != 0 {
+		flags ^= syscall.O_NOFOLLOW
+		fl = append(fl, "O_NOFOLLOW")
+	}
+	if flags&syscall.O_CLOEXEC != 0 {
+		flags ^= syscall.O_CLOEXEC
+		fl = append(fl, "O_CLOEXEC")
+	}
+	if flags&syscall.O_DIRECTORY != 0 {
+		flags ^= syscall.O_DIRECTORY
+		fl = append(fl, "O_DIRECTORY")
+	}
+	if flags != 0 {
+		panic(fmt.Errorf("unrecognized open flags %d", flags))
+	}
+	if len(fl) == 0 {
+		return "0"
+	}
+	return strings.Join(fl, "|")
+}
+
+// Formatter for flags passed to mount syscall.
+func formatMountFlags(flags int) string {
+	var fl []string
+	if flags&syscall.MS_BIND == syscall.MS_BIND {
+		flags ^= syscall.MS_BIND
+		fl = append(fl, "MS_BIND")
+	}
+	if flags != 0 {
+		panic(fmt.Errorf("unrecognized mount flags %d", flags))
+	}
+	if len(fl) == 0 {
+		return "0"
+	}
+	return strings.Join(fl, "|")
+}
+
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
-	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
-	Unmount(target string, flags int) (err error)
 	Lstat(name string) (os.FileInfo, error)
-	SecureMkdirAll(path string, perm os.FileMode, uid, gid int) error
+
+	Close(fd int) error
+	Fchown(fd int, uid int, gid int) error
+	Mkdirat(dirfd int, path string, mode uint32) error
+	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
+	Open(path string, flags int, mode uint32) (fd int, err error)
+	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
+	Unmount(target string, flags int) error
 }
 
 // SyscallRecorder stores which system calls were invoked.
@@ -72,6 +122,7 @@ type SyscallRecorder struct {
 	calls  []string
 	errors map[string]error
 	lstats map[string]*fakeFileInfo
+	fds    map[int]string
 }
 
 // InsertFault makes given subsequent call to return the specified error.
@@ -101,12 +152,68 @@ func (sys *SyscallRecorder) call(call string) error {
 	return sys.errors[call]
 }
 
+// allocFd assigns a file descriptor to a given operation.
+func (sys *SyscallRecorder) allocFd(name string) int {
+	if sys.fds == nil {
+		sys.fds = make(map[int]string)
+	}
+
+	// Use 3 as the lowest number for tests to look more plausible.
+	for i := 3; i < 100; i++ {
+		if _, ok := sys.fds[i]; !ok {
+			sys.fds[i] = name
+			return i
+		}
+	}
+	panic("cannot find unused file descriptor")
+}
+
+// freeFd closes an open file descriptor.
+func (sys *SyscallRecorder) freeFd(fd int) error {
+	if _, ok := sys.fds[fd]; !ok {
+		return fmt.Errorf("attempting to close closed file descriptor %d", fd)
+	}
+	delete(sys.fds, fd)
+	return nil
+}
+
+func (sys *SyscallRecorder) Close(fd int) error {
+	if err := sys.call(fmt.Sprintf("close %d", fd)); err != nil {
+		return err
+	}
+	return sys.freeFd(fd)
+}
+
+func (sys *SyscallRecorder) Fchown(fd int, uid int, gid int) error {
+	return sys.call(fmt.Sprintf("fchown %d %d %d", fd, uid, gid))
+}
+
+func (sys *SyscallRecorder) Mkdirat(dirfd int, path string, mode uint32) error {
+	return sys.call(fmt.Sprintf("mkdirat %d %q %#o", dirfd, path, mode))
+}
+
+func (sys *SyscallRecorder) Open(path string, flags int, mode uint32) (int, error) {
+	call := fmt.Sprintf("open %q %s %#o", path, formatOpenFlags(flags), mode)
+	if err := sys.call(call); err != nil {
+		return -1, err
+	}
+	return sys.allocFd(call), nil
+}
+
+func (sys *SyscallRecorder) Openat(dirfd int, path string, flags int, mode uint32) (int, error) {
+	call := fmt.Sprintf("openat %d %q %s %#o", dirfd, path, formatOpenFlags(flags), mode)
+	if err := sys.call(call); err != nil {
+		return -1, err
+	}
+	return sys.allocFd(call), nil
+}
+
 func (sys *SyscallRecorder) Mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
-	return sys.call(fmt.Sprintf("mount %q %q %q %d %q", source, target, fstype, flags, data))
+	return sys.call(fmt.Sprintf("mount %q %q %q %s %q", source, target, fstype, formatMountFlags(int(flags)), data))
 }
 
 func (sys *SyscallRecorder) Unmount(target string, flags int) (err error) {
-	if flags == unmountNoFollow {
+	if flags == UMOUNT_NOFOLLOW {
 		return sys.call(fmt.Sprintf("unmount %q %s", target, "UMOUNT_NOFOLLOW"))
 	}
 	return sys.call(fmt.Sprintf("unmount %q %d", target, flags))
@@ -123,27 +230,41 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
 }
 
-func (sys *SyscallRecorder) SecureMkdirAll(path string, perm os.FileMode, uid, gid int) error {
-	return sys.call(fmt.Sprintf("secure-mkdir-all %q %q %d %d", path, perm, uid, gid))
-}
-
 // MockSystemCalls replaces real system calls with those of the argument.
 func MockSystemCalls(sc SystemCalls) (restore func()) {
-	oldSysMount := sysMount
-	oldSysUnmount := sysUnmount
+	//save
 	oldOsLstat := osLstat
-	oldSecureMkdirAll := secureMkdirAll
 
-	sysMount = sc.Mount
-	sysUnmount = sc.Unmount
+	oldSysClose := sysClose
+	oldSysFchown := sysFchown
+	oldSysMkdirat := sysMkdirat
+	oldSysMount := sysMount
+	oldSysOpen := sysOpen
+	oldSysOpenat := sysOpenat
+	oldSysUnmount := sysUnmount
+
+	// override
 	osLstat = sc.Lstat
-	secureMkdirAll = sc.SecureMkdirAll
+
+	sysClose = sc.Close
+	sysFchown = sc.Fchown
+	sysMkdirat = sc.Mkdirat
+	sysMount = sc.Mount
+	sysOpen = sc.Open
+	sysOpenat = sc.Openat
+	sysUnmount = sc.Unmount
 
 	return func() {
-		sysMount = oldSysMount
-		sysUnmount = oldSysUnmount
+		// restore
 		osLstat = oldOsLstat
-		secureMkdirAll = oldSecureMkdirAll
+
+		sysClose = oldSysClose
+		sysFchown = oldSysFchown
+		sysMkdirat = oldSysMkdirat
+		sysMount = oldSysMount
+		sysOpen = oldSysOpen
+		sysOpenat = oldSysOpenat
+		sysUnmount = oldSysUnmount
 	}
 }
 

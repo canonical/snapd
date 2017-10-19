@@ -54,151 +54,41 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
-var (
-	sysMount   = syscall.Mount
-	sysUnmount = syscall.Unmount
-	osLstat    = os.Lstat
-	// NOTE: we're not using os.MkdirAll as it is not careful about symlinks.
-	secureMkdirAll = SecureMkdirAll
-)
-
-const unmountNoFollow = 8
-
-const AT_FDCWD = -100 // not available through syscall
-
-// SecureMkdirAll is the secure variant of os.MkdirAll.
-//
-// Unlike the regular version this implementation does not follow any symbolic
-// links. At all times the new directory segment is created using mkdirat(2)
-// while holding an open file descriptor to the parent directory.
-//
-// The only handled error is mkdirat(2) that fails with EEXIST. All other
-// errors are fatal but there is no attempt to undo anything that was created.
-//
-// The uid and gid are used for the fchown(2) system call which is performed
-// after each segment is created and opened. The special value -1 may be used
-// to request that ownership is not changed.
-func SecureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
-	// XXX: use O_PATH here?
-	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-
-	// Declare var and don't assign-declare below to ensure we don't swallow
-	// any errors by mistake.
-	var err error
-	// Start at the current working directory by default.
-	var fd int = AT_FDCWD
-
-	// Keep track of the number of open/close calls
-	var openCloseCount int
-
-	// If path is absolute then open the root directory and start there.
-	if path.IsAbs(name) {
-		fd, err = syscall.Open("/", openFlags, 0)
-		if err != nil {
-			return fmt.Errorf("cannot open root directory, %v", err)
-		}
-		openCloseCount += 1
-	}
-
-	// Split the path by entries and create each element using mkdirat() using
-	// the parent directory as reference. Each time we open the newly created
-	// segment using the O_NOFOLLOW and O_DIRECTORY flag so that symlink
-	// attacks are impossible to carry out.
-	for _, segment := range strings.Split(name, "/") {
-		if segment == "" {
-			// Skip empty element corresponding to the leading slash.
-			continue
-		}
-		made := true
-		if err = syscall.Mkdirat(fd, segment, uint32(perm)); err != nil {
-			if err != syscall.EEXIST {
-				return fmt.Errorf("cannot mkdir path segment %q, %v", segment, err)
-			}
-			made = false
-		}
-		previousFd := fd
-		fd, err = syscall.Openat(fd, segment, openFlags, 0)
-		openCloseCount += 1
-		if previousFd != AT_FDCWD {
-			if err := syscall.Close(previousFd); err != nil {
-				return fmt.Errorf("cannot close previous file descriptor, %v", err)
-			}
-			openCloseCount -= 1
-		}
-		if err != nil {
-			return fmt.Errorf("cannot open path segment %q, %v", segment, err)
-		}
-		if made {
-			// Chown each segment that we made.
-			if err := syscall.Fchown(fd, uid, gid); err != nil {
-				return fmt.Errorf("cannot chown path segment %q to %d.%d, %v", segment, uid, gid, err)
-			}
-		}
-
-	}
-	if fd != AT_FDCWD {
-		if err = syscall.Close(fd); err != nil {
-			return fmt.Errorf("cannot close file descriptor, %v", err)
-		}
-		openCloseCount -= 1
-	}
-	if openCloseCount != 0 {
-		panic(fmt.Sprintf("BUG in SecureMkdirAll, open-close count not balanced, %d", openCloseCount))
-	}
-	return nil
-}
-
-func ensureMountPoint(path string) error {
-	// If the mount point is not present then create a directory in its
-	// place.  This is very naive, doesn't handle read-only file systems
-	// but it is a good starting point for people working with things like
-	// $SNAP_DATA/subdirectory.
-	//
-	// We use lstat to ensure that we don't follow the symlink in case one
-	// was set up by the snap. At the time Change.Perform runs all the
-	// processes in the snap should be frozen.
-	fi, err := osLstat(path)
-	switch {
-	case err != nil && os.IsNotExist(err):
-		// TODO: use the right mode and ownership.
-		if err := secureMkdirAll(path, 0755, 0, 0); err != nil {
-			return err
-		}
-	case err != nil:
-		return err
-	case err == nil:
-		// Ensure that mount point is a directory.
-		if !fi.IsDir() {
-			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
-		}
-	}
-	return nil
-}
-
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
 func (c *Change) Perform() error {
-	switch c.Action {
-	case Mount:
-		flags, err := mount.OptsToFlags(c.Entry.Options)
-		if err != nil {
-			return err
-		}
+	if c.Action == Mount {
+		// TODO: use the right mode and ownership.
+		mode := os.FileMode(0755)
+		uid := 0
+		gid := 0
 		// Create target mount directory if needed.
-		if err := ensureMountPoint(c.Entry.Dir); err != nil {
+		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
 			return err
 		}
 		// If this is a bind mount then create the source directory as well.
 		// This allows snaps to share a subset of their data easily.
+		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
 		if flags&syscall.MS_BIND != 0 {
-			if err := ensureMountPoint(c.Entry.Name); err != nil {
+			if err := ensureMountPoint(c.Entry.Name, mode, uid, gid); err != nil {
 				return err
 			}
 		}
-		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+	}
+	return c.lowLevelPerform()
+}
+
+// lowLevelPerform is a version of Perform that doesn't contain any special behavior.
+func (c *Change) lowLevelPerform() error {
+	switch c.Action {
+	case Mount:
+		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 	case Unmount:
-		return sysUnmount(c.Entry.Dir, unmountNoFollow)
+		return sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+	case Keep:
+		return nil
 	}
 	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
