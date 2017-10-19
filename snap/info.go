@@ -327,13 +327,13 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-func (s *Info) BadInterfacesInfoString() string {
+func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
-	for name, reason := range s.BadInterfaces {
+	for name, reason := range snapInfo.BadInterfaces {
 		inverted[reason] = append(inverted[reason], name)
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", s.Name())
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
 	reasons := make([]string, 0, len(inverted))
 	for reason := range inverted {
 		reasons = append(reasons, reason)
