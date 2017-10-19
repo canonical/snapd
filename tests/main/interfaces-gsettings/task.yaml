@@ -1,0 +1,33 @@
+summary: Ensure that the gsettings interface works.
+
+details: |
+    The gsettings interface allows to access the gsettings.
+
+execute: |
+    CONNECTED_PATTERN=":gsettings +test-snapd-gsettings"
+    DISCONNECTED_PATTERN="\- +test-snapd-gsettings:gsettings"
+
+    echo "The plug is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "When the plug is connected"
+    snap try $TESTSLIB/snaps/test-snapd-gsettings
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to list schemas"
+    test-snapd-gsettings.gsettings list-schemas
+
+    echo "Then the snap is able to get a variable already created"
+
+    echo "And the snap is able to set a new variable"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-gsettings:gsettings
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to access the provided methods"
+    if test-snapd-gsettings.gsettings list-schemas 2>${PWD}/call.error; then
+        echo "Expected permission error calling gsettings with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

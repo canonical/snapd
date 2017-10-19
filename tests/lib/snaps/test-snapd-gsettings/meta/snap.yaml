@@ -1,0 +1,9 @@
+name: test-snapd-gsettings
+version: 1.0
+summary: Basic gsettings test snap
+description: A basic snap to access gsettings
+
+apps:
+  gsettings:
+    command: bin/gsettings
+    plugs: [gsettings]
