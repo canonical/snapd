@@ -131,3 +131,13 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }
+
+func (s *entrySuite) TestXSnapdEntryID(c *C) {
+	// Entry ID is optional.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdEntryID(e), Equals, "")
+
+	// Entry ID is parsed from the x-snapd.id= option.
+	e = &mount.Entry{Options: []string{"x-snapd.id=foo"}}
+	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
+}
