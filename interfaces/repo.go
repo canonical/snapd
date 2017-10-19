@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
 	"strings"
@@ -46,7 +45,7 @@ type Repository struct {
 
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
-	return &Repository{
+	repo := &Repository{
 		ifaces:    make(map[string]Interface),
 		plugs:     make(map[string]map[string]*Plug),
 		slots:     make(map[string]map[string]*Slot),
@@ -54,6 +53,8 @@ func NewRepository() *Repository {
 		plugSlots: make(map[*Plug]map[*Slot]*Connection),
 		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
+
+	return repo
 }
 
 // Interface returns an interface with a given name.
@@ -815,39 +816,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	return spec, nil
 }
 
-// BadInterfacesError is returned when some snap interfaces could not be registered.
-// Those interfaces not mentioned in the error were successfully registered.
-type BadInterfacesError struct {
-	snap   string
-	issues map[string]string // slot or plug name => message
-}
-
-func (e *BadInterfacesError) Error() string {
-	inverted := make(map[string][]string)
-	for name, reason := range e.issues {
-		inverted[reason] = append(inverted[reason], name)
-	}
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", e.snap)
-	reasons := make([]string, 0, len(inverted))
-	for reason := range inverted {
-		reasons = append(reasons, reason)
-	}
-	sort.Strings(reasons)
-	for _, reason := range reasons {
-		names := inverted[reason]
-		sort.Strings(names)
-		for i, name := range names {
-			if i > 0 {
-				buf.WriteString(", ")
-			}
-			buf.WriteString(name)
-		}
-		fmt.Fprintf(&buf, " (%s); ", reason)
-	}
-	return strings.TrimSuffix(buf.String(), "; ")
-}
-
 // AddSnap adds plugs and slots declared by the given snap to the repository.
 //
 // This function can be used to implement snap install or, when used along with
@@ -876,57 +844,20 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
 
-	bad := BadInterfacesError{
-		snap:   snapName,
-		issues: make(map[string]string),
-	}
-
 	for plugName, plugInfo := range snapInfo.Plugs {
-		iface, ok := r.ifaces[plugInfo.Interface]
-		if !ok {
-			bad.issues[plugName] = "unknown interface"
-			continue
-		}
-		// Reject plug with invalid name
-		if err := ValidateName(plugName); err != nil {
-			bad.issues[plugName] = err.Error()
-			continue
-		}
-		plug := &Plug{PlugInfo: plugInfo}
-		if err := plug.Sanitize(iface); err != nil {
-			bad.issues[plugName] = err.Error()
-			continue
-		}
 		if r.plugs[snapName] == nil {
 			r.plugs[snapName] = make(map[string]*Plug)
 		}
+		plug := &Plug{PlugInfo: plugInfo}
 		r.plugs[snapName][plugName] = plug
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
-		iface, ok := r.ifaces[slotInfo.Interface]
-		if !ok {
-			bad.issues[slotName] = "unknown interface"
-			continue
-		}
-		// Reject slot with invalid name
-		if err := ValidateName(slotName); err != nil {
-			bad.issues[slotName] = err.Error()
-			continue
-		}
-		slot := &Slot{SlotInfo: slotInfo}
-		if err := slot.Sanitize(iface); err != nil {
-			bad.issues[slotName] = err.Error()
-			continue
-		}
 		if r.slots[snapName] == nil {
 			r.slots[snapName] = make(map[string]*Slot)
 		}
+		slot := &Slot{SlotInfo: slotInfo}
 		r.slots[snapName][slotName] = slot
-	}
-
-	if len(bad.issues) > 0 {
-		return &bad
 	}
 	return nil
 }
