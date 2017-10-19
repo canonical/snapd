@@ -17,7 +17,7 @@
  *
  */
 
-package builtin_test
+package builtin
 
 import (
 	. "gopkg.in/check.v1"
@@ -31,7 +31,7 @@ type commonIfaceSuite struct{}
 var _ = Suite(&commonIfaceSuite{})
 
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
-	plug := MockConnectedPlug(c, `
+	plug, _ := MockConnectedPlug(c, `
 name: consumer
 apps:
   app-a:
@@ -40,7 +40,7 @@ apps:
   app-c:
     plugs: [common]
 `, nil, "common")
-	slot := MockConnectedSlot(c, `
+	slot, _ := MockConnectedSlot(c, `
 name: producer
 slots:
   common:

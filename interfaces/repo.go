@@ -770,7 +770,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slotInfo := range r.slots[snapName] {
 		iface := r.ifaces[slotInfo.Interface]
-		slot := &Slot{SlotInfo: slotInfo}
 		if err := spec.AddPermanentSlot(iface, slotInfo); err != nil {
 			return nil, err
 		}
@@ -783,7 +782,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plugInfo := range r.plugs[snapName] {
 		iface := r.ifaces[plugInfo.Interface]
-		plug := &Plug{PlugInfo: plugInfo}
 		if err := spec.AddPermanentPlug(iface, plugInfo); err != nil {
 			return nil, err
 		}

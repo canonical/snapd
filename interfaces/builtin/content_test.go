@@ -58,8 +58,8 @@ slots:
    - shared/read
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	c.Assert(slot.Sanitize(s.iface), IsNil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
@@ -72,8 +72,8 @@ slots:
    - shared/read
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	c.Assert(slot.Sanitize(s.iface), IsNil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
 	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
@@ -86,8 +86,8 @@ slots:
   content: mycont
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
@@ -101,8 +101,8 @@ slots:
   write: []
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotHasRelativePath(c *C) {
@@ -115,8 +115,8 @@ slots:
 `
 	for _, rw := range []string{"read: [../foo]", "write: [../bar]"} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
-		slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-		c.Assert(slot.Sanitize(s.iface), ErrorMatches, "content interface path is not clean:.*")
+		slot := info.Slots["content-slot"]
+		c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "content interface path is not clean:.*")
 	}
 }
 
@@ -130,8 +130,8 @@ plugs:
   target: import
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	c.Assert(plug.Sanitize(s.iface), IsNil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
@@ -143,8 +143,8 @@ plugs:
   target: import
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	c.Assert(plug.Sanitize(s.iface), IsNil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
 	c.Assert(plug.Attrs["content"], Equals, plug.Name)
 }
 
@@ -157,8 +157,8 @@ plugs:
   content: mycont
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleTargetRelative(c *C) {
@@ -171,8 +171,8 @@ plugs:
   target: ../foo
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content interface target path is not clean:.*")
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, "content interface target path is not clean:.*")
 }
 
 func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
@@ -184,8 +184,8 @@ apps:
     plugs: [content]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content"]}
-	c.Assert(plug.Sanitize(s.iface), ErrorMatches, "content plug must contain target path")
+	plug := info.Plugs["content"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, "content plug must contain target path")
 }
 
 func (s *ContentSuite) TestSanitizeSlotNilAttrMap(c *C) {
@@ -197,8 +197,8 @@ apps:
     slots: [content]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content"]}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "read or write path must be set")
+	slot := info.Slots["content"]
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
@@ -220,7 +220,7 @@ plugs:
   target: import
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
 slots:
  content:
@@ -228,10 +228,10 @@ slots:
    - export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
@@ -251,7 +251,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
 slots:
  content:
@@ -259,10 +259,10 @@ slots:
    - $SNAP/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
@@ -271,7 +271,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := fmt.Sprintf(`
@@ -294,7 +294,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
 slots:
  content:
@@ -302,10 +302,10 @@ slots:
    - $SNAP_DATA/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    "/var/snap/producer/5/export",
 		Dir:     "/var/snap/consumer/7/import",
@@ -314,7 +314,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
@@ -339,7 +339,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
 slots:
  content:
@@ -347,10 +347,10 @@ slots:
    - $SNAP_COMMON/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
 
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
 	expectedMnt := []mount.Entry{{
 		Name:    "/var/snap/producer/common/export",
 		Dir:     "/var/snap/consumer/common/import",
@@ -359,7 +359,7 @@ slots:
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `

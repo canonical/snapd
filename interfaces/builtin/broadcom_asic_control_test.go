@@ -33,9 +33,11 @@ import (
 )
 
 type BroadcomAsicControlSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&BroadcomAsicControlSuite{
@@ -49,7 +51,8 @@ slots:
   broadcom-asic-control:
 `
 	info := snaptest.MockInfo(c, producerYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: info.Slots["broadcom-asic-control"]}
+	s.slotInfo = info.Slots["broadcom-asic-control"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 
 	const consumerYaml = `name: consumer
 apps:
@@ -57,7 +60,8 @@ apps:
   plugs: [broadcom-asic-control]
 `
 	info = snaptest.MockInfo(c, consumerYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["broadcom-asic-control"]}
+	s.plugInfo = info.Plugs["broadcom-asic-control"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *BroadcomAsicControlSuite) TestName(c *C) {
@@ -65,18 +69,18 @@ func (s *BroadcomAsicControlSuite) TestName(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "broadcom-asic-control",
 		Interface: "broadcom-asic-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"broadcom-asic-control slots are reserved for the core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *BroadcomAsicControlSuite) TestAppArmorSpec(c *C) {
@@ -112,7 +116,8 @@ func (s *BroadcomAsicControlSuite) TestStaticInfo(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *BroadcomAsicControlSuite) TestInterfaces(c *C) {
