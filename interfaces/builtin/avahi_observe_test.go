@@ -92,7 +92,7 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to app slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
@@ -134,7 +134,7 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")

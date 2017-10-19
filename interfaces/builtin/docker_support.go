@@ -552,7 +552,7 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
@@ -561,7 +561,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {

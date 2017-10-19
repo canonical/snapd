@@ -79,21 +79,21 @@ func (s *FirewallControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *FirewallControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability net_raw`)
 }
 
 func (s *FirewallControlInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 
 func (s *FirewallControlInterfaceSuite) TestKModSpec(c *C) {
 	spec := &kmod.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"arp_tables":      true,
 		"br_netfilter":    true,

@@ -56,10 +56,10 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 
 var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-func (iface *spiInterface) path(slot *interfaces.Slot) (string, error) {
-	path, ok := slot.Attrs["path"].(string)
+func (iface *spiInterface) path(attrs map[string]interface{}) (string, error) {
+	path, ok := attrs["path"].(string)
 	if !ok || path == "" {
-		return "", fmt.Errorf("slot %q must have a path attribute", slot.Ref())
+		return "", fmt.Errorf("spi slot must have a path attribute")
 	}
 	path = filepath.Clean(path)
 	if !spiDevPattern.MatchString(path) {
@@ -72,12 +72,12 @@ func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
-	_, err := iface.path(slot)
+	_, err := iface.path(slot.Attrs)
 	return err
 }
 
-func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, err := iface.path(slot)
+func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	path, err := iface.path(slot.Attrs)
 	if err != nil {
 		return nil
 	}
@@ -86,13 +86,13 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, err := iface.path(slot)
+func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	path, err := iface.path(slot.Attrs)
 	if err != nil {
 		return nil
 	}
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	for appName := range plug.Apps() {
+		tag := udevSnapSecurityName(plug.Snap().Name(), appName)
 		spec.AddSnippet(fmt.Sprintf(`KERNEL=="%s", TAG+="%s"`, strings.TrimPrefix(path, "/dev/"), tag))
 	}
 	return nil

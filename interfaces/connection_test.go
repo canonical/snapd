@@ -56,7 +56,7 @@ slots:
 }
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	attrData, _ := NewConnectedSlot(s.slot.SlotInfo, nil)
+	attrData := NewConnectedSlot(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
@@ -70,7 +70,7 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	attrData, _ := NewConnectedPlug(s.plug.PlugInfo, nil)
+	attrData := NewConnectedPlug(s.plug.PlugInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
@@ -87,7 +87,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData, _ := NewConnectedSlot(s.slot.SlotInfo, attrs)
+	attrData := NewConnectedSlot(s.slot.SlotInfo, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -113,7 +113,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData, _ := NewConnectedPlug(s.plug.PlugInfo, attrs)
+	attrData := NewConnectedPlug(s.plug.PlugInfo, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -138,9 +138,9 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
-	plugAttrData, _ := NewConnectedPlug(s.plug.PlugInfo, attrs)
+	plugAttrData := NewConnectedPlug(s.plug.PlugInfo, attrs)
 	c.Assert(plugAttrData, NotNil)
-	slotAttrData, _ := NewConnectedSlot(s.slot.SlotInfo, attrs)
+	slotAttrData := NewConnectedSlot(s.slot.SlotInfo, attrs)
 	c.Assert(slotAttrData, NotNil)
 
 	err := plugAttrData.SetAttr("attr", "overwrite")
@@ -153,7 +153,7 @@ func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 }
 
 func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
-	attrData, _ := NewConnectedSlot(s.slot.SlotInfo, nil)
+	attrData := NewConnectedSlot(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.Attr("foo")
@@ -166,7 +166,7 @@ func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 }
 
 func (s *connSuite) TestSetStaticSlotAttr(c *C) {
-	attrData, _ := NewConnectedSlot(s.slot.SlotInfo, nil)
+	attrData := NewConnectedSlot(s.slot.SlotInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")
@@ -179,7 +179,7 @@ func (s *connSuite) TestSetStaticSlotAttr(c *C) {
 }
 
 func (s *connSuite) TestSetStaticPlugAttr(c *C) {
-	attrData, _ := NewConnectedPlug(s.plug.PlugInfo, nil)
+	attrData := NewConnectedPlug(s.plug.PlugInfo, nil)
 	c.Assert(attrData, NotNil)
 
 	attrData.SetStaticAttr("attr", "newvalue")

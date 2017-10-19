@@ -17,7 +17,7 @@
  *
  */
 
-package builtin
+package builtin_test
 
 import (
 	. "gopkg.in/check.v1"
@@ -31,7 +31,7 @@ type commonIfaceSuite struct{}
 var _ = Suite(&commonIfaceSuite{})
 
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
-	plug := MockPlug(c, `
+	plug := MockConnectedPlug(c, `
 name: consumer
 apps:
   app-a:
@@ -40,7 +40,7 @@ apps:
   app-c:
     plugs: [common]
 `, nil, "common")
-	slot := MockSlot(c, `
+	slot := MockConnectedSlot(c, `
 name: producer
 slots:
   common:
@@ -52,7 +52,7 @@ slots:
 		connectedPlugUDev: `KERNEL="foo", TAG+="###CONNECTED_SECURITY_TAGS###"`,
 	}
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`KERNEL="foo", TAG+="snap_consumer_app-a"`,
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
@@ -64,7 +64,7 @@ slots:
 		name: "common",
 	}
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

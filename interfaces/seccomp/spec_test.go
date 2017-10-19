@@ -38,11 +38,11 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
