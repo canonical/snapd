@@ -104,3 +104,18 @@ func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
 	}
 	return 0, nil
 }
+
+// XSnapdEntryID returns the identifier of a given mount enrty.
+//
+// Identifiers are kept in the x-snapd.id mount option. The value is a string
+// that identifies a mount entry and is stable across invocations of snapd (it
+// is a hash of some sort).
+func XSnapdEntryID(e *mount.Entry) string {
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, "x-snapd.id=") {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1]
+		}
+	}
+	return ""
+}
