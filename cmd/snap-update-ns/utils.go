@@ -21,10 +21,14 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 )
 
 // not available through syscall
@@ -34,7 +38,8 @@ const (
 
 // For mocking everything during testing.
 var (
-	osLstat = os.Lstat
+	osLstat    = os.Lstat
+	osReadlink = os.Readlink
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
@@ -43,6 +48,8 @@ var (
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
 	sysFchown  = syscall.Fchown
+
+	ioutilReadDir = ioutil.ReadDir
 )
 
 // secureMkdirAll is the secure variant of os.MkdirAll.
@@ -106,6 +113,64 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 
 	}
 	return nil
+}
+
+func designWritableMimic(dir string) ([]*Change, error) {
+	// We need a place for "safe keeping" of what is present in the original
+	// directory as we are about to attach a tmpfs there, which will hide
+	// everything inside.
+	logger.Debugf("create-writable-mimic %q", dir)
+	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
+
+	var changes []*Change
+
+	// Bind mount the original directory elsewhere for safe-keeping.
+	changes = append(changes, &Change{
+		Action: Mount, Entry: mount.Entry{
+			// XXX: should we rbind here?
+			Name: dir, Dir: safeKeepingDir, Options: []string{"bind"}},
+	})
+	// Mount tmpfs over the original directory, hiding its contents.
+	changes = append(changes, &Change{
+		Action: Mount, Entry: mount.Entry{Name: "none", Dir: dir, Type: "tmpfs"},
+	})
+	// Iterate over the items in the original directory (nothing is mounted _yet_).
+	entries, err := ioutilReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	for _, fi := range entries {
+		// Skip non-directory elements as we cannot handle those yet.
+		ch := &Change{Action: Mount, Entry: mount.Entry{
+			Name: filepath.Join(safeKeepingDir, fi.Name()),
+			Dir:  filepath.Join(dir, fi.Name()),
+			// XXX: should we rbind here?
+			Options: []string{"bind", "ro"},
+		}}
+		// Bind mount each element from the safe-keeping directory into the
+		// tmpfs. Our Change.Perform() engine can create the missing
+		// directories automatically so we don't bother creating those.
+		m := fi.Mode()
+		switch {
+		case m.IsDir():
+			changes = append(changes, ch)
+		case m.IsRegular():
+			ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=file")
+			changes = append(changes, ch)
+		case m&os.ModeSymlink != 0:
+			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
+				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				changes = append(changes, ch)
+			}
+		default:
+			logger.Noticef("skipping unsupported thing %s", fi)
+		}
+	}
+	// Finally unbind the safe-keeping directory as we don't need it anymore.
+	changes = append(changes, &Change{
+		Action: Unmount, Entry: mount.Entry{Name: "none", Dir: safeKeepingDir},
+	})
+	return changes, nil
 }
 
 func ensureMountPoint(path string, mode os.FileMode, uid int, gid int) error {
