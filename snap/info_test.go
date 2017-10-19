@@ -33,23 +33,43 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type infoSuite struct {
-	restore func()
+	testutil.BaseTest
 }
 
+type infoSimpleSuite struct{}
+
 var _ = Suite(&infoSuite{})
+var _ = Suite(&infoSimpleSuite{})
+
+func (s *infoSimpleSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *infoSimpleSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
+}
 
 func (s *infoSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
-	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.BaseTest.AddCleanup(snap.MockSupportedHookTypes([]*snap.HookType{hookType}))
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	s.restore()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {
@@ -258,7 +278,7 @@ confinement: devmode`
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
-	c.Check(info.Epoch, Equals, "1*")
+	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.NeedsDevMode(), Equals, true)
 	c.Check(info.NeedsClassic(), Equals, false)
@@ -300,7 +320,7 @@ type: app`
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
-	c.Check(info.Epoch, Equals, "0") // Defaults to 0
+	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
 }
@@ -531,7 +551,7 @@ version: 1.0`
 
 func (s *infoSuite) TestReadInfoInvalidImplicitHook(c *C) {
 	hookType := snap.NewHookType(regexp.MustCompile("foo"))
-	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+	s.BaseTest.AddCleanup(snap.MockSupportedHookTypes([]*snap.HookType{hookType}))
 
 	yaml := `name: foo
 version: 1.0`

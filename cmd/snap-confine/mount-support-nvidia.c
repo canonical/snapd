@@ -111,8 +111,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 	// Symlink each file found
 	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
-		char symlink_name[512];
-		char symlink_target[512];
+		char symlink_name[512] = { 0 };
+		char symlink_target[512] = { 0 };
 		const char *pathname = glob_res.gl_pathv[i];
 		char *pathname_copy
 		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
@@ -170,7 +170,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
 	// Bind mount a tmpfs on $rootfs_dir/var/lib/snapd/lib/gl
-	char buf[512];
+	char buf[512] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
 			 "/var/lib/snapd/lib/gl");
 	const char *libgl_dir = buf;
@@ -237,7 +237,8 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 	}
 	// Construct the paths for the driver userspace libraries
 	// and for the gl directory.
-	char src[PATH_MAX], dst[PATH_MAX];
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
 	sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
 			 driver.major_version);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SC_LIBGL_DIR);
