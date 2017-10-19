@@ -95,9 +95,9 @@ slots:
 `
 
 func (s *BluezInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, bluezConsumerYaml, nil, "bluez")
-	s.appSlot = MockSlot(c, bluezProducerYaml, nil, "bluez")
-	s.coreSlot = MockSlot(c, bluezCoreYaml, nil, "bluez")
+	s.plug = builtin.MockPlug(c, bluezConsumerYaml, nil, "bluez")
+	s.appSlot = builtin.MockSlot(c, bluezProducerYaml, nil, "bluez")
+	s.coreSlot = builtin.MockSlot(c, bluezCoreYaml, nil, "bluez")
 }
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
@@ -116,14 +116,14 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 
 	// The label glob when all apps are bound to the bluez slot
-	slot := MockSlot(c, bluezProducerTwoAppsYaml, nil, "bluez")
+	slot := builtin.MockSlot(c, bluezProducerTwoAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the bluez slot
-	slot = MockSlot(c, bluezProducerThreeAppsYaml, nil, "bluez")
+	slot = builtin.MockSlot(c, bluezProducerThreeAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -136,14 +136,14 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
 	// The label glob when all apps are bound to the bluez plug
-	plug := MockPlug(c, bluezConsumerTwoAppsYaml, nil, "bluez")
+	plug := builtin.MockPlug(c, bluezConsumerTwoAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, plug, nil, s.appSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the bluez plug
-	plug = MockPlug(c, bluezConsumerThreeAppsYaml, nil, "bluez")
+	plug = builtin.MockPlug(c, bluezConsumerThreeAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, plug, nil, s.appSlot, nil), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})

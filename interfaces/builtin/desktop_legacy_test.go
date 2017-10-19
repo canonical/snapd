@@ -52,8 +52,8 @@ slots:
 `
 
 func (s *DesktopLegacyInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, desktopLegacyConsumerYaml, nil, "desktop-legacy")
-	s.coreSlot = MockSlot(c, desktopLegacyCoreYaml, nil, "desktop-legacy")
+	s.plug = builtin.MockPlug(c, desktopLegacyConsumerYaml, nil, "desktop-legacy")
+	s.coreSlot = builtin.MockSlot(c, desktopLegacyCoreYaml, nil, "desktop-legacy")
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestName(c *C) {

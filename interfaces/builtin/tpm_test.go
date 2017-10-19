@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *TpmInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, tpmConsumerYaml, nil, "tpm")
-	s.slot = MockSlot(c, tpmCoreYaml, nil, "tpm")
+	s.plug = builtin.MockPlug(c, tpmConsumerYaml, nil, "tpm")
+	s.slot = builtin.MockSlot(c, tpmCoreYaml, nil, "tpm")
 }
 
 func (s *TpmInterfaceSuite) TestName(c *C) {

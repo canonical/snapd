@@ -55,8 +55,8 @@ var _ = Suite(&FramebufferInterfaceSuite{
 })
 
 func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, framebufferConsumerYaml, nil, "framebuffer")
-	s.slot = MockSlot(c, framebufferOsYaml, nil, "framebuffer")
+	s.plug = builtin.MockPlug(c, framebufferConsumerYaml, nil, "framebuffer")
+	s.slot = builtin.MockSlot(c, framebufferOsYaml, nil, "framebuffer")
 }
 
 func (s *FramebufferInterfaceSuite) TestName(c *C) {

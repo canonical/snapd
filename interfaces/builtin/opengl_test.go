@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *OpenglInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, openglConsumerYaml, nil, "opengl")
-	s.slot = MockSlot(c, openglCoreYaml, nil, "opengl")
+	s.plug = builtin.MockPlug(c, openglConsumerYaml, nil, "opengl")
+	s.slot = builtin.MockSlot(c, openglCoreYaml, nil, "opengl")
 }
 
 func (s *OpenglInterfaceSuite) TestName(c *C) {

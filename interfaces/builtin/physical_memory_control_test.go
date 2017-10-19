@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, physicalMemoryControlConsumerYaml, nil, "physical-memory-control")
-	s.slot = MockSlot(c, physicalMemoryControlCoreYaml, nil, "physical-memory-control")
+	s.plug = builtin.MockPlug(c, physicalMemoryControlConsumerYaml, nil, "physical-memory-control")
+	s.slot = builtin.MockSlot(c, physicalMemoryControlCoreYaml, nil, "physical-memory-control")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {

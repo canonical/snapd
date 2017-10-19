@@ -53,8 +53,8 @@ slots:
 `
 
 func (s *RawUsbInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, rawusbConsumerYaml, nil, "raw-usb")
-	s.slot = MockSlot(c, rawusbCoreYaml, nil, "raw-usb")
+	s.plug = builtin.MockPlug(c, rawusbConsumerYaml, nil, "raw-usb")
+	s.slot = builtin.MockSlot(c, rawusbCoreYaml, nil, "raw-usb")
 }
 
 func (s *RawUsbInterfaceSuite) TestName(c *C) {

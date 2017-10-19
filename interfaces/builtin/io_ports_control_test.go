@@ -54,8 +54,8 @@ slots:
 `
 
 func (s *ioPortsControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, ioPortsControlConsumerYaml, nil, "io-ports-control")
-	s.slot = MockSlot(c, ioPortsControlCoreYaml, nil, "io-ports-control")
+	s.plug = builtin.MockPlug(c, ioPortsControlConsumerYaml, nil, "io-ports-control")
+	s.slot = builtin.MockSlot(c, ioPortsControlCoreYaml, nil, "io-ports-control")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
