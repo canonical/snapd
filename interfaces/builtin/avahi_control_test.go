@@ -125,7 +125,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
     bus=system
@@ -157,7 +157,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -167,7 +167,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
 
@@ -176,7 +176,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -189,8 +189,9 @@ func (s *AvahiControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.coreSlot), Equals, true)
-	c.Assert(s.iface.AutoConnect(s.plug, s.appSlot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.appSlotInfo}), Equals, true)
 }
 
 func (s *AvahiControlInterfaceSuite) TestInterfaces(c *C) {

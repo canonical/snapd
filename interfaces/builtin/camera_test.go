@@ -31,9 +31,11 @@ import (
 )
 
 type CameraInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.ConnectedSlot
+	slotInfo *snap.SlotInfo
+	plug     *interfaces.ConnectedPlug
+	plugInfo *snap.PlugInfo
 }
 
 var _ = Suite(&CameraInterfaceSuite{
@@ -53,8 +55,8 @@ slots:
 `
 
 func (s *CameraInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, cameraConsumerYaml, nil, "camera")
-	s.slot = MockSlot(c, cameraCoreYaml, nil, "camera")
+	s.plug, s.plugInfo = MockConnectedPlug(c, cameraConsumerYaml, nil, "camera")
+	s.slot, s.slotInfo = MockConnectedSlot(c, cameraCoreYaml, nil, "camera")
 }
 
 func (s *CameraInterfaceSuite) TestName(c *C) {
@@ -62,18 +64,18 @@ func (s *CameraInterfaceSuite) TestName(c *C) {
 }
 
 func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "camera",
 		Interface: "camera",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"camera slots are reserved for the core snap")
 }
 
 func (s *CameraInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -99,7 +101,8 @@ func (s *CameraInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *CameraInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME fix AutoConnect method
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *CameraInterfaceSuite) TestInterfaces(c *C) {
