@@ -1539,38 +1539,6 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
-	err := s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid-plug-iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
-	})
-	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid-slot-iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
-	})
-	c.Assert(err, IsNil)
-	snapInfo := snaptest.MockInfo(c, `
-name: complex
-plugs:
-    invalid-plug-iface:
-    unknown-plug-iface:
-slots:
-    invalid-slot-iface:
-    unknown-slot-iface:
-`, nil)
-	err = s.repo.AddSnap(snapInfo)
-	c.Check(err, ErrorMatches,
-		`snap "complex" has bad plugs or slots: invalid-plug-iface \(plug is invalid\); invalid-slot-iface \(slot is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\)`)
-	// Nothing was added
-	c.Check(s.repo.Plug("complex", "invalid-plug-iface"), IsNil)
-	c.Check(s.repo.Plug("complex", "unknown-plug-iface"), IsNil)
-	c.Check(s.repo.Slot("complex", "invalid-slot-iface"), IsNil)
-	c.Check(s.repo.Slot("complex", "unknown-slot-iface"), IsNil)
-}
-
 const testConsumerYaml = `
 name: consumer
 apps:
@@ -1614,18 +1582,6 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 	c.Assert(err, IsNil)
 	// The plug was added
 	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
-}
-
-func (s *AddRemoveSuite) TestAddSnapErrorsOnInvalidSlotNames(c *C) {
-	_, err := s.addSnap(c, testConsumerInvalidSlotNameYaml)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
-}
-
-func (s *AddRemoveSuite) TestAddSnapErrorsOnInvalidPlugNames(c *C) {
-	_, err := s.addSnap(c, testConsumerInvalidPlugNameYaml)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
 }
 
 func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapPlugs(c *C) {
