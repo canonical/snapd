@@ -20,17 +20,21 @@
 package main_test
 
 import (
+	"bytes"
+	"os"
 	"syscall"
 
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type utilsSuite struct {
 	testutil.BaseTest
 	sys *update.SyscallRecorder
+	log *bytes.Buffer
 }
 
 var _ = Suite(&utilsSuite{})
@@ -39,6 +43,9 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.sys = &update.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+	buf, restore := logger.MockLogger()
+	s.BaseTest.AddCleanup(restore)
+	s.log = buf
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
@@ -53,20 +60,58 @@ func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
-// Ensure that we can create a directory with an absolute path.
-func (s *utilsSuite) TestSecureMkdirAllAbsolute(c *C) {
-	c.Assert(update.SecureMkdirAll("/abs/path", 0755, 123, 456), IsNil)
+// Ensure that we can create a directory in the top-level directory.
+func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+	c.Assert(update.SecureMkdirAll("/path", 0755, 123, 456), IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
 		`fchown 4 123 456`,
-		`mkdirat 4 "path" 0755`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`fchown 5 123 456`,
-		`close 5`,
 		`close 4`,
 		`close 3`,
+	})
+	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> ...`)
+	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> 4`)
+}
+
+// Ensure that we can create a directory two levels from the top-level directory.
+func (s *utilsSuite) TestSecureMkdirAllLevel2(c *C) {
+	c.Assert(update.SecureMkdirAll("/path/to", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`fchown 4 123 456`,
+		`close 3`,
+		`mkdirat 4 "to" 0755`,
+		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`fchown 3 123 456`,
+		`close 3`,
+		`close 4`,
+	})
+}
+
+// Ensure that we can create a directory three levels from the top-level directory.
+func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
+	c.Assert(update.SecureMkdirAll("/path/to/something", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`fchown 4 123 456`,
+		`mkdirat 4 "to" 0755`,
+		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 5
+		`fchown 5 123 456`,
+		`close 4`,
+		`close 3`,
+		`mkdirat 5 "something" 0755`,
+		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`fchown 3 123 456`,
+		`close 3`,
+		`close 5`,
 	})
 }
 
@@ -77,25 +122,63 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 	err := update.SecureMkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
 		`mkdirat 4 "path" 0755`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 5`,
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`close 3`,
+		`close 4`,
+	})
+}
+
+// Ensure that we we close everything when mkdirat fails.
+func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
+	err := update.SecureMkdirAll("/abs", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "abs" 0755`,
+		`close 3`,
+	})
+}
+
+// Ensure that we we close everything when fchown fails.
+func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
+	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
+	err := update.SecureMkdirAll("/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot chown path segment "path" to 123.456 \(got up to "/"\): testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`fchown 4 123 456`,
 		`close 4`,
 		`close 3`,
 	})
 }
 
-// Ensure that we we close everything when mkdir fails.
-func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
-	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
-	err := update.SecureMkdirAll("/abs", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
+// Check error path when we cannot open root directory.
+func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
+	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
+	err := update.SecureMkdirAll("/abs/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
+	})
+}
+
+// Check error path when we cannot open non-root directory.
+func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
+	err := update.SecureMkdirAll("/abs/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
 		`close 3`,
 	})
 }
