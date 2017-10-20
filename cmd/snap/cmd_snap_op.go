@@ -367,10 +367,19 @@ func showDone(names []string, op string) error {
 			} else {
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
 			}
+		case "revert":
+			// TRANSLATORS: first %s is a snap name, second %s is a revision
+			fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), snap.Name, snap.Version)
 		default:
 			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
 		}
+		if snap.TrackingChannel != snap.Channel {
+			fmt.Fprintf(Stdout, i18n.G("This leaves %s tracking %s, but the current revision is from %s.\n"),
+				snap.Name, snap.TrackingChannel, snap.Channel)
+			fmt.Fprintln(Stdout, "Use 'snap switch' to change the tracking channel.")
+		}
 	}
+
 	return nil
 }
 
@@ -934,18 +943,7 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	// show output as speced
-	snaps, err := cli.List([]string{name}, nil)
-	if err != nil {
-		return err
-	}
-	if len(snaps) != 1 {
-		// TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
-		return fmt.Errorf(i18n.G("cannot get data for %q: %v"), name, snaps)
-	}
-	snap := snaps[0]
-	fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), name, snap.Version)
-	return nil
+	return showDone([]string{name}, "revert")
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
