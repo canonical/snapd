@@ -660,7 +660,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
-	c.Assert(files[0].Name(), Equals, "generated-nfs")
+	c.Assert(files[0].Name(), Equals, "nfs-support")
 	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
@@ -708,7 +708,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
-	c.Assert(files[0].Name(), Equals, "generated-nfs")
+	c.Assert(files[0].Name(), Equals, "nfs-support")
 	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 

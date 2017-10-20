@@ -95,7 +95,7 @@ func (b *Backend) Initialize() error {
 	}
 
 	// Location of the generated policy.
-	glob := "generated-*"
+	glob := "*"
 	policy := make(map[string]*osutil.FileState)
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
@@ -104,7 +104,7 @@ func (b *Backend) Initialize() error {
 	if nfs, err := isHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
-		policy["generated-nfs"] = &osutil.FileState{
+		policy["nfs-support"] = &osutil.FileState{
 			Content: []byte(nfsSnippet),
 			Mode:    0644,
 		}
