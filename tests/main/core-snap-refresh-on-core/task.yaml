@@ -38,7 +38,7 @@ execute: |
         done
     }
 
-    if [ "NEW_CORE_CHANNEL" = "" ]; then
+    if [ "$NEW_CORE_CHANNEL" = "" ]; then
         echo "please set the SPREAD_NEW_CORE_CHANNEL environment"
         exit 1
     fi
