@@ -175,7 +175,7 @@ var (
 	procSelfMountInfo = mount.ProcSelfMountInfo
 )
 
-// isHomeUsingNFS returns true if /home contains or might contain NFS mounts.
+// isHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
 //
 // Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
 // and possible mounted filesystems).  If either of those describes NFS
