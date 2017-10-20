@@ -545,7 +545,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
 		return InternalError("%v", err)
@@ -606,7 +606,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
@@ -631,10 +631,14 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
-	if err != nil {
-		if err == store.ErrSnapNotFound {
-			return SnapNotFound(name, err)
-		}
+	switch err {
+	case nil:
+		// pass
+	case store.ErrInvalidCredentials:
+		return Unauthorized("%v", err)
+	case store.ErrSnapNotFound:
+		return SnapNotFound(name, err)
+	default:
 		return InternalError("%v", err)
 	}
 
