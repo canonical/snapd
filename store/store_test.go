@@ -1536,6 +1536,42 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
+func (t *remoteRepoTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreInvalidLoginCode)
+		io.WriteString(w, mockStoreInvalidLogin)
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+		w.WriteHeader(401)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
+	c.Assert(err, Equals, ErrInvalidCredentials)
+	c.Check(response, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
 func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	deviceSessionRequested := false
 	refreshSessionRequested := false
