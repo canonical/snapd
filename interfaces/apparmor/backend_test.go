@@ -496,3 +496,22 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	c.Check(err, IsNil)
 
 }
+
+func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	err := os.MkdirAll(dirs.SystemApparmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
+	err = ioutil.WriteFile(canaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// install the new core snap on classic triggers a new snap-confine
+	// for this snap-confine on core
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+}
