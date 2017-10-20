@@ -15,18 +15,15 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to list schemas"
-    test-snapd-gsettings.gsettings list-schemas
-
-    echo "Then the snap is able to get a variable already created"
-
-    echo "And the snap is able to set a new variable"
+    schema=$(gsettings list-schemas | head -n1)
+    test-snapd-gsettings.check-schema $schema
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-gsettings:gsettings
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the provided methods"
-    if test-snapd-gsettings.gsettings list-schemas 2>${PWD}/call.error; then
+    if test-snapd-gsettings.check-schema $schema 2>${PWD}/call.error; then
         echo "Expected permission error calling gsettings with disconnected plug"
         exit 1
     fi

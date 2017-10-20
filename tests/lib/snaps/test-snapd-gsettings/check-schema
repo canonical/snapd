@@ -1,0 +1,3 @@
+#!/bin/sh
+
+gsettings list-schemas | grep -q -E "^$1$"

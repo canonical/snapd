@@ -1,0 +1,17 @@
+name: test-snapd-gsettings
+version: 1.0
+summary: Basic gsettings test snap
+description: A basic snap to access gsettings
+
+apps:
+  check-schema:
+    command: check-schema
+    plugs: [gsettings]
+
+parts:
+    deps:
+        plugin: nil
+        stage-packages: [libglib2.0-bin]
+    copy:
+        plugin: dump
+        source: .
