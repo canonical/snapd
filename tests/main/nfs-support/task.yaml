@@ -13,12 +13,12 @@ prepare: |
     install_local test-snapd-sh
 execute: |
     ensure_extra_perms() {
-        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.d/generated-nfs
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/generated-nfs
         MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
     }
 
     ensure_normal_perms() {
-        test ! -e /var/lib/snapd/apparmor/snap-confine.d/generated-nfs
+        test ! -e /var/lib/snapd/apparmor/snap-confine/generated-nfs
         MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
     }
 

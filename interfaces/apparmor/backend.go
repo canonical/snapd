@@ -132,7 +132,7 @@ func (b *Backend) Initialize() error {
 
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
-	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine.d/.
+	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
 	// For historical reasons we may have a filename that ends with .real or
 	// not.  If we do then we prefer the file ending with the name .real as
 	// that is the more recent name we use.
