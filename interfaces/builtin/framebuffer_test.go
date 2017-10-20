@@ -31,9 +31,11 @@ import (
 )
 
 type FramebufferInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const framebufferConsumerYaml = `
@@ -55,8 +57,8 @@ var _ = Suite(&FramebufferInterfaceSuite{
 })
 
 func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, framebufferConsumerYaml, nil, "framebuffer")
-	s.slot = MockSlot(c, framebufferOsYaml, nil, "framebuffer")
+	s.plug, s.plugInfo = MockConnectedPlug(c, framebufferConsumerYaml, nil, "framebuffer")
+	s.slot, s.slotInfo = MockConnectedSlot(c, framebufferOsYaml, nil, "framebuffer")
 }
 
 func (s *FramebufferInterfaceSuite) TestName(c *C) {
@@ -64,18 +66,18 @@ func (s *FramebufferInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "framebuffer",
 		Interface: "framebuffer",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"framebuffer slots are reserved for the core snap")
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -101,7 +103,8 @@ func (s *FramebufferInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *FramebufferInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *FramebufferInterfaceSuite) TestInterfaces(c *C) {

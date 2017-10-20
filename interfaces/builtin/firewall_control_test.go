@@ -32,9 +32,11 @@ import (
 )
 
 type FirewallControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const firewallControlConsumerYaml = `name: consumer
@@ -54,8 +56,8 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 })
 
 func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, firewallControlConsumerYaml, nil, "firewall-control")
-	s.slot = MockSlot(c, firewallControlCoreYaml, nil, "firewall-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, firewallControlConsumerYaml, nil, "firewall-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, firewallControlCoreYaml, nil, "firewall-control")
 }
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
@@ -63,18 +65,18 @@ func (s *FirewallControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "firewall-control",
 		Interface: "firewall-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"firewall-control slots are reserved for the core snap")
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *FirewallControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -111,7 +113,8 @@ func (s *FirewallControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *FirewallControlInterfaceSuite) TestInterfaces(c *C) {
