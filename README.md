@@ -7,8 +7,13 @@ Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor an
 
 ## How to
 
-Get code : `go get github.com/pilebones/go-udev`
-Monitor hot-(un)plug devices : `go build && ./go-udev`
+- Get code : `go get github.com/pilebones/go-udev` or `git clone https://github.com/pilebones/go-udev.git`
+- Monitor hot-(un)plug devices : 
+```
+cd go-udev
+go build
+./go-udev
+```
 
 ## Throubleshooting
 
