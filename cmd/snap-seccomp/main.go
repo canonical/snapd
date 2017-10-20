@@ -622,7 +622,7 @@ func compile(content []byte, out string) error {
 		// special case: unrestricted means we stop early, we just
 		// write this special tag and evalulate in snap-confine
 		if line == "@unrestricted" {
-			return osutil.AtomicWrite(out, bytes.NewBufferString(line), 0644, 0)
+			return osutil.AtomicWrite(out, bytes.NewBufferString(line+"\n"), 0644, 0)
 		}
 		// complain mode is a "allow-all" filter for now until
 		// we can land https://github.com/snapcore/snapd/pull/3998
