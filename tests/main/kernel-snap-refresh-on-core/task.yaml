@@ -88,11 +88,11 @@ execute: |
         wait_core_post_boot
 
         # check that we reverted
-        test "$(bootenv snap_kernel)" = "kernel_$(cat prevBoot).snap"
+        test "$(bootenv snap_kernel)" = "pc-kernel_$(cat prevBoot).snap"
         test "$(bootenv snap_try_kernel)" = ""
 
         echo we are back to the original kernel
-        diff -u /proc/kernel_signature prevKernelSignature
+        diff -u /proc/version_signature prevKernelSignature
         
         # test-snapd-tools works
         test-snapd-tools.echo hello | MATCH hello
