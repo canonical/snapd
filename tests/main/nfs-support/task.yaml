@@ -99,7 +99,7 @@ execute: |
     ensure_normal_perms
 
     # Back up the /etc/fstab file and define a NFS mount mount there.
-    cp /etc/fstab fstab.bak
+    cp /etc/fstab fstab.orig
     echo 'localhost:/home /home nfs defaults 0 0' >> /etc/fstab
 
     # Restart snapd and ensure that we have extra permissions again.
@@ -122,8 +122,8 @@ restore: |
     umount /home || true
 
     # Restore the fstab backup file if one exits.
-    if [ -e fstab.bak ]; then
-        mv fstab.bak /etc/fstab
+    if [ -e fstab.orig ]; then
+        mv fstab.orig /etc/fstab
     fi
 
     # Remove the NFS server and its configuration data.
