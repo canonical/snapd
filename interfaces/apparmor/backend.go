@@ -57,10 +57,9 @@ import (
 )
 
 var (
-	procSelfMountInfo               = mount.ProcSelfMountInfo
-	procSelfExe                     = "/proc/self/exe"
-	etcFstab                        = "/etc/fstab"
-	setupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicyImpl
+	procSelfMountInfo = mount.ProcSelfMountInfo
+	procSelfExe       = "/proc/self/exe"
+	etcFstab          = "/etc/fstab"
 )
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
@@ -78,14 +77,11 @@ func (b *Backend) Initialize() error {
 	// do this in the Setup function below. I sadly don't think this is
 	// possible because snapd must be able to install a new core and only at
 	// that moment generate it.
-	return setupSnapConfineGeneratedPolicy()
-}
 
-// setupSnapConfineGeneratedPolicyImpl inspects the system and sets up local
-// apparmor policy for snap-confine. Local policy is included by the
-// system-wide policy. If the local policy has changed then the apparmor
-// profile for snap-confine is reloaded.
-func setupSnapConfineGeneratedPolicyImpl() error {
+	// Inspect the system and sets up local apparmor policy for snap-confine.
+	// Local policy is included by the system-wide policy. If the local policy
+	// has changed then the apparmor profile for snap-confine is reloaded.
+
 	// Create the local policy directory if it is not there.
 	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)

@@ -28,18 +28,8 @@ import (
 )
 
 var (
-	IsHomeUsingNFS                  = isHomeUsingNFS
-	SetupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicy
+	IsHomeUsingNFS = isHomeUsingNFS
 )
-
-// MockSetupSnapConfineGeneratedPolicy mocks the setup of snap-confine policy.
-func MockSetupSnapConfineGeneratedPolicy(f func() error) (restore func()) {
-	old := setupSnapConfineGeneratedPolicy
-	setupSnapConfineGeneratedPolicy = f
-	return func() {
-		setupSnapConfineGeneratedPolicy = old
-	}
-}
 
 //MockMountInfo mocks content of /proc/self/mountinfo read by isHomeUsingNFS
 func MockMountInfo(text string) (restore func()) {

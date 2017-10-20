@@ -577,7 +577,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	defer cmd.Restore()
 
 	// Setup generated policy for snap-confine.
-	err := apparmor.SetupSnapConfineGeneratedPolicy()
+	err := (&apparmor.Backend{}).Initialize()
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), HasLen, 0)
 
@@ -653,7 +653,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
@@ -701,7 +701,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
@@ -743,7 +743,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	// NOTE: Errors in determining NFS are non-fatal to prevent snapd from
 	// failing to operate. A warning message is logged but system operates as
 	// if NFS was not active.
@@ -776,7 +776,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err := apparmor.SetupSnapConfineGeneratedPolicy()
+	err := (&apparmor.Backend{}).Initialize()
 	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe: .*")
 
 	// We didn't create the policy file.
@@ -811,7 +811,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine"), []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: testing")
 
 	// While created the policy file initially we also removed it so that
@@ -831,7 +831,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError4(c *C) {
 	c.Assert(err, IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	c.Assert(err, ErrorMatches, "*.: not a directory")
 }
 
@@ -874,7 +874,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	defer os.Chmod(dirs.SnapConfineAppArmorDir, 0755)
 
 	// Setup generated policy for snap-confine.
-	err = apparmor.SetupSnapConfineGeneratedPolicy()
+	err = (&apparmor.Backend{}).Initialize()
 	c.Assert(err, ErrorMatches, `cannot synchronize snap-confine policy: remove .*/generated-test: permission denied`)
 
 	// The policy directory was unchanged.
@@ -884,27 +884,4 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 
 	// We didn't try to reload the policy.
 	c.Assert(cmd.Calls(), HasLen, 0)
-}
-
-// Test Backend.Initialize
-func (s *backendSuite) TestInitialize(c *C) {
-	called := false
-	restore := apparmor.MockSetupSnapConfineGeneratedPolicy(func() error {
-		called = true
-		return nil
-	})
-	defer restore()
-
-	err := s.Backend.Initialize()
-	c.Assert(err, IsNil)
-	c.Assert(called, Equals, true)
-}
-
-// Test Backend.Initialize error propagation
-func (s *backendSuite) TestInitializeError(c *C) {
-	apparmor.MockSetupSnapConfineGeneratedPolicy(func() error {
-		return fmt.Errorf("testing")
-	})
-	err := s.Backend.Initialize()
-	c.Assert(err, ErrorMatches, "testing")
 }
