@@ -121,7 +121,7 @@ restore: |
     # Unmount NFS mount over /home if one exists.
     umount /home || true
 
-    # Restore the fstab backup file if one exits.
+    # Restore the fstab backup file if one exists.
     if [ -e fstab.orig ]; then
         mv fstab.orig /etc/fstab
     fi
