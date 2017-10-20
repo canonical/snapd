@@ -6,7 +6,7 @@ expect "Password of "
 send "wrong-password\n"
 
 expect {
-    -re "not\[ \n\r\]*correct" {
+    -re "invalid\[ \n\r\]*credentials" {
         exit 0
     } default {
         exit 1
