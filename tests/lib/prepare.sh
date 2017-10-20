@@ -381,7 +381,7 @@ EOF
         # - append root,ubuntu,test to extrausers
         # - bind mount extrausers to /etc via custom systemd job
         mkdir -p /mnt/system-data/var/lib/extrausers/
-        cp -a "$UNPACKD/etc/sub{uid,gid}" /mnt/system-data/var/lib/extrausers/
+        touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
