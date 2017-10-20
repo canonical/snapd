@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.28.1
+Version:        2.28.5
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -49,17 +49,18 @@ BuildRequires:  glibc-devel-static
 BuildRequires:  golang-packaging
 BuildRequires:  gpg2
 BuildRequires:  indent
+BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
+BuildRequires:  openssh
 BuildRequires:  pkg-config
 BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
-BuildRequires:  openssh
 BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
@@ -73,6 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
+Requires:       apparmor
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs

@@ -121,6 +121,8 @@ func initialStoreConfig(st *state.State) (*store.Config, error) {
 			return nil, err
 		}
 	}
+	// cache downloads by default
+	config.CacheDownloads = 5
 	return config, nil
 }
 

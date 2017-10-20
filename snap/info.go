@@ -154,7 +154,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	License          string
-	Epoch            string
+	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
@@ -213,7 +213,7 @@ type ChannelSnapInfo struct {
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
-	Epoch       string          `json:"epoch"`
+	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 }
 
@@ -327,13 +327,13 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-func (s *Info) BadInterfacesInfoString() string {
+func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
-	for name, reason := range s.BadInterfaces {
+	for name, reason := range snapInfo.BadInterfaces {
 		inverted[reason] = append(inverted[reason], name)
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", s.Name())
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
 	reasons := make([]string, 0, len(inverted))
 	for reason := range inverted {
 		reasons = append(reasons, reason)

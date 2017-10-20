@@ -150,15 +150,6 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	got := strings.Split(string(content), "\n")
 	sort.Strings(got)
 	c.Check(got, DeepEquals, expected)
-	// and that we have the legacy, per app/hook files as well.
-	for _, binary := range []string{"app1", "app2", "hook.configure"} {
-		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
-		content, err := ioutil.ReadFile(fn)
-		c.Assert(err, IsNil, Commentf("Expected mount profile for %q", binary))
-		got := strings.Split(string(content), "\n")
-		sort.Strings(got)
-		c.Check(got, DeepEquals, expected)
-	}
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
@@ -169,9 +160,4 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	// Ensure that backend.Setup() creates the required dir on demand
 	os.Remove(dirs.SnapMountPolicyDir)
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
-
-	for _, binary := range []string{"app1", "app2", "hook.configure"} {
-		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
-		c.Assert(osutil.FileExists(fn), Equals, true, Commentf("Expected mount file for %q", binary))
-	}
 }
