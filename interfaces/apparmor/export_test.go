@@ -60,7 +60,7 @@ func MockMountInfo(text string) (restore func()) {
 
 // MockEtcFstab mocks content of /etc/fstab read by isHomeUsingNFS
 func MockEtcFstab(text string) (restore func()) {
-	old := procSelfMountInfo
+	old := etcFstab
 	f, err := ioutil.TempFile("", "fstab")
 	if err != nil {
 		panic(fmt.Errorf("cannot open temporary file: %s", err))
