@@ -357,14 +357,18 @@ func showDone(names []string, op string) error {
 		switch op {
 		case "install":
 			if snap.Developer != "" {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
 			} else {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "refresh":
 			if snap.Developer != "" {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
 			} else {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "revert":
@@ -374,6 +378,7 @@ func showDone(names []string, op string) error {
 			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel {
+			// TRANSLATORS: first %s is a snap name, following two %s are channel names
 			fmt.Fprintf(Stdout, i18n.G("This leaves %s tracking %s, but the current revision is from %s.\n"),
 				snap.Name, snap.TrackingChannel, snap.Channel)
 			fmt.Fprintln(Stdout, "Use 'snap switch' to change the tracking channel.")
