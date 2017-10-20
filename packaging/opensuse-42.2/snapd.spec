@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.27.6
+Version:        2.28.5
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -49,17 +49,18 @@ BuildRequires:  glibc-devel-static
 BuildRequires:  golang-packaging
 BuildRequires:  gpg2
 BuildRequires:  indent
+BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  make
+BuildRequires:  openssh
 BuildRequires:  pkg-config
 BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
-BuildRequires:  openssh
 BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
@@ -73,6 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
+Requires:       apparmor
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
@@ -145,9 +147,11 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 
 %gobuild cmd/snap
 %gobuild cmd/snapctl
-%gobuild cmd/snap-update-ns
-# build snap-exec completely static for base snaps
+# build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild cmd/snap-exec
+# gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
+# FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
+%gobuild bin/snap-update-ns
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
@@ -276,7 +280,7 @@ fi
 %dir /var/lib/snapd/snaps
 %dir /var/cache/snapd
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man5/snap-confine.5.gz
+%{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_udevrulesdir}/80-snappy-assign.rules
 %{_unitdir}/snapd.refresh.service

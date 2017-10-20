@@ -491,4 +491,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
 	})
 
+	// snap-confine.d was created
+	_, err = os.Stat(dirs.SnapAppArmorConfineDir)
+	c.Check(err, IsNil)
+
 }

@@ -191,7 +191,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 
 func buildSnap(snapDir, targetDir string) (*info, error) {
 	// build in /var/tmp (which is not a tempfs)
-	cmd := exec.Command("snapbuild", snapDir, targetDir)
+	cmd := exec.Command("snap", "pack", snapDir, targetDir)
 	cmd.Env = append(os.Environ(), "TMPDIR=/var/tmp")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

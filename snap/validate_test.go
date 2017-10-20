@@ -65,23 +65,6 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	}
 }
 
-func (s *ValidateSuite) TestValidateEpoch(c *C) {
-	validEpochs := []string{
-		"0", "1*", "1", "400*", "1234",
-	}
-	for _, epoch := range validEpochs {
-		err := ValidateEpoch(epoch)
-		c.Assert(err, IsNil)
-	}
-	invalidEpochs := []string{
-		"0*", "_", "1-", "1+", "-1", "+1", "-1*", "a", "1a", "1**",
-	}
-	for _, epoch := range invalidEpochs {
-		err := ValidateEpoch(epoch)
-		c.Assert(err, ErrorMatches, `invalid snap epoch: ".*"`)
-	}
-}
-
 func (s *ValidateSuite) TestValidateLicense(c *C) {
 	validLicenses := []string{
 		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
@@ -155,6 +138,12 @@ func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo"}), IsNil)
 }
 
+func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo $SNAP_DATA"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo $SNAP_DATA"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo $SNAP_DATA"}), IsNil)
+}
+
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
@@ -190,7 +179,7 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:$-]*$')`)
 }
 
 // Validate
@@ -243,14 +232,11 @@ version: 1.0
 }
 
 func (s *ValidateSuite) TestIllegalSnapEpoch(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	_, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 epoch: 0*
 `))
-	c.Assert(err, IsNil)
-
-	err = Validate(info)
-	c.Check(err, ErrorMatches, `invalid snap epoch: "0\*"`)
+	c.Assert(err, ErrorMatches, `.*invalid epoch.*`)
 }
 
 func (s *ValidateSuite) TestMissingSnapEpochIsOkay(c *C) {

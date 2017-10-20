@@ -77,7 +77,7 @@ execute: |
         eval ${INJECT_FAILURE}
 
         # repack new target snap
-        snapbuild $BUILD_DIR/unpack . && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
+        snap pack $BUILD_DIR/unpack && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
 
         # install new target snap
         chg_id=$(snap install --dangerous failing.snap --no-wait)

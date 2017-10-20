@@ -39,13 +39,13 @@ static const char *sc_cookie_dir = SC_COOKIE_DIR;
 
 char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 {
-	char context_path[PATH_MAX];
+	char context_path[PATH_MAX] = { 0 };
 	struct sc_error *err = NULL;
 	char *context = NULL;
 
 	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
 			 sc_cookie_dir, snap_name);
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int fd SC_CLEANUP(sc_cleanup_close) = -1;
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		err =
@@ -55,7 +55,7 @@ char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
 		goto out;
 	}
 	// large enough buffer for opaque cookie string
-	char context_val[255];
+	char context_val[255] = { 0 };
 	ssize_t n = read(fd, context_val, sizeof(context_val) - 1);
 	if (n < 0) {
 		err =

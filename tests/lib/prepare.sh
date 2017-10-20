@@ -56,6 +56,13 @@ update_core_snap_for_classic_reexec() {
             ;;
     esac
 
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # also load snap-confine's apparmor profile
+            apparmor_parser -r squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            ;;
+    esac
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -73,7 +80,7 @@ update_core_snap_for_classic_reexec() {
     }
 
     # Make sure we're running with the correct copied bits
-    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd"; do
+    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
     for p in /usr/bin/snapctl /usr/bin/snap; do
@@ -331,7 +338,7 @@ slots:
 EOF
 
         # build new core snap for the image
-        snapbuild "$UNPACKD" "$IMAGE_HOME"
+        snap pack "$UNPACKD" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"

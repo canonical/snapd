@@ -30,7 +30,7 @@
 bool verify_security_tag(const char *security_tag, const char *snap_name)
 {
 	const char *whitelist_re =
-	    "^snap\\.([a-z](-?[a-z0-9])*)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
+	    "^snap\\.([a-z0-9](-?[a-z0-9])*)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED) != 0)
 		die("can not compile regex %s", whitelist_re);
@@ -99,6 +99,8 @@ static int skip_one_char(const char **p, char c)
 
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: validate_snap_name and snap.ValidateName.
 	struct sc_error *err = NULL;
 
 	// Ensure that name is not NULL

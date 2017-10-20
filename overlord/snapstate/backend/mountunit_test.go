@@ -37,8 +37,7 @@ import (
 )
 
 type mountunitSuite struct {
-	nullProgress progress.NullProgress
-	umount       *testutil.MockCmd
+	umount *testutil.MockCmd
 
 	systemctlRestorer func()
 }
@@ -72,7 +71,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -104,7 +103,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -113,7 +112,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), &s.nullProgress)
+	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)

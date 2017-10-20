@@ -58,6 +58,7 @@ import (
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
+	testutil.BaseTest
 	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
@@ -66,8 +67,6 @@ type snapmgrTestSuite struct {
 	fakeStore   *fakeStore
 
 	user *auth.UserState
-
-	reset func()
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -78,10 +77,13 @@ func (s *snapmgrTestSuite) settle(c *C) {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeStore = &fakeStore{
@@ -92,10 +94,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
-	oldSetupRefreshHook := snapstate.SetupRefreshHook
+	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
-	snapstate.SetupRefreshHook = hookstate.SetupRefreshHook
+	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 
 	var err error
@@ -107,18 +109,16 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
-	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
+	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 
-	s.reset = func() {
+	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
-		snapstate.SetupRefreshHook = oldSetupRefreshHook
+		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 
-		restore2()
-		restore1()
 		dirs.SetRootDir("/")
-	}
+	})
 
 	s.state.Lock()
 	storestate.ReplaceStore(s.state, s.fakeStore)
@@ -141,10 +141,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
-	s.reset()
 }
 
 const (
@@ -243,10 +243,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
-		"run-hook[refresh]",
+		"run-hook[post-refresh]",
 		"start-snap-services")
 
-	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run refresh hook of .*`)
+	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run post-refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -400,7 +400,7 @@ version: 1.0`)
 	runHooks := tasksWithKind(ts, "run-hook")
 	// hook tasks for refresh and for configure hook only; no install hook
 	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[0].Summary(), Equals, `Run refresh hook of "some-snap" snap if present`)
+	c.Assert(runHooks[0].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[1].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
 }
 
@@ -426,7 +426,9 @@ func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
 	c.Check(flag, Equals, true)
 }
 
-func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
+type fullFlags struct{ before, change, after, setup snapstate.Flags }
+
+func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -436,15 +438,17 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 			{RealName: "some-snap", Revision: snap.R(7)},
 			{RealName: "some-snap", Revision: snap.R(11)},
 		},
+		Flags:    flags.before,
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", flags)
+	ts, err := snapstate.Revert(s.state, "some-snap", flags.change)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+	tasks := ts.Tasks()
+	c.Assert(s.state.TaskCount(), Equals, len(tasks))
+	c.Assert(taskKinds(tasks), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
 		"stop-snap-services",
@@ -458,6 +462,11 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 		"run-hook[configure]",
 	})
 
+	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+	c.Assert(err, IsNil)
+	flags.setup.Revert = true
+	c.Check(snapsup.Flags, Equals, flags.setup)
+
 	chg := s.state.NewChange("revert", "revert snap")
 	chg.AddAll(ts)
 
@@ -469,11 +478,49 @@ func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Flags, Equals, flags)
+	c.Check(snapst.Flags, Equals, flags.after)
+}
+
+func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
+	s.testRevertTasksFullFlags(fullFlags{before: flags, change: flags, after: flags, setup: flags}, c)
 }
 
 func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	s.testRevertTasks(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromDevMode(c *C) {
+	// the snap is installed in devmode, but the request to revert does not specify devmode
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{DevMode: true}, // the snap is installed in devmode
+		change: snapstate.Flags{},              // the request to revert does not specify devmode
+		after:  snapstate.Flags{DevMode: true}, // the reverted snap is installed in devmode
+		setup:  snapstate.Flags{DevMode: true}, // because setup said so
+	}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromJailMode(c *C) {
+	// the snap is installed in jailmode, but the request to revert does not specify jailmode
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{JailMode: true}, // the snap is installed in jailmode
+		change: snapstate.Flags{},               // the request to revert does not specify jailmode
+		after:  snapstate.Flags{JailMode: true}, // the reverted snap is installed in jailmode
+		setup:  snapstate.Flags{JailMode: true}, // because setup said so
+	}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksFromClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		c.Skip("no support for classic")
+	}
+
+	// the snap is installed in classic, but the request to revert does not specify classic
+	s.testRevertTasksFullFlags(fullFlags{
+		before: snapstate.Flags{Classic: true}, // the snap is installed in classic
+		change: snapstate.Flags{},              // the request to revert does not specify classic
+		after:  snapstate.Flags{Classic: true}, // the reverted snap is installed in classic
+		setup:  snapstate.Flags{Classic: true}, // because setup said so
+	}, c)
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksDevMode(c *C) {
@@ -1581,7 +1628,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "services-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "0",
 			},
 			revno: snap.R(11),
 		},
@@ -1698,10 +1744,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 	})
 
-	// check refresh hook
+	// check post-refresh hook
 	task = ts.Tasks()[12]
 	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run refresh hook of "services-snap" snap if present`)
+	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1760,7 +1806,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 			revno: snap.R(11),
 		},
@@ -1920,7 +1965,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 			revno: snap.R(11),
 		},
@@ -2126,7 +2170,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				Channel:  "channel-for-7",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 		},
 	}
@@ -2263,7 +2306,6 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    "",
 			Channel:  "some-channel",
 		},
 	})
@@ -4945,7 +4987,8 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 }
 
 type snapmgrQuerySuite struct {
-	st *state.State
+	st      *state.State
+	restore func()
 }
 
 var _ = Suite(&snapmgrQuerySuite{})
@@ -4954,6 +4997,11 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.restore = func() {
+		restoreSanitize()
+	}
 
 	s.st = st
 
@@ -4989,6 +5037,7 @@ description: |
 
 func (s *snapmgrQuerySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *snapmgrQuerySuite) TestInfo(c *C) {
