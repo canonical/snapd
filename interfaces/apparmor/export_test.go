@@ -70,6 +70,9 @@ func MockEtcFstab(text string) (restore func()) {
 	}
 	etcFstab = f.Name()
 	return func() {
+		if etcFstab == "/etc/fstab" {
+			panic("respectfully refusing to remove /etc/fstab")
+		}
 		os.Remove(etcFstab)
 		etcFstab = old
 	}
