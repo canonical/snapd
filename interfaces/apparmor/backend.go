@@ -88,14 +88,14 @@ func (b *Backend) Initialize() error {
 func setupSnapConfineGeneratedPolicyImpl() error {
 	// Create the local policy directory if it is not there.
 	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
-		return fmt.Errorf("cannot create snap-confine policy directory, %s", err)
+		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
 	// Check the /proc/self/exe symlink, this is needed below but we want to
 	// fail early if this fails for whatever reason.
 	exe, err := os.Readlink(procSelfExe)
 	if err != nil {
-		return fmt.Errorf("cannot read %s, %s", procSelfExe, err)
+		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
 	// Location of the generated policy.
@@ -106,7 +106,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
 	if nfs, err := isHomeUsingNFS(); err != nil {
-		logger.Noticef("cannot determine if NFS is in use, %v", err)
+		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["generated-nfs"] = &osutil.FileState{
 			Content: []byte(nfsSnippet),
@@ -118,7 +118,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize snap-confine policy, %s", err)
+		return fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
 	}
 	if len(created) == 0 && len(removed) == 0 {
 		// If the generated policy didn't change, we're all done.
@@ -180,7 +180,7 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 func isHomeUsingNFS() (bool, error) {
 	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse %s, %s", procSelfMountInfo, err)
+		return false, fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
 	}
 	for _, entry := range mountinfo {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
@@ -189,7 +189,7 @@ func isHomeUsingNFS() (bool, error) {
 	}
 	fstab, err := mount.LoadProfile(etcFstab)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse %s, %s", etcFstab, err)
+		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
 	}
 	for _, entry := range fstab.Entries {
 		if (entry.Type == "nfs4" || entry.Type == "nfs") && (strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home") {

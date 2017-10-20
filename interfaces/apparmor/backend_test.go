@@ -777,7 +777,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err := apparmor.SetupSnapConfineGeneratedPolicy()
-	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe,.*")
+	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe: .*")
 
 	// We didn't create the policy file.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
@@ -875,7 +875,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err = apparmor.SetupSnapConfineGeneratedPolicy()
-	c.Assert(err, ErrorMatches, `cannot synchronize snap-confine policy, remove .*/generated-test: permission denied`)
+	c.Assert(err, ErrorMatches, `cannot synchronize snap-confine policy: remove .*/generated-test: permission denied`)
 
 	// The policy directory was unchanged.
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
