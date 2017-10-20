@@ -2,9 +2,6 @@ language: go
 go:        
   - 1.6
 
-before_install:
-    - touch Makefile # Disable the go get from Travis.
-
 env:
   global:
     # SPREAD_LINODE_KEY
@@ -12,6 +9,9 @@ env:
 
 git:
     quiet: true
+
+install:
+    - true
 
 script:
     - ./run-checks --spread
