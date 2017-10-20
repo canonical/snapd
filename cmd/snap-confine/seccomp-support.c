@@ -170,7 +170,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
 
-	if (memcmp(bpf, "@unrestricted", strlen("@unrestricted")) == 0) {
+	if (sc_streq(bpf, "@unrestricted\n")) {
 		return 0;
 	}
 

@@ -324,7 +324,7 @@ restart_syscall
 }
 
 func (s *snapSeccompSuite) TestUnrestricted(c *C) {
-	inp := "@unrestricted"
+	inp := "@unrestricted\n"
 	outPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
