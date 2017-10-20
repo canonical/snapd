@@ -57,6 +57,7 @@ import (
 )
 
 var (
+	procSelfMountInfo               = mount.ProcSelfMountInfo
 	procSelfExe                     = "/proc/self/exe"
 	etcFstab                        = "/etc/fstab"
 	setupSnapConfineGeneratedPolicy = setupSnapConfineGeneratedPolicyImpl
@@ -170,10 +171,6 @@ func setupSnapConfineGeneratedPolicyImpl() error {
 	}
 	return nil
 }
-
-var (
-	procSelfMountInfo = mount.ProcSelfMountInfo
-)
 
 // isHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
 //
