@@ -369,11 +369,45 @@ EOF
         cp -a "$UNPACKD/etc/ssh/sshd_config" /mnt/system-data/etc/ssh/
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
 
-        # append ubuntu user
+        # build the user database - this is complicated because:
+        # - spread on linode wants to login as "root"
+        # - "root" login on the stock core snap is disabled
+        # - we need to add our ubuntu and test users too
+        # - uids between classic/core differ
+        # - passwd,shadow on core are read-only
+        # - we cannot add root to extrausers as system passwd is searched first
+        # So we do:
+        # - take core passwd without "root" as extrausers
+        # - append root,ubuntu,test to extrausers
+        # - bind mount extrausers to /etc via custom systemd job
         mkdir -p /mnt/system-data/var/lib/extrausers/
-        tail -n2 /etc/passwd >> /mnt/system-data/var/lib/extrausers/passwd
-        tail -n2 /etc/shadow >> /mnt/system-data/var/lib/extrausers/shadow
-        tail -n2 /etc/group >> /mnt/system-data/var/lib/extrausers/group
+        cp -a "$UNPACKD/etc/sub{uid,gid}" /mnt/system-data/var/lib/extrausers/
+        mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
+        for f in group gshadow passwd shadow; do
+            # the passwd from core without root
+            tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/var/lib/extrausers/$f
+            # append this systems root user so that linode can connect
+            head -n1 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            # append ubuntu, test user for the testing
+            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+
+            # now bind mount those passwd files on boot
+            cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
+[Unit]
+Description=Mount extrausers $f over system $f
+Before=ssh.service
+
+[Mount]
+What=/var/lib/extrausers/$f
+Where=/etc/$f
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            ln -s /etc/systemd/system/etc-$f.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-$f.mount
+        done
 
         # ensure spread -reuse works in the core image as well
         if [ -e /.spread.yaml ]; then
