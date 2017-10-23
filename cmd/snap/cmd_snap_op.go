@@ -71,7 +71,7 @@ func (wmx *waitMixin) wait(cli *client.Client, id string) (*client.Change, error
 }
 
 func wait(cli *client.Client, id string) (*client.Change, error) {
-	pb := progress.NewTextProgress()
+	pb := progress.MakeProgressBar()
 	defer func() {
 		pb.Finished()
 	}()
@@ -122,7 +122,7 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				pb.Start(t.Progress.Label, float64(t.Progress.Total))
+				pb.Start(t.Summary, float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break

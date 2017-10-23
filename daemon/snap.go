@@ -278,7 +278,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	// TODO: pass in an actual notifier here instead of null
 	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 
 	out := make([]client.AppInfo, len(apps))
 	for i, app := range apps {
