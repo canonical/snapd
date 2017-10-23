@@ -83,7 +83,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
-	info.Epoch = "0"
+	info.Epoch = d.Epoch
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
@@ -178,6 +178,9 @@ type Config struct {
 
 	DetailFields []string
 	DeltaFormat  string
+
+	// CacheDownloads is the number of downloads that should be cached
+	CacheDownloads int
 }
 
 // SetBaseURL updates the store API's base URL in the Config. Must not be used
@@ -232,6 +235,8 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+
+	cacher downloadCache
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -429,6 +434,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
+	var cacher downloadCache
+	if cfg.CacheDownloads > 0 {
+		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
+	} else {
+		cacher = &nullCache{}
+	}
+
 	store := &Store{
 		series:          series,
 		architecture:    architecture,
@@ -437,6 +449,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+		cacher:          cacher,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
@@ -1189,7 +1202,7 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
-	Epoch    string
+	Epoch    snap.Epoch
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1198,11 +1211,11 @@ type RefreshCandidate struct {
 
 // the exact bits that we need to send to the store
 type currentSnapJSON struct {
-	SnapID      string `json:"snap_id"`
-	Channel     string `json:"channel"`
-	Revision    int    `json:"revision,omitempty"`
-	Epoch       string `json:"epoch"`
-	Confinement string `json:"confinement"`
+	SnapID      string     `json:"snap_id"`
+	Channel     string     `json:"channel"`
+	Revision    int        `json:"revision,omitempty"`
+	Epoch       snap.Epoch `json:"epoch"`
+	Confinement string     `json:"confinement"`
 }
 
 type metadataWrapper struct {
@@ -1374,6 +1387,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
+
+	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		return nil
+	}
+
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
@@ -1453,7 +1471,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	return w.Sync()
+	if err := w.Sync(); err != nil {
+		return err
+	}
+
+	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
 // download writes an http.Request showing a progress.Meter
@@ -1524,7 +1546,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 
 		if pbar == nil {
-			pbar = &progress.NullProgress{}
+			pbar = progress.Null
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)

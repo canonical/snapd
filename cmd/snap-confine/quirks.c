@@ -90,7 +90,7 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	if (sc_nonfatal_mkpath(dest_dir, 0755) < 0) {
 		die("cannot create empty directory at %s", dest_dir);
 	}
-	char buf[1000];
+	char buf[1000] = { 0 };
 	const char *flags_str = sc_mount_opt2str(buf, sizeof buf, flags);
 	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
 	      flags_str);
@@ -137,8 +137,8 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	}
 	struct dirent *entryp = NULL;
 	do {
-		char src_name[PATH_MAX * 2];
-		char dest_name[PATH_MAX * 2];
+		char src_name[PATH_MAX * 2] = { 0 };
+		char dest_name[PATH_MAX * 2] = { 0 };
 		// Set errno to zero, if readdir fails it will not only return null but
 		// set errno to a non-zero value. This is how we can differentiate
 		// end-of-directory from an actual error.
@@ -203,7 +203,7 @@ void sc_setup_quirks()
 		    "/var/lib/snapd", snapd_tmp);
 	}
 	// now let's make /var/lib the vanilla /var/lib from the core snap
-	char buf[PATH_MAX];
+	char buf[PATH_MAX] = { 0 };
 	sc_must_snprintf(buf, sizeof buf, "%s/var/lib",
 			 sc_get_inner_core_mount_point());
 	sc_quirk_create_writable_mimic("/var/lib", buf,
