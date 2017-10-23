@@ -268,7 +268,7 @@ fi
 %dir /var/lib/snapd
 %dir /var/lib/snapd/apparmor
 %dir /var/lib/snapd/apparmor/profiles
-%dir /var/lib/snapd/apparmor/snap-confine.d
+%dir /var/lib/snapd/apparmor/snap-confine
 %dir /var/lib/snapd/assertions
 %dir /var/lib/snapd/desktop
 %dir /var/lib/snapd/desktop/applications
