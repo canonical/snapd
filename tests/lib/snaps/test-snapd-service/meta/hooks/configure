@@ -4,6 +4,11 @@ snapctl set configvalue=$(snapctl get sourcevalue)
 
 COMMAND=$(snapctl get command)
 if [ "$COMMAND" != "" ]; then
-    snapctl "$COMMAND" test-snapd-service.test-snapd-service
+    if [ "$COMMAND" = "restart" ]; then
+        snapctl restart test-snapd-service.test-snapd-service
+        snapctl restart test-snapd-service.test-snapd-other-service
+    else
+        snapctl "$COMMAND" test-snapd-service.test-snapd-service
+    fi
 fi
 sleep 3

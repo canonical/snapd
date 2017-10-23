@@ -5,4 +5,7 @@ apps:
   command: bin/start
   daemon: simple
   reload-command: bin/reload
+ test-snapd-other-service:
+  command: bin/start-other
+  daemon: simple
 
