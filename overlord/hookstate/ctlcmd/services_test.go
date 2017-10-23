@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"fmt"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -66,13 +67,9 @@ apps:
 `
 
 func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServiceChangeFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction) (*state.Change, error) {
+	return ctlcmd.MockServiceChangeFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction) (*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
-		st.Lock()
-		defer st.Unlock()
-		chg := st.NewChange("service-control", "")
-		chg.SetStatus(state.DoneStatus)
-		return chg, nil
+		return nil, fmt.Errorf("forced error")
 	})
 }
 
@@ -80,6 +77,8 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
+
+	testutil.MockCommand(c, "systemctl", "")
 
 	s.BaseTest.AddCleanup(func() {
 		dirs.SetRootDir(oldRoot)
@@ -150,10 +149,9 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 		)
 	})
 	defer restore()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.test-service"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "")
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.test-service"})
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
 
@@ -198,10 +196,9 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 		)
 	})
 	defer restore()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "")
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
 
@@ -221,9 +218,8 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 		)
 	})
 	defer restore()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "")
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"})
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
