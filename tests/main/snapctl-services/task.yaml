@@ -39,5 +39,8 @@ execute: |
     echo "It's running"
     snap services test-snapd-service.test-snapd-service|MATCH " active"
 
+    echo "And restart command was executed as part of configure hook change"
+    snap tasks --last=configure | MATCH "restart of .test-snapd-service.test-snapd-service"
+
     echo "And service could get the new configvalue set from the hook"
     cat $CONFIGVALUEFILE | MATCH "^foo$"
