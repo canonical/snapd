@@ -6,3 +6,4 @@ COMMAND=$(snapctl get command)
 if [ "$COMMAND" != "" ]; then
     snapctl "$COMMAND" test-snapd-service.test-snapd-service
 fi
+sleep 3
