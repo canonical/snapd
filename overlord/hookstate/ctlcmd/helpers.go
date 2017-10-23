@@ -80,12 +80,13 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	chg, err := servicechangeImpl(st, appInfos, inst)
+	ts, err := servicechangeImpl(st, appInfos, inst)
 	if err != nil {
 		return err
 	}
-
 	st.Lock()
+	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.SnapName()))
+	chg.AddAll(ts)
 	st.EnsureBefore(0)
 	st.Unlock()
 
