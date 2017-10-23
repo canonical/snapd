@@ -80,6 +80,11 @@ func (c *Context) SnapRevision() snap.Revision {
 	return c.setup.Revision
 }
 
+// Task returns the task associated with the hook or nil if the context is ephemeral
+func (c *Context) Task() *state.Task {
+	return c.task
+}
+
 // HookName returns the name of the hook in this context.
 func (c *Context) HookName() string {
 	return c.setup.Hook
