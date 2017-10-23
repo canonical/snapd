@@ -1,0 +1,6 @@
+#!/bin/sh
+echo $(snapctl get configvalue) > $SNAP_DATA/configvalue
+while true; do
+    echo "running"
+    sleep 10
+done
