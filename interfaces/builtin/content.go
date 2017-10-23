@@ -93,7 +93,6 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			return fmt.Errorf("content interface path is not clean: %q", p)
 		}
 	}
-
 	return nil
 }
 
@@ -125,9 +124,19 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 	}
 
 	var paths []interface{}
-	err := attrs.Attr(name, &paths)
-	if err != nil {
-		return nil
+	var source map[string]interface{}
+
+	if err := attrs.Attr("source", &source); err == nil {
+		// Access either "source.read" or "source.write" attribute.
+		var ok bool
+		if paths, ok = source[name].([]interface{}); !ok {
+			return nil
+		}
+	} else {
+		// Access either "read" or "write" attribute directly (legacy).
+		if err := attrs.Attr(name, &paths); err != nil {
+			return nil
+		}
 	}
 
 	out := make([]string, len(paths))
@@ -167,12 +176,23 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
+
 	var target string
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
+	source := resolveSpecialVariable(relSrc, slot.Snap())
+	target = resolveSpecialVariable(target, plug.Snap())
+
+	// Check if the "source" section is present.
+	var unused map[string]interface{}
+	if err := slot.Attr("source", &unused); err == nil {
+		_, sourceName := filepath.Split(source)
+		target = filepath.Join(target, sourceName)
+	}
+
 	return mount.Entry{
-		Name:    resolveSpecialVariable(relSrc, slot.Snap()),
-		Dir:     resolveSpecialVariable(target, plug.Snap()),
+		Name:    source,
+		Dir:     target,
 		Options: options,
 	}
 }
