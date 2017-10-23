@@ -452,3 +452,79 @@ slots:
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
+
+func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {
+	// Define one app snap and two snaps plugin snaps.
+	plug := MockPlug(c, `name: app
+plugs:
+ plugins:
+  interface: content
+  content: plugin-for-app
+  target: $SNAP/plugins
+apps:
+ app:
+  command: foo
+
+`, &snap.SideInfo{Revision: snap.R(1)}, "plugins")
+	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
+
+	// XXX: realistically the plugin may be a single file and we don't support
+	// those very well.
+	slotOne := MockSlot(c, `name: plugin-one
+slots:
+ plugin-for-app:
+  interface: content
+  source:
+    read: [$SNAP/plugin]
+`, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
+	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil)
+
+	slotTwo := MockSlot(c, `name: plugin-two
+slots:
+ plugin-for-app:
+  interface: content
+  source:
+    read: [$SNAP/plugin]
+`, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
+	connectedSlotTwo := interfaces.NewConnectedSlot(slotTwo, nil)
+
+	// Create the mount and apparmor specifications.
+	mountSpec := &mount.Specification{}
+	apparmorSpec := &apparmor.Specification{}
+	for _, connectedSlot := range []*interfaces.ConnectedSlot{connectedSlotOne, connectedSlotTwo} {
+		c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+		c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+	}
+
+	// Analyze the mount specification.
+	expectedMnt := []mount.Entry{{
+		Name:    "/snap/plugin-one/1/plugin",
+		Dir:     "/snap/app/1/plugins/plugin",
+		Options: []string{"bind", "ro"},
+	}, {
+		Name:    "/snap/plugin-two/1/plugin",
+		Dir:     "/snap/app/1/plugins/plugin-2",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(mountSpec.MountEntries(), DeepEquals, expectedMnt)
+
+	// Analyze the apparmor specification.
+	//
+	// NOTE: the paths below refer to the original locations and are *NOT*
+	// altered like the mount entries above. This is indented. See the comment
+	// below for explanation as to why those are necessary.
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.app.app"})
+	expected := `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+/snap/plugin-one/1/plugin/** mrkix,
+
+
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+/snap/plugin-two/1/plugin/** mrkix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.app.app"), Equals, expected)
+}
