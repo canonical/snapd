@@ -511,7 +511,7 @@ slots:
 	// Analyze the apparmor specification.
 	//
 	// NOTE: the paths below refer to the original locations and are *NOT*
-	// altered like the mount entries above. This is indented. See the comment
+	// altered like the mount entries above. This is intended. See the comment
 	// below for explanation as to why those are necessary.
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.app.app"})
 	expected := `
