@@ -74,7 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
-Requires:       apparmor
+Requires:       apparmor-parser
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
