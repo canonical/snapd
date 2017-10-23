@@ -1,4 +1,7 @@
 #!/bin/sh
+
+snapctl set configvalue=$(snapctl get sourcevalue)
+
 COMMAND=$(snapctl get command)
 if [ "$COMMAND" != "" ]; then
     snapctl "$COMMAND" test-snapd-service.test-snapd-service

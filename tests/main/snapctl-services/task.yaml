@@ -1,6 +1,12 @@
 summary: Check that own services can be controlled by snapctl
 
 kill-timeout: 3m
+environment:
+    CONFIGVALUEFILE: /var/snap/test-snapd-service/current/configvalue
+
+restore: |
+    rm -f $CONFIGVALUEFILE
+
 execute: |
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
@@ -28,7 +34,10 @@ execute: |
     snap services test-snapd-service.test-snapd-service|MATCH " inactive"
 
     echo "And then restart"
-    snap set test-snapd-service command=restart
+    snap set test-snapd-service sourcevalue=foo command=restart
 
     echo "It's running"
     snap services test-snapd-service.test-snapd-service|MATCH " active"
+
+    echo "And service could get the new configvalue set from the hook"
+    cat $CONFIGVALUEFILE | MATCH "^foo$"
