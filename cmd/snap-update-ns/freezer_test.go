@@ -84,7 +84,7 @@ func (s *freezerSuite) TestThawSnapProcesses(c *C) {
 	_, err = os.Stat(f)
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	// When the cgroup exists we write FROZEN the freezer.state file.
+	// When the cgroup exists we write THAWED the freezer.state file.
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 	c.Assert(update.ThawSnapProcesses(n), IsNil)
 	_, err = os.Stat(f)
