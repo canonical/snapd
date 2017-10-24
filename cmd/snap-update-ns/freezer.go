@@ -53,9 +53,9 @@ func freezeSnapProcesses(snapName string) error {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		break
+		return nil
 	}
-	return nil
+	return fmt.Errorf("cannot finish freezing processes of snap %q", snapName)
 }
 
 func thawSnapProcesses(snapName string) error {
