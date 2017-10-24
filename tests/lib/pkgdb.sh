@@ -5,7 +5,7 @@
 
 debian_name_package() {
     case "$1" in
-        xdelta3|curl|python3-yaml|kpartx|busybox-static)
+        xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
             echo "$1"
             ;;
         man)
