@@ -20,48 +20,18 @@
 package storestate_test
 
 import (
-	"io/ioutil"
-	"net/url"
-	"os"
-	"path/filepath"
 	"testing"
-
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
-	"github.com/snapcore/snapd/store"
 
 	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type fakeAuthContext struct{}
-
-func (*fakeAuthContext) Device() (*auth.DeviceState, error) {
-	panic("fakeAuthContext Device is not implemented")
-}
-
-func (*fakeAuthContext) UpdateDeviceAuth(*auth.DeviceState, string) (*auth.DeviceState, error) {
-	panic("fakeAuthContext UpdateDeviceAuth is not implemented")
-}
-
-func (*fakeAuthContext) UpdateUserAuth(*auth.UserState, []string) (*auth.UserState, error) {
-	panic("fakeAuthContext UpdateUserAuth is not implemented")
-}
-
-func (*fakeAuthContext) StoreID(string) (string, error) {
-	panic("fakeAuthContext StoreID is not implemented")
-}
-
-func (*fakeAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
-	panic("fakeAuthContext DeviceSessionRequestParams is not implemented")
-}
-
 type storeStateSuite struct{}
 
 var _ = Suite(&storeStateSuite{})
 
+/*
 func (ss *storeStateSuite) state(c *C, data string) *state.State {
 	if data == "" {
 		return state.New(nil)
@@ -97,113 +67,6 @@ func (ss *storeStateSuite) TestExplicitBaseURL(c *C) {
 	st.Set("store", &storeState)
 	baseURL := storestate.BaseURL(st)
 	c.Check(baseURL, Equals, storeState.BaseURL)
-}
-
-func (ss *storeStateSuite) TestSetupStoreCachesState(c *C) {
-	st := ss.state(c, "")
-	st.Lock()
-	defer st.Unlock()
-
-	c.Check(func() { storestate.Store(st) }, PanicMatches,
-		"internal error: needing the store before managers have initialized it")
-	c.Check(func() { storestate.CachedAuthContext(st) }, PanicMatches,
-		"internal error: needing the auth context before managers have initialized it")
-
-	err := storestate.SetupStore(st, &fakeAuthContext{})
-	c.Assert(err, IsNil)
-
-	c.Check(storestate.Store(st), NotNil)
-	c.Check(storestate.CachedAuthContext(st), NotNil)
-}
-
-func (ss *storeStateSuite) TestSetupStoreDefaultBaseURL(c *C) {
-	var config *store.Config
-	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
-		config = c
-		return nil
-	})()
-
-	st := ss.state(c, "")
-	st.Lock()
-	defer st.Unlock()
-
-	err := storestate.SetupStore(st, nil)
-	c.Assert(err, IsNil)
-
-	c.Check(config.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
-}
-
-func (ss *storeStateSuite) TestSetupStoreBaseURLFromState(c *C) {
-	var config *store.Config
-	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
-		config = c
-		return nil
-	})()
-
-	st := ss.state(c, `{"data":{"store":{"base-url": "http://example.com/"}}}`)
-	st.Lock()
-	defer st.Unlock()
-
-	err := storestate.SetupStore(st, nil)
-	c.Assert(err, IsNil)
-
-	c.Check(config.StoreBaseURL.String(), Equals, "http://example.com/")
-}
-
-func (ss *storeStateSuite) TestSetupStoreBadEnvironURLOverride(c *C) {
-	// We need store state to trigger this.
-	st := ss.state(c, `{"data":{"store":{"base-url": "http://example.com/"}}}`)
-	st.Lock()
-	defer st.Unlock()
-
-	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
-	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
-
-	err := storestate.SetupStore(st, nil)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
-}
-
-func (ss *storeStateSuite) TestSetupStoreEmptyBaseURLFromState(c *C) {
-	var config *store.Config
-	defer storestate.MockStoreNew(func(c *store.Config, _ auth.AuthContext) *store.Store {
-		config = c
-		return nil
-	})()
-
-	st := ss.state(c, `{"data":{"store":{"base-url": ""}}}`)
-	st.Lock()
-	defer st.Unlock()
-
-	err := storestate.SetupStore(st, nil)
-	c.Assert(err, IsNil)
-
-	c.Check(config.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
-}
-
-func (ss *storeStateSuite) TestSetupStoreInvalidBaseURLFromState(c *C) {
-	st := ss.state(c, `{"data":{"store":{"base-url": "://example.com/"}}}`)
-	st.Lock()
-	defer st.Unlock()
-
-	err := storestate.SetupStore(st, nil)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid store API base URL: parse ://example.com/: missing protocol scheme")
-}
-
-func (ss *storeStateSuite) TestStore(c *C) {
-	st := ss.state(c, "")
-	st.Lock()
-	defer st.Unlock()
-
-	sto := &store.Store{}
-	storestate.ReplaceStore(st, sto)
-	store1 := storestate.Store(st)
-	c.Check(store1, Equals, sto)
-
-	// cached
-	store2 := storestate.Store(st)
-	c.Check(store2, Equals, sto)
 }
 
 func (ss *storeStateSuite) TestSetBaseURL(c *C) {
@@ -257,3 +120,4 @@ func (ss *storeStateSuite) TestSetBaseURLBadEnvironURLOverride(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
+*/

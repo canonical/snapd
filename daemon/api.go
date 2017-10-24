@@ -59,7 +59,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -523,12 +522,12 @@ func webify(result *client.Snap, resource string) *client.Snap {
 	return result
 }
 
-func getStore(c *Command) storestate.StoreService {
+func getStore(c *Command) snapstate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return storestate.Store(st)
+	return snapstate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
