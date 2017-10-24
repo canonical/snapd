@@ -58,6 +58,7 @@ import (
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
+	testutil.BaseTest
 	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
@@ -66,8 +67,6 @@ type snapmgrTestSuite struct {
 	fakeStore   *fakeStore
 
 	user *auth.UserState
-
-	reset func()
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -78,10 +77,13 @@ func (s *snapmgrTestSuite) settle(c *C) {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeStore = &fakeStore{
@@ -107,18 +109,16 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
-	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
+	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 
-	s.reset = func() {
+	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 
-		restore2()
-		restore1()
 		dirs.SetRootDir("/")
-	}
+	})
 
 	s.state.Lock()
 	storestate.ReplaceStore(s.state, s.fakeStore)
@@ -141,10 +141,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
-	s.reset()
 }
 
 const (
@@ -4987,7 +4987,8 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 }
 
 type snapmgrQuerySuite struct {
-	st *state.State
+	st      *state.State
+	restore func()
 }
 
 var _ = Suite(&snapmgrQuerySuite{})
@@ -4996,6 +4997,11 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.restore = func() {
+		restoreSanitize()
+	}
 
 	s.st = st
 
@@ -5031,6 +5037,7 @@ description: |
 
 func (s *snapmgrQuerySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *snapmgrQuerySuite) TestInfo(c *C) {
