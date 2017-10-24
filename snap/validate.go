@@ -105,23 +105,11 @@ func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, pa
 			`socket %q has invalid %q: paths must not include "." or ".."`, socket.Name, fieldName)
 	}
 
-	if path[0] == '$' {
-		if strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") {
-			return nil
-		}
-
+	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
 		return fmt.Errorf(
 			"socket %q has invalid %q: only $SNAP_DATA and $SNAP_COMMON prefixes are allowed", socket.Name, fieldName)
 	}
 
-	if path[0] == '/' {
-		dataDirPrefix := socket.App.Snap.DataDir() + "/"
-		commonDirPrefix := socket.App.Snap.CommonDataDir() + "/"
-		if !(strings.HasPrefix(path, dataDirPrefix) || strings.HasPrefix(path, commonDirPrefix)) {
-			return fmt.Errorf(
-				"socket %q path for %q must start with %q or %q", socket.Name, fieldName, dataDirPrefix, commonDirPrefix)
-		}
-	}
 	return nil
 }
 

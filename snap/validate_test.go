@@ -35,7 +35,7 @@ var _ = Suite(&ValidateSuite{})
 func createSampleApp() *AppInfo {
 	socket := &SocketInfo{
 		Name:         "sock",
-		ListenStream: "/var/snap/mysnap/common/socket",
+		ListenStream: "$SNAP_COMMON/socket",
 	}
 	app := &AppInfo{
 		Snap: &Info{
@@ -191,9 +191,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 	app := createSampleApp()
 	validListenAddresses := []string{
-		// socket paths
-		"/var/snap/mysnap/common/my.socket",
-		"/var/snap/mysnap/20/my.socket",
+		// socket paths using variables as prefix
 		"$SNAP_DATA/my.socket",
 		"$SNAP_COMMON/my.socket",
 		// abstract sockets
@@ -217,14 +215,14 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	invalidListenAddresses := []string{
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
-		"/var/snap/anothersnap/my.socket",
-		"/var/snap/mysnap/33/my.socket", // different revision
+		"/var/snap/mysnap/20/my.socket", // path is correct but has hardcoded prefix
 	}
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must start with.*`)
+		c.Assert(
+			err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
 	}
 }
 
