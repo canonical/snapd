@@ -43,7 +43,7 @@ func freezeSnapProcesses(snapName string) error {
 	} else if err != nil {
 		return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 	}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		data, err := ioutil.ReadFile(fname)
 		if err != nil {
 			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
