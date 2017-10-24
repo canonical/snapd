@@ -67,7 +67,7 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	return svcs, nil
 }
 
-var servicechangeImpl = servicestate.Change
+var servicestateControl = servicestate.Control
 
 func queueCommand(context *hookstate.Context, ts *state.TaskSet) {
 	// queue command task after all existing tasks of the hook's change
@@ -96,7 +96,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	ts, err := servicechangeImpl(st, appInfos, inst)
+	ts, err := servicestateControl(st, appInfos, inst)
 	if err != nil {
 		return err
 	}
