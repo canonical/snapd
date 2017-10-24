@@ -6,7 +6,7 @@ description: A basic snap to access gsettings
 apps:
   check-schema:
     command: check-schema
-    plugs: [gsettings]
+    plugs: [gsettings, desktop]
 
 parts:
     deps:
