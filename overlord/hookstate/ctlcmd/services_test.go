@@ -67,7 +67,7 @@ apps:
 `
 
 func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServiceChangeFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction) (*state.TaskSet, error) {
+	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction) (*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
 		return nil, fmt.Errorf("forced error")
 	})
