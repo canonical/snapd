@@ -59,7 +59,6 @@ func (c Change) String() string {
 // the kernel (--make-shared, for example) are unsupported.
 func (c *Change) Perform() error {
 	if c.Action == Mount {
-		// TODO: use the right mode and ownership.
 		mode := os.FileMode(0755)
 		uid := 0
 		gid := 0
