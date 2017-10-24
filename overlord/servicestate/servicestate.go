@@ -39,7 +39,7 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
-func Change(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	// the argv to call systemctl will need at most one entry per appInfo,
 	// plus one for "systemctl", one for the action, and sometimes one for
 	// an option. That's a maximum of 3+len(appInfos).
