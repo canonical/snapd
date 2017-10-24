@@ -2477,10 +2477,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
 	}
 
-	change := st.NewChange(a.Action, summary)
-	change.Set("snap-names", []string{a.Snap})
-	change.AddAll(taskset)
-
+	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
