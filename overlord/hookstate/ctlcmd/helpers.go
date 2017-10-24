@@ -75,7 +75,11 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) {
 	st.Lock()
 	defer st.Unlock()
 
-	change := context.Task().Change()
+	task, ok := context.Task()
+	if !ok {
+		panic("attempted to queue command with ephemeral context")
+	}
+	change := task.Change()
 	tasks := change.Tasks()
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
@@ -97,7 +101,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	if !context.IsEphemeral() && context.HookName() == "configure" && (inst.Action == "restart" || inst.Action == "start") {
+	if !context.IsEphemeral() && context.HookName() == "configure" {
 		queueCommand(context, ts)
 		return nil
 	}
