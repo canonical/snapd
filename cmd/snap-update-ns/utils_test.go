@@ -41,19 +41,11 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
-// Ensure that we can create a directory with an relative path.
+// Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
-	c.Assert(update.SecureMkdirAllImpl("rel/path", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`mkdirat -100 "rel" 0755`,
-		`openat -100 "rel" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`fchown 3 123 456`,
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 3`,
-		`fchown 4 123 456`,
-		`close 4`,
-	})
+	err := update.SecureMkdirAllImpl("rel/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot create directory with relative path: "rel/path"`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
 // Ensure that we can create a directory with an absolute path.

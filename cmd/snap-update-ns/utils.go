@@ -30,7 +30,6 @@ import (
 // not available through syscall
 const (
 	UMOUNT_NOFOLLOW = 8
-	AT_FDCWD        = -100
 )
 
 // For mocking everything during testing.
@@ -65,17 +64,17 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 	// Declare var and don't assign-declare below to ensure we don't swallow
 	// any errors by mistake.
 	var err error
-	// Start at the current working directory by default.
-	var fd int = AT_FDCWD
+	var fd int
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
-	// If path is absolute then open the root directory and start there.
-	if path.IsAbs(name) {
-		fd, err = sysOpen("/", openFlags, 0)
-		if err != nil {
-			return fmt.Errorf("cannot open root directory, %v", err)
-		}
+	if !path.IsAbs(name) {
+		return fmt.Errorf("cannot create directory with relative path: %q", name)
+	}
+	// Open the root directory and start there.
+	fd, err = sysOpen("/", openFlags, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open root directory, %v", err)
 	}
 
 	// Split the path by entries and create each element using mkdirat() using
@@ -100,10 +99,8 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 		previousFd := fd
 
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
-		if previousFd != AT_FDCWD {
-			if err := sysClose(previousFd); err != nil {
-				return fmt.Errorf("cannot close previous file descriptor, %v", err)
-			}
+		if err := sysClose(previousFd); err != nil {
+			return fmt.Errorf("cannot close previous file descriptor, %v", err)
 		}
 		if err != nil {
 			return fmt.Errorf("cannot open path segment %q, %v", segment, err)
@@ -116,10 +113,8 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 		}
 
 	}
-	if fd != AT_FDCWD {
-		if err = sysClose(fd); err != nil {
-			return fmt.Errorf("cannot close file descriptor, %v", err)
-		}
+	if err = sysClose(fd); err != nil {
+		return fmt.Errorf("cannot close file descriptor, %v", err)
 	}
 	return nil
 }

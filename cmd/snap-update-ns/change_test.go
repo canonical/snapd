@@ -202,131 +202,136 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 
 // Change.Perform calls the mount system call.
 func (s *changeSuite) TestPerformMount(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mount "source" "target" "type" 0 ""`,
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 ""`,
 	})
 }
 
 // Change.Perform calls the mount system call (for bind mounts).
 func (s *changeSuite) TestPerformBindMount(c *C) {
-	s.sys.InsertLstatResult(`lstat "source"`, update.FileInfoDir)
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bind"}}}
+	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoDir)
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	err := chg.Perform()
 	c.Check(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`lstat "source"`,
-		`mount "source" "target" "type" MS_BIND ""`,
+		`lstat "/target"`,
+		`lstat "/source"`,
+		`mount "/source" "/target" "type" MS_BIND ""`,
 	})
 }
 
 // Change.Perform creates the missing mount target.
 func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
-	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mkdirat -100 "target" 0755`,
-		`openat -100 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`fchown 3 0 0`,
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "target" 0755`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`close 3`,
-		`mount "source" "target" "type" 0 ""`,
+		`fchown 4 0 0`,
+		`close 4`,
+		`mount "/source" "/target" "type" 0 ""`,
 	})
 }
 
 // Change.Perform creates the missing bind-mount source.
 func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	s.sys.InsertFault(`lstat "source"`, os.ErrNotExist)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bind"}}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertFault(`lstat "/source"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`lstat "source"`,
-		`mkdirat -100 "source" 0755`,
-		`openat -100 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`fchown 3 0 0`,
+		`lstat "/target"`,
+		`lstat "/source"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "source" 0755`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`close 3`,
-		`mount "source" "target" "type" MS_BIND ""`,
+		`fchown 4 0 0`,
+		`close 4`,
+		`mount "/source" "/target" "type" MS_BIND ""`,
 	})
 }
 
 // Change.Perform rejects mount target if it is a symlink.
 func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoSymlink)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
+		`lstat "/target"`,
 	})
 }
 
 // Change.Perform rejects bind-mount target if it is a symlink.
 func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoSymlink)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bind"}}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
+		`lstat "/target"`,
 	})
 }
 
 // Change.Perform rejects bind-mount source if it is a symlink.
 func (s *changeSuite) TestPerformBindMountRejectsSourceSymlink(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	s.sys.InsertLstatResult(`lstat "source"`, update.FileInfoSymlink)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bind"}}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "source" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/source" for mounting, not a directory`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`lstat "source"`,
+		`lstat "/target"`,
+		`lstat "/source"`,
 	})
 }
 
 // Change.Perform returns errors from os.Lstat (apart from ErrNotExist)
 func (s *changeSuite) TestPerformMountLstatError(c *C) {
-	s.sys.InsertFault(`lstat "target"`, errTesting)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertFault(`lstat "/target"`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot inspect "target", testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`lstat "target"`})
+	c.Assert(err, ErrorMatches, `cannot inspect "/target", testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`lstat "/target"`})
 }
 
 // Change.Perform returns errors from os.MkdirAll
 func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
-	s.sys.InsertFault(`lstat "target"`, os.ErrNotExist)
-	s.sys.InsertFault(`mkdirat -100 "target" 0755`, errTesting)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
 	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target", testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mkdirat -100 "target" 0755`,
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "target" 0755`,
 	})
 }
 
 // Change.Perform returns errors from mount system call
 func (s *changeSuite) TestPerformMountError(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	s.sys.InsertFault(`mount "source" "target" "type" 0 ""`, errTesting)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertFault(`mount "/source" "/target" "type" 0 ""`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
 	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mount "source" "target" "type" 0 ""`,
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 ""`,
 	})
 }
 
