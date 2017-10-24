@@ -55,6 +55,8 @@ func freezeSnapProcesses(snapName string) error {
 		}
 		return nil
 	}
+	// If we got here then we timed out after seeing FREEZING for too long.
+	thawSnapProcesses(snapName) // ignore the error, this is best-effort.
 	return fmt.Errorf("cannot finish freezing processes of snap %q", snapName)
 }
 
