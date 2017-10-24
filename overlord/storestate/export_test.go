@@ -18,18 +18,3 @@
  */
 
 package storestate
-
-import (
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/store"
-)
-
-// MockStoreNew mocks store.New as called by storestate.SetupStore.
-func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) func() {
-	storeNew = new
-	return func() {
-		storeNew = store.New
-	}
-}
-
-var CachedAuthContext = cachedAuthContext
