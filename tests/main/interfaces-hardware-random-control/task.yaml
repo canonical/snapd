@@ -34,6 +34,10 @@ execute: |
         exit 1
     fi
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     echo "When the plug is disconnected"
     snap disconnect hardware-random-control:hardware-random-control
 
