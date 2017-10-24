@@ -2641,8 +2641,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := st.NewChange("service-control", fmt.Sprintf("Running service command"))
-	chg.AddAll(ts)
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
