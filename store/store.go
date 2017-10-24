@@ -203,21 +203,7 @@ func (cfg *Config) SetBaseURL(u *url.URL) error {
 
 // Store represents the ubuntu snap store
 type Store struct {
-	searchURI      *url.URL
-	detailsURI     *url.URL
-	bulkURI        *url.URL
-	assertionsURI  *url.URL
-	ordersURI      *url.URL
-	buyURI         *url.URL
-	customersMeURI *url.URL
-	sectionsURI    *url.URL
-	commandsURI    *url.URL
-
-	// Device auth endpoints.
-	// - deviceNonceURI points to endpoint to get a nonce
-	// - deviceSessionURI points to endpoint to get a device session
-	deviceNonceURI   *url.URL
-	deviceSessionURI *url.URL
+	cfg *Config
 
 	architecture string
 	series       string
@@ -283,7 +269,7 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-// Clone a base URL and update with optional path and query.
+// endpointURL clones a base URL and updates it with optional path and query.
 func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 	u := *base
 	if path != "" {
@@ -442,6 +428,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	}
 
 	store := &Store{
+		cfg:             cfg,
 		series:          series,
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
@@ -456,33 +443,31 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 			MayLogBody: true,
 		}),
 	}
+	return store
+}
 
+// API endpoint paths
+const (
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
-	// XXX: These are all required in real system but optional makes it
-	// convenient for tests.
 	// XXX: Repeating "api/" here is cumbersome, but the next generation
 	// of store APIs will probably drop that prefix (since it now
 	// duplicates the hostname), and we may want to switch to v2 APIs
 	// one at a time; so it's better to consider that as part of
 	// individual endpoint paths.
-	if cfg.StoreBaseURL != nil {
-		store.searchURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/search", nil)
-		store.detailsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/details", nil)
-		store.bulkURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/metadata", nil)
-		store.ordersURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/orders", nil)
-		store.buyURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/buy", nil)
-		store.customersMeURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/purchases/customers/me", nil)
-		store.sectionsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/sections", nil)
-		store.commandsURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/names", nil)
-		store.deviceNonceURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/nonces", nil)
-		store.deviceSessionURI = endpointURL(cfg.StoreBaseURL, "api/v1/snaps/auth/sessions", nil)
-	}
-	if cfg.AssertionsBaseURL != nil {
-		store.assertionsURI = endpointURL(cfg.AssertionsBaseURL, "assertions", nil)
-	}
+	searchEndpPath      = "api/v1/snaps/search"
+	detailsEndpPath     = "api/v1/snaps/details"
+	bulkEndpPath        = "api/v1/snaps/metadata"
+	ordersEndpPath      = "api/v1/snaps/purchases/orders"
+	buyEndpPath         = "api/v1/snaps/purchases/buy"
+	customersMeEndpPath = "api/v1/snaps/purchases/customers/me"
+	sectionsEndpPath    = "api/v1/snaps/sections"
+	commandsEndpPath    = "api/v1/snaps/names"
 
-	return store
-}
+	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
+	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
+
+	assertionsPath = "assertions"
+)
 
 func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
@@ -490,6 +475,14 @@ func (s *Store) defaultSnapQuery() url.Values {
 		q.Set("fields", strings.Join(s.detailFields, ","))
 	}
 	return q
+}
+
+func (s *Store) endpointURL(p string, query url.Values) *url.URL {
+	return endpointURL(s.cfg.StoreBaseURL, p, query)
+}
+
+func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
+	return endpointURL(s.cfg.AssertionsBaseURL, path.Join(assertionsPath, p), query)
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -618,7 +611,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce(s.deviceNonceURI.String())
+	nonce, err := requestStoreDeviceNonce(s.endpointURL(deviceNonceEndpPath, nil).String())
 	if err != nil {
 		return err
 	}
@@ -628,7 +621,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(s.deviceSessionURI.String(), devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -930,7 +923,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    s.ordersURI,
+		URL:    s.endpointURL(ordersEndpPath, nil),
 		Accept: jsonContentType,
 	}
 	var result ordersResult
@@ -1002,7 +995,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 	query.Set("channel", channel)
 
-	u := endpointURL(s.detailsURI, snapSpec.Name, query)
+	u := s.endpointURL(path.Join(detailsEndpPath, snapSpec.Name), query)
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    u,
@@ -1094,7 +1087,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		q.Set("confinement", "strict")
 	}
 
-	u := endpointURL(s.searchURI, "", q)
+	u := s.endpointURL(searchEndpPath, q)
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    u,
@@ -1134,7 +1127,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    s.sectionsURI,
+		URL:    s.endpointURL(sectionsEndpPath, nil),
 		Accept: halJsonContentType,
 	}
 
@@ -1163,7 +1156,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
 func (s *Store) WriteCatalogs(names io.Writer) error {
-	u := *s.commandsURI
+	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
 	if release.OnClassic {
@@ -1269,7 +1262,7 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.bulkURI,
+		URL:         s.endpointURL(bulkEndpPath, nil),
 		Accept:      halJsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -1704,7 +1697,7 @@ type assertionSvcError struct {
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
-	u := endpointURL(s.assertionsURI, path.Join(assertType.Name, path.Join(primaryKey...)), v)
+	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
 	reqOptions := &requestOptions{
 		Method: "GET",
@@ -1845,7 +1838,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.buyURI,
+		URL:         s.endpointURL(buyEndpPath, nil),
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -1909,7 +1902,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    s.customersMeURI,
+		URL:    s.endpointURL(customersMeEndpPath, nil),
 		Accept: jsonContentType,
 	}
 

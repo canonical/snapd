@@ -3963,11 +3963,6 @@ func (t *remoteRepoTestSuite) TestNew(c *C) {
 	aStore := New(nil, nil)
 	// check for fields
 	c.Check(aStore.detailFields, DeepEquals, detailFields)
-	c.Check(aStore.searchURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.detailsURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.bulkURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.sectionsURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.assertionsURI.Query(), DeepEquals, url.Values{})
 }
 
 var testAssertion = `type: snap-declaration
