@@ -126,8 +126,8 @@ func EnsureMountPointImpl(path string, mode os.FileMode, uid int, gid int) error
 	// $SNAP_DATA/subdirectory.
 	//
 	// We use lstat to ensure that we don't follow the symlink in case one
-	// was set up by the snap. At the time Change.Perform runs all the
-	// processes in the snap should be frozen.
+	// was set up by the snap. Note that at the time this is run, all the
+	// snap's processes are frozen.
 	fi, err := osLstat(path)
 	switch {
 	case err != nil && os.IsNotExist(err):
