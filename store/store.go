@@ -183,9 +183,9 @@ type Config struct {
 	CacheDownloads int
 }
 
-// SetBaseURL updates the store API's base URL in the Config. Must not be used
+// setBaseURL updates the store API's base URL in the Config. Must not be used
 // to change active config.
-func (cfg *Config) SetBaseURL(u *url.URL) error {
+func (cfg *Config) setBaseURL(u *url.URL) error {
 	storeBaseURI, err := storeURL(u)
 	if err != nil {
 		return err
@@ -367,7 +367,7 @@ func init() {
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	err = defaultConfig.SetBaseURL(storeBaseURI)
+	err = defaultConfig.setBaseURL(storeBaseURI)
 	if err != nil {
 		panic(err)
 	}
