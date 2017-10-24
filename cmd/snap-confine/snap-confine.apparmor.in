@@ -508,9 +508,8 @@
         # descriptor.
         / r,
         /var/ r,
-        /var/snap/ r,
-        /var/snap/*/ r,
-        /var/snap/*/** rw,
+        /var/snap/{,*/} r,
+        /var/snap/*/**/ rw,
 
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
