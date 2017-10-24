@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -77,7 +78,7 @@ func ValidateAlias(alias string) error {
 func ValidateAppSocketName(name string) error {
 	valid := validSnapName.MatchString(name)
 	if !valid {
-		return fmt.Errorf("invalid app socket name: %q", name)
+		return fmt.Errorf("invalid socket name: %q", name)
 	}
 	return nil
 }
@@ -99,6 +100,11 @@ func ValidateAppSocketListenAddress(socket *SocketInfo, fieldName string, addres
 }
 
 func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, path string) error {
+	if path != filepath.Clean(path) {
+		return fmt.Errorf(
+			`socket %q has invalid %q: paths must not include "." or ".."`, socket.Name, fieldName)
+	}
+
 	if path[0] == '$' {
 		if strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") {
 			return nil
@@ -289,7 +295,7 @@ func ValidateApp(app *AppInfo) error {
 	// Socket activatin requires the "network-bind" plug
 	if len(app.Sockets) > 0 {
 		if _, ok := app.Plugs["network-bind"]; !ok {
-			return fmt.Errorf(`app with sockets must declare the "network-bind" plug`)
+			return fmt.Errorf(`"network-bind" interface plug is required when sockets are used`)
 		}
 	}
 
