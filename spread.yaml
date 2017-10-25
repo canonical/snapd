@@ -369,6 +369,12 @@ restore: |
     rm -f $SPREAD_PATH/snapd-state.tar.gz
     rm -rf ${GOPATH%%:*}/*
 
+restore-each: |
+    if grep "invalid .*snap.*.rules" /var/log/syslog; then
+        echo "Invalid udev file detected, test most likely broke it"
+        exit 1
+    fi
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
