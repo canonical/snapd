@@ -1,5 +1,5 @@
 #!/bin/sh
-echo $(snapctl get configvalue) > $SNAP_DATA/configvalue
+snapctl get service-option > $SNAP_DATA/service-option
 while true; do
     echo "running"
     sleep 10
