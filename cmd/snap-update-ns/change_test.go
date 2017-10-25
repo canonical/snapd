@@ -237,9 +237,9 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "target" 0755`,
 		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 3`,
 		`fchown 4 0 0`,
 		`close 4`,
+		`close 3`,
 		`mount "/source" "/target" "type" 0 ""`,
 	})
 }
@@ -257,9 +257,9 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "source" 0755`,
 		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 3`,
 		`fchown 4 0 0`,
 		`close 4`,
+		`close 3`,
 		`mount "/source" "/target" "type" MS_BIND ""`,
 	})
 }

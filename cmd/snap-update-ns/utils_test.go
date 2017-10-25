@@ -60,12 +60,12 @@ func (s *utilsSuite) TestSecureMkdirAllAbsolute(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 3`,
 		`fchown 4 123 456`,
 		`mkdirat 4 "path" 0755`,
 		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 5 123 456`,
+		`close 5`,
 		`close 4`,
-		`fchown 3 123 456`,
 		`close 3`,
 	})
 }
@@ -80,9 +80,9 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 3`,
 		`mkdirat 4 "path" 0755`,
 		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 5`,
 		`close 4`,
 		`close 3`,
 	})

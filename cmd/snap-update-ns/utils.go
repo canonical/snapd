@@ -76,6 +76,7 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 	if err != nil {
 		return fmt.Errorf("cannot open root directory: %v", err)
 	}
+	defer sysClose(fd)
 
 	// Split the path by entries and create each element using mkdirat() using
 	// the parent directory as reference. Each time we open the newly created
@@ -93,21 +94,14 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 			case syscall.EEXIST:
 				made = false
 			default:
-				if err := sysClose(fd); err != nil {
-					return fmt.Errorf("cannot close file descriptor %d: %v", fd, err)
-				}
 				return fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
 			}
 		}
-		previousFd := fd
-
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
-		if err := sysClose(previousFd); err != nil {
-			return fmt.Errorf("cannot close previous file descriptor %d: %v", fd, err)
-		}
 		if err != nil {
 			return fmt.Errorf("cannot open path segment %q: %v", segment, err)
 		}
+		defer sysClose(fd)
 		if made {
 			// Chown each segment that we made.
 			if err := sysFchown(fd, uid, gid); err != nil {
@@ -115,9 +109,6 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 			}
 		}
 
-	}
-	if err = sysClose(fd); err != nil {
-		return fmt.Errorf("cannot close file descriptor %d: %v", fd, err)
 	}
 	return nil
 }
