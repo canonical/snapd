@@ -55,7 +55,7 @@ func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 			kv := strings.SplitN(opt, "=", 2)
 			uid, err = osutil.FindUid(kv[1])
 			if err != nil {
-				// The error message is not very useful so just skip it.
+				// The error message from FindUid is not very useful so just skip it.
 				return math.MaxUint64, fmt.Errorf("cannot resolve user name %q", kv[1])
 			}
 			return uid, nil
@@ -73,7 +73,7 @@ func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
 			kv := strings.SplitN(opt, "=", 2)
 			gid, err = osutil.FindGid(kv[1])
 			if err != nil {
-				// The error message is not very useful so just skip it.
+				// The error message from FindGid is not very useful so just skip it.
 				return math.MaxUint64, fmt.Errorf("cannot resolve group name %q", kv[1])
 			}
 			return gid, nil
