@@ -202,9 +202,7 @@ func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 func OptsToFlags(opts []string) (flags int, err error) {
 	flags, unparsed := OptsToCommonFlags(opts)
 	for _, opt := range unparsed {
-		switch opt {
-		// TODO: add x-snapd. flag handling here.
-		default:
+		if !strings.HasPrefix(opt, "x-snapd.") {
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)
 		}
 	}
