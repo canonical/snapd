@@ -73,6 +73,12 @@ func (s *entrySuite) TestXSnapdUid(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, daemonUid)
 
+	// Numeric names are used as-is.
+	e = &mount.Entry{Options: []string{"x-snapd.uid=123"}}
+	uid, err = update.XSnapdUid(e)
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, uint64(123))
+
 	// Unknown user names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=.bogus"}}
 	uid, err = update.XSnapdUid(e)
@@ -94,6 +100,13 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	gid, err = update.XSnapdGid(e)
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, daemonGid)
+
+	// Numeric names are used as-is.
+	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
+	gid, err = update.XSnapdGid(e)
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, uint64(456))
+
 
 	// Unknown group names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=.bogus"}}

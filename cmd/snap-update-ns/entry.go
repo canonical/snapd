@@ -53,8 +53,12 @@ func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, "x-snapd.uid=") {
 			kv := strings.SplitN(opt, "=", 2)
-			uid, err = osutil.FindUid(kv[1])
-			if err != nil {
+			// Try to parse a numeric ID first.
+			if n, err := fmt.Sscanf(kv[1], "%d", &uid); n == 1 && err == nil {
+				return uid, nil
+			}
+			// Fall-back to system name lookup.
+			if uid, err = osutil.FindUid(kv[1]); err != nil {
 				// The error message from FindUid is not very useful so just skip it.
 				return math.MaxUint64, fmt.Errorf("cannot resolve user name %q", kv[1])
 			}
@@ -71,8 +75,12 @@ func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, "x-snapd.gid=") {
 			kv := strings.SplitN(opt, "=", 2)
-			gid, err = osutil.FindGid(kv[1])
-			if err != nil {
+			// Try to parse a numeric ID first.
+			if n, err := fmt.Sscanf(kv[1], "%d", &gid); n == 1 && err == nil {
+				return gid, nil
+			}
+			// Fall-back to system name lookup.
+			if gid, err = osutil.FindGid(kv[1]); err != nil {
 				// The error message from FindGid is not very useful so just skip it.
 				return math.MaxUint64, fmt.Errorf("cannot resolve group name %q", kv[1])
 			}
