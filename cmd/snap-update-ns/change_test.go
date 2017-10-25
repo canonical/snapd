@@ -319,6 +319,7 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 		`lstat "/target"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "target" 0755`,
+		`close 3`,
 	})
 }
 

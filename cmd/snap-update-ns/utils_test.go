@@ -41,6 +41,11 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
+func (s *utilsSuite) TearDownTest(c *C) {
+	s.sys.CheckForStrayDescriptors(c)
+	s.BaseTest.TearDownTest(c)
+}
+
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 	err := update.SecureMkdirAllImpl("rel/path", 0755, 123, 456)
@@ -79,6 +84,18 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 		`mkdirat 4 "path" 0755`,
 		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`close 4`,
+		`close 3`,
+	})
+}
+
+// Ensure that we we close everything when mkdir fails.
+func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
+	err := update.SecureMkdirAllImpl("/abs", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs", testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "abs" 0755`,
 		`close 3`,
 	})
 }

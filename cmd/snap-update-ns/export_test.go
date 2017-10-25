@@ -177,6 +177,12 @@ func (sys *SyscallRecorder) freeFd(fd int) error {
 	return nil
 }
 
+func (sys *SyscallRecorder) CheckForStrayDescriptors(c *C) {
+	for fd, ok := range sys.fds {
+		c.Assert(ok, Equals, false, Commentf("unclosed file descriptor %d", fd))
+	}
+}
+
 func (sys *SyscallRecorder) Close(fd int) error {
 	if err := sys.call(fmt.Sprintf("close %d", fd)); err != nil {
 		return err

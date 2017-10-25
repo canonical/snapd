@@ -93,6 +93,9 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 			case syscall.EEXIST:
 				made = false
 			default:
+				if err := sysClose(fd); err != nil {
+					return fmt.Errorf("cannot close file descriptor %d, %v", fd, err)
+				}
 				return fmt.Errorf("cannot mkdir path segment %q, %v", segment, err)
 			}
 		}
