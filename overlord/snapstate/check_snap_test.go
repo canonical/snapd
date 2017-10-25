@@ -32,22 +32,27 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
 type checkSnapSuite struct {
+	testutil.BaseTest
 	st *state.State
 }
 
 var _ = Suite(&checkSnapSuite{})
 
 func (s *checkSnapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 }
 

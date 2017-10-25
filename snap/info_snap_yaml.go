@@ -44,7 +44,7 @@ type snapYaml struct {
 	License          string                 `yaml:"license,omitempty"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
-	Epoch            string                 `yaml:"epoch,omitempty"`
+	Epoch            Epoch                  `yaml:"epoch,omitempty"`
 	Base             string                 `yaml:"base,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
@@ -164,6 +164,8 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Rename specific plugs on the core snap.
 	snap.renameClashingCorePlugs()
 
+	snap.BadInterfaces = make(map[string]string)
+
 	// FIXME: validation of the fields
 	return snap, nil
 }
@@ -179,10 +181,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	typ := TypeApp
 	if y.Type != "" {
 		typ = y.Type
-	}
-	epoch := "0"
-	if y.Epoch != "" {
-		epoch = y.Epoch
 	}
 	confinement := StrictConfinement
 	if y.Confinement != "" {
@@ -202,7 +200,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		License:             y.License,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
-		Epoch:               epoch,
+		Epoch:               y.Epoch,
 		Confinement:         confinement,
 		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),
