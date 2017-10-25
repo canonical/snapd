@@ -93,6 +93,7 @@ var api = []*Command{
 	appsCmd,
 	logsCmd,
 	debugCmd,
+	storeCmd,
 }
 
 var (
@@ -247,6 +248,12 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	storeCmd = &Command{
+		Path:   "/v2/store",
+		PUT:    putStore,
+		DELETE: deleteStore,
 	}
 )
 
@@ -1980,10 +1987,22 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGet = ucrednetGet
-	storeUserInfo             = store.UserInfo
-	osutilAddUser             = osutil.AddUser
+	checkRootUserUcrednetGet = ucrednetGet
+	storeUserInfo            = store.UserInfo
+	osutilAddUser            = osutil.AddUser
 )
+
+// Check the request came from the local machine's root user.
+func checkRootUser(r *http.Request, what string) Response {
+	_, uid, err := checkRootUserUcrednetGet(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot %s as non-root", what)
+	}
+	return nil
+}
 
 func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
 	v, err := storeUserInfo(email)
@@ -2158,12 +2177,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
+	errResponse := checkRootUser(r, "use create-user")
+	if errResponse != nil {
+		return errResponse
 	}
 
 	var createData postUserCreateData
@@ -2377,12 +2393,9 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
+	errResponse := checkRootUser(r, "get users")
+	if errResponse != nil {
+		return errResponse
 	}
 
 	st := c.d.overlord.State()
@@ -2636,4 +2649,87 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+type putStoreData struct {
+	Store string `json:"store"`
+}
+
+type storeResponseData struct {
+	URL string `json:"url"`
+}
+
+// Set new store API from store assertion.
+func putStore(c *Command, r *http.Request, user *auth.UserState) Response {
+	errResponse := checkRootUser(r, "configure store")
+	if errResponse != nil {
+		return errResponse
+	}
+
+	var storeData putStoreData
+	if err := json.NewDecoder(r.Body).Decode(&storeData); err != nil {
+		return BadRequest("cannot decode store data from request body: %v", err)
+	}
+	if storeData.Store == "" {
+		return BadRequest("store is required")
+	}
+
+	st := c.d.overlord.State()
+
+	st.Lock()
+	db := assertstate.DB(st)
+	st.Unlock()
+
+	assert, err := db.Find(asserts.StoreType, map[string]string{
+		"store": storeData.Store,
+	})
+	if err != nil {
+		if asserts.IsNotFound(err) {
+			return BadRequest("cannot find assertion: %s", err)
+		}
+		msg := "unexpected error finding store assertion"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	store := assert.(*asserts.Store)
+	storeURL := store.URL()
+
+	// URL is optional, but it makes no sense to set a store with no URL.
+	if storeURL == nil {
+		return BadRequest("store assertion with store %q has no URL", storeData.Store)
+	}
+
+	// Replace active store and update state.
+	st.Lock()
+	defer st.Unlock()
+	err = storestate.SetBaseURL(st, storeURL)
+	if err != nil {
+		msg := "unexpected error updating store API"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	return SyncResponse(&storeResponseData{URL: storeURL.String()}, nil)
+}
+
+// Unset store API, returning system to default.
+func deleteStore(c *Command, r *http.Request, user *auth.UserState) Response {
+	errResponse := checkRootUser(r, "revert store")
+	if errResponse != nil {
+		return errResponse
+	}
+
+	// Replace active store and update state.
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	err := storestate.SetBaseURL(st, nil)
+	if err != nil {
+		msg := "unexpected error updating store API"
+		logger.Noticef("%s: %s", msg, err)
+		return InternalError(msg)
+	}
+
+	return SyncResponse(nil, nil)
 }
