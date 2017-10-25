@@ -351,8 +351,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 #endif
 	if (ns_statfs_buf.f_type == NSFS_MAGIC
 	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
-		char fname[PATH_MAX] = { 0, };
-		char base_snap_rev[PATH_MAX] = { 0, };
+		char fname[PATH_MAX] = { 0 };
+		char base_snap_rev[PATH_MAX] = { 0 };
 
 		// Read the revision of the base snap.
 		sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
