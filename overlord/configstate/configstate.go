@@ -74,7 +74,7 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 	if snapName == "core" {
 		t := st.NewTask("run-core-configure", summary)
 		t.Set("patch", patch)
-		if flags&snapstate.UseConfigDefaults != 0 {
+		if v, ok := contextData["use-defaults"].(bool); v && ok {
 			t.Set("use-defaults", true)
 		}
 		return state.NewTaskSet(t)

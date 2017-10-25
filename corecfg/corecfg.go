@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -31,21 +32,21 @@ var (
 	Stderr = os.Stderr
 )
 
-type conf interface {
+type Conf interface {
 	Get(snapName, key string, result interface{}) error
 }
 
-func snapctlGet(tr conf, key string) (string, error) {
+func snapctlGet(tr Conf, key string) (string, error) {
 	snapName := "core"
 
 	var result string
-	if err := tr.Get(snapName, key, &result); err != nil {
+	if err := tr.Get(snapName, key, &result); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 	return result, nil
 }
 
-func Run(tr conf) error {
+func Run(tr Conf) error {
 	// see if it makes sense to run at all
 	if release.OnClassic {
 		return fmt.Errorf("cannot run core-configure on classic distribution")

@@ -78,7 +78,7 @@ func piConfigFile() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 }
 
-func handlePiConfiguration(tr conf) error {
+func handlePiConfiguration(tr Conf) error {
 	if osutil.FileExists(piConfigFile()) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.

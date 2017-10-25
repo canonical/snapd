@@ -58,7 +58,7 @@ func switchDisableService(service, value string) error {
 // services that can be disabled
 var services = []string{"ssh", "rsyslog"}
 
-func handleServiceDisableConfiguration(tr conf) error {
+func handleServiceDisableConfiguration(tr Conf) error {
 	for _, service := range services {
 		output, err := snapctlGet(tr, fmt.Sprintf("service.%s.disable", service))
 		if err != nil {

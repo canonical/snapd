@@ -73,6 +73,16 @@ func (m *ConfigManager) Stop() {
 	m.runner.Stop()
 }
 
+var corecfgRun = corecfg.Run
+
+func MockCorecfgRun(f func(tr corecfg.Conf) error) (restore func()) {
+	origCorecfgRun := corecfgRun
+	corecfgRun = f
+	return func() {
+		corecfgRun = origCorecfgRun
+	}
+}
+
 func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error {
 	var patch map[string]interface{}
 	var useDefaults bool
@@ -80,8 +90,13 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 	st := t.State()
 	snapName := "core"
 
+	// FIXME: lock taken for too long
+	st.Lock()
+	defer st.Unlock()
+
 	// FIXME: duplicated code from configureHandler.Before()
 	if err := t.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
+		println(err.Error())
 		return err
 	}
 	if useDefaults {
@@ -96,12 +111,17 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 		}
 	}
 
-	tr := config.NewTransaction(t.State())
+	tr := config.NewTransaction(st)
 	for key, value := range patch {
 		if err := tr.Set("core", key, value); err != nil {
-			return err
+			return nil
 		}
 	}
 
-	return corecfg.Run(tr)
+	if err := corecfgRun(tr); err != nil {
+		return err
+	}
+
+	tr.Commit()
+	return nil
 }

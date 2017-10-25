@@ -56,7 +56,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr conf) error {
+func handleProxyConfiguration(tr Conf) error {
 	config := map[string]string{}
 	for _, key := range []string{"http", "https", "ftp"} {
 		output, err := snapctlGet(tr, "proxy."+key)
