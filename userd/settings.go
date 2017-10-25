@@ -22,6 +22,7 @@ package userd
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/godbus/dbus"
@@ -53,6 +54,21 @@ const settingsIntrospectionXML = `
 	</method>
 </interface>`
 
+var settingsWhitelist = []string{
+	"default-web-browser",
+}
+
+var allowedSettingsValues = regexp.MustCompile(`^[a-zA-Z0-9.]+$`)
+
+func settingWhitelisted(setting string) *dbus.Error {
+	for _, whitelisted := range settingsWhitelist {
+		if setting == whitelisted {
+			return nil
+		}
+	}
+	return dbus.MakeFailedError(fmt.Errorf("cannot use setting %q: not allowed", setting))
+}
+
 // Settings implements the 'io.snapcraft.Settings' DBus interface.
 type Settings struct{}
 
@@ -77,6 +93,13 @@ func (s *Settings) IntrospectionData() string {
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
 func (s *Settings) Check(setting, check string) (string, *dbus.Error) {
+	if err := settingWhitelisted(setting); err != nil {
+		return "", err
+	}
+	if !allowedSettingsValues.MatchString(check) {
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %q to value %q: value not allowed", setting, check))
+	}
+
 	cmd := exec.Command("xdg-settings", "check", setting, check)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -91,6 +114,10 @@ func (s *Settings) Check(setting, check string) (string, *dbus.Error) {
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Get string:'default-web-browser'
 func (s *Settings) Get(setting string) (string, *dbus.Error) {
+	if err := settingWhitelisted(setting); err != nil {
+		return "", err
+	}
+
 	cmd := exec.Command("xdg-settings", "get", setting)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -105,6 +132,13 @@ func (s *Settings) Get(setting string) (string, *dbus.Error) {
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
 func (s *Settings) Set(setting, new string) *dbus.Error {
+	if err := settingWhitelisted(setting); err != nil {
+		return err
+	}
+	if !allowedSettingsValues.MatchString(new) {
+		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %q to value %q: value not allowed", setting, new))
+	}
+
 	// FIXME: what GUI toolkit to use?
 	// FIXME2: we could support kdialog here as well
 	if !osutil.ExecutableExists("zenity") {
