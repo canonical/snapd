@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"math"
 	"os"
 
 	. "gopkg.in/check.v1"
@@ -76,7 +77,7 @@ func (s *entrySuite) TestXSnapdUid(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.uid=.bogus"}}
 	uid, err = update.XSnapdUid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
-	c.Assert(uid, Equals, uint64(0))
+	c.Assert(uid, Equals, uint64(math.MaxUint64))
 }
 
 func (s *entrySuite) TestXSnapdGid(c *C) {
@@ -98,5 +99,5 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.gid=.bogus"}}
 	gid, err = update.XSnapdGid(e)
 	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
-	c.Assert(gid, Equals, uint64(0))
+	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }
