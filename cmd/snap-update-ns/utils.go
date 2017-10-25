@@ -65,6 +65,8 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
+	// Only support absolute paths to avoid bugs in snap-confine when
+	// called from anywhere.
 	if !filepath.IsAbs(name) {
 		return fmt.Errorf("cannot create directory with relative path: %q", name)
 	}
