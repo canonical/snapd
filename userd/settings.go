@@ -72,7 +72,7 @@ func (s *Settings) IntrospectionData() string {
 	return settingsIntrospectionXML
 }
 
-// Check implements the 'Check' method of the 'com.canonical.Settings'
+// Check implements the 'Check' method of the 'io.snapcraft.Settings'
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
@@ -86,7 +86,7 @@ func (s *Settings) Check(setting, check string) (string, *dbus.Error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// Get implements the 'Get' method of the 'com.canonical.Settings'
+// Get implements the 'Get' method of the 'io.snapcraft.Settings'
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Get string:'default-web-browser'
@@ -100,7 +100,7 @@ func (s *Settings) Get(setting string) (string, *dbus.Error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// Set implements the 'Set' method of the 'com.canonical.Settings'
+// Set implements the 'Set' method of the 'io.snapcraft.Settings'
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
