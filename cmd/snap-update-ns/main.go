@@ -102,8 +102,10 @@ func run() error {
 	}
 
 	// Freeze the mount namespace and unfreeze it later. This lets us perform
-	// modifications without snap processes attempting to construct symlinks or
-	// perform other malicious activity.
+	// modifications without snap processes attempting to construct
+	// symlinks or perform other malicious activity (such as attempting to
+	// introduce a symlink that would cause us to mount something other
+	// than what we expected).
 	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
 		return err
 	}
