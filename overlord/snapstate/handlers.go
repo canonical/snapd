@@ -397,6 +397,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
 	t.State().Lock()
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()

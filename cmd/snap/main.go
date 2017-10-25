@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
@@ -49,6 +50,9 @@ func init() {
 		// in tests or when debugging, enforce the "tidy" lint checks
 		tidyNoticef = logger.Panicf
 	}
+
+	// plug/slot sanitization not used nor possible from snap command, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
 // Standard streams, redirected for testing.
