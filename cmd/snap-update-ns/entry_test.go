@@ -56,6 +56,12 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.mode=pasta"}}
 	_, err = update.XSnapdMode(e)
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
+
+	// And even valid values with trailing garbage.
+	e = &mount.Entry{Options: []string{"x-snapd.mode=0700pasta"}}
+	mode, err = update.XSnapdMode(e)
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "0700pasta"`)
+	c.Assert(mode, Equals, os.FileMode(0))
 }
 
 func (s *entrySuite) TestXSnapdUid(c *C) {
@@ -80,9 +86,15 @@ func (s *entrySuite) TestXSnapdUid(c *C) {
 	c.Assert(uid, Equals, uint64(123))
 
 	// Unknown user names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd.uid=.bogus"}}
+	e = &mount.Entry{Options: []string{"x-snapd.uid=bogus"}}
 	uid, err = update.XSnapdUid(e)
-	c.Assert(err, ErrorMatches, `cannot resolve user name ".bogus"`)
+	c.Assert(err, ErrorMatches, `cannot resolve user name "bogus"`)
+	c.Assert(uid, Equals, uint64(math.MaxUint64))
+
+	// And even valid values with trailing garbage.
+	e = &mount.Entry{Options: []string{"x-snapd.uid=0bogus"}}
+	uid, err = update.XSnapdUid(e)
+	c.Assert(err, ErrorMatches, `cannot parse user name "0bogus"`)
 	c.Assert(uid, Equals, uint64(math.MaxUint64))
 }
 
@@ -107,10 +119,15 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(456))
 
-
 	// Unknown group names are invalid.
-	e = &mount.Entry{Options: []string{"x-snapd.gid=.bogus"}}
+	e = &mount.Entry{Options: []string{"x-snapd.gid=bogus"}}
 	gid, err = update.XSnapdGid(e)
-	c.Assert(err, ErrorMatches, `cannot resolve group name ".bogus"`)
+	c.Assert(err, ErrorMatches, `cannot resolve group name "bogus"`)
+	c.Assert(gid, Equals, uint64(math.MaxUint64))
+
+	// And even valid values with trailing garbage.
+	e = &mount.Entry{Options: []string{"x-snapd.gid=0bogus"}}
+	gid, err = update.XSnapdGid(e)
+	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }
