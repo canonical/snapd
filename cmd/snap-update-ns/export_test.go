@@ -120,7 +120,7 @@ type SystemCalls interface {
 // SyscallRecorder stores which system calls were invoked.
 type SyscallRecorder struct {
 	calls  []string
-	errors map[string]error
+	errors map[string]func() error
 	lstats map[string]*fakeFileInfo
 	fds    map[int]string
 }
@@ -128,9 +128,16 @@ type SyscallRecorder struct {
 // InsertFault makes given subsequent call to return the specified error.
 func (sys *SyscallRecorder) InsertFault(call string, err error) {
 	if sys.errors == nil {
-		sys.errors = make(map[string]error)
+		sys.errors = make(map[string]func() error)
 	}
-	sys.errors[call] = err
+	sys.errors[call] = func() error { return err }
+}
+
+func (sys *SyscallRecorder) InsertFaultFunc(call string, fn func() error) {
+	if sys.errors == nil {
+		sys.errors = make(map[string]func() error)
+	}
+	sys.errors[call] = fn
 }
 
 // InsertLstatResult makes given subsequent call lstat return the specified fake file info.
@@ -149,7 +156,10 @@ func (sys *SyscallRecorder) Calls() []string {
 // call remembers that a given call has occurred and returns a pre-arranged error, if any
 func (sys *SyscallRecorder) call(call string) error {
 	sys.calls = append(sys.calls, call)
-	return sys.errors[call]
+	if fn := sys.errors[call]; fn != nil {
+		return fn()
+	}
+	return nil
 }
 
 // allocFd assigns a file descriptor to a given operation.
