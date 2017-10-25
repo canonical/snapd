@@ -260,8 +260,8 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
 	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "serial-port usb-product attribute not valid: 65536")
 	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "serial-port path attribute specifies invalid symlink location")
-	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute cannot be negative and larger than 31")
-	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute cannot be negative and larger than 31")
+	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute cannot be negative or larger than 31")
+	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "serial-port usb-interface-number attribute cannot be negative or larger than 31")
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
