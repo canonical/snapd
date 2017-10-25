@@ -72,12 +72,12 @@ func (s *entrySuite) TestXSnapdUid(c *C) {
 	c.Assert(uid, Equals, uint64(0))
 
 	// User is parsed from the x-snapd-user= option.
-	daemonUid, err := osutil.FindUid("daemon")
+	nobodyUid, err := osutil.FindUid("nobody")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd.uid=daemon"}}
+	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
 	uid, err = update.XSnapdUid(e)
 	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, daemonUid)
+	c.Assert(uid, Equals, nobodyUid)
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=123"}}
@@ -106,12 +106,12 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	c.Assert(gid, Equals, uint64(0))
 
 	// Group is parsed from the x-snapd-group= option.
-	daemonGid, err := osutil.FindGid("daemon")
+	nogroupGid, err := osutil.FindGid("nogroup")
 	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd.gid=daemon"}}
+	e = &mount.Entry{Options: []string{"x-snapd.gid=nogroup"}}
 	gid, err = update.XSnapdGid(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, daemonGid)
+	c.Assert(gid, Equals, nogroupGid)
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
