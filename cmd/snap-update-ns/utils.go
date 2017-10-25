@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
@@ -65,7 +65,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
-	if !path.IsAbs(name) {
+	if !filepath.IsAbs(name) {
 		return fmt.Errorf("cannot create directory with relative path: %q", name)
 	}
 	// Open the root directory and start there.
@@ -79,7 +79,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	// the parent directory as reference. Each time we open the newly created
 	// segment using the O_NOFOLLOW and O_DIRECTORY flag so that symlink
 	// attacks are impossible to carry out.
-	segments := strings.Split(path.Clean(name), "/")
+	segments := strings.Split(filepath.Clean(name), "/")
 	for _, segment := range segments {
 		if segment == "" {
 			// Skip empty element corresponding to the leading slash.

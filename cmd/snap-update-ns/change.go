@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -109,10 +109,10 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
 	// easily test if a given directory is a subdirectory with
 	// strings.HasPrefix coupled with an extra slash character.
 	for i := range current {
-		current[i].Dir = path.Clean(current[i].Dir)
+		current[i].Dir = filepath.Clean(current[i].Dir)
 	}
 	for i := range desired {
-		desired[i].Dir = path.Clean(desired[i].Dir)
+		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
 	// Sort both lists by directory name with implicit trailing slash.
