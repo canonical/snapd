@@ -82,12 +82,8 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	// the parent directory as reference. Each time we open the newly created
 	// segment using the O_NOFOLLOW and O_DIRECTORY flag so that symlink
 	// attacks are impossible to carry out.
-	segments := strings.Split(filepath.Clean(name), "/")
+	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
 	for _, segment := range segments {
-		if segment == "" {
-			// Skip empty element corresponding to the leading slash.
-			continue
-		}
 		made := true
 		if err = sysMkdirat(fd, segment, uint32(perm)); err != nil {
 			switch err {
