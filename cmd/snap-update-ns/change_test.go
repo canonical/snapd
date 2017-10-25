@@ -304,7 +304,7 @@ func (s *changeSuite) TestPerformMountLstatError(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot inspect "/target", testing`)
+	c.Assert(err, ErrorMatches, `cannot inspect "/target": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`lstat "/target"`})
 }
 
@@ -314,7 +314,7 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target", testing`)
+	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,

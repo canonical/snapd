@@ -74,7 +74,7 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 	// Open the root directory and start there.
 	fd, err = sysOpen("/", openFlags, 0)
 	if err != nil {
-		return fmt.Errorf("cannot open root directory, %v", err)
+		return fmt.Errorf("cannot open root directory: %v", err)
 	}
 
 	// Split the path by entries and create each element using mkdirat() using
@@ -94,30 +94,30 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 				made = false
 			default:
 				if err := sysClose(fd); err != nil {
-					return fmt.Errorf("cannot close file descriptor %d, %v", fd, err)
+					return fmt.Errorf("cannot close file descriptor %d: %v", fd, err)
 				}
-				return fmt.Errorf("cannot mkdir path segment %q, %v", segment, err)
+				return fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
 			}
 		}
 		previousFd := fd
 
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
 		if err := sysClose(previousFd); err != nil {
-			return fmt.Errorf("cannot close previous file descriptor, %v", err)
+			return fmt.Errorf("cannot close previous file descriptor %d: %v", fd, err)
 		}
 		if err != nil {
-			return fmt.Errorf("cannot open path segment %q, %v", segment, err)
+			return fmt.Errorf("cannot open path segment %q: %v", segment, err)
 		}
 		if made {
 			// Chown each segment that we made.
 			if err := sysFchown(fd, uid, gid); err != nil {
-				return fmt.Errorf("cannot chown path segment %q to %d.%d, %v", segment, uid, gid, err)
+				return fmt.Errorf("cannot chown path segment %q to %d.%d: %v", segment, uid, gid, err)
 			}
 		}
 
 	}
 	if err = sysClose(fd); err != nil {
-		return fmt.Errorf("cannot close file descriptor, %v", err)
+		return fmt.Errorf("cannot close file descriptor %d: %v", fd, err)
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func EnsureMountPointImpl(path string, mode os.FileMode, uid int, gid int) error
 	case err != nil && os.IsNotExist(err):
 		return secureMkdirAll(path, mode, uid, gid)
 	case err != nil:
-		return fmt.Errorf("cannot inspect %q, %v", path, err)
+		return fmt.Errorf("cannot inspect %q: %v", path, err)
 	case err == nil:
 		// Ensure that mount point is a directory.
 		if !fi.IsDir() {

@@ -92,7 +92,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
 	err := update.SecureMkdirAllImpl("/abs", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs", testing`)
+	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
