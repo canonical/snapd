@@ -22,12 +22,8 @@ package corecfg
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -35,46 +31,41 @@ var (
 	Stderr = os.Stderr
 )
 
-// ensureSupportInterface checks that the system has the core-support
-// interface. An error is returned if this is not the case
-func ensureSupportInterface() error {
-	return systemd.Available()
+type conf interface {
+	Get(snapName, key string, result interface{}) error
 }
 
-func snapctlGet(key string) (string, error) {
-	raw, err := exec.Command("snapctl", "get", key).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("cannot run snapctl: %s", osutil.OutputErr(raw, err))
+func snapctlGet(tr conf, key string) (string, error) {
+	snapName := "core"
+
+	var result string
+	if err := tr.Get(snapName, key, &result); err != nil {
+		return "", err
 	}
-
-	output := strings.TrimRight(string(raw), "\n")
-	return output, nil
+	return result, nil
 }
 
-func Run() error {
+func Run(tr conf) error {
 	// see if it makes sense to run at all
 	if release.OnClassic {
 		return fmt.Errorf("cannot run core-configure on classic distribution")
 	}
-	if err := ensureSupportInterface(); err != nil {
-		return fmt.Errorf("cannot run systemctl - core-support interface seems disconnected: %v", err)
-	}
 
 	// handle the various core config options:
 	// service.*.disable
-	if err := handleServiceDisableConfiguration(); err != nil {
+	if err := handleServiceDisableConfiguration(tr); err != nil {
 		return err
 	}
 	// system.power-key-action
-	if err := handlePowerButtonConfiguration(); err != nil {
+	if err := handlePowerButtonConfiguration(tr); err != nil {
 		return err
 	}
 	// pi-config.*
-	if err := handlePiConfiguration(); err != nil {
+	if err := handlePiConfiguration(tr); err != nil {
 		return err
 	}
 	// proxy.{http,https,ftp}
-	if err := handleProxyConfiguration(); err != nil {
+	if err := handleProxyConfiguration(tr); err != nil {
 		return err
 	}
 

@@ -24,7 +24,10 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -70,8 +73,35 @@ func (m *ConfigManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *ConfigManager) doRunCoreConfigure(task *state.Task, tomb *tomb.Tomb) error {
-	println("doRunCoreConfigure")
+func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error {
+	var patch map[string]interface{}
+	var useDefaults bool
 
-	return nil
+	st := t.State()
+	snapName := "core"
+
+	// FIXME: duplicated code from configureHandler.Before()
+	if err := t.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if useDefaults {
+		var err error
+		patch, err = snapstate.ConfigDefaults(st, snapName)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+	} else {
+		if err := t.Get("patch", &patch); err != nil && err != state.ErrNoState {
+			return err
+		}
+	}
+
+	tr := config.NewTransaction(t.State())
+	for key, value := range patch {
+		if err := tr.Set("core", key, value); err != nil {
+			return err
+		}
+	}
+
+	return corecfg.Run(tr)
 }

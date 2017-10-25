@@ -21,6 +21,7 @@ package corecfg_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -31,6 +32,21 @@ import (
 )
 
 func Test(t *testing.T) { TestingT(t) }
+
+type mockConf struct {
+	conf map[string]string
+	err  error
+}
+
+func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+	v1 := reflect.ValueOf(result)
+	v2 := reflect.Indirect(v1)
+	v2.SetString(cfg.conf[key])
+	return cfg.err
+}
 
 // coreCfgSuite is the base for all the corecfg tests
 type coreCfgSuite struct {
@@ -63,19 +79,6 @@ func (s *runCfgSuite) TestConfigureErrorsOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	err := corecfg.Run()
+	err := corecfg.Run(nil)
 	c.Check(err, ErrorMatches, "cannot run core-configure on classic distribution")
-}
-
-func (s *runCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("simulate missing core-support")
-	})
-	defer r()
-
-	err := corecfg.Run()
-	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: simulate missing core-support`)
 }
