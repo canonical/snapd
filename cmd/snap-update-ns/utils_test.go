@@ -57,12 +57,12 @@ func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllAbsolute(c *C) {
 	c.Assert(update.SecureMkdirAll("/abs/path", 0755, 123, 456), IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`fchown 4 123 456`,
 		`mkdirat 4 "path" 0755`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`fchown 5 123 456`,
 		`close 5`,
 		`close 4`,
@@ -77,11 +77,11 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 	err := update.SecureMkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 4 "path" 0755`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`close 5`,
 		`close 4`,
 		`close 3`,
@@ -94,7 +94,7 @@ func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
 	err := update.SecureMkdirAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
 		`close 3`,
 	})

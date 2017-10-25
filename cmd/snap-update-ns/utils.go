@@ -30,7 +30,6 @@ import (
 // not available through syscall
 const (
 	UMOUNT_NOFOLLOW = 8
-	O_PATH = 010000000
 )
 
 // For mocking everything during testing.
@@ -64,7 +63,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	var err error
 	var fd int
 
-	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY | O_PATH
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
 	// Only support absolute paths to avoid bugs in snap-confine when
 	// called from anywhere.
