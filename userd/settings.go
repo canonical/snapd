@@ -40,7 +40,7 @@ const settingsIntrospectionXML = `
 <interface name='io.snapcraft.Settings'>
 	<method name='Check'>
 		<arg type='s' name='setting' direction='in'/>
-		<arg type='s' dbusInterfacename='check' direction='in'/>
+		<arg type='s' name='check' direction='in'/>
                 <arg type='s' name='result' direction='out'/>
 	</method>
 	<method name='Get'>
