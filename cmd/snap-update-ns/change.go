@@ -78,7 +78,7 @@ func (c *Change) Perform() error {
 	return c.lowLevelPerform()
 }
 
-// lowLevelPerform is a version of Perform that doesn't contain any special behavior.
+// lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
