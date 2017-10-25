@@ -48,14 +48,14 @@ func (s *utilsSuite) TearDownTest(c *C) {
 
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
-	err := update.SecureMkdirAllImpl("rel/path", 0755, 123, 456)
+	err := update.SecureMkdirAll("rel/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create directory with relative path: "rel/path"`)
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
 // Ensure that we can create a directory with an absolute path.
 func (s *utilsSuite) TestSecureMkdirAllAbsolute(c *C) {
-	c.Assert(update.SecureMkdirAllImpl("/abs/path", 0755, 123, 456), IsNil)
+	c.Assert(update.SecureMkdirAll("/abs/path", 0755, 123, 456), IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "abs" 0755`,
@@ -74,7 +74,7 @@ func (s *utilsSuite) TestSecureMkdirAllAbsolute(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 4 "path" 0755`, syscall.EEXIST)
-	err := update.SecureMkdirAllImpl("/abs/path", 0755, 123, 456)
+	err := update.SecureMkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -91,7 +91,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 // Ensure that we we close everything when mkdir fails.
 func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
-	err := update.SecureMkdirAllImpl("/abs", 0755, 123, 456)
+	err := update.SecureMkdirAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,

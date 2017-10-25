@@ -43,12 +43,9 @@ var (
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
 	sysFchown  = syscall.Fchown
-
-	secureMkdirAll   = SecureMkdirAllImpl
-	ensureMountPoint = EnsureMountPointImpl
 )
 
-// SecureMkdirAll is the secure variant of os.MkdirAll.
+// secureMkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic
 // links. At all times the new directory segment is created using mkdirat(2)
@@ -60,7 +57,7 @@ var (
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
+func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	// Declare var and don't assign-declare below to ensure we don't swallow
 	// any errors by mistake.
 	var err error
@@ -113,7 +110,7 @@ func SecureMkdirAllImpl(name string, perm os.FileMode, uid, gid int) error {
 	return nil
 }
 
-func EnsureMountPointImpl(path string, mode os.FileMode, uid int, gid int) error {
+func ensureMountPoint(path string, mode os.FileMode, uid int, gid int) error {
 	// If the mount point is not present then create a directory in its
 	// place.  This is very naive, doesn't handle read-only file systems
 	// but it is a good starting point for people working with things like
