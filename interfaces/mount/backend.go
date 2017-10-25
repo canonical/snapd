@@ -43,6 +43,11 @@ import (
 // Backend is responsible for maintaining mount files for snap-confine
 type Backend struct{}
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityMount
@@ -98,17 +103,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
 	content := make(map[string]*osutil.FileState)
-	// Add the new per-snap fstab file. This file will be read by snap-confine.
+	// Add the per-snap fstab file. This file is read by snap-update-ns.
 	content[fmt.Sprintf("snap.%s.fstab", snapInfo.Name())] = fstate
-	// Add legacy per-app/per-hook fstab files. Those are identical but
-	// snap-confine doesn't yet load it from a per-snap location. This can be
-	// safely removed once snap-confine is updated.
-	for _, appInfo := range snapInfo.Apps {
-		content[fmt.Sprintf("%s.fstab", appInfo.SecurityTag())] = fstate
-	}
-	for _, hookInfo := range snapInfo.Hooks {
-		content[fmt.Sprintf("%s.fstab", hookInfo.SecurityTag())] = fstate
-	}
 	return content
 }
 

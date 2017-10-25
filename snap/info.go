@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -153,7 +154,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	License          string
-	Epoch            string
+	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
@@ -161,6 +162,9 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
+
+	// Plugs or slots with issues (they are not included in Plugs or Slots)
+	BadInterfaces map[string]string // slot or plug => message
 
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
@@ -209,7 +213,7 @@ type ChannelSnapInfo struct {
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
-	Epoch       string          `json:"epoch"`
+	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 }
 
@@ -321,6 +325,32 @@ func (s *Info) Services() []*AppInfo {
 	}
 
 	return svcs
+}
+
+func BadInterfacesSummary(snapInfo *Info) string {
+	inverted := make(map[string][]string)
+	for name, reason := range snapInfo.BadInterfaces {
+		inverted[reason] = append(inverted[reason], name)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
+	reasons := make([]string, 0, len(inverted))
+	for reason := range inverted {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		names := inverted[reason]
+		sort.Strings(names)
+		for i, name := range names {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(name)
+		}
+		fmt.Fprintf(&buf, " (%s); ", reason)
+	}
+	return strings.TrimSuffix(buf.String(), "; ")
 }
 
 // DownloadInfo contains the information to download a snap.
@@ -568,6 +598,16 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
+func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
+	old := SanitizePlugsSlots
+	SanitizePlugsSlots = f
+	return func() { SanitizePlugsSlots = old }
+}
+
+var SanitizePlugsSlots = func(snapInfo *Info) {
+	panic("SanitizePlugsSlots function not set")
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
@@ -594,6 +634,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	SanitizePlugsSlots(info)
 
 	return info, nil
 }
