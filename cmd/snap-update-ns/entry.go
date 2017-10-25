@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -55,7 +56,7 @@ func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 			uid, err = osutil.FindUid(kv[1])
 			if err != nil {
 				// The error message is not very useful so just skip it.
-				return 0, fmt.Errorf("cannot resolve user name %q", kv[1])
+				return math.MaxUint64, fmt.Errorf("cannot resolve user name %q", kv[1])
 			}
 			return uid, nil
 		}
@@ -73,7 +74,7 @@ func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
 			gid, err = osutil.FindGid(kv[1])
 			if err != nil {
 				// The error message is not very useful so just skip it.
-				return 0, fmt.Errorf("cannot resolve group name %q", kv[1])
+				return math.MaxUint64, fmt.Errorf("cannot resolve group name %q", kv[1])
 			}
 			return gid, nil
 		}
