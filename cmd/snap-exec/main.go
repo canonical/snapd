@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
 )
 
 // for the tests
@@ -40,6 +41,11 @@ var syscallExec = syscall.Exec
 var opts struct {
 	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
 	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
+}
+
+func init() {
+	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
 func main() {
@@ -157,8 +163,17 @@ func execApp(snapApp, revision, command string, args []string) error {
 		return err
 	}
 
-	// build the environment from the yaml
-	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
+	// build the environment from the yaml, translating TMPDIR and
+	// similar variables back from where they were hidden when
+	// invoking the setuid snap-confine.
+	env := []string{}
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, snapenv.PreservedUnsafePrefix) {
+			kv = kv[len(snapenv.PreservedUnsafePrefix):]
+		}
+		env = append(env, kv)
+	}
+	env = append(env, osutil.SubstituteEnv(app.Env())...)
 
 	// strings.Split() is ok here because we validate all app fields
 	// and the whitelist is pretty strict (see
