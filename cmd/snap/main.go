@@ -51,17 +51,19 @@ func init() {
 
 	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
 		// in tests or when debugging, enforce the "tidy" lint checks
-		tidyNoticef = logger.Panicf
+		noticef = logger.Panicf
 	}
 }
 
-// Standard streams, redirected for testing.
 var (
-	Stdin        io.Reader = os.Stdin
-	Stdout       io.Writer = os.Stdout
-	Stderr       io.Writer = os.Stderr
-	ReadPassword           = terminal.ReadPassword
-	tidyNoticef            = logger.Noticef
+	// Standard streams, redirected for testing.
+	Stdin  io.Reader = os.Stdin
+	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+	// overridden for testing
+	ReadPassword = terminal.ReadPassword
+	// set to logger.Panicf in testing
+	noticef = logger.Noticef
 )
 
 type options struct {
@@ -143,7 +145,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// want to change it to check for urlish things instead of just
 		// login.u.c.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") {
-			tidyNoticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
+			noticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
 		}
 	}
 }
@@ -151,7 +153,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
 	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		tidyNoticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
+		noticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
 	}
 }
 
