@@ -1,0 +1,23 @@
+summary: Check that interfaces are listed after reboot the machine
+
+details: |
+    This test checks if the interfaces are listed after the machine
+    is rebooted. The test is also checking the interfaces after a 
+    snap is installed and removed.
+
+execute: |
+    CONNECTED_PATTERN=":core-support +core:core-support-plug"
+
+    # Check interfaces are shown after reboot
+    REBOOT
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    # Check interfaces are shown after install a snap and reboot
+    snap install test-snapd-tools
+    REBOOT
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    # Check interfaces are shown after remove a snap and reboot
+    snap remove test-snapd-tools
+    REBOOT
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
