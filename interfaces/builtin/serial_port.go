@@ -114,8 +114,8 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 
 		usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-		if ok && (usbInterfaceNumber < 0x0 || usbInterfaceNumber >= UsbMaxInterfaces) {
-			return fmt.Errorf("serial-port usb-interface-number attribute cannot be negative and larger than 31")
+		if ok && (usbInterfaceNumber < 0 || usbInterfaceNumber >= UsbMaxInterfaces) {
+			return fmt.Errorf("serial-port usb-interface-number attribute cannot be negative and larger than %d", UsbMaxInterfaces-1)
 		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
@@ -138,8 +138,8 @@ func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	}
 	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
 	if !ok {
-		// usb-interface-number attribute is optional
-		// Set usbInterfaceNumber < 0 would remove the ENV{ID_USB_INTERFACE_NUM} in udev rule
+		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
+		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
 		usbInterfaceNumber = -1
 	}
 	path, ok := slot.Attrs["path"].(string)
@@ -180,6 +180,8 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	}
 	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
 	if !ok {
+		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
+		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
 		usbInterfaceNumber = -1
 	}
 	for appName := range plug.Apps {
