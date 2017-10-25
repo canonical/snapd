@@ -163,7 +163,7 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	c.Assert(err, ErrorMatches, `unsupported mount option: "bogus"`)
 	// The x-snapd-prefix is reserved for non-kernel parameters that do not
 	// translate to kernel level mount flags. This is similar to systemd or
-	// udisks use fstab options to convey additional data.
+	// udisks that use fstab options to convey additional data.
 	flags, err = mount.OptsToFlags([]string{"x-snapd.foo"})
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, 0)
