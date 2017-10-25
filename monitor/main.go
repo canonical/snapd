@@ -6,11 +6,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	udev "github.com/pilebones/go-udev"
+
 	"github.com/kr/pretty"
 )
 
 func main() {
-	conn := new(UEventConn)
+	conn := new(udev.UEventConn)
 	err := conn.Connect()
 	if err != nil {
 		log.Println("Unable to connect to Netlink Kobject UEvent socket")
@@ -18,7 +20,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	queue := make(chan UEvent)
+	queue := make(chan udev.UEvent)
 	quit := conn.Monitor(queue)
 
 	// Signal handler to quit properly monitor mode
