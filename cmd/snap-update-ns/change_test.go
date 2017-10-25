@@ -234,9 +234,9 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
 		`mkdirat 3 "target" 0755`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
@@ -254,9 +254,9 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
 		`mkdirat 3 "source" 0755`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
@@ -317,7 +317,7 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
 		`mkdirat 3 "target" 0755`,
 		`close 3`,
 	})
