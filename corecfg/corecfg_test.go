@@ -26,8 +26,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -71,14 +69,4 @@ func (s *coreCfgSuite) TearDownSuite(c *C) {
 // runCfgSuite tests corecfg.Run()
 type runCfgSuite struct {
 	coreCfgSuite
-}
-
-var _ = Suite(&runCfgSuite{})
-
-func (s *runCfgSuite) TestConfigureErrorsOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	err := corecfg.Run(nil)
-	c.Check(err, ErrorMatches, "cannot run core-configure on classic distribution")
 }

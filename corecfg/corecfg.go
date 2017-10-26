@@ -20,7 +20,6 @@
 package corecfg
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -49,7 +48,8 @@ func snapctlGet(tr Conf, key string) (string, error) {
 func Run(tr Conf) error {
 	// see if it makes sense to run at all
 	if release.OnClassic {
-		return fmt.Errorf("cannot run core-configure on classic distribution")
+		// nothing to do
+		return nil
 	}
 
 	// handle the various core config options:
