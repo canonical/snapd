@@ -6,106 +6,133 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: snappy\n"
-"Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-"POT-Creation-Date: 2016-12-14 12:38+0100\n"
-"PO-Revision-Date: 2015-09-02 22:57+0000\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2017-10-14 00:51+0000\n"
+"PO-Revision-Date: 2017-01-07 18:59+0000\n"
+"Last-Translator: Tobias Bannert <tobannert@gmail.com>\n"
 "Language-Team: German <de@li.org>\n"
-"Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-10-21 06:21+0000\n"
-"X-Generator: Launchpad (build 17812)\n"
+"X-Launchpad-Export-Date: 2017-10-18 08:37+0000\n"
+"X-Generator: Launchpad (build 18476)\n"
+
+#, c-format
+msgid ""
+"%q does not contain an unpacked snap.\n"
+"\n"
+"Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
+msgstr ""
+
+#, c-format
+msgid "%q switched to the %q channel\n"
+msgstr ""
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
 msgid "%s %s mounted from %s\n"
+msgstr "%s %s zusammengebaut aus %s\n"
+
+#, c-format
+msgid "%s (delta)"
 msgstr ""
 
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (see \"snap login --help\")"
-msgstr ""
+msgstr "%s (siehe »snap login --help«)"
 
-#. TRANSLATORS: %s will be a message along the lines of "login required"
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (try with sudo)"
-msgstr ""
+msgstr "%s (bitte mit sudo versuchen)"
 
 #, c-format
 msgid "%s already installed\n"
-msgstr ""
+msgstr "%s ist bereits installiert\n"
 
 #, c-format
 msgid "%s disabled\n"
-msgstr ""
+msgstr "%s deaktiviert\n"
 
 #, c-format
 msgid "%s enabled\n"
-msgstr ""
+msgstr "%s aktiviert\n"
 
 #, c-format
 msgid "%s not installed\n"
-msgstr ""
+msgstr "%s ist nicht installiert\n"
 
 #, c-format
 msgid "%s removed\n"
-msgstr ""
+msgstr "%s entfernt\n"
 
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr ""
+msgstr "%s zurückgesetzt zu %s\n"
 
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
-msgstr ""
+msgstr "%s %s %s aus »%s« installiert\n"
 
 #, c-format
-msgid "%s%s %s from '%s' upgraded\n"
-msgstr ""
+msgid "%s%s %s from '%s' refreshed\n"
+msgstr "%s %s %s von »%s« aufgefrischt\n"
 
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr ""
+msgstr "%s%s %s installiert\n"
 
 #, c-format
-msgid "%s%s %s upgraded\n"
-msgstr ""
+msgid "%s%s %s refreshed\n"
+msgstr "%s %s %s aufgefrischt\n"
 
 msgid "--list does not take mode nor channel flags"
+msgstr "--list nimmt weder Modus- noch Kanalflaggen an"
+
+msgid "--time does not take mode nor channel flags"
 msgstr ""
 
 msgid "-r can only be used with --hook"
+msgstr "-r kann nur mit --hook benutzt werden"
+
+msgid "<alias-or-snap>"
 msgstr ""
+
+msgid "<alias>"
+msgstr "<Alias>"
 
 msgid "<assertion file>"
-msgstr ""
+msgstr "<Behauptungsdatei>"
 
 msgid "<assertion type>"
-msgstr ""
+msgstr "<Behauptungstyp>"
 
 msgid "<change-id>"
 msgstr ""
 
 msgid "<conf value>"
-msgstr ""
+msgstr "<Konfigurationswert>"
 
 #. TRANSLATORS: noun
 #. TRANSLATORS: noun
 msgid "<email>"
-msgstr ""
+msgstr "<E-Mail>"
 
 msgid "<filename>"
-msgstr ""
+msgstr "<Dateiname>"
 
 msgid "<header filter>"
+msgstr "<Kopfzeilenfilter>"
+
+msgid "<interface>"
 msgstr ""
 
 msgid "<key-name>"
-msgstr ""
+msgstr "<Schlüsselname>"
 
 msgid "<key>"
-msgstr ""
+msgstr "<Schlüssel>"
 
 msgid "<model-assertion>"
 msgstr ""
@@ -128,6 +155,9 @@ msgstr ""
 msgid "Abort a pending change"
 msgstr ""
 
+msgid "Added"
+msgstr ""
+
 msgid "Adds an assertion to the system"
 msgstr ""
 
@@ -135,7 +165,7 @@ msgid "Alias for --dangerous (DEPRECATED)"
 msgstr ""
 
 msgid "All snaps up to date."
-msgstr ""
+msgstr "Alle Snaps sind aktuell"
 
 msgid "Alternative command to run"
 msgstr ""
@@ -156,6 +186,19 @@ msgstr ""
 msgid "Authenticates on snapd and the store"
 msgstr ""
 
+#, c-format
+msgid "Auto-refresh %d snaps"
+msgstr ""
+
+#, c-format
+msgid "Auto-refresh snap %q"
+msgstr ""
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Auto-refresh snaps %s"
+msgstr ""
+
 msgid "Bad code. Try again: "
 msgstr ""
 
@@ -174,8 +217,7 @@ msgid ""
 "it."
 msgstr ""
 
-#, c-format
-msgid "Clear alias state for snap %q"
+msgid "Command\tAlias\tNotes"
 msgstr ""
 
 msgid "Configuration value (key=value)"
@@ -230,6 +272,14 @@ msgstr ""
 msgid "Disable %q snap"
 msgstr ""
 
+#, c-format
+msgid "Disable aliases for snap %q"
+msgstr ""
+
+#, c-format
+msgid "Disable all aliases for snap %q"
+msgstr ""
+
 msgid "Disables a snap in the system"
 msgstr ""
 
@@ -242,6 +292,9 @@ msgid "Disconnect %s:%s from %s:%s"
 msgstr ""
 
 msgid "Disconnects a plug from a slot"
+msgstr ""
+
+msgid "Do not wait for the operation to finish but just print the change id."
 msgstr ""
 
 #, c-format
@@ -257,14 +310,10 @@ msgid "Downloads the given snap"
 msgstr ""
 
 msgid "Email address: "
-msgstr ""
+msgstr "E-Mail-Adresse: "
 
 #, c-format
 msgid "Enable %q snap"
-msgstr ""
-
-#, c-format
-msgid "Enable aliases for snap %q"
 msgstr ""
 
 msgid "Enables a snap in the system"
@@ -322,15 +371,12 @@ msgid "Grant sudo access to the created user"
 msgstr ""
 
 msgid "Help"
-msgstr ""
+msgstr "Hilfe"
 
 msgid "Hook to run"
 msgstr ""
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
-msgstr ""
-
-msgid "ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"
 msgstr ""
 
 msgid "Identifier of the signer"
@@ -342,7 +388,18 @@ msgstr ""
 msgid "Ignore validation by other snaps blocking the refresh"
 msgstr ""
 
+#, c-format
+msgid ""
+"In order to buy %q, you need to agree to the latest terms and conditions. "
+"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
+"\n"
+"Once completed, return here and run 'snap buy %s' again."
+msgstr ""
+
 msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
+msgstr ""
+
+msgid "Include unused interfaces"
 msgstr ""
 
 msgid "Initialize device"
@@ -398,6 +455,9 @@ msgid ""
 "implies this)"
 msgstr ""
 
+msgid "Install the given snap without enabling its automatic aliases"
+msgstr ""
+
 msgid "Installs a snap to the system"
 msgstr ""
 
@@ -414,19 +474,25 @@ msgid "List cryptographic keys that can be used for signing assertions."
 msgstr ""
 
 msgid "List installed snaps"
-msgstr ""
+msgstr "Installierte Snaps auflisten"
 
 msgid "List system changes"
+msgstr "Systemänderungen auflisten"
+
+msgid "Lists aliases in the system"
 msgstr ""
 
 msgid "Lists interfaces in the system"
+msgstr ""
+
+msgid "Lists snap interfaces"
 msgstr ""
 
 msgid "Log out of the store"
 msgstr ""
 
 msgid "Login successful"
-msgstr ""
+msgstr "Anmeldung erfolgreich"
 
 #, c-format
 msgid "Make current revision for snap %q unavailable"
@@ -473,6 +539,9 @@ msgstr ""
 msgid "Name\tSHA3-384"
 msgstr ""
 
+msgid "Name\tSummary"
+msgstr ""
+
 msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
 msgstr ""
 
@@ -480,6 +549,9 @@ msgid "Name\tVersion\tRev\tDeveloper\tNotes"
 msgstr ""
 
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
+msgstr ""
+
+msgid "No snaps to auto-refresh found"
 msgstr ""
 
 msgid "Output results in JSON format"
@@ -500,10 +572,14 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid ""
-"Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms "
-"and conditions.\n"
-"Once completed, return here and run 'snap buy %s' again."
+msgid "Prefer aliases for snap %q"
+msgstr ""
+
+msgid "Prefer aliases from a snap and disable conflicts"
+msgstr ""
+
+#, c-format
+msgid "Prefer aliases of snap %q"
 msgstr ""
 
 msgid "Prepare a snappy image"
@@ -523,7 +599,17 @@ msgstr ""
 msgid "Prints configuration options"
 msgstr ""
 
+msgid "Prints the confinement mode the system operates in"
+msgstr ""
+
+msgid "Prints the email the user is logged in with."
+msgstr ""
+
 msgid "Prints whether system is managed"
+msgstr ""
+
+#, c-format
+msgid "Prune automatic aliases for snap %q"
 msgstr ""
 
 msgid "Put snap in classic mode and disable security confinement"
@@ -535,12 +621,19 @@ msgstr ""
 msgid "Put snap in enforced confinement mode"
 msgstr ""
 
+msgid "Query the status of services"
+msgstr ""
+
 #, c-format
 msgid "Refresh %q snap"
 msgstr ""
 
 #, c-format
 msgid "Refresh %q snap from %q channel"
+msgstr ""
+
+#, c-format
+msgid "Refresh aliases for snap %q"
 msgstr ""
 
 msgid "Refresh all snaps: no updates"
@@ -553,6 +646,11 @@ msgstr ""
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s"
+msgstr ""
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Refresh snaps %s: no updates"
 msgstr ""
 
 msgid "Refresh to the given revision"
@@ -573,11 +671,19 @@ msgstr ""
 msgid "Remove data for snap %q (%s)"
 msgstr ""
 
+#, c-format
+msgid "Remove manual alias %q for snap %q"
+msgstr ""
+
 msgid "Remove only the given revision"
 msgstr ""
 
 #, c-format
 msgid "Remove security profile for snap %q (%s)"
+msgstr ""
+
+#, c-format
+msgid "Remove security profiles of snap %q"
 msgstr ""
 
 #, c-format
@@ -593,13 +699,25 @@ msgstr ""
 msgid "Remove snaps %s"
 msgstr ""
 
+msgid "Removed"
+msgstr ""
+
 msgid "Removes a snap from the system"
 msgstr ""
 
 msgid "Request device serial"
 msgstr ""
 
+msgid "Restart services"
+msgstr ""
+
+msgid "Restarted.\n"
+msgstr ""
+
 msgid "Restrict the search to a given section"
+msgstr ""
+
+msgid "Retrieve logs of services"
 msgstr ""
 
 #, c-format
@@ -620,7 +738,23 @@ msgstr ""
 msgid "Run configure hook of %q snap if present"
 msgstr ""
 
+#, c-format
+msgid "Run hook %s of snap %q"
+msgstr ""
+
+#, c-format
+msgid "Run install hook of %q snap if present"
+msgstr ""
+
+#, c-format
+msgid "Run post-refresh hook of %q snap if present"
+msgstr ""
+
 msgid "Run prepare-device hook"
+msgstr ""
+
+#, c-format
+msgid "Run remove hook of %q snap if present"
 msgstr ""
 
 msgid "Run the given snap command"
@@ -629,10 +763,34 @@ msgstr ""
 msgid "Run the given snap command with the right confinement and environment"
 msgstr ""
 
-msgid "Runs unsupported experimental commands"
+msgid "Runs debug commands"
 msgstr ""
 
 msgid "Search private snaps"
+msgstr ""
+
+msgid ""
+"Select last change of given type (install, refresh, remove, try, auto-"
+"refresh etc.)"
+msgstr ""
+
+#, c-format
+msgid "Set automatic aliases for snap %q"
+msgstr ""
+
+msgid "Sets up a manual alias"
+msgstr ""
+
+#, c-format
+msgid "Setup alias %q => %q for snap %q"
+msgstr ""
+
+#, c-format
+msgid "Setup manual alias %q => %q for snap %q"
+msgstr ""
+
+#, c-format
+msgid "Setup snap %q (%s) security profiles"
 msgstr ""
 
 #, c-format
@@ -643,10 +801,23 @@ msgstr ""
 msgid "Setup snap %q%s security profiles"
 msgstr ""
 
+#, c-format
+msgid "Setup snap %q%s security profiles (phase 2)"
+msgstr ""
+
 msgid "Show all revisions"
 msgstr ""
 
-msgid "Show available snaps for refresh"
+msgid "Show auto refresh information but do not perform a refresh"
+msgstr ""
+
+msgid "Show available snaps for refresh but do not perform a refresh"
+msgstr ""
+
+msgid "Show details of a specific interface"
+msgstr ""
+
+msgid "Show interface attributes"
 msgstr ""
 
 msgid "Shows known assertions of the provided type"
@@ -670,10 +841,16 @@ msgstr ""
 msgid "Snap name"
 msgstr ""
 
+msgid "Snap\tService\tStartup\tCurrent"
+msgstr ""
+
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
 "your\n"
 "payment details at https://my.ubuntu.com/payment/edit and try again."
+msgstr ""
+
+msgid "Start services"
 msgstr ""
 
 #, c-format
@@ -687,7 +864,16 @@ msgstr ""
 msgid "Start snap services"
 msgstr ""
 
+msgid "Start the userd service"
+msgstr ""
+
+msgid "Started.\n"
+msgstr ""
+
 msgid "Status\tSpawn\tReady\tSummary\n"
+msgstr ""
+
+msgid "Stop services"
 msgstr ""
 
 #, c-format
@@ -701,7 +887,25 @@ msgstr ""
 msgid "Stop snap services"
 msgstr ""
 
+msgid "Stopped.\n"
+msgstr ""
+
 msgid "Strict typing with nulls and quoted strings"
+msgstr ""
+
+#, c-format
+msgid "Switch %q snap to %s"
+msgstr ""
+
+#, c-format
+msgid "Switch snap %q from %s to %s"
+msgstr ""
+
+#, c-format
+msgid "Switch snap %q to %s"
+msgstr ""
+
+msgid "Switches snap to a different channel"
 msgstr ""
 
 msgid "Temporarily mount device before inspecting"
@@ -717,6 +921,10 @@ msgid ""
 "with 'snap install %s'."
 msgstr ""
 
+msgid ""
+"The get command prints configuration and interface connection settings."
+msgstr ""
+
 msgid "The login.ubuntu.com email to login as"
 msgstr ""
 
@@ -726,10 +934,18 @@ msgstr ""
 msgid "The output directory"
 msgstr ""
 
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#, c-format
+msgid "The search %q returned 0 snaps\n"
+msgstr ""
+
 msgid "The snap to configure (e.g. hello-world)"
 msgstr ""
 
 msgid "The snap whose conf is being requested"
+msgstr ""
+
+msgid "The userd command starts the snap user session service."
 msgstr ""
 
 msgid "This command logs the current user out of the store"
@@ -739,10 +955,20 @@ msgid "Tool to interact with snaps"
 msgstr ""
 
 #, c-format
+msgid "Transition security profiles from %q to %q"
+msgstr ""
+
+msgid "Transition ubuntu-core to core"
+msgstr ""
+
+#, c-format
 msgid "Try %q snap from %s"
 msgstr ""
 
 msgid "Two-factor code: "
+msgstr ""
+
+msgid "Unalias a manual alias or an entire snap"
 msgstr ""
 
 msgid "Use a specific snap revision when running hook"
@@ -767,24 +993,30 @@ msgstr ""
 msgid "Wrong again. Once more: "
 msgstr ""
 
+#, c-format
+msgid "Xauthority file isn't owned by the current user %s"
+msgstr ""
+
 msgid "Yes, yes it does."
 msgstr "Ja, ja, allerdings."
-
-#, c-format
-msgid ""
-"You do not have a payment method associated with your account, visit https://"
-"my.ubuntu.com/payment/edit to add one.\n"
-"Once completed, return here and run 'snap buy %s' again."
-msgstr ""
 
 msgid ""
 "You need to be logged in to purchase software. Please run 'snap login' and "
 "try again."
 msgstr ""
 
+#, c-format
+msgid ""
+"You need to have a payment method associated with your account in order to "
+"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
+"\n"
+"Once you’ve added your payment details, you just need to run 'snap buy %s' "
+"again."
+msgstr ""
+
 #. TRANSLATORS: the %s is the argument given by the user to "snap changes"
 #, c-format
-msgid "\"snap changes\" command expects a snap name, try: \"snap change %s\""
+msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
 msgstr ""
 
 msgid ""
@@ -818,6 +1050,29 @@ msgstr ""
 
 msgid ""
 "\n"
+"The alias command aliases the given snap application to the given alias.\n"
+"\n"
+"Once this manual alias is setup the respective application command can be "
+"invoked just using the alias.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The aliases command lists all aliases available in the system and their "
+"status.\n"
+"\n"
+"$ snap aliases <snap>\n"
+"\n"
+"Lists only the aliases defined by the specified snap.\n"
+"\n"
+"An alias noted as undefined means it was explicitly enabled or disabled but "
+"is\n"
+"not defined in the current revision of the snap; possibly temporarely (e.g\n"
+"because of a revert), if not this can be cleared with snap alias --reset.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The auto-import command searches available mounted devices looking for\n"
 "assertions that are signed by trusted authorities, and potentially\n"
 "performs system changes based on them.\n"
@@ -837,14 +1092,15 @@ msgstr ""
 
 msgid ""
 "\n"
-"The change command displays a summary of tasks associated to an individual "
-"change."
+"The changes command displays a summary of the recent system changes "
+"performed."
 msgstr ""
 
 msgid ""
 "\n"
-"The changes command displays a summary of the recent system changes "
-"performed."
+"The confinement command will print the confinement mode (strict, partial or "
+"none)\n"
+"the system operates in.\n"
 msgstr ""
 
 msgid ""
@@ -883,6 +1139,14 @@ msgstr ""
 
 msgid ""
 "\n"
+"The debug command contains a selection of additional sub-commands.\n"
+"\n"
+"Debug commands can be removed without notice and may not work on\n"
+"non-development systems.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The disable command disables a snap. The binaries and services of the\n"
 "snap will no longer be available. But all the data is still available\n"
 "and the snap can easily be enabled again.\n"
@@ -917,15 +1181,8 @@ msgstr ""
 
 msgid ""
 "\n"
-"The experimental command contains a selection of additional sub-commands.\n"
-"\n"
-"Experimental commands can be removed without notice and may not work on\n"
-"non-development systems.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The find command queries the store for available packages.\n"
+"The find command queries the store for available packages in the stable "
+"channel.\n"
 msgstr ""
 
 msgid ""
@@ -947,6 +1204,23 @@ msgid ""
 "\n"
 "    $ snapctl get author.name\n"
 "    frank\n"
+"\n"
+"Values of interface connection settings may be printed with:\n"
+"\n"
+"    $ snapctl get :myplug usb-vendor\n"
+"    $ snapctl get :myslot path\n"
+"\n"
+"This will return the named setting from the local interface endpoint, "
+"whether a plug\n"
+"or a slot. Returning the setting from the connected snap's endpoint is also "
+"possible\n"
+"by explicitly requesting that via the --plug and --slot command line "
+"options:\n"
+"\n"
+"    $ snapctl get :myplug --slot usb-vendor\n"
+"\n"
+"This requests the \"usb-vendor\" setting from the slot that is connected to "
+"\"myplug\".\n"
 msgstr ""
 
 msgid ""
@@ -984,6 +1258,14 @@ msgstr ""
 msgid ""
 "\n"
 "The install command installs the named snap in the system.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The interface command shows details of snap interfaces.\n"
+"\n"
+"If no interface name is provided, a list of interface names with at least\n"
+"one connection is shown, or a list of all interfaces if --all is provided.\n"
 msgstr ""
 
 msgid ""
@@ -1040,6 +1322,31 @@ msgstr ""
 
 msgid ""
 "\n"
+"The prefer command enables all aliases of the given snap in preference\n"
+"to conflicting aliases of other snaps whose aliases will be disabled\n"
+"(removed for manual ones).\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"\n"
+"The publisher of snap %q has indicated that they do not consider this "
+"revision\n"
+"to be of production quality and that it is only meant for development or "
+"testing\n"
+"at this point. As a consequence this snap will not refresh automatically and "
+"may\n"
+"perform arbitrary system changes outside of the security sandbox snaps are\n"
+"generally confined to, which may put your system at risk.\n"
+"\n"
+"If you understand and want to proceed repeat the command including --"
+"devmode;\n"
+"if instead you want to install the snap forcing it into strict confinement\n"
+"repeat the command including --jailmode."
+msgstr ""
+
+msgid ""
+"\n"
 "The refresh command refreshes (updates) the named snap.\n"
 msgstr ""
 
@@ -1090,6 +1397,24 @@ msgid ""
 "Nested values may be modified via a dotted path:\n"
 "\n"
 "    $ snapctl set author.name=frank\n"
+"\n"
+"Plug and slot attributes may be set in the respective prepare and connect "
+"hooks by\n"
+"naming the respective plug or slot:\n"
+"\n"
+"    $ snapctl set :myplug path=/dev/ttyS0\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The switch command switches the given snap to a different channel without\n"
+"doing a refresh.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The tasks command displays a summary of tasks associated to an individual "
+"change."
 msgstr ""
 
 msgid ""
@@ -1110,6 +1435,12 @@ msgstr ""
 
 msgid ""
 "\n"
+"The unalias command tears down a manual alias when given one or disables all "
+"aliases of a snap, removing also all manual ones, when given a snap name.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The version command displays the versions of the running client, server,\n"
 "and operating system.\n"
 msgstr ""
@@ -1119,6 +1450,24 @@ msgid ""
 "The watch command waits for the given change-id to finish and shows "
 "progress\n"
 "(if available).\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The whoami command prints the email the user is logged in with.\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"\n"
+"This revision of snap %q was published using classic confinement and thus "
+"may\n"
+"perform arbitrary system changes outside of the security sandbox that snaps "
+"are\n"
+"usually confined to, which may put your system at risk.\n"
+"\n"
+"If you understand and want to proceed repeat the command including --"
+"classic.\n"
 msgstr ""
 
 msgid ""
@@ -1135,6 +1484,9 @@ msgid "a single snap name is needed to specify the revision"
 msgstr ""
 
 msgid "a single snap name must be specified when ignoring validation"
+msgstr ""
+
+msgid "active"
 msgstr ""
 
 msgid "bought"
@@ -1188,6 +1540,10 @@ msgid "cannot get full path for %q: %v"
 msgstr ""
 
 #, c-format
+msgid "cannot get the current user: %s"
+msgstr ""
+
+#, c-format
 msgid "cannot get the current user: %v"
 msgstr ""
 
@@ -1203,12 +1559,21 @@ msgstr ""
 msgid "cannot read assertion input: %v"
 msgstr ""
 
+#. TRANSLATORS: %v the error message
+#, c-format
+msgid "cannot read symlink: %v"
+msgstr ""
+
 #, c-format
 msgid "cannot resolve snap app %q: %v"
 msgstr ""
 
 #, c-format
 msgid "cannot sign assertion: %v"
+msgstr ""
+
+#, c-format
+msgid "cannot update the 'current' symlink of %q: %v"
 msgstr ""
 
 #. TRANSLATORS: %q is the key name, %v the error message
@@ -1219,11 +1584,27 @@ msgstr ""
 msgid "cannot use --hook and --command together"
 msgstr ""
 
+msgid "cannot use change ID and type together"
+msgstr ""
+
 msgid "cannot use devmode and jailmode flags together"
 msgstr ""
 
 #, c-format
+msgid "cannot validate owner of file %s"
+msgstr ""
+
+#, c-format
+msgid "cannot write new Xauthority file at %s: %s"
+msgstr ""
+
+#, c-format
 msgid "change finished in status %q with no error message"
+msgstr ""
+
+#, c-format
+msgid ""
+"classic confinement requires snaps under /snap or symlink from /snap to %s"
 msgstr ""
 
 #, c-format
@@ -1234,16 +1615,51 @@ msgstr ""
 msgid "disabled"
 msgstr ""
 
+msgid "email:"
+msgstr ""
+
+msgid "enabled"
+msgstr ""
+
 #, c-format
 msgid "error: %v\n"
-msgstr ""
+msgstr "Fehler: %v\n"
 
 msgid ""
 "error: the `<snap-dir>` argument was not provided and couldn't be inferred"
 msgstr ""
 
+msgid "get which option?"
+msgstr ""
+
+msgid "inactive"
+msgstr ""
+
+msgid ""
+"interface attributes can only be read during the execution of interface hooks"
+msgstr ""
+
+msgid ""
+"interface attributes can only be set during the execution of prepare hooks"
+msgstr ""
+
 #, c-format
 msgid "internal error, please report: running %q failed: %v\n"
+msgstr ""
+
+msgid "internal error: cannot find attrs task"
+msgstr ""
+
+msgid "internal error: cannot find plug or slot data in the appropriate task"
+msgstr ""
+
+#, c-format
+msgid "internal error: cannot get %s from appropriate task"
+msgstr ""
+
+msgid ""
+"invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
+"“all”."
 msgstr ""
 
 #, c-format
@@ -1271,44 +1687,88 @@ msgid ""
 "key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
 msgstr ""
 
+msgid "missing snap-confine: try updating your snapd package"
+msgstr ""
+
 msgid "need the application to run as argument"
 msgstr ""
 
 msgid "no changes found"
+msgstr "keine Änderungen gefunden"
+
+#, c-format
+msgid "no changes of type %q found"
+msgstr ""
+
+msgid "no interfaces currently connected"
 msgstr ""
 
 msgid "no interfaces found"
 msgstr ""
 
 msgid "no matching snaps installed"
-msgstr ""
+msgstr "keine passenden Snaps installiert"
 
-#. TRANSLATORS: the %q is the (quoted) query the user entered
-#, c-format
-msgid "no snaps found for %q"
+msgid "no such interface"
 msgstr ""
 
 msgid "no valid snaps given"
-msgstr ""
+msgstr "keine gültigen Snaps angegeben"
 
 msgid "not a valid snap"
 msgstr ""
 
+msgid "please provide change ID or type with --last=<type>"
+msgstr ""
+
 #. TRANSLATORS: if possible, a single short word
 msgid "private"
-msgstr ""
+msgstr "privat"
 
 msgid ""
 "reboot scheduled to update the system - temporarily cancel with 'sudo "
 "shutdown -c'"
 msgstr ""
 
+#, c-format
+msgid "set failed: %v"
+msgstr ""
+
+msgid "set which option?"
+msgstr ""
+
 msgid "show detailed information about a snap"
+msgstr ""
+
+#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
+#, c-format
+msgid "snap %%q not found (at least at revision %q)"
+msgstr ""
+
+#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
+#, c-format
+msgid "snap %%q not found (at least in channel %q)"
+msgstr ""
+
+#, c-format
+msgid "snap %q has no updates available"
+msgstr ""
+
+#, c-format
+msgid "snap %q is already installed, see \"snap refresh --help\""
+msgstr ""
+
+#, c-format
+msgid "snap %q is local"
+msgstr ""
+
+#, c-format
+msgid "snap %q not found"
 msgstr ""
 
 #. TRANSLATORS: free as in gratis
 msgid "snap is free"
-msgstr ""
+msgstr "Snap ist kostenlos"
 
 msgid "too many arguments for command"
 msgstr ""
@@ -1324,12 +1784,20 @@ msgid "too many arguments: %s"
 msgstr ""
 
 msgid "unavailable"
+msgstr "nicht verfügbar"
+
+#, c-format
+msgid "unknown attribute %q"
 msgstr ""
 
 #, c-format
 msgid "unknown command %q, see \"snap --help\""
+msgstr "unbekannter Befehl %q, siehe »snap --help«"
+
+#, c-format
+msgid "unknown plug or slot %q"
 msgstr ""
 
 #, c-format
 msgid "unsupported shell %v"
-msgstr ""
+msgstr "nicht unterstützte Shell %v"
