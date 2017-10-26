@@ -148,12 +148,12 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		return err
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
-		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			task.Logf("%s", err)
-		} else {
-			return err
-		}
+		return err
 	}
+	if len(snapInfo.BadInterfaces) > 0 {
+		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
+	}
+
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}

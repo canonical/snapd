@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -306,4 +308,48 @@ func (s *AllSuite) TestRegisterIface(c *C) {
 
 	// Duplicates are detected.
 	c.Assert(func() { builtin.RegisterIface(iface) }, PanicMatches, `cannot register duplicate interface "foo"`)
+}
+
+const testConsumerInvalidSlotNameYaml = `
+name: consumer
+slots:
+ ttyS5:
+  interface: iface
+apps:
+    app:
+        slots: [iface]
+`
+
+const testConsumerInvalidPlugNameYaml = `
+name: consumer
+plugs:
+ ttyS3:
+  interface: iface
+apps:
+    app:
+        plugs: [iface]
+`
+
+func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
+	restore := builtin.MockInterfaces(map[string]interfaces.Interface{
+		"iface": &ifacetest.TestInterface{InterfaceName: "iface"},
+	})
+	defer restore()
+
+	snapInfo := snaptest.MockInfo(c, testConsumerInvalidSlotNameYaml, nil)
+	snap.SanitizePlugsSlots(snapInfo)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+}
+
+func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
+	restore := builtin.MockInterfaces(map[string]interfaces.Interface{
+		"iface": &ifacetest.TestInterface{InterfaceName: "iface"},
+	})
+	defer restore()
+
+	snapInfo := snaptest.MockInfo(c, testConsumerInvalidPlugNameYaml, nil)
+	snap.SanitizePlugsSlots(snapInfo)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
 }

@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -58,6 +57,7 @@ import (
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
+	testutil.BaseTest
 	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
@@ -66,8 +66,6 @@ type snapmgrTestSuite struct {
 	fakeStore   *fakeStore
 
 	user *auth.UserState
-
-	reset func()
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -78,10 +76,13 @@ func (s *snapmgrTestSuite) settle(c *C) {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeStore = &fakeStore{
@@ -107,21 +108,19 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
-	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
+	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 
-	s.reset = func() {
+	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 
-		restore2()
-		restore1()
 		dirs.SetRootDir("/")
-	}
+	})
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, s.fakeStore)
+	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 
@@ -141,10 +140,24 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
-	s.reset()
+}
+
+func (s *snapmgrTestSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sto := &store.Store{}
+	snapstate.ReplaceStore(s.state, sto)
+	store1 := snapstate.Store(s.state)
+	c.Check(store1, Equals, sto)
+
+	// cached
+	store2 := snapstate.Store(s.state)
+	c.Check(store2, Equals, sto)
 }
 
 const (
@@ -1018,7 +1031,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	storestate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
@@ -4987,7 +5000,8 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 }
 
 type snapmgrQuerySuite struct {
-	st *state.State
+	st      *state.State
+	restore func()
 }
 
 var _ = Suite(&snapmgrQuerySuite{})
@@ -4996,6 +5010,11 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.restore = func() {
+		restoreSanitize()
+	}
 
 	s.st = st
 
@@ -5031,6 +5050,7 @@ description: |
 
 func (s *snapmgrQuerySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *snapmgrQuerySuite) TestInfo(c *C) {
@@ -7363,7 +7383,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
 
-	storestate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
 
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)

@@ -51,6 +51,11 @@ import (
 // Backend is responsible for maintaining kernel modules
 type Backend struct{}
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
