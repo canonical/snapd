@@ -35,10 +35,13 @@ type stopCommand struct {
 
 var (
 	shortStopHelp = i18n.G("Stop services")
+	longStopHelp  = i18n.G(`
+The stop command stops given services of the snap. If executed from the
+"configure" hook, the services will be stopped after the hook finishes.`)
 )
 
 func init() {
-	addCommand("stop", shortStopHelp, "", func() command { return &stopCommand{} })
+	addCommand("stop", shortStopHelp, longStopHelp, func() command { return &stopCommand{} })
 }
 
 func (c *stopCommand) Execute(args []string) error {
