@@ -289,10 +289,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	if snapName == "core" && !release.OnClassic {
-		if l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
-			for _, p := range l {
-				if err := os.Remove(p); err != nil {
-					logger.Noticef("cannot remove %q: %s", p, err)
+		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
+			for _, p := range li {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+					if err := os.Remove(p); err != nil {
+						logger.Noticef("cannot remove %q: %s", p, err)
+					}
 				}
 			}
 		}
