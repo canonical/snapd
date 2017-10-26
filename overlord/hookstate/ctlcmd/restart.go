@@ -41,7 +41,7 @@ type restartCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Reload bool `long:"reload" description:"reload the given services if they support it (see man systemctl for details)"`
+	Reload bool `long:"reload" description:"Reload the given services if they support it (see man systemctl for details)"`
 }
 
 func (c *restartCommand) Execute(args []string) error {

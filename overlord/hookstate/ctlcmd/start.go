@@ -41,7 +41,7 @@ type startCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Enable bool `long:"enable" description:"enable the specified services (see man systemctl for details)"`
+	Enable bool `long:"enable" description:"Enable the specified services (see man systemctl for details)"`
 }
 
 func (c *startCommand) Execute(args []string) error {
