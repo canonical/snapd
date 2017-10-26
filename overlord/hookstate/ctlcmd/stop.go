@@ -36,7 +36,7 @@ type stopCommand struct {
 var (
 	shortStopHelp = i18n.G("Stop services")
 	longStopHelp  = i18n.G(`
-The stop command stops given services of the snap. If executed from the
+The stop command stops the given services of the snap. If executed from the
 "configure" hook, the services will be stopped after the hook finishes.`)
 )
 

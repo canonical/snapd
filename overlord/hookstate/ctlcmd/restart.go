@@ -28,7 +28,7 @@ import (
 var (
 	shortRestartHelp = i18n.G("Restart services")
 	longRestartHelp  = i18n.G(`
-The restart command restarts given services of the snap. If executed from the
+The restart command restarts the given services of the snap. If executed from the
 "configure" hook, the services will be restarted after the hook finishes.`)
 )
 
