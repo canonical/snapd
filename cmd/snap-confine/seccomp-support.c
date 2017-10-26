@@ -154,7 +154,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
+	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL) {
 		die("cannot read %s", profile_path);
