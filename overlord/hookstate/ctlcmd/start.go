@@ -28,7 +28,7 @@ import (
 var (
 	shortStartHelp = i18n.G("Start services")
 	longStartHelp  = i18n.G(`
-The start command starts given services of the snap. If executed from the
+The start command starts the given services of the snap. If executed from the
 "configure" hook, the services will be started after the hook finishes.`)
 )
 
