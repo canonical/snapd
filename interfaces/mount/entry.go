@@ -192,7 +192,9 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
 		default:
-			return 0, fmt.Errorf("unsupported mount option: %q", opt)
+			if !strings.HasPrefix(opt, "x-snapd.") {
+				return 0, fmt.Errorf("unsupported mount option: %q", opt)
+			}
 		}
 	}
 	return flags, nil
