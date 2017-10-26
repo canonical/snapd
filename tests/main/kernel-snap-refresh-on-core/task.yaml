@@ -14,7 +14,7 @@ environment:
     NEW_KERNEL_CHANNEL: edge
 
 restore: |
-    rm -f prevBoot nextBoot
+    rm -f prevBoot nextBoot prevKernelSignature nextKernelSiganture
         
 prepare: |
     snap install test-snapd-tools
