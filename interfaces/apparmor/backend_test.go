@@ -516,6 +516,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	c.Assert(err, IsNil)
 	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
 	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
