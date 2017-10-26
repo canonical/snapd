@@ -503,9 +503,16 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 
 	err := os.MkdirAll(dirs.SystemApparmorCacheDir, 0755)
 	c.Assert(err, IsNil)
+	// the canary file in the cache will be removed
 	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
 	err = ioutil.WriteFile(canaryPath, nil, 0644)
 	c.Assert(err, IsNil)
+	// but non-regular entries in the cache dir are kept
+	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
+	err = os.MkdirAll(dirsAreKept, 0755)
+	c.Assert(err, IsNil)
+	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
+	err = os.Symlink("some-sylink-target", symlinksAreKept)
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
@@ -513,5 +520,6 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
-	c.Check(l, HasLen, 0)
+	// canary is gone, extra stuff is kept
+	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
 }
