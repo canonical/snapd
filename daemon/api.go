@@ -189,10 +189,11 @@ var (
 	}
 
 	stateChangeCmd = &Command{
-		Path:   "/v2/changes/{id}",
-		UserOK: true,
-		GET:    getChange,
-		POST:   abortChange,
+		Path:     "/v2/changes/{id}",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getChange,
+		POST:     abortChange,
 	}
 
 	stateChangesCmd = &Command{
