@@ -30,7 +30,7 @@ type stopCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Disable bool `long:"disable" description:"disable the specified services (see man systemctl for details)"`
+	Disable bool `long:"disable" description:"Disable the specified services (see man systemctl for details)"`
 }
 
 var (
