@@ -11,3 +11,6 @@ slots:
     common:
         interface: content
         write: [$SNAP_COMMON/source]
+    snap:
+        interface: content
+        write: [$SNAP/source]
