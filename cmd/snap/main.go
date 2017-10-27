@@ -53,11 +53,6 @@ func init() {
 
 	// plug/slot sanitization not used nor possible from snap command, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
-
-	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
-		// in tests or when debugging, enforce the "tidy" lint checks
-		noticef = logger.Panicf
-	}
 }
 
 var (
