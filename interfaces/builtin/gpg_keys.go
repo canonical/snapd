@@ -33,6 +33,7 @@ const gpgKeysConnectedPlugAppArmor = `
 # Description: Can read gpg user configuration as well as public and private
 # keys.
 
+/usr/bin/gpg{,2} ixr,
 /usr/share/gnupg/options.skel r,
 owner @{HOME}/.gnupg/{,**} r,
 owner @{HOME}/.gnupg/random_seed w,
