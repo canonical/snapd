@@ -1,6 +1,21 @@
-snapd (2.29~14.04~rc1) trusty; urgency=medium
+snapd (2.29~14.04~rc2) trusty; urgency=medium
 
   * New upstream release, LP: #1726258
+    - hooks/configure: queue service restarts
+    - snap-{confine,seccomp}: make @unrestricted fully unrestricted
+    - interfaces: clean system apparmor cache on core device
+    - debian: do not build static snap-exec on powerpc
+    - snap-confine: increase sanity_timeout to 6s
+    - snapctl: cherry pick service commands changes
+    - cmd/snap: tell translators about arg names and descs req's
+    - systemd: run all mount units before snapd.service to avoid race
+    - store: add a test to show auth failures are forwarded by doRequest
+    - daemon: convert ErrInvalidCredentials to a 401 Unauthorized error.
+    - store: forward on INVALID_CREDENTIALS error as
+      ErrInvalidCredentials
+    - daemon: generate a forbidden response message if polkit dialog is
+      dismissed
+    - daemon: Allow Polkit authorization to cancel changes.
     - travis: switch to container based test runs
     - interfaces: reduce duplicated code in interface tests mocks
     - tests: improve revert related testing
@@ -164,7 +179,7 @@ snapd (2.29~14.04~rc1) trusty; urgency=medium
     - docs: use abolute path in PULL_REQUEST_TEMPLATE.md
     - store: move device auth endpoint uris to config (#3831)
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 23 Oct 2017 08:19:20 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 27 Oct 2017 14:43:48 +0200
 
 snapd (2.28.5~14.04) trusty; urgency=medium
 
