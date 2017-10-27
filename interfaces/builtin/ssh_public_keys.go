@@ -32,6 +32,7 @@ const sshPublicKeysBaseDeclarationSlots = `
 const sshPublicKeysConnectedPlugAppArmor = `
 # Description: Can read ssh public keys and non-sensitive configuration
 
+/usr/bin/ssh ixr,
 owner @{HOME}/.ssh/ r,
 owner @{HOME}/.ssh/environment r,
 owner @{HOME}/.ssh/*.pub r,
