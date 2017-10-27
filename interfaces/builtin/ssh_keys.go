@@ -33,6 +33,7 @@ const sshKeysConnectedPlugAppArmor = `
 # Description: Can read ssh user configuration as well as public and private
 # keys.
 
+/etc/ssh/ssh_config r,
 owner @{HOME}/.ssh/{,**} r,
 `
 
