@@ -35,6 +35,7 @@ const gpgKeysConnectedPlugAppArmor = `
 
 /usr/share/gnupg/options.skel r,
 owner @{HOME}/.gnupg/{,**} r,
+owner @{HOME}/.gnupg/random_seed w,
 `
 
 func init() {
