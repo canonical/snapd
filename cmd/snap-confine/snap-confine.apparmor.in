@@ -481,6 +481,9 @@
         # Needed to perform mount/unmounts.
         capability sys_admin,
 
+        # Allow freezing and thawing the per-snap cgroup freezers
+        /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
+
         # Support mount profiles via the content interface. This should correspond
         # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
         # $SNAP_{DATA,COMMON} for both reading and writing.
@@ -497,6 +500,16 @@
         mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
         mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
         mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
+
+        # Allow creating missing mount directories under $SNAP_DATA.
+        #
+        # The "tree" of permissions is needed for SecureMkdirAll that uses
+        # open(..., O_NOFOLLOW) and mkdirat() using the resulting file
+        # descriptor.
+        / r,
+        /var/ r,
+        /var/snap/{,*/} r,
+        /var/snap/*/**/ rw,
 
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
