@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.29~rc1
+Version:        2.29~rc2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,8 +659,23 @@ fi
 
 
 %changelog
-* Mon Oct 23 2017 Michael Vogt <mvo@ubuntu.com>
-- New upstream release 2.29~rc1
+* Fri Oct 27 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29~rc2
+ - hooks/configure: queue service restarts
+ - snap-{confine,seccomp}: make @unrestricted fully unrestricted
+ - interfaces: clean system apparmor cache on core device
+ - debian: do not build static snap-exec on powerpc
+ - snap-confine: increase sanity_timeout to 6s
+ - snapctl: cherry pick service commands changes
+ - cmd/snap: tell translators about arg names and descs req's
+ - systemd: run all mount units before snapd.service to avoid race
+ - store: add a test to show auth failures are forwarded by doRequest
+ - daemon: convert ErrInvalidCredentials to a 401 Unauthorized error.
+ - store: forward on INVALID_CREDENTIALS error as
+   ErrInvalidCredentials
+ - daemon: generate a forbidden response message if polkit dialog is
+   dismissed
+ - daemon: Allow Polkit authorization to cancel changes.
  - travis: switch to container based test runs
  - interfaces: reduce duplicated code in interface tests mocks
  - tests: improve revert related testing
