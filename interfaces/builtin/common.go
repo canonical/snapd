@@ -81,7 +81,7 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 //
 // If the reservedForOS flag is set then only slots on core snap
 // are allowed.
-func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *commonInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if iface.reservedForOS {
 		return sanitizeSlotReservedForOS(iface, slot)
 	}

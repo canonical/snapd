@@ -40,9 +40,9 @@ type TestInterface struct {
 	// AutoConnectCallback is the callback invoked inside AutoConnect
 	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
-	SanitizePlugCallback func(plug *interfaces.Plug) error
+	SanitizePlugCallback func(plug *snap.PlugInfo) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
-	SanitizeSlotCallback func(slot *interfaces.Slot) error
+	SanitizeSlotCallback func(slot *snap.SlotInfo) error
 
 	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
 	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
@@ -119,7 +119,7 @@ func (t *TestInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (t *TestInterface) SanitizePlug(plug *snap.PlugInfo) error {
 	if t.SanitizePlugCallback != nil {
 		return t.SanitizePlugCallback(plug)
 	}
@@ -127,7 +127,7 @@ func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 // SanitizeSlot checks and possibly modifies a slot.
-func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (t *TestInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if t.SanitizeSlotCallback != nil {
 		return t.SanitizeSlotCallback(slot)
 	}

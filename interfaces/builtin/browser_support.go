@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
@@ -260,7 +261,7 @@ func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *browserSupportInterface) SanitizePlug(plug *snap.PlugInfo) error {
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
