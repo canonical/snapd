@@ -52,7 +52,7 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 		state:  st,
 		runner: runner,
 	}
-	runner.AddHandler("run-core-configure", manager.doRunCoreConfigure, nil)
+	runner.AddHandler("configure-snapd", manager.doRunCoreConfigure, nil)
 
 	return manager, nil
 }
@@ -88,20 +88,16 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 	var useDefaults bool
 
 	st := t.State()
-	snapName := "core"
-
-	// FIXME: lock taken for too long
 	st.Lock()
 	defer st.Unlock()
 
 	// FIXME: duplicated code from configureHandler.Before()
 	if err := t.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
-		println(err.Error())
 		return err
 	}
 	if useDefaults {
 		var err error
-		patch, err = snapstate.ConfigDefaults(st, snapName)
+		patch, err = snapstate.ConfigDefaults(st, "core")
 		if err != nil && err != state.ErrNoState {
 			return err
 		}
@@ -112,9 +108,11 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 	}
 
 	tr := config.NewTransaction(st)
+	st.Unlock()
+	defer st.Lock()
 	for key, value := range patch {
 		if err := tr.Set("core", key, value); err != nil {
-			return nil
+			return err
 		}
 	}
 
@@ -122,6 +120,8 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 		return err
 	}
 
+	st.Lock()
 	tr.Commit()
+	st.Unlock()
 	return nil
 }

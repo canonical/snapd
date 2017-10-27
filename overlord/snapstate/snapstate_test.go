@@ -212,7 +212,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	}
 	if opts&runCoreConfigure != 0 {
 		expected = append(expected,
-			"run-core-configure",
+			"configure-snapd",
 		)
 	} else {
 		expected = append(expected,

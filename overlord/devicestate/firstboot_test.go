@@ -746,7 +746,7 @@ snaps:
 	defer rhk()
 
 	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
-		configured = append(configured, "run-core-configure")
+		configured = append(configured, "configure-snapd")
 		return nil
 	})
 	defer restore()
@@ -808,7 +808,7 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Check(val, Equals, "foo.")
 
-	c.Check(configured, DeepEquals, []string{"run-core-configure", "pc-kernel", "pc", "foo"})
+	c.Check(configured, DeepEquals, []string{"configure-snapd", "pc-kernel", "pc", "foo"})
 
 	// and ensure state is now considered seeded
 	var seeded bool

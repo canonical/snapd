@@ -72,7 +72,7 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 
 	// configuration of "core" is handled differently
 	if snapName == "core" {
-		t := st.NewTask("run-core-configure", summary)
+		t := st.NewTask("configure-snapd", summary)
 		t.Set("patch", patch)
 		if v, ok := contextData["use-defaults"].(bool); v && ok {
 			t.Set("use-defaults", true)
