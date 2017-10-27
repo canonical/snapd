@@ -92,10 +92,11 @@ const bluezPermanentSlotAppArmor = `
       name="org.bluez.obex",
 
   # Allow traffic to/from our path and interface with any method for unconfined
-  # cliens to talk to our bluez services.
+  # clients to talk to our bluez services. For the org.bluez interface we don't
+  # specify an Object Path since according to the bluez specification these can
+  # be anything (https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc).
   dbus (receive, send)
       bus=system
-      path=/org/bluez{,/**}
       interface=org.bluez.*
       peer=(label=unconfined),
   dbus (receive, send)
