@@ -66,6 +66,7 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
+/etc/chromium/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
