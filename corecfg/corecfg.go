@@ -35,11 +35,8 @@ type Conf interface {
 	Get(snapName, key string, result interface{}) error
 }
 
-func snapctlGet(tr Conf, key string) (string, error) {
-	snapName := "core"
-
-	var result string
-	if err := tr.Get(snapName, key, &result); err != nil && !config.IsNoOption(err) {
+func coreCfg(tr Conf, key string) (result string, err error) {
+	if err := tr.Get("core", key, &result); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 	return result, nil

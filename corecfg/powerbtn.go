@@ -63,7 +63,7 @@ HandlePowerKey=%s
 }
 
 func handlePowerButtonConfiguration(tr Conf) error {
-	output, err := snapctlGet(tr, "system.power-key-action")
+	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err
 	}

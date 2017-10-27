@@ -84,7 +84,7 @@ func handlePiConfiguration(tr Conf) error {
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
 		for key := range piConfigKeys {
-			output, err := snapctlGet(tr, fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
+			output, err := coreCfg(tr, fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
 			if err != nil {
 				return err
 			}
