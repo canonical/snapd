@@ -77,6 +77,12 @@ deny dbus (send)
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
 deny @{PROC}/@{pid}/attr/current r,
+
+# This is an information leak but disallowing it leads to developer confusion
+# when using the chromium content api file chooser due to a (harmless) glib
+# warning and the noisy AppArmor denial.
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/mountinfo r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
