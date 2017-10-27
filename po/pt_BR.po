@@ -1,16 +1,16 @@
-# Galician translation for snappy
-# Copyright (c) 2015 Rosetta Contributors and Canonical Ltd 2015
-# This file is distributed under the same license as the snappy package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
+# Brazilian Portuguese translation for snapd
+# Copyright (c) 2016 Rosetta Contributors and Canonical Ltd 2016
+# This file is distributed under the same license as the snapd package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: snappy\n"
+"Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2017-10-14 00:51+0000\n"
-"PO-Revision-Date: 2017-10-09 21:18+0000\n"
-"Last-Translator: Xosé <Unknown>\n"
-"Language-Team: Galician <gl@li.org>\n"
+"PO-Revision-Date: 2016-09-04 11:48+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Brazilian Portuguese <pt_BR@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -31,108 +31,108 @@ msgstr ""
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
 msgid "%s %s mounted from %s\n"
-msgstr "%s %s montouse desde %s\n"
+msgstr ""
 
 #, c-format
 msgid "%s (delta)"
-msgstr "%s (delta)"
+msgstr ""
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (see \"snap login --help\")"
-msgstr "%s (ver \"snap login --help\")"
+msgstr ""
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (try with sudo)"
-msgstr "%s (tentar con sudo)"
+msgstr ""
 
 #, c-format
 msgid "%s already installed\n"
-msgstr "%s xa está instalado\n"
+msgstr ""
 
 #, c-format
 msgid "%s disabled\n"
-msgstr "%s está desactivada\n"
+msgstr ""
 
 #, c-format
 msgid "%s enabled\n"
-msgstr "%s está activada\n"
+msgstr ""
 
 #, c-format
 msgid "%s not installed\n"
-msgstr "%s non está instalado\n"
+msgstr ""
 
 #, c-format
 msgid "%s removed\n"
-msgstr "%s eliminada\n"
+msgstr ""
 
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr "%s revertida a %s\n"
+msgstr ""
 
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
-msgstr "%s%s %s desde «%s» instalada\n"
+msgstr ""
 
 #, c-format
 msgid "%s%s %s from '%s' refreshed\n"
-msgstr "%s%s %s de «%s» refrescado\n"
+msgstr ""
 
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr "%s%s %s instalada\n"
+msgstr ""
 
 #, c-format
 msgid "%s%s %s refreshed\n"
-msgstr "%s%s %s refrescado\n"
+msgstr ""
 
 msgid "--list does not take mode nor channel flags"
-msgstr "--list non acepta bandeiras de modo nin de canle"
+msgstr ""
 
 msgid "--time does not take mode nor channel flags"
 msgstr ""
 
 msgid "-r can only be used with --hook"
-msgstr "-r só pode ser empregado con --hook"
+msgstr ""
 
 msgid "<alias-or-snap>"
 msgstr ""
 
 msgid "<alias>"
-msgstr "<alcume>"
+msgstr ""
 
 msgid "<assertion file>"
-msgstr "<ficheiro de aserción>"
+msgstr ""
 
 msgid "<assertion type>"
-msgstr "<tipo de aserción>"
+msgstr ""
 
 msgid "<change-id>"
 msgstr ""
 
 msgid "<conf value>"
-msgstr "<valor de configuración>"
+msgstr ""
 
 #. TRANSLATORS: noun
 #. TRANSLATORS: noun
 msgid "<email>"
-msgstr "<correo electrónico>"
+msgstr ""
 
 msgid "<filename>"
-msgstr "<nome de ficheiro>"
+msgstr ""
 
 msgid "<header filter>"
-msgstr "<filtro de cabeceira>"
+msgstr ""
 
 msgid "<interface>"
 msgstr ""
 
 msgid "<key-name>"
-msgstr "<nome da clave>"
+msgstr ""
 
 msgid "<key>"
-msgstr "<clave>"
+msgstr ""
 
 msgid "<model-assertion>"
 msgstr ""
@@ -141,7 +141,7 @@ msgid "<query>"
 msgstr ""
 
 msgid "<root-dir>"
-msgstr "<directorio raíz>"
+msgstr ""
 
 msgid "<snap>:<plug>"
 msgstr ""
@@ -153,7 +153,7 @@ msgid "<snap>:<slot>"
 msgstr ""
 
 msgid "Abort a pending change"
-msgstr "Cancelar un cambio pendente"
+msgstr ""
 
 msgid "Added"
 msgstr ""
@@ -165,10 +165,10 @@ msgid "Alias for --dangerous (DEPRECATED)"
 msgstr ""
 
 msgid "All snaps up to date."
-msgstr "Todos os snaps está actualizados."
+msgstr ""
 
 msgid "Alternative command to run"
-msgstr "Orde alternativa a executar"
+msgstr ""
 
 msgid "Always return document, even with single key"
 msgstr ""
@@ -200,16 +200,16 @@ msgid "Auto-refresh snaps %s"
 msgstr ""
 
 msgid "Bad code. Try again: "
-msgstr "Codo errado. Tente de novo: "
+msgstr ""
 
 msgid "Buys a snap"
-msgstr "Compra unha snap"
+msgstr ""
 
 msgid "Change ID"
-msgstr "Cambiar o identificador"
+msgstr ""
 
 msgid "Changes configuration options"
-msgstr "Cambia as opcións de configuración"
+msgstr ""
 
 msgid ""
 "Classic dimension disabled on this system.\n"
@@ -224,11 +224,11 @@ msgid "Configuration value (key=value)"
 msgstr ""
 
 msgid "Confirm passphrase: "
-msgstr "Confirme a frase de paso: "
+msgstr ""
 
 #, c-format
 msgid "Connect %s:%s to %s:%s"
-msgstr "Conectar %s:%s a %s:%s"
+msgstr ""
 
 msgid "Connects a plug to a slot"
 msgstr ""
@@ -260,7 +260,7 @@ msgid "Create snap-build assertion for the provided snap file."
 msgstr ""
 
 msgid "Creates a local system user"
-msgstr "Crea un usuario local do sistema"
+msgstr ""
 
 msgid "Delete cryptographic key pair"
 msgstr ""
@@ -289,7 +289,7 @@ msgstr ""
 
 #, c-format
 msgid "Disconnect %s:%s from %s:%s"
-msgstr "Desconectar %s:%s de %s:%s"
+msgstr ""
 
 msgid "Disconnects a plug from a slot"
 msgstr ""
@@ -492,7 +492,7 @@ msgid "Log out of the store"
 msgstr ""
 
 msgid "Login successful"
-msgstr "Inicio de sesión correcto"
+msgstr ""
 
 #, c-format
 msgid "Make current revision for snap %q unavailable"

@@ -58,7 +58,9 @@ func init() {
 			"k":            i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
 			"grade":        i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
 		}, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<filename>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Filename of the snap you want to assert a build for"),
 		}})
 	cmd.hidden = true
