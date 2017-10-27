@@ -127,6 +127,7 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
 /run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
 /run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
+/run/udev/data/c203:[0-9]* r, # /dev/cuse
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
@@ -149,6 +150,7 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,
 /run/udev/data/+rfkill:rfkill[0-9]* r,
+/run/udev/data/c241:[0-9]* r, # /dev/vhost-vsock
 
 # storage
 /run/udev/data/b1:[0-9]* r,   # /dev/ram*
