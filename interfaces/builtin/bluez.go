@@ -91,10 +91,10 @@ const bluezPermanentSlotAppArmor = `
       bus=system
       name="org.bluez.obex",
 
-  # Allow traffic to/from our path and interface with any method for unconfined
-  # clients to talk to our bluez services. For the org.bluez interface we don't
-  # specify an Object Path since according to the bluez specification these can
-  # be anything (https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc).
+  # Allow traffic to/from our interface with any method for unconfined clients
+  # to talk to our bluez services. For the org.bluez interface we don't specify
+  # an Object Path since according to the bluez specification these can be
+  # anything (https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc).
   dbus (receive, send)
       bus=system
       interface=org.bluez.*
