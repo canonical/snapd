@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -602,7 +601,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
-	theStore := storestate.Store(st)
+	theStore := Store(st)
 
 	st.Unlock()
 	updates, err := theStore.ListRefresh(candidatesInfo, user)
@@ -1725,7 +1724,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	return defaults, nil
 }
 
-func refreshCatalogs(st *state.State, theStore storestate.StoreService) error {
+func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
 	defer st.Lock()
 

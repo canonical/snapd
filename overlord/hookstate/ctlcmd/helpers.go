@@ -67,7 +67,23 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	return svcs, nil
 }
 
-var servicechangeImpl = servicestate.Change
+var servicestateControl = servicestate.Control
+
+func queueCommand(context *hookstate.Context, ts *state.TaskSet) {
+	// queue command task after all existing tasks of the hook's change
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	task, ok := context.Task()
+	if !ok {
+		panic("attempted to queue command with ephemeral context")
+	}
+	change := task.Change()
+	tasks := change.Tasks()
+	ts.WaitAll(state.NewTaskSet(tasks...))
+	change.AddAll(ts)
+}
 
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
 	if context == nil {
@@ -80,12 +96,19 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	chg, err := servicechangeImpl(st, appInfos, inst)
+	ts, err := servicestateControl(st, appInfos, inst)
 	if err != nil {
 		return err
 	}
 
+	if !context.IsEphemeral() && context.HookName() == "configure" {
+		queueCommand(context, ts)
+		return nil
+	}
+
 	st.Lock()
+	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.SnapName()))
+	chg.AddAll(ts)
 	st.EnsureBefore(0)
 	st.Unlock()
 

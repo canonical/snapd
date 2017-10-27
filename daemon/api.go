@@ -59,7 +59,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -189,10 +188,11 @@ var (
 	}
 
 	stateChangeCmd = &Command{
-		Path:   "/v2/changes/{id}",
-		UserOK: true,
-		GET:    getChange,
-		POST:   abortChange,
+		Path:     "/v2/changes/{id}",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getChange,
+		POST:     abortChange,
 	}
 
 	stateChangesCmd = &Command{
@@ -523,12 +523,12 @@ func webify(result *client.Snap, resource string) *client.Snap {
 	return result
 }
 
-func getStore(c *Command) storestate.StoreService {
+func getStore(c *Command) snapstate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return storestate.Store(st)
+	return snapstate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -545,7 +545,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
 		return InternalError("%v", err)
@@ -606,7 +606,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
@@ -631,10 +631,14 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
-	if err != nil {
-		if err == store.ErrSnapNotFound {
-			return SnapNotFound(name, err)
-		}
+	switch err {
+	case nil:
+		// pass
+	case store.ErrInvalidCredentials:
+		return Unauthorized("%v", err)
+	case store.ErrSnapNotFound:
+		return SnapNotFound(name, err)
+	default:
 		return InternalError("%v", err)
 	}
 
@@ -2477,10 +2481,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
 	}
 
-	change := st.NewChange(a.Action, summary)
-	change.Set("snap-names", []string{a.Snap})
-	change.AddAll(taskset)
-
+	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2627,13 +2628,16 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	chg, err := servicestate.Change(st, appInfos, &inst)
+	ts, err := servicestate.Control(st, appInfos, &inst)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
 		}
 		return BadRequest(err.Error())
 	}
+	st.Lock()
+	defer st.Unlock()
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

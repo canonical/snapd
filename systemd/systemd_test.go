@@ -453,6 +453,7 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
@@ -476,6 +477,7 @@ func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foodir
+Before=snapd.service
 
 [Mount]
 What=%s
@@ -518,6 +520,7 @@ exit 0
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
@@ -556,6 +559,7 @@ exit 0
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
