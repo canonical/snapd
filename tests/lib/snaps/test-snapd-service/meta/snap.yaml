@@ -1,8 +1,10 @@
 name: test-snapd-service
 version: 1.0
 apps:
- test-snapd-service:
-  command: bin/start
-  daemon: simple
-  reload-command: bin/reload
-
+    test-snapd-service:
+        command: bin/start
+        daemon: simple
+        reload-command: bin/reload
+    test-snapd-other-service:
+        command: bin/start-other
+        daemon: simple

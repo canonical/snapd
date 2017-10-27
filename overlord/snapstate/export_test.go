@@ -106,6 +106,7 @@ var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
+	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )
