@@ -2,16 +2,29 @@ name: test-snapd-gsettings
 version: 1.0
 summary: Basic gsettings test snap
 description: A basic snap to access gsettings
+confinement: strict
+grade: stable
 
 apps:
   check-schema:
     command: check-schema
-    plugs: [gsettings, desktop]
+    plugs:
+      - desktop
+      - gsettings
 
 parts:
     deps:
         plugin: nil
-        stage-packages: [libglib2.0-bin]
+        stage-packages:
+          - python-gi
     copy:
         plugin: dump
         source: .
+    gsapp:
+        plugin: autotools
+        source: gsettings-app
+        configflags:
+          - --prefix=/snap/test-snapd-gsettings/current/usr
+        organize:
+          snap/test-snapd-gsettings/current/usr: usr
+

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+   
+<schemalist>
+   
+  <schema path="/org/example/myapp/" id="org.example.myapp">
+   
+    <key name='automatic-updates' type='b'>
+      <default>true</default>
+      <summary>Automatically install updates</summary>
+      <description>
+           If enabled, updates will automatically be downlaoded and installed.
+           If disabled, updates will still be downloaded, but the user will be
+           asked to install them manually.
+      </description>
+    </key>
+   
+  </schema>
+   
+</schemalist>

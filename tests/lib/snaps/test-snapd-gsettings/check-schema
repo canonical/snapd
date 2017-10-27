@@ -1,3 +1,5 @@
 #!/bin/sh
 
-gsettings --schemadir /var/lib/snapd/hostfs/usr/share/glib-2.0/schemas list-schemas | grep -q -E "^$1$"
+export GI_TYPELIB_PATH=$SNAP/usr/lib/girepository-1.0:$(ls -d $SNAP/usr/lib/*/girepository-1.0)
+
+$SNAP/usr/bin/python $SNAP/test.py
