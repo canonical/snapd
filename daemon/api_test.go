@@ -64,7 +64,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -279,7 +278,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
@@ -314,7 +313,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	assertstate.Manager(st)
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -1166,7 +1165,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "invalid credentials")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -6144,8 +6143,11 @@ func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
 	chg := s.testPostApps(c, inst, expected)
+	chg.State().Lock()
+	defer chg.State().Unlock()
 	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+	c.Check(chg.Summary(), check.Equals, "Running service command")
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
@@ -6153,7 +6155,10 @@ func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+	c.Check(chg.Summary(), check.Equals, "Running service command")
+	chg.State().Lock()
+	defer chg.State().Unlock()
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
 }
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {

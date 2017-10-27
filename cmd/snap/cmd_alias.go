@@ -52,6 +52,7 @@ func init() {
 		return &cmdAlias{}
 	}, nil, []argDesc{
 		{name: "<snap.app>"},
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<alias>")},
 	})
 }

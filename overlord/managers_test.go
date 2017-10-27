@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -488,7 +487,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	mStore := store.New(&storeCfg, nil)
 	st := ms.o.State()
 	st.Lock()
-	storestate.ReplaceStore(ms.o.State(), mStore)
+	snapstate.ReplaceStore(ms.o.State(), mStore)
 	st.Unlock()
 
 	return mockServer
@@ -1717,11 +1716,11 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureAuthContext := func(_ *state.State, ac auth.AuthContext) error {
+	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
 		return nil
 	}
-	r := overlord.MockSetupStore(captureAuthContext)
+	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
