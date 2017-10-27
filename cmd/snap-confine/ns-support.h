@@ -108,7 +108,9 @@ void sc_close_ns_group(struct sc_ns_group *group);
  * @returns true if the mount namespace needs to be populated
  **/
 void sc_create_or_join_ns_group(struct sc_ns_group *group,
-				struct sc_apparmor *apparmor);
+				struct sc_apparmor *apparmor,
+				const char *base_snap_name,
+				const char *snap_name);
 
 /**
  * Check if the namespace needs to be populated.

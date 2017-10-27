@@ -89,7 +89,7 @@ func run() error {
 	defer lock.Close()
 
 	if opts.FromSnapConfine {
-		// When --from-snap-conifne is passed then we just ensure that the
+		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
@@ -100,6 +100,16 @@ func run() error {
 			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
 		}
 	}
+
+	// Freeze the mount namespace and unfreeze it later. This lets us perform
+	// modifications without snap processes attempting to construct
+	// symlinks or perform other malicious activity (such as attempting to
+	// introduce a symlink that would cause us to mount something other
+	// than what we expected).
+	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
+		return err
+	}
+	defer thawSnapProcesses(opts.Positionals.SnapName)
 
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount

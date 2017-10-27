@@ -1,0 +1,13 @@
+name: test-snapd-content-advanced-plug
+summary: A more complex snap for testing content interface 
+version: 1.0
+apps:
+    sh:
+        command: ../../../bin/sh
+plugs:
+    data:
+        interface: content
+        target: $SNAP_DATA/target
+    common:
+        interface: content
+        target: $SNAP_COMMON/target
