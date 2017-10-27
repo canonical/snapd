@@ -60,7 +60,7 @@
 
     # querying udev
     /etc/udev/udev.conf r,
-    /sys/devices/**/uevent r,
+    /sys/**/uevent r,
     /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
