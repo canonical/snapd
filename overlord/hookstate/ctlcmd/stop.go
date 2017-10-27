@@ -30,15 +30,18 @@ type stopCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Disable bool `long:"disable"`
+	Disable bool `long:"disable" description:"Disable the specified services (see man systemctl for details)"`
 }
 
 var (
 	shortStopHelp = i18n.G("Stop services")
+	longStopHelp  = i18n.G(`
+The stop command stops the given services of the snap. If executed from the
+"configure" hook, the services will be stopped after the hook finishes.`)
 )
 
 func init() {
-	addCommand("stop", shortStopHelp, "", func() command { return &stopCommand{} })
+	addCommand("stop", shortStopHelp, longStopHelp, func() command { return &stopCommand{} })
 }
 
 func (c *stopCommand) Execute(args []string) error {
