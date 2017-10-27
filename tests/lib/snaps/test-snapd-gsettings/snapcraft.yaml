@@ -6,8 +6,8 @@ confinement: strict
 grade: stable
 
 apps:
-  check-schema:
-    command: check-schema
+  gsettings:
+    command: desktop-launch $SNAP/gsettings "$@"
     plugs:
       - desktop
       - gsettings
@@ -23,6 +23,7 @@ parts:
     gsapp:
         plugin: autotools
         source: gsettings-app
+        after: [desktop-gtk3]
         configflags:
           - --prefix=/snap/test-snapd-gsettings/current/usr
         organize:

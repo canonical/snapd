@@ -4,4 +4,3 @@ AM_INIT_AUTOMAKE([1.10 no-define foreign dist-xz no-dist-gzip])
 GLIB_GSETTINGS
 AC_CONFIG_FILES([Makefile hello-world.desktop])
 AC_OUTPUT
-

@@ -1,30 +1,42 @@
 summary: Ensure that the gsettings interface works.
 
 details: |
-    The gsettings interface allows to access the gsettings.
+    The gsettings interface allows to access the user gsettings stored in
+    $HOME/.config/dconf/user.
+    The test-snapd-gsettings snap declares a gsettings schema which is used
+    to check the the values defined by the user can be accessed and changed
+    by using the gsettings interface.
+
+prepare:
+    echo "Given the gsettings snap is installed"
+    snap install test-snapd-gsettings
 
 execute: |
     CONNECTED_PATTERN=":gsettings +test-snapd-gsettings"
     DISCONNECTED_PATTERN="\- +test-snapd-gsettings:gsettings"
+    GS_SCHEMA=com.canonical.test.snapd.gsettings
+    GS_KEY=is-running
 
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "When the plug is connected"
-    snap try $TESTSLIB/snaps/test-snapd-gsettings
+    echo "The plug is connected by default"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Then the snap is able to list schemas"
-    schema=$(gsettings list-schemas | head -n1)
-    test-snapd-gsettings.check-schema $schema
+    echo "Then the snap is able to check schemas"
+    test-snapd-gsettings.gsettings is-schema $GS_SCHEMA
+
+    echo "Then the snap is able to get the default value"
+    [[ $(test-snapd-gsettings.gsettings get-value $GS_SCHEMA $GS_KEY) == 'true' ]]
+
+    echo "Then the snap is able to change the gsettings value"
+    test-snapd-gsettings.gsettings set-value $GS_SCHEMA $GS_KEY false
+    [[ $(test-snapd-gsettings.gsettings get-value $GS_SCHEMA $GS_KEY) == 'false' ]]
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-gsettings:gsettings
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap is not able to access the provided methods"
-    if test-snapd-gsettings.check-schema $schema 2>${PWD}/call.error; then
+    echo "Then the snap is not able to access the gsettings values"
+    if test-snapd-gsettings.gsettings set-value $GS_SCHEMA $GS_KEY true 2>${PWD}/call.error; then
         echo "Expected permission error calling gsettings with disconnected plug"
         exit 1
     fi
-    MATCH "Permission denied" < call.error
+    MATCH "AccessDenied" < call.error

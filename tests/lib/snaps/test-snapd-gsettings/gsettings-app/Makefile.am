@@ -1,4 +1,4 @@
-gsettings_SCHEMAS = org.example.myapp.gschema.xml
+gsettings_SCHEMAS = com.canonical.test.snapd.gsettings.gschema.xml
 
 @GSETTINGS_RULES@
 
