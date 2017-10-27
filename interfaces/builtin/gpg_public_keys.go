@@ -32,6 +32,7 @@ const gpgPublicKeysBaseDeclarationSlots = `
 const gpgPublicKeysConnectedPlugAppArmor = `
 # Description: Can read gpg public keys and non-sensitive configuration
 
+/usr/share/gnupg/options.skel r,
 owner @{HOME}/.gnupg/ r,
 owner @{HOME}/.gnupg/gpg.conf r,
 owner @{HOME}/.gnupg/pubring.gpg{,.lock} r,
