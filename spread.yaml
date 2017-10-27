@@ -101,6 +101,9 @@ backends:
             - ubuntu-17.10-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-18.04-64:
+                username: ubuntu
+                password: ubuntu
             - debian-9-64:
                 username: debian
                 password: debian
@@ -177,6 +180,19 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            # Bionic
+            - ubuntu-18.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
