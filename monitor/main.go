@@ -21,7 +21,7 @@ func main() {
 	defer conn.Close()
 
 	queue := make(chan udev.UEvent)
-	quit := conn.Monitor(queue)
+	quit := conn.Monitor(queue, nil)
 
 	// Signal handler to quit properly monitor mode
 	signals := make(chan os.Signal, 1)

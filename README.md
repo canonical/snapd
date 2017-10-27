@@ -11,28 +11,32 @@ Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor an
 - Execute unit-test: `go test`
 - Monitor hot-(un)plug devices:
 ```
-cd go-udev
+cd go-udev/monitor
 go build
-./go-udev
+./monitor
 ```
 
 To implement your own monitoring system, please see `main.go` as a simple example.
+
+## Filtering
+
+TODO: Documentation needed
 
 ## Examples
 
 Example of output when a USB storage is plugged:
 ```
-2017/10/20 23:47:23 Handle main.UEvent{
+2017/10/20 23:47:23 Handle udev.UEvent{
     Action: "add",
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1",
     Env:    {"PRODUCT":"58f/6387/10b", "TYPE":"0/0/0", "BUSNUM":"001", "DEVNUM":"005", "SEQNUM":"2511", "DEVNAME":"bus/usb/001/005", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1", "SUBSYSTEM":"usb", "MAJOR":"189", "MINOR":"4", "DEVTYPE":"usb_device", "ACTION":"add"},
 }
-2017/10/20 23:47:23 Handle main.UEvent{
+2017/10/20 23:47:23 Handle udev.UEvent{
     Action: "add",
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0",
     Env:    {"SUBSYSTEM":"usb", "TYPE":"0/0/0", "INTERFACE":"8/6/80", "MODALIAS":"usb:v058Fp6387d010Bdc00dsc00dp00ic08isc06ip50in00", "SEQNUM":"2512", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0", "DEVTYPE":"usb_interface", "PRODUCT":"58f/6387/10b", "ACTION":"add"},
 }
-2017/10/20 23:47:23 Handle main.UEvent{
+2017/10/20 23:47:23 Handle udev.UEvent{
     Action: "add",
     KObj:   "/module/usb_storage",
     Env:    {"SEQNUM":"2513", "ACTION":"add", "DEVPATH":"/module/usb_storage", "SUBSYSTEM":"module"},
@@ -43,18 +47,18 @@ Example of output when a USB storage is plugged:
 Example of output when a USB storage is unplugged:
 ```
 [...]
-2017/10/20 23:47:29 Handle main.UEvent{
+2017/10/20 23:47:29 Handle udev.UEvent{
     Action: "remove",
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/host4/target4:0:0/4:0:0:0/block/sdb",
     Env:    {"SUBSYSTEM":"block", "MAJOR":"8", "MINOR":"16", "DEVNAME":"sdb", "DEVTYPE":"disk", "SEQNUM":"2543", "ACTION":"remove", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/host4/target4:0:0/4:0:0:0/block/sdb"},
 }
 [...]
-2017/10/20 23:47:29 Handle main.UEvent{
+2017/10/20 23:47:29 Handle udev.UEvent{
     Action: "remove",
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0",
     Env:    {"ACTION":"remove", "SUBSYSTEM":"usb", "DEVTYPE":"usb_interface", "SEQNUM":"2548", "MODALIAS":"usb:v058Fp6387d010Bdc00dsc00dp00ic08isc06ip50in00", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0", "PRODUCT":"58f/6387/10b", "TYPE":"0/0/0", "INTERFACE":"8/6/80"},
 }
-2017/10/20 23:47:29 Handle main.UEvent{
+2017/10/20 23:47:29 Handle udev.UEvent{
     Action: "remove",
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1",
     Env:    {"PRODUCT":"58f/6387/10b", "TYPE":"0/0/0", "DEVNUM":"005", "SEQNUM":"2549", "ACTION":"remove", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1", "SUBSYSTEM":"usb", "MAJOR":"189", "MINOR":"4", "DEVNAME":"bus/usb/001/005", "DEVTYPE":"usb_device", "BUSNUM":"001"},

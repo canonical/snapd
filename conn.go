@@ -86,8 +86,17 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel
-func (c *UEventConn) Monitor(queue chan UEvent) chan bool {
+func (c *UEventConn) Monitor(queue chan UEvent, matcher Matcher) chan bool {
 	quit := make(chan bool, 1)
+
+	if matcher != nil {
+		if err := matcher.Compile(); err != nil {
+			log.Fatalln("Wrong matcher, err:", err)
+			quit <- true
+			return quit
+		}
+	}
+
 	go func() {
 		loop := true
 		for loop {
@@ -101,6 +110,13 @@ func (c *UEventConn) Monitor(queue chan UEvent) chan bool {
 					log.Printf("Unable to parse uevent, err: %s\n", err.Error())
 					continue
 				}
+
+				if matcher != nil {
+					if !matcher.Evaluate(*uevent) {
+						continue // Drop uevent if not match
+					}
+				}
+
 				queue <- *uevent
 			}
 		}
