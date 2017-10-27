@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/snap"
 )
 
 const gpioSummary = `allows access to specifc GPIO pin`
@@ -62,7 +63,7 @@ func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 // SanitizeSlot checks the slot definition is valid
-func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *gpioInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -144,7 +145,7 @@ func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *desktopInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *desktopInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

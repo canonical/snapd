@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const spiSummary = `allows access to specific spi controller`
@@ -68,7 +69,7 @@ func (iface *spiInterface) path(attrs map[string]interface{}) (string, error) {
 	return path, nil
 }
 
-func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *spiInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}

@@ -221,7 +221,7 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 	return mprisName, nil
 }
 
-func (iface *mprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *mprisInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	_, err := iface.getName(slot.Attrs)
 	return err
 }
