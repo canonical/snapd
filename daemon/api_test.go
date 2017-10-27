@@ -64,7 +64,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -279,7 +278,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
@@ -314,7 +313,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	assertstate.Manager(st)
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -1166,7 +1165,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "invalid credentials")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
