@@ -1,4 +1,4 @@
-package udev
+package netlink
 
 import "testing"
 
@@ -89,19 +89,19 @@ func TestRules(testing *testing.T) {
 			Valid:  false,
 		},
 		Testcase{
-			Object: &Or{[]RuleDefinition{rules[0], rules[4]}},
+			Object: &RuleDefinitions{[]RuleDefinition{rules[0], rules[4]}},
 			Valid:  true,
 		},
 		Testcase{
-			Object: &Or{[]RuleDefinition{rules[4], rules[0]}},
+			Object: &RuleDefinitions{[]RuleDefinition{rules[4], rules[0]}},
 			Valid:  true,
 		},
 		Testcase{
-			Object: &Or{[]RuleDefinition{rules[2], rules[4]}},
+			Object: &RuleDefinitions{[]RuleDefinition{rules[2], rules[4]}},
 			Valid:  false,
 		},
 		Testcase{
-			Object: &Or{[]RuleDefinition{rules[3], rules[1]}},
+			Object: &RuleDefinitions{[]RuleDefinition{rules[3], rules[1]}},
 			Valid:  true,
 		},
 	}

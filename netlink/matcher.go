@@ -1,4 +1,4 @@
-package udev
+package netlink
 
 import (
 	"regexp"
@@ -10,8 +10,8 @@ type Matcher interface {
 }
 
 type RuleDefinition struct {
-	Action *string
-	Env    map[string]string
+	Action *string           `json:"action,omitempty"`
+	Env    map[string]string `json:"env,omitempty"`
 	rule   *rule
 }
 
@@ -50,6 +50,7 @@ func (r RuleDefinition) Evaluate(e UEvent) bool {
 	return matchAction && foundEnv
 }
 
+// Compile prepare rule definition to be able to Evaluate() an UEvent
 func (r *RuleDefinition) Compile() error {
 	r.rule = &rule{
 		Env: make(map[string]*regexp.Regexp, 0),
@@ -79,26 +80,27 @@ type rule struct {
 	Env    map[string]*regexp.Regexp
 }
 
-type Or struct {
+// RuleDefinitions is like chained rule with OR operator
+type RuleDefinitions struct {
 	Rules []RuleDefinition
 }
 
-func (a *Or) AddRule(r RuleDefinition) {
-	a.Rules = append(a.Rules, r)
+func (rs *RuleDefinitions) AddRule(r RuleDefinition) {
+	rs.Rules = append(rs.Rules, r)
 }
 
-func (a *Or) Compile() error {
-	for _, v := range a.Rules {
-		if err := v.Compile(); err != nil {
+func (rs *RuleDefinitions) Compile() error {
+	for _, r := range rs.Rules {
+		if err := r.Compile(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a Or) Evaluate(e UEvent) bool {
-	for _, rule := range a.Rules {
-		if rule.Evaluate(e) {
+func (rs RuleDefinitions) Evaluate(e UEvent) bool {
+	for _, r := range rs.Rules {
+		if r.Evaluate(e) {
 			return true
 		}
 	}

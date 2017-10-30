@@ -1,4 +1,4 @@
-package udev
+package netlink
 
 import (
 	"log"
@@ -85,13 +85,14 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 }
 
 // Monitor run in background a worker to read netlink msg in loop and notify
-// when msg receive inside a queue using channel
+// when msg receive inside a queue using channel.
+// To be notified with only relevant message, use Matcher.
 func (c *UEventConn) Monitor(queue chan UEvent, matcher Matcher) chan bool {
 	quit := make(chan bool, 1)
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			log.Fatalln("Wrong matcher, err:", err)
+			log.Println("Wrong matcher, err:", err)
 			quit <- true
 			return quit
 		}
