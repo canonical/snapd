@@ -1,4 +1,4 @@
-name: hardware-random-control
+name: test-snapd-hardware-random-control
 version: 1.0
 summary: Basic hardware-random-control snap
 description: A basic snap which access to hardware-random paths
