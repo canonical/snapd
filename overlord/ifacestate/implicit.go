@@ -20,38 +20,10 @@
 package ifacestate
 
 import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/overlord/ifacestate/repo"
 	"github.com/snapcore/snapd/snap"
 )
 
-// addImplicitSlots adds implicitly defined slots to a given snap.
-//
-// Only the OS snap has implicit slots.
-//
-// It is assumed that slots have names matching the interface name. Existing
-// slots are not changed, only missing slots are added.
 func addImplicitSlots(snapInfo *snap.Info) {
-	if snapInfo.Type != snap.TypeOS {
-		return
-	}
-	// Ask each interface if it wants to be implcitly added.
-	for _, iface := range builtin.Interfaces() {
-		si := interfaces.StaticInfoOf(iface)
-		if (release.OnClassic && si.ImplicitOnClassic) || (!release.OnClassic && si.ImplicitOnCore) {
-			ifaceName := iface.Name()
-			if _, ok := snapInfo.Slots[ifaceName]; !ok {
-				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
-			}
-		}
-	}
-}
-
-func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
-	return &snap.SlotInfo{
-		Name:      ifaceName,
-		Snap:      snapInfo,
-		Interface: ifaceName,
-	}
+	repo.AddImplicitSlots(snapInfo)
 }

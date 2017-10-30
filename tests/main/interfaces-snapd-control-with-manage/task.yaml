@@ -1,0 +1,25 @@
+summary: Ensure that the snapd-control "refresh-schedule" attribute works.
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-control-consumer
+
+execute: |
+    echo "When the snapd-control-with-manage plug is connected"
+    snap connect test-snapd-control-consumer:snapd-control-with-manage
+    snap set core refresh.schedule=managed
+
+    echo "Then the core refresh.schedule can be set to 'managed'"
+    if journalctl -u snapd |grep 'cannot parse "managed"'; then
+        echo "refresh.schedule=managed was not rejected as it should be"
+        exit 1
+    fi
+    journalctl -u snapd | MATCH "refresh.schedule is managed"
+    snap refresh --time | MATCH: "schedule: managed"
+
+    echo "When the snapd-control-with-manage plug is disconnected"
+    snap disconnect test-snapd-control-consumer:snapd-control-with-manage
+
+    echo "Then the snap refresh schedule cannot be set to managed"
+    snap set core refresh.schedule=managed
+    journalctl -u snapd |MATCH 'cannot parse "managed"'
