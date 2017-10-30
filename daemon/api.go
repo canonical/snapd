@@ -1632,7 +1632,6 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		plugRef := interfaces.NewPlugRef(plug)
 		pj := plugJSON{
 			Snap:        plug.Snap.Name(),
 			Name:        plug.Name,
@@ -1640,7 +1639,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
+			Connections: plugConns[plug.String()],
 		}
 		ifjson.Plugs = append(ifjson.Plugs, pj)
 	}
@@ -1650,7 +1649,6 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			apps = append(apps, app.Name)
 		}
 
-		slotRef := interfaces.NewSlotRef(slot)
 		sj := slotJSON{
 			Snap:        slot.Snap.Name(),
 			Name:        slot.Name,
@@ -1658,7 +1656,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
+			Connections: slotConns[slot.String()],
 		}
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
