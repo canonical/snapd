@@ -51,7 +51,7 @@ type apparmorDefiner1 interface {
 	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type apparmorDefiner2 interface {
-	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type apparmorDefiner3 interface {
 	AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error
@@ -113,10 +113,10 @@ type seccompDefiner4 interface {
 }
 
 type systemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type systemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type systemdDefiner3 interface {
 	SystemdPermanentPlug(spec *systemd.Specification, plug *snap.PlugInfo) error
@@ -213,38 +213,38 @@ type legacyAutoConnect interface {
 
 // specification definers before the introduction of connection attributes
 type oldApparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldApparmorDefiner2 interface {
 	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 type oldDbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldDbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 type oldKmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldKmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 type oldMountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldMountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 type oldSeccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldSeccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 type oldSystemdDefiner1 interface {
@@ -255,10 +255,10 @@ type oldSystemdDefiner2 interface {
 }
 
 type oldUdevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 type oldUdevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 }
 
 // allBadDefiners contains all old/unused specification definers for all known backends.
