@@ -547,3 +547,64 @@ slots:
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.app.app"), Equals, expected)
 }
+
+func (s *ContentSuite) TestModernContentSameReadAndWriteClash(c *C) {
+	plug := MockPlug(c, `name: consumer
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+apps:
+ app:
+  command: foo
+`, &snap.SideInfo{Revision: snap.R(1)}, "content")
+	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
+
+	slot := MockSlot(c, `name: producer
+slots:
+ content:
+  source:
+    read:
+     - $SNAP_DATA/directory
+    write:
+     - $SNAP_DATA/directory
+`, &snap.SideInfo{Revision: snap.R(2)}, "content")
+	connectedSlot := interfaces.NewConnectedSlot(slot, nil)
+
+	// Create the mount and apparmor specifications.
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+	apparmorSpec := &apparmor.Specification{}
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+
+	// Analyze the mount specification
+	expectedMnt := []mount.Entry{{
+		Name:    "/var/snap/producer/2/directory",
+		Dir:     "/var/snap/consumer/common/import/directory",
+		Options: []string{"bind", "ro"},
+	}, {
+		Name:    "/var/snap/producer/2/directory",
+		Dir:     "/var/snap/consumer/common/import/directory-2",
+		Options: []string{"bind"},
+	}}
+	c.Assert(mountSpec.MountEntries(), DeepEquals, expectedMnt)
+
+	// Analyze the apparmor specification.
+	//
+	// NOTE: Although there are duplicate entries with different permissions
+	// one is a superset of the other so they do not conflict.
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	expected := `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/producer/2/directory/** mrwklix,
+
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+/var/snap/producer/2/directory/** mrkix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+}
