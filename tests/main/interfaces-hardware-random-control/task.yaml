@@ -12,23 +12,23 @@ summary: |
 
 prepare: |
     echo "Given a snap declaring a plug on the hardware-random-control interface is installed"
-    snap try $TESTSLIB/snaps/hardware-random-control
+    snap try $TESTSLIB/snaps/test-snapd-hardware-random-control
 
 restore: |
     rm -f hw.error
 
 execute: |
-    CONNECTED_PATTERN=":hardware-random-control +hardware-random-control"
-    DISCONNECTED_PATTERN="(?s).*?\n- +hardware-random-control:hardware-random-control"
+    CONNECTED_PATTERN=":hardware-random-control +test-snapd-hardware-random-control"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-hardware-random-control:hardware-random-control"
 
     echo "Then it is not connected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "When the plug is connected"
-    snap connect hardware-random-control:hardware-random-control
+    snap connect test-snapd-hardware-random-control:hardware-random-control
 
     echo "Then the snap is able to read hardware random information"
-    hardware-random-control.check 2>hw.error
+    test-snapd-hardware-random-control.check 2>hw.error
     if MATCH "Permission denied" < hw.error; then
         echo "Permission error accessing hardware random information"
         exit 1
@@ -39,14 +39,14 @@ execute: |
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect hardware-random-control:hardware-random-control
+    snap disconnect test-snapd-hardware-random-control:hardware-random-control
 
     echo "Then the snap is not able to read the hardware random information"
-    if hardware-random-control.check 2>hw.error; then
+    if test-snapd-hardware-random-control.check 2>hw.error; then
         echo "Expected permission error accessing hardware control information with disconnected plug"
         exit 1
     fi
     grep -q "Permission denied" hw.error
 
     echo "And the snap is able to reconnect"
-    snap connect hardware-random-control:hardware-random-control
+    snap connect test-snapd-hardware-random-control:hardware-random-control
