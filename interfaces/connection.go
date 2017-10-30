@@ -50,6 +50,7 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedSlot{
 		slotInfo:     slot,
 		dynamicAttrs: dynamicAttrs,
+		Attrs:        slot.Attrs, // FIXME: temporary
 	}
 }
 
@@ -57,6 +58,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedPlug{
 		plugInfo:     plug,
 		dynamicAttrs: dynamicAttrs,
+		Attrs:        plug.Attrs, // FIXME: temporary
 	}
 }
 
