@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -462,6 +463,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 // Some architectures (i386, s390x) use the "socketcall" syscall instead
 // of "socket". This is the case on Ubuntu 14.04, 17.04, 17.10
 func (s *snapSeccompSuite) TestCompileSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
@@ -574,6 +579,10 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 
 // ported from test_restrictions_working_args_socket
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)

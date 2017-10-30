@@ -1,6 +1,13 @@
-snapd (2.29~14.04~rc2) trusty; urgency=medium
+snapd (2.29~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1726258
+    - interfaces/many: miscellaneous updates based on feedback from the
+      field
+    - snap-confine: allow reading uevents from any where in /sys
+    - spread: add bionic beaver
+    - debian: make packaging/ubuntu-14.04/copyright a real file again
+    - tests: cherry pick the fix for services test into 2.29
+    - cmd/snap-update-ns: initialize logger
     - hooks/configure: queue service restarts
     - snap-{confine,seccomp}: make @unrestricted fully unrestricted
     - interfaces: clean system apparmor cache on core device
@@ -179,7 +186,7 @@ snapd (2.29~14.04~rc2) trusty; urgency=medium
     - docs: use abolute path in PULL_REQUEST_TEMPLATE.md
     - store: move device auth endpoint uris to config (#3831)
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 27 Oct 2017 14:43:48 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Oct 2017 16:22:26 +0100
 
 snapd (2.28.5~14.04) trusty; urgency=medium
 
