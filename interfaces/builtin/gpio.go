@@ -98,12 +98,12 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 }
 
-func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	gpioNum, ok := slot.Attrs["number"].(int64)
 	if !ok {
 		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 	}
-	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+	serviceName := interfaces.InterfaceServiceName(slot.Snap().Name(), fmt.Sprintf("gpio-%d", gpioNum))
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,

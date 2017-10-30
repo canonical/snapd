@@ -67,8 +67,8 @@ apps:
 	s.plugInfo = snapInfo.Plugs["location-client"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 	snapInfo = snaptest.MockInfo(c, slotSnapInfoYaml, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	s.slotInfo = snapInfo.Slots["location"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
 func (s *LocationControlInterfaceSuite) TestName(c *C) {

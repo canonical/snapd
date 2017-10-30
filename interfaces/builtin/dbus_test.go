@@ -120,13 +120,20 @@ func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	s.sessionSlotInfo = s.snapInfo.Slots["test-session-slot"]
 	s.sessionSlot = interfaces.NewConnectedSlot(s.sessionSlotInfo, nil)
 	s.systemSlotInfo = s.snapInfo.Slots["test-system-slot"]
+	s.systemSlot = interfaces.NewConnectedSlot(s.systemSlotInfo, nil)
 	s.connectedSessionSlotInfo = s.snapInfo.Slots["test-session-connected-slot"]
+	s.connectedSessionSlot = interfaces.NewConnectedSlot(s.connectedSessionSlotInfo, nil)
 	s.connectedSystemSlotInfo = s.snapInfo.Slots["test-system-connected-slot"]
+	s.connectedSystemSlot = interfaces.NewConnectedSlot(s.connectedSystemSlotInfo, nil)
 
 	s.sessionPlugInfo = s.snapInfo.Plugs["test-session-plug"]
+	s.sessionPlug = interfaces.NewConnectedPlug(s.sessionPlugInfo, nil)
 	s.systemPlugInfo = s.snapInfo.Plugs["test-system-plug"]
+	s.systemPlug = interfaces.NewConnectedPlug(s.systemPlugInfo, nil)
 	s.connectedSessionPlugInfo = s.snapInfo.Plugs["test-session-connected-plug"]
+	s.connectedSessionPlug = interfaces.NewConnectedPlug(s.connectedSessionPlugInfo, nil)
 	s.connectedSystemPlugInfo = s.snapInfo.Plugs["test-system-connected-plug"]
+	s.connectedSystemPlug = interfaces.NewConnectedPlug(s.connectedSystemPlugInfo, nil)
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
