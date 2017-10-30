@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.29~rc2
+Version:        2.29
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,8 +659,15 @@ fi
 
 
 %changelog
-* Fri Oct 27 2017 Michael Vogt <mvo@ubuntu.com>
-- New upstream release 2.29~rc2
+* Mon Oct 30 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29
+ - interfaces/many: miscellaneous updates based on feedback from the
+   field
+ - snap-confine: allow reading uevents from any where in /sys
+ - spread: add bionic beaver
+ - debian: make packaging/ubuntu-14.04/copyright a real file again
+ - tests: cherry pick the fix for services test into 2.29
+ - cmd/snap-update-ns: initialize logger
  - hooks/configure: queue service restarts
  - snap-{confine,seccomp}: make @unrestricted fully unrestricted
  - interfaces: clean system apparmor cache on core device
