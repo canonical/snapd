@@ -425,7 +425,7 @@ slots:
 	apparmorSpec := &apparmor.Specification{}
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil), IsNil)
 
-	// Create the mount and apparmor specifications.
+	// Analyze the mount specification.
 	expectedMnt := []mount.Entry{{
 		Name:    "/var/snap/producer/common/read-common",
 		Dir:     "/var/snap/consumer/common/import/read-common",
