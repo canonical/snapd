@@ -171,8 +171,8 @@
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
-    mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
-    mount options=(rw rslave) -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
+    mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
@@ -248,6 +248,9 @@
     /dev/nvidia-uvm r,
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
