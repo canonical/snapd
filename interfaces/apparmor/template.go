@@ -426,6 +426,14 @@ var defaultTemplate = `
   # interface is needed, we can rework this.
   deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 
+  # Allow read-access on /home/ for navigating to other parts of the
+  # filesystem. While this allows enumerating users, this is already allowed
+  # via /etc/passwd and getent.
+  @{HOMEDIRS}/ r,
+
+  # Allow read-access to / for navigating to other parts of the filesystem.
+  / r,
+
 ###SNIPPETS###
 }
 `
