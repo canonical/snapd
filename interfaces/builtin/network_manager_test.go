@@ -146,7 +146,7 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 }
 
 func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabelOnClassic(c *C) {
-	slot := interfaces.NewConnectedSlot(nil, nil)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{}, nil)
 	release.OnClassic = true
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
