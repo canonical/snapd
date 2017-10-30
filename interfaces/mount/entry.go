@@ -83,6 +83,14 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+func Escape(path string) string {
+	return escape(path)
+}
+
+func Unescape(path string) string {
+	return unescape(path)
+}
+
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
