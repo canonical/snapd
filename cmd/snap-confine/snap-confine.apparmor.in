@@ -8,7 +8,7 @@
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
     # and https://forum.snapcraft.io/t/snaps-and-nfs-home/
-    include "/var/lib/snapd/apparmor/snap-confine.d"
+    include "/var/lib/snapd/apparmor/snap-confine"
 
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
@@ -240,6 +240,12 @@
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
     /sys/module/nvidia/version r,
+    /sys/**/drivers/nvidia{,_*}/* r,
+    /sys/**/nvidia*/uevent r,
+    /sys/module/nvidia{,_*}/* r,
+    /dev/nvidia[0-9]* r,
+    /dev/nvidiactl r,
+    /dev/nvidia-uvm r,
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
 

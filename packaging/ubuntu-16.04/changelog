@@ -1,3 +1,42 @@
+snapd (2.28.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - snap-confine: cleanup broken nvidia udev tags
+    - cmd/snap-confine: update valid security tag regexp
+    - overlord/ifacestate: refresh udev backend on startup
+    - dbus: ensure io.snapcraft.Launcher.service is created on re-
+      exec
+    - snap-confine: add support for handling /dev/nvidia-modeset
+    - interfaces/network-control: remove incorrect rules for tun
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Oct 2017 23:25:46 +0200
+
+snapd (2.28.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/opengl: don't udev tag nvidia devices and use snap-
+      confine instead
+    - debian: fix replaces/breaks for snap-xdg-open (thanks to apw!)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 19:40:57 +0200
+
+snapd (2.28.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/lxd: lxd slot implementation can also be an app
+      snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 08:20:26 +0200
+
+snapd (2.28.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces: fix udev rules for tun
+    - release,cmd,dirs: Redo the distro checks to take into account
+      distribution families
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 10 Oct 2017 18:39:58 +0200
+
 snapd (2.28.1) xenial; urgency=medium
 
   * New upstream release, LP: #1714984

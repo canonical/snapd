@@ -5,7 +5,7 @@
 
 debian_name_package() {
     case "$1" in
-        xdelta3|curl|python3-yaml|kpartx|busybox-static)
+        xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
             echo "$1"
             ;;
         man)
@@ -148,7 +148,7 @@ distro_install_package() {
     # will fail to install because the poor apt resolver does not get it
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-        if [[ "$@" =~ "libudev-dev" ]]; then
+        if [[ "$*" =~ "libudev-dev" ]]; then
             apt-get install -y --only-upgrade systemd
         fi
         ;;

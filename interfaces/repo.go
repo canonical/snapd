@@ -458,7 +458,7 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		return ref, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-	ref = ConnRef{PlugRef: NewPlugRef(plug), SlotRef: NewSlotRef(slot)}
+	ref = *NewConnRef(plug, slot)
 	return ref, nil
 }
 
@@ -517,7 +517,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
-		return []ConnRef{{PlugRef: NewPlugRef(plug), SlotRef: NewSlotRef(slot)}}, nil
+		return []ConnRef{*NewConnRef(plug, slot)}, nil
 	// 2: <snap>:<plug or slot> (through 1st pair)
 	// Return a list of connections involving specified plug or slot.
 	case plugName != "" && slotName == "" && slotSnapName == "":
@@ -658,14 +658,14 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 
 	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
 		for slotInfo := range r.plugSlots[plug] {
-			connRef := ConnRef{PlugRef: NewPlugRef(plug), SlotRef: NewSlotRef(slotInfo)}
+			connRef := *NewConnRef(plug, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
 
 	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
 		for plugInfo := range r.slotPlugs[slot] {
-			connRef := ConnRef{PlugRef: NewPlugRef(plugInfo), SlotRef: NewSlotRef(slot)}
+			connRef := *NewConnRef(plugInfo, slot)
 			conns = append(conns, connRef)
 		}
 	}
@@ -745,7 +745,7 @@ func (r *Repository) Interfaces() *Interfaces {
 
 	for plug, slots := range r.plugSlots {
 		for slot := range slots {
-			ifaces.Connections = append(ifaces.Connections, &ConnRef{PlugRef: NewPlugRef(plug), SlotRef: NewSlotRef(slot)})
+			ifaces.Connections = append(ifaces.Connections, NewConnRef(plug, slot))
 		}
 	}
 
