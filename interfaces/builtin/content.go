@@ -78,6 +78,16 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		slot.Attrs["content"] = slot.Name
 	}
 
+	// Error if "read" or "write" are present alongside "source".
+	if _, ok := slot.Attrs["source"]; ok {
+		if _, ok := slot.Attrs["read"]; ok {
+			return fmt.Errorf(`move the "read" attribute into the "source" section`)
+		}
+		if _, ok := slot.Attrs["write"]; ok {
+			return fmt.Errorf(`move the "write" attribute into the "source" section`)
+		}
+	}
+
 	// check that we have either a read or write path
 	rpath := iface.path(slot, "read")
 	wpath := iface.path(slot, "write")

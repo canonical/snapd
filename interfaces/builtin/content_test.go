@@ -120,6 +120,25 @@ slots:
 	}
 }
 
+func (s *ContentSuite) TestSanitizeSlotSourceAndLegacy(c *C) {
+	slot := MockSlot(c, `name: snap
+slots:
+  content:
+    source:
+      write: [$SNAP_DATA/stuff]
+    read: [$SNAP/shared]
+`, nil, "content")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `move the "read" attribute into the "source" section`)
+	slot = MockSlot(c, `name: snap
+slots:
+  content:
+    source:
+      read: [$SNAP/shared]
+    write: [$SNAP_DATA/stuff]
+`, nil, "content")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `move the "write" attribute into the "source" section`)
+}
+
 func (s *ContentSuite) TestSanitizePlugSimple(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
