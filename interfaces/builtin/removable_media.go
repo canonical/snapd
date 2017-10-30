@@ -32,6 +32,13 @@ const removableMediaBaseDeclarationSlots = `
 const removableMediaConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
 
+# Allow read-access to /run/ for navigating to removable media.
+/run/ r,
+
+# Allow read on /run/media/ for navigating to the mount points. While this
+# allows enumerating users, this is already allowed via /etc/passwd and getent.
+/{,run/}media/ r,
+
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /{,run/}media/*/ r,
 /{,run/}media/*/** rw,
