@@ -59,7 +59,7 @@ func (c Change) String() string {
 // the kernel (--make-shared, for example) are unsupported.
 //
 // Perform may synthesize *additional* changes that were necessary to perform
-// the this change (such as mounted tmpfs or overlayfs).
+// this change (such as mounted tmpfs or overlayfs).
 func (c *Change) Perform() ([]*Change, error) {
 	if c.Action == Mount {
 		mode := os.FileMode(0755)
