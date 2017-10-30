@@ -34,12 +34,14 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -5151,21 +5153,27 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func mockAutoRefreshAssertions(f func(st *state.State, userID int) error) func() {
+	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
+	snapstate.AutoRefreshAssertions = f
+	return func() {
+		snapstate.AutoRefreshAssertions = origAutoRefreshAssertions
+	}
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	s.state.Set("last-refresh", time.Time{})
-	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
-	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
-
-	// simulate failure in snapstate.AutoRefresh()
 	autoRefreshAssertionsCalled := 0
-	snapstate.AutoRefreshAssertions = func(st *state.State, userID int) error {
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		// simulate failure in snapstate.AutoRefresh()
 		autoRefreshAssertionsCalled++
 		return fmt.Errorf("simulate store error")
-	}
+	})
+	defer restore()
 
 	// check that no change got created and that autoRefreshAssertins
 	// got called once
@@ -5182,6 +5190,95 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	makeTestRefreshConfig(st)
+
+	// snapstate.AutoRefresh is called from AutoRefresh()
+	autoRefreshAssertionsCalled := 0
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		autoRefreshAssertionsCalled++
+		return nil
+	})
+	defer restore()
+
+	// set to managed refresh schedule
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
+
+	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "ididid-snap-with-snapd-control"}
+	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11},
+		Current:  sideInfo11.Revision,
+		SnapType: "app",
+	})
+	info11 := snaptest.MockSnap(c, `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`, "", sideInfo11)
+	c.Assert(info11.Plugs, HasLen, 1)
+
+	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoCore11},
+		Current:  sideInfoCore11.Revision,
+		SnapType: "os",
+	})
+	core11 := snaptest.MockSnap(c, `
+name: core
+version: 1.0
+slots:
+ snapd-control:
+`, "", sideInfoCore11)
+	c.Assert(core11.Slots, HasLen, 1)
+
+	// create the matching repo
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		err := repo.AddInterface(iface)
+		c.Assert(err, IsNil)
+	}
+	err := repo.AddSnap(info11)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(core11)
+	c.Assert(err, IsNil)
+	err = repo.Connect(interfaces.ConnRef{
+		interfaces.PlugRef{"snap-with-snapd-control", "snapd-control"},
+		interfaces.SlotRef{"core", "snapd-control"},
+	})
+	c.Assert(err, IsNil)
+	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	ifacerepo.Replace(st, repo)
+
+	// Ensure() also runs ensureRefreshes()
+	st.Unlock()
+	s.snapmgr.Ensure()
+	st.Lock()
+
+	// no refresh was called (i.e. no update to last-refresh)
+	var lastRefresh time.Time
+	st.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, 2009)
+
+	// AutoRefresh was not called
+	c.Check(autoRefreshAssertionsCalled, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {

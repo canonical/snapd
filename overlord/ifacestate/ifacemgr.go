@@ -92,7 +92,6 @@ func (m *InterfaceManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
-
 }
 
 // Repository returns the interface repository used internally by the manager.

@@ -6,7 +6,21 @@ description: A basic snap declaring a plug on snapd-control
 apps:
   install:
     command: bin/install
-    plugs: [network, snapd-control]
+    plugs:
+      - network
+      - snapd-control
   list:
     command: bin/list
-    plugs: [network, snapd-control]
+    plugs:
+      - network
+      - snapd-control
+  manage:
+    command: bin/list
+    plugs:
+      - network
+      - snapd-control-with-manage
+
+plugs:
+  snapd-control-with-manage:
+    interface: snapd-control
+    refresh-schedule: managed
