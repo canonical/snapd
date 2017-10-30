@@ -1338,7 +1338,7 @@ apps:
    bus-name: busName
    sockets:
      sock1:
-       listen-stream: /tmp/sock1.socket
+       listen-stream: $SNAP_DATA/sock1.socket
        socket-mode: 0666
 `)
 	info, err := snap.InfoFromSnapYaml(y)
@@ -1360,7 +1360,7 @@ apps:
 	app.Sockets["sock1"] = &snap.SocketInfo{
 		App:          &app,
 		Name:         "sock1",
-		ListenStream: "/tmp/sock1.socket",
+		ListenStream: "$SNAP_DATA/sock1.socket",
 		SocketMode:   0666,
 	}
 
