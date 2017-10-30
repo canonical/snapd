@@ -116,7 +116,8 @@ void sc_reassociate_with_pid1_mount_ns()
 	if (self_mnt_fd < 0) {
 		die("cannot open mount namespace of the current process (O_PATH)");
 	}
-	char init_buf[128], self_buf[128];
+	char init_buf[128] = { 0 };
+	char self_buf[128] = { 0 };
 	memset(init_buf, 0, sizeof init_buf);
 	if (readlinkat(init_mnt_fd, "", init_buf, sizeof init_buf) < 0) {
 		if (errno == ENOENT) {
@@ -242,7 +243,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 				struct sc_apparmor *apparmor)
 {
 	// Open the mount namespace file.
-	char mnt_fname[PATH_MAX];
+	char mnt_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
 			 SC_NS_MNT_FILE);
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -374,8 +375,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		debug
 		    ("capturing mount namespace of process %d in namespace group %s",
 		     (int)parent, group->name);
-		char src[PATH_MAX];
-		char dst[PATH_MAX];
+		char src[PATH_MAX] = { 0 };
+		char dst[PATH_MAX] = { 0 };
 		sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt",
 				 (int)parent);
 		sc_must_snprintf(dst, sizeof dst, "%s%s", group->name,
@@ -445,7 +446,7 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 		die("cannot move to namespace group directory");
 	}
 	// Unmount ${group_name}.mnt which holds the preserved namespace
-	char mnt_fname[PATH_MAX];
+	char mnt_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
 			 SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);

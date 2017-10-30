@@ -15,7 +15,7 @@ bool is_running_on_classic_distribution()
 		return true;
 	}
 
-	char buf[255];
+	char buf[255] = { 0 };
 	while (fgets(buf, sizeof buf, f) != NULL) {
 		if (strcmp(buf, "ID=ubuntu-core\n") == 0) {
 			return false;

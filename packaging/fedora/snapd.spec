@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.28.1
+Version:        2.28.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,6 +659,33 @@ fi
 
 
 %changelog
+* Fri Oct 13 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.5
+  - snap-confine: cleanup broken nvidia udev tags
+  - cmd/snap-confine: update valid security tag regexp
+  - overlord/ifacestate: refresh udev backend on startup
+  - dbus: ensure io.snapcraft.Launcher.service is created on re-
+    exec
+  - snap-confine: add support for handling /dev/nvidia-modeset
+  - interfaces/network-control: remove incorrect rules for tun
+
+* Wed Oct 11 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.4
+  - interfaces/opengl: don't udev tag nvidia devices and use snap-
+    confine instead
+  - debian: fix replaces/breaks for snap-xdg-open (thanks to apw!)
+
+* Wed Oct 11 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.3
+  - interfaces/lxd: lxd slot implementation can also be an app
+    snap
+
+* Tue Oct 10 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.28.2
+  - interfaces: fix udev rules for tun
+  - release,cmd,dirs: Redo the distro checks to take into account
+    distribution families
+
 * Wed Sep 27 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.1
   - snap-confine: update apparmor rules for fedora based basesnaps

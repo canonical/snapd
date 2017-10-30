@@ -796,7 +796,7 @@ func (*licenseData) Error() string {
 }
 
 type snapInstruction struct {
-	progress.NullProgress
+	progress.NullMeter
 	Action           string        `json:"action"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
@@ -1632,7 +1632,6 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		plugRef := interfaces.NewPlugRef(plug)
 		pj := plugJSON{
 			Snap:        plug.Snap.Name(),
 			Name:        plug.Name,
@@ -1640,7 +1639,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
+			Connections: plugConns[plug.String()],
 		}
 		ifjson.Plugs = append(ifjson.Plugs, pj)
 	}
@@ -1650,7 +1649,6 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			apps = append(apps, app.Name)
 		}
 
-		slotRef := interfaces.NewSlotRef(slot)
 		sj := slotJSON{
 			Snap:        slot.Snap.Name(),
 			Name:        slot.Name,
@@ -1658,7 +1656,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
+			Connections: slotConns[slot.String()],
 		}
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
@@ -2533,10 +2531,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
 	}
 
-	change := st.NewChange(a.Action, summary)
-	change.Set("snap-names", []string{a.Snap})
-	change.AddAll(taskset)
-
+	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2649,7 +2644,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)
@@ -2683,13 +2678,16 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	chg, err := servicestate.Change(st, appInfos, &inst)
+	ts, err := servicestate.Control(st, appInfos, &inst)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
 		}
 		return BadRequest(err.Error())
 	}
+	st.Lock()
+	defer st.Unlock()
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

@@ -44,6 +44,9 @@ execute: |
     MATCH "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" < extra-vars.txt
     test $(wc -l < extra-vars.txt) -eq 4
 
+    echo "Ensure that TMPDIR is not passed through to a confined snap"
+    TMPDIR=/foobar test-snapd-tools.env | grep -qv ^TMPDIR=
+
     echo "Ensure that SNAP, PATH and HOME are what we expect"
     MATCH "^SNAP=/snap/test-snapd-tools/x1$"                                                                < misc-vars.txt
     MATCH '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' < misc-vars.txt
