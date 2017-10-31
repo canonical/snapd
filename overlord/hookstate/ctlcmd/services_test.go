@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -38,6 +39,7 @@ import (
 
 type servicectlSuite struct {
 	testutil.BaseTest
+	st          *state.State
 	mockContext *hookstate.Context
 	mockHandler *hooktest.MockHandler
 }
@@ -87,9 +89,9 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 
 	s.mockHandler = hooktest.NewMockHandler()
 
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+	s.st = state.New(nil)
+	s.st.Lock()
+	defer s.st.Unlock()
 
 	// mock installed snaps
 	info1 := snaptest.MockSnap(c, string(testSnapYaml), "", &snap.SideInfo{
@@ -98,7 +100,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	info2 := snaptest.MockSnap(c, string(otherSnapYaml), "", &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	snapstate.Set(st, info1.Name(), &snapstate.SnapState{
+	snapstate.Set(s.st, info1.Name(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
@@ -109,7 +111,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		},
 		Current: info1.Revision,
 	})
-	snapstate.Set(st, info2.Name(), &snapstate.SnapState{
+	snapstate.Set(s.st, info2.Name(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
@@ -121,7 +123,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Current: info2.Revision,
 	})
 
-	task := st.NewTask("test-task", "my test task")
+	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
@@ -222,4 +224,34 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestQueuedCommands(c *C) {
+	s.st.Lock()
+	ts := configstate.Configure(s.st, "test-snap", nil, 0)
+	chg := s.st.NewChange("configure change", "configure change")
+	chg.AddAll(ts)
+	s.st.Unlock()
+
+	task := ts.Tasks()[0]
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+	context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"})
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"})
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"})
+	c.Check(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	allTasks := chg.Tasks()
+	c.Assert(allTasks, HasLen, 4)
+	c.Check(allTasks[0].Summary(), Equals, `Run configure hook of "test-snap" snap if present`)
+	c.Check(allTasks[1].Summary(), Equals, "stop of [test-snap.test-service]")
+	c.Check(allTasks[2].Summary(), Equals, "start of [test-snap.test-service]")
+	c.Check(allTasks[3].Summary(), Equals, "restart of [test-snap.test-service]")
 }

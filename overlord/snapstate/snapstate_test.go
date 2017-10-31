@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -121,7 +120,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	})
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, s.fakeStore)
+	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 
@@ -145,6 +144,20 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+}
+
+func (s *snapmgrTestSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sto := &store.Store{}
+	snapstate.ReplaceStore(s.state, sto)
+	store1 := snapstate.Store(s.state)
+	c.Check(store1, Equals, sto)
+
+	// cached
+	store2 := snapstate.Store(s.state)
+	c.Check(store2, Equals, sto)
 }
 
 const (
@@ -1018,7 +1031,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	storestate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
@@ -7370,7 +7383,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
 
-	storestate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
 
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)
