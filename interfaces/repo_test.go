@@ -247,21 +247,6 @@ func (s *RepositorySuite) TestAddPlugFailsWithUnknownInterface(c *C) {
 	c.Assert(s.emptyRepo.AllPlugs(""), HasLen, 0)
 }
 
-/*
-func (s *RepositorySuite) TestAddPlugFailsWithUnsanitizedPlug(c *C) {
-	iface := &ifacetest.TestInterface{
-		InterfaceName: "interface",
-		SanitizePlugCallback: func(plug *Plug) error {
-			return fmt.Errorf("plug is dirty")
-		},
-	}
-	err := s.emptyRepo.AddInterface(iface)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddPlug(s.plug)
-	c.Assert(err, ErrorMatches, "cannot add plug: plug is dirty")
-	c.Assert(s.emptyRepo.AllPlugs(""), HasLen, 0)
-}*/
-
 // Tests for Repository.Plug()
 
 func (s *RepositorySuite) TestPlug(c *C) {
@@ -516,22 +501,6 @@ func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
 	c.Assert(s.testRepo.Plug(plug.Snap.Name(), plug.Name), DeepEquals, plug)
 }
-
-/*
-func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
-	iface := &ifacetest.TestInterface{
-		InterfaceName: "interface",
-		SanitizeSlotCallback: func(slot *Slot) error {
-			return fmt.Errorf("slot is dirty")
-		},
-	}
-	err := s.emptyRepo.AddInterface(iface)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, "cannot add slot: slot is dirty")
-	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
-}
-*/
 
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
 	err := s.testRepo.AddSlot(s.slot)
