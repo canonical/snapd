@@ -25,10 +25,8 @@ prepare: |
     install_local test-snapd-content-advanced-slot
 execute: |
     # Put our internal tools on PATH so that we can call snap-discard-ns easily.
-    case $SPREAD_SYSTEM in
-        fedora-*) export PATH=/usr/libexec/snapd/:$PATH ;;
-        *) export PATH=/usr/lib/snapd/:$PATH ;;
-    esac
+    . $TESTSLIB/dirs.sh
+    PATH=$LIBEXECDIR/snapd:$PATH
 
     # Skip the SNAP variant until the related branch is merged.
     if [ "$VAR" = "SNAP" ]; then
