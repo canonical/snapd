@@ -409,6 +409,7 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
 }
@@ -424,6 +425,7 @@ func (slot *SlotInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the slot as snap:slot string.
 func (slot *SlotInfo) String() string {
 	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
 }
