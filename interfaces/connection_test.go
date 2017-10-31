@@ -164,29 +164,3 @@ func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
 }
-
-func (s *connSuite) TestSetStaticSlotAttr(c *C) {
-	attrData, _ := NewConnectedSlot(s.slot.SlotInfo, nil)
-	c.Assert(attrData, NotNil)
-
-	attrData.SetStaticAttr("attr", "newvalue")
-
-	val, err := attrData.StaticAttr("attr")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "newvalue")
-
-	c.Assert(s.slot.Attrs["attr"], Equals, "newvalue")
-}
-
-func (s *connSuite) TestSetStaticPlugAttr(c *C) {
-	attrData, _ := NewConnectedPlug(s.plug.PlugInfo, nil)
-	c.Assert(attrData, NotNil)
-
-	attrData.SetStaticAttr("attr", "newvalue")
-
-	val, err := attrData.StaticAttr("attr")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "newvalue")
-
-	c.Assert(s.plug.Attrs["attr"], Equals, "newvalue")
-}
