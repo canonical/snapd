@@ -85,10 +85,6 @@ func (plug *ConnectedPlug) StaticAttr(key string) (interface{}, error) {
 	return nil, fmt.Errorf("attribute %q not found", key)
 }
 
-func (plug *ConnectedPlug) SetStaticAttr(key string, value interface{}) {
-	plug.plugInfo.Attrs[key] = value
-}
-
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
 	return plug.plugInfo.Attrs
 }
@@ -145,10 +141,6 @@ func (slot *ConnectedSlot) StaticAttr(key string) (interface{}, error) {
 		return val, nil
 	}
 	return nil, fmt.Errorf("attribute %q not found", key)
-}
-
-func (slot *ConnectedSlot) SetStaticAttr(key string, value interface{}) {
-	slot.slotInfo.Attrs[key] = value
 }
 
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
