@@ -1,0 +1,63 @@
+summary: check that snap-update-ns can create mkdir in $SNAP_{DATA,COMMON}
+details: |
+    When snap-update-ns is invoked by snap-confine to construct a mount
+    namespace it will create missing directories for the mount target.
+    This will succeed in specific writable locations, such as $SNAP_DATA and
+    $SNAP_COMMON.
+prepare: |
+    # Install a pair of snaps that both have two content interfaces as
+    # sub-directories of $SNAP_DATA and $SNAP_COMMON.
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-content-advanced-plug
+    install_local test-snapd-content-advanced-slot
+execute: |
+    # Test that initially there are no mount points because nothing is connected.
+    test-snapd-content-advanced-plug.sh -c 'test ! -e $SNAP_DATA/target'
+    test-snapd-content-advanced-plug.sh -c 'test ! -e $SNAP_COMMON/target'
+    test-snapd-content-advanced-slot.sh -c 'test ! -e $SNAP_DATA/source'
+    test-snapd-content-advanced-slot.sh -c 'test ! -e $SNAP_COMMON/source'
+    # Discard the namespaces, we want to do this because the code path when
+    # snap-update-ns is invoked from snapd is easier than the one when
+    # snap-confine invokes it to do the initial setup. We are testing the
+    # initial setup here.
+    case $SPREAD_SYSTEM in
+        fedora-*)
+        /usr/libexec/snapd/snap-discard-ns test-snapd-content-advanced-plug
+        /usr/libexec/snapd/snap-discard-ns test-snapd-content-advanced-slot
+        ;;
+        *)
+        /usr/lib/snapd/snap-discard-ns test-snapd-content-advanced-plug
+        /usr/lib/snapd/snap-discard-ns test-snapd-content-advanced-slot
+        ;;
+    esac
+    # Connect the pair of plugs to the pair of slots.
+    # This should just write the mount profiles to disk.
+    snap connect test-snapd-content-advanced-plug:data test-snapd-content-advanced-slot:data
+    snap connect test-snapd-content-advanced-plug:common test-snapd-content-advanced-slot:common
+    # Test that mount points were created automatically.
+    # This also tests apparmor confinement for snap-update-ns
+    test-snapd-content-advanced-plug.sh -c 'test -d $SNAP_DATA/target'
+    test-snapd-content-advanced-plug.sh -c 'test -d $SNAP_DATA/target'
+    test-snapd-content-advanced-slot.sh -c 'test -d $SNAP_COMMON/source'
+    test-snapd-content-advanced-slot.sh -c 'test -d $SNAP_COMMON/source'
+    # Write some data into from the slot side.
+    test-snapd-content-advanced-slot.sh -c 'touch $SNAP_DATA/source/canary'
+    test-snapd-content-advanced-slot.sh -c 'touch $SNAP_COMMON/source/canary'
+    # Ensure that the bind mounts worked correctly by observing the data from plug side.
+    test-snapd-content-advanced-plug.sh -c 'test -f $SNAP_DATA/target/canary'
+    test-snapd-content-advanced-plug.sh -c 'test -f $SNAP_COMMON/target/canary'
+    # Without discarding the namespace disconnect both plugs and slots. This
+    # should undo the bind mounts but keep the directories around.
+    snap disconnect test-snapd-content-advanced-plug:data test-snapd-content-advanced-slot:data
+    snap disconnect test-snapd-content-advanced-plug:common test-snapd-content-advanced-slot:common
+    test-snapd-content-advanced-plug.sh -c 'test -d $SNAP_DATA/target'
+    test-snapd-content-advanced-plug.sh -c 'test ! -e $SNAP_DATA/target/canary'
+    test-snapd-content-advanced-plug.sh -c 'test -d $SNAP_DATA/target'
+    test-snapd-content-advanced-plug.sh -c 'test ! -e $SNAP_COMMON/target/canary'
+    test-snapd-content-advanced-slot.sh -c 'test -d $SNAP_COMMON/source'
+    test-snapd-content-advanced-slot.sh -c 'test -d $SNAP_COMMON/source'
+    # Re-connect plugs and slots. We should now see the data again.
+    snap connect test-snapd-content-advanced-plug:data test-snapd-content-advanced-slot:data
+    snap connect test-snapd-content-advanced-plug:common test-snapd-content-advanced-slot:common
+    test-snapd-content-advanced-plug.sh -c 'test -f $SNAP_DATA/target/canary'
+    test-snapd-content-advanced-plug.sh -c 'test -f $SNAP_COMMON/target/canary'
