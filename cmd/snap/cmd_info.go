@@ -346,6 +346,9 @@ func (x *infoCmd) Execute([]string) error {
 			}
 
 			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+			if local.IgnoreValidation {
+				fmt.Fprintf(w, "ignore-validation:\t%t\n", true)
+			}
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
