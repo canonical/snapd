@@ -1,0 +1,35 @@
+summary: Check that device nodes are available in classic
+
+details: |
+    This tests that a framebuffer device is accessible in classic and makes
+    sure that other devices are still accessible (ie, the cgroup is not in
+    effect).
+
+systems: [-fedora-*, -opensuse-*]
+
+prepare: |
+    # Create framebuffer device node and give it some content we can verify
+    # the test snap can read.
+    if [ ! -e /dev/fb255 ]; then
+        mknod /dev/fb255 c 29 255
+        touch /dev/fb255.spread
+    fi
+
+    echo "Given a snap declaring a plug on framebuffer is installed in classic"
+    . $TESTSLIB/snaps.sh
+    install_local_classic test-classic-cgroup
+
+restore: |
+    if [ -e /dev/fb255.spread ]; then
+        rm -f /dev/fb255 /dev/fb255.spread
+    fi
+
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    # classic snaps don't use 'plugs', so just test the accesses after install
+    echo "the classic snap can access the framebuffer"
+    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | MATCH -v 'Permission denied'
+
+    echo "the classic snap can access other devices"
+    test "`$SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg`"
