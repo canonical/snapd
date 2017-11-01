@@ -133,8 +133,8 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	defer restore()
 
 	err := corecfg.Run(&mockConf{
-		conf: map[string]string{
-			"pi-config.disable-overscan": "1",
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": 1,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -143,7 +143,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	s.checkMockConfig(c, expected)
 
 	err = corecfg.Run(&mockConf{
-		conf: map[string]string{
+		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
 		},
 	})

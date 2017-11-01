@@ -63,7 +63,7 @@ PATH="/usr/bin"
 		c.Assert(err, IsNil)
 
 		err = corecfg.Run(&mockConf{
-			conf: map[string]string{
+			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
 		})

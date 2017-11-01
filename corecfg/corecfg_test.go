@@ -32,7 +32,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type mockConf struct {
-	conf map[string]string
+	conf map[string]interface{}
 	err  error
 }
 
@@ -40,9 +40,11 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
 	}
-	v1 := reflect.ValueOf(result)
-	v2 := reflect.Indirect(v1)
-	v2.SetString(cfg.conf[key])
+	if cfg.conf[key] != nil {
+		v1 := reflect.ValueOf(result)
+		v2 := reflect.Indirect(v1)
+		v2.Set(reflect.ValueOf(cfg.conf[key]))
+	}
 	return cfg.err
 }
 

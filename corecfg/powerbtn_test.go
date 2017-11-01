@@ -63,7 +63,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
 		err := corecfg.Run(&mockConf{
-			conf: map[string]string{
+			conf: map[string]interface{}{
 				"system.power-key-action": action,
 			},
 		})

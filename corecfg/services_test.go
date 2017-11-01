@@ -85,8 +85,8 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		s.systemctlArgs = nil
 
 		err := corecfg.Run(&mockConf{
-			conf: map[string]string{
-				fmt.Sprintf("service.%s.disable", srvName): "true",
+			conf: map[string]interface{}{
+				fmt.Sprintf("service.%s.disable", srvName): true,
 			},
 		})
 		c.Assert(err, IsNil)
@@ -106,8 +106,8 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	for _, srvName := range []string{"ssh", "rsyslog"} {
 		s.systemctlArgs = nil
 		err := corecfg.Run(&mockConf{
-			conf: map[string]string{
-				fmt.Sprintf("service.%s.disable", srvName): "false",
+			conf: map[string]interface{}{
+				fmt.Sprintf("service.%s.disable", srvName): false,
 			},
 		})
 
@@ -125,8 +125,8 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	defer restore()
 
 	err := corecfg.Run(&mockConf{
-		conf: map[string]string{
-			"service.snapd.disable": "true",
+		conf: map[string]interface{}{
+			"service.snapd.disable": true,
 		},
 	})
 	c.Assert(err, IsNil)

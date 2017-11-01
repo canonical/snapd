@@ -20,6 +20,7 @@
 package corecfg
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -36,10 +37,14 @@ type Conf interface {
 }
 
 func coreCfg(tr Conf, key string) (result string, err error) {
-	if err := tr.Get("core", key, &result); err != nil && !config.IsNoOption(err) {
+	var v interface{} = ""
+	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
-	return result, nil
+	// TODO: we could have a fully typed approach but at the
+	// moment we also always use "" to mean unset as well, this is
+	// the smallest change
+	return fmt.Sprintf("%v", v), nil
 }
 
 func Run(tr Conf) error {
@@ -48,6 +53,8 @@ func Run(tr Conf) error {
 		// nothing to do
 		return nil
 	}
+	// TODO: consider allowing some of these on classic too?
+	// consider erroring on core-only options on classic?
 
 	// handle the various core config options:
 	// service.*.disable
