@@ -1870,6 +1870,7 @@ func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         "http://foo.internal",
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, stoAs)

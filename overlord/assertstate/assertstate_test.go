@@ -1113,6 +1113,7 @@ func (s *assertMgrSuite) TestStore(c *C) {
 	storeHeaders := map[string]interface{}{
 		"store":       "foo",
 		"operator-id": s.dev1Acct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}
 	fooStore, err := s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
