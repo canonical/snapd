@@ -27,10 +27,13 @@ import (
 
 var (
 	shortRestartHelp = i18n.G("Restart services")
+	longRestartHelp  = i18n.G(`
+The restart command restarts the given services of the snap. If executed from the
+"configure" hook, the services will be restarted after the hook finishes.`)
 )
 
 func init() {
-	addCommand("restart", shortRestartHelp, "", func() command { return &restartCommand{} })
+	addCommand("restart", shortRestartHelp, longRestartHelp, func() command { return &restartCommand{} })
 }
 
 type restartCommand struct {
@@ -38,7 +41,7 @@ type restartCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Reload bool `long:"reload"`
+	Reload bool `long:"reload" description:"Reload the given services if they support it (see man systemctl for details)"`
 }
 
 func (c *restartCommand) Execute(args []string) error {

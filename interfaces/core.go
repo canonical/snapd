@@ -119,6 +119,7 @@ type ConnRef struct {
 	SlotRef SlotRef
 }
 
+// NewConnRef creates a connection reference for given plug and slot
 func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	return &ConnRef{
 		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},

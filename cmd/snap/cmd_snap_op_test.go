@@ -423,6 +423,29 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
+	s.srv.total = 4
+	s.srv.channel = "potato"
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "revert",
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// tracking channel is "" in the test server
+	c.Check(s.Stdout(), check.Equals, `foo reverted to 1.0
+This leaves foo tracking .
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) runRevertTest(c *check.C, opts *client.SnapOptions) {
 	modes := []struct {
 		enabled bool
@@ -976,8 +999,8 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		{"try", "--no-wait", "."},
 	}
 
+	s.RedirectClientToTestServer(s.srv.handle)
 	for _, cmd := range cmds {
-		s.RedirectClientToTestServer(s.srv.handle)
 		rest, err := snap.Parser().ParseArgs(cmd)
 		c.Assert(err, check.IsNil, check.Commentf("%v", cmd))
 		c.Assert(rest, check.DeepEquals, []string{})

@@ -46,6 +46,7 @@ owner @{HOME}/[^s.]**             rwklix,
 owner @{HOME}/s[^n]**             rwklix,
 owner @{HOME}/sn[^a]**            rwklix,
 owner @{HOME}/sna[^p]**           rwklix,
+owner @{HOME}/snap[^/]**          rwklix,
 # Allow creating a few files not caught above
 owner @{HOME}/{s,sn,sna}{,/} rwklix,
 
