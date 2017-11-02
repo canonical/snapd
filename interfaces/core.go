@@ -35,11 +35,7 @@ type Plug struct {
 
 // Ref returns reference to a plug
 func (plug *Plug) Ref() PlugRef {
-	return plugRef(plug.PlugInfo)
-}
-
-func plugRef(plugInfo *snap.PlugInfo) PlugRef {
-	return PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
 // Sanitize plug with a given snapd interface.
@@ -74,11 +70,7 @@ type Slot struct {
 
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
-	return slotRef(slot.SlotInfo)
-}
-
-func slotRef(slotInfo *snap.SlotInfo) SlotRef {
-	return SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // Sanitize slot with a given snapd interface.
@@ -107,8 +99,9 @@ func (ref SlotRef) String() string {
 
 // Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs       []*snap.PlugInfo
+	Slots       []*snap.SlotInfo
+	Connections []*ConnRef
 }
 
 // Info holds information about a given interface and its instances.
@@ -133,6 +126,14 @@ type Connection struct {
 
 func (conn *Connection) Interface() string {
 	return conn.plugInfo.Interface
+}
+
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.
