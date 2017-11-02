@@ -37,7 +37,7 @@ const uhidConnectedPlugAppArmor = `
   /dev/uhid rw,
 `
 
-const uhidConnectedPlugUDev = `KERNEL=="uhid", TAG+="###CONNECTED_SECURITY_TAGS###"`
+// Note: uhid is not represented in sysfs so it cannot be udev tagged
 
 func init() {
 	registerIface(&commonInterface{
@@ -47,7 +47,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  uhidBaseDeclarationSlots,
 		connectedPlugAppArmor: uhidConnectedPlugAppArmor,
-		connectedPlugUDev:     uhidConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
