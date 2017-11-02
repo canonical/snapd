@@ -63,6 +63,34 @@ func lookupGroup(groupname string) (string, error) {
 	return strconv.Itoa(int(grp.gr_gid)), nil
 }
 
+// Use implementation from:
+// https://golang.org/src/os/user/cgo_lookup_unix.go
+func lookupGroupByGid(gid uint64) (string, error) {
+	var grp C.struct_group
+	var result *C.struct_group
+
+	buf := alloc(groupBuffer)
+	defer buf.free()
+	err := retryWithBuffer(buf, func() syscall.Errno {
+		// mygetgrgid_r is a wrapper around getgrgid_r to
+		// to avoid using gid_t because C.gid_t(gid) for
+		// unknown reasons doesn't work on linux.
+		return syscall.Errno(C.getgrgid_r(C.__gid_t(gid),
+			&grp,
+			(*C.char)(buf.ptr),
+			C.size_t(buf.size),
+			&result))
+
+	})
+	if err != nil {
+		return "", fmt.Errorf("group: lookup groupid %d: %v", gid, err)
+	}
+	if result == nil {
+		return "", fmt.Errorf("group: unknown group %d", gid)
+	}
+	return C.GoString(grp.gr_name), nil
+}
+
 type bufferKind C.int
 
 const (
@@ -155,4 +183,13 @@ func FindGid(group string) (uint64, error) {
 	// In golang 1.8 we can parse the group.Gid string instead.
 	//return strconv.ParseUint(group.Gid, 10, 64)
 	return strconv.ParseUint(group, 10, 64)
+}
+
+// FindGid returns the identifier of the given UNIX group name.
+func FindGroup(gid uint64) (string, error) {
+	group, err := lookupGroupByGid(gid)
+	if err != nil {
+		return "", err
+	}
+	return group, nil
 }
