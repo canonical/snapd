@@ -164,6 +164,7 @@ const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
 	maybeCore
+	runCoreConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -222,9 +223,15 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	expected = append(expected,
-		"run-hook[configure]",
-	)
+	if opts&runCoreConfigure != 0 {
+		expected = append(expected,
+			"configure-snapd",
+		)
+	} else {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -6353,7 +6360,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallTasks(c, maybeCore, 0, tsl[0], s.state)
+	verifyInstallTasks(c, runCoreConfigure|maybeCore, 0, tsl[0], s.state)
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
