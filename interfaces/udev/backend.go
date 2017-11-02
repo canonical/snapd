@@ -96,7 +96,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 	for _, snippet := range content {
 		if (opts.DevMode || opts.Classic) && !opts.JailMode {
-			buffer.WriteString("#")
+			buffer.WriteRune('#')
 			snippet = strings.Replace(snippet, "\n", "\n#", -1)
 		}
 		buffer.WriteString(snippet)
