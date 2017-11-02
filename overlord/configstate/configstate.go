@@ -48,6 +48,25 @@ func ConfigureHookTimeout() time.Duration {
 
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
+
+	// configuration hook for "core" is handled internally
+	if snapName == "core" {
+		t := st.NewTask("configure-snapd", summary)
+		t.Set("patch", patch)
+		if flags&snapstate.UseConfigDefaults != 0 {
+			t.Set("use-defaults", true)
+		}
+		if flags&snapstate.IgnoreHookError != 0 {
+			t.Set("ignore-hook-error", true)
+		}
+		if flags&snapstate.TrackHookError != 0 {
+			t.Set("track-hook-error", true)
+		}
+		return state.NewTaskSet(t)
+	}
+
+	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
@@ -63,22 +82,9 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 	} else if len(patch) > 0 {
 		contextData = map[string]interface{}{"patch": patch}
 	}
-	var summary string
+
 	if hooksup.Optional {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap if present"), snapName)
-	} else {
-		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
-	}
-
-	// configuration of "core" is handled differently
-	if snapName == "core" {
-		// TODO: respect IgnoreHookError and TrackHookError ?
-		t := st.NewTask("configure-snapd", summary)
-		t.Set("patch", patch)
-		if v, ok := contextData["use-defaults"].(bool); v && ok {
-			t.Set("use-defaults", true)
-		}
-		return state.NewTaskSet(t)
 	}
 
 	task := hookstate.HookTask(st, summary, hooksup, contextData)
