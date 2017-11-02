@@ -334,7 +334,7 @@ func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
