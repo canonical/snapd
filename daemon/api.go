@@ -1617,7 +1617,55 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Interfaces(), nil)
+	ifaces := repo.Interfaces()
+
+	var ifjson interfacesJSON
+
+	plugConns := map[string][]interfaces.SlotRef{}
+	slotConns := map[string][]interfaces.PlugRef{}
+
+	for _, conn := range ifaces.Connections {
+		plugRef := conn.PlugRef.String()
+		slotRef := conn.SlotRef.String()
+		plugConns[plugRef] = append(plugConns[plugRef], conn.SlotRef)
+		slotConns[slotRef] = append(slotConns[slotRef], conn.PlugRef)
+	}
+
+	for _, plug := range ifaces.Plugs {
+		var apps []string
+		for _, app := range plug.Apps {
+			apps = append(apps, app.Name)
+		}
+		pj := plugJSON{
+			Snap:        plug.Snap.Name(),
+			Name:        plug.Name,
+			Interface:   plug.Interface,
+			Attrs:       plug.Attrs,
+			Apps:        apps,
+			Label:       plug.Label,
+			Connections: plugConns[plug.String()],
+		}
+		ifjson.Plugs = append(ifjson.Plugs, pj)
+	}
+	for _, slot := range ifaces.Slots {
+		var apps []string
+		for _, app := range slot.Apps {
+			apps = append(apps, app.Name)
+		}
+
+		sj := slotJSON{
+			Snap:        slot.Snap.Name(),
+			Name:        slot.Name,
+			Interface:   slot.Interface,
+			Attrs:       slot.Attrs,
+			Apps:        apps,
+			Label:       slot.Label,
+			Connections: slotConns[slot.String()],
+		}
+		ifjson.Slots = append(ifjson.Slots, sj)
+	}
+
+	return SyncResponse(ifjson, nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -1640,6 +1688,12 @@ type slotJSON struct {
 	Apps        []string               `json:"apps,omitempty"`
 	Label       string                 `json:"label"`
 	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
+}
+
+// interfacesJSON aids in marshaling plugs, slots and their connections into JSON.
+type interfacesJSON struct {
+	Plugs []plugJSON `json:"plugs,omitempty"`
+	Slots []slotJSON `json:"slots,omitempty"`
 }
 
 // interfaceAction is an action performed on the interface system.

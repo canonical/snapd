@@ -409,6 +409,11 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
+func (plug *PlugInfo) String() string {
+	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(slot.Apps))
@@ -418,6 +423,11 @@ func (slot *SlotInfo) SecurityTags() []string {
 	// NOTE: hooks cannot have slots
 	sort.Strings(tags)
 	return tags
+}
+
+// String returns the representation of the slot as snap:slot string.
+func (slot *SlotInfo) String() string {
+	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
 }
 
 // SlotInfo provides information about a slot.
