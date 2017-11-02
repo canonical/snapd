@@ -1207,15 +1207,18 @@ type RefreshCandidate struct {
 
 	// the desired channel
 	Channel string
+	// whether validation should be ignored
+	IgnoreValidation bool
 }
 
 // the exact bits that we need to send to the store
 type currentSnapJSON struct {
-	SnapID      string     `json:"snap_id"`
-	Channel     string     `json:"channel"`
-	Revision    int        `json:"revision,omitempty"`
-	Epoch       snap.Epoch `json:"epoch"`
-	Confinement string     `json:"confinement"`
+	SnapID           string     `json:"snap_id"`
+	Channel          string     `json:"channel"`
+	Revision         int        `json:"revision,omitempty"`
+	Epoch            snap.Epoch `json:"epoch"`
+	Confinement      string     `json:"confinement"`
+	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
 type metadataWrapper struct {
@@ -1243,10 +1246,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	}
 
 	return &currentSnapJSON{
-		SnapID:   cs.SnapID,
-		Channel:  channel,
-		Epoch:    cs.Epoch,
-		Revision: cs.Revision.N,
+		SnapID:           cs.SnapID,
+		Channel:          channel,
+		Epoch:            cs.Epoch,
+		Revision:         cs.Revision.N,
+		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
 }
