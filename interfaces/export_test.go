@@ -72,3 +72,5 @@ type BySlotInfo bySlotInfo
 func (c BySlotInfo) Len() int           { return bySlotInfo(c).Len() }
 func (c BySlotInfo) Swap(i, j int)      { bySlotInfo(c).Swap(i, j) }
 func (c BySlotInfo) Less(i, j int) bool { return bySlotInfo(c).Less(i, j) }
+
+var CopyAttributes = copyAttributes
