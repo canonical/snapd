@@ -5,6 +5,7 @@ details: |
     sure that other devices not included in the snap's plugged interfaces are
     still accessible (ie, the cgroup is not in effect).
 
+# None of those systems support strict confinement which is required to formally enable jailmode.
 systems: [-fedora-*, -opensuse-*, -debian-unstable-*]
 
 prepare: |
