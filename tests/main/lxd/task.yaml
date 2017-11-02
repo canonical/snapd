@@ -4,6 +4,9 @@ summary: Ensure that lxd works
 # currently nor on ubuntu 14.04
 systems: [ubuntu-16*, ubuntu-core-*]
 
+# lxd downloads can be quite slow
+kill-timeout: 25m
+
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
         exit
