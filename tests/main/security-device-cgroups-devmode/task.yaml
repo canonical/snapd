@@ -5,8 +5,6 @@ details: |
     sure that other devices not included in the snap's plugged interfaces are
     still accessible (ie, the cgroup is not in effect).
 
-systems: [-fedora-*, -opensuse-*]
-
 prepare: |
     # Create framebuffer device node and give it some content we can verify
     # the test snap can read.
