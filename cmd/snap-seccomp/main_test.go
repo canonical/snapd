@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -350,8 +351,20 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// The 'shadow' group is different in different distributions
-	shadowGid, err := osutil.FindGid("shadow")
+	// The 'shadow' group is different in different distributions, if group
+	// does not exist, instead of guessing gid based on group name, look at
+	// /etc/shadow and use the gid that owns it
+	var shadowGid uint64
+	if gid, err := osutil.FindGid("shadow"); err != nil {
+		var stat syscall.Stat_t
+		err := syscall.Stat("/etc/shadow", &stat)
+		c.Assert(err, IsNil)
+		shadowGid = uint64(stat.Gid)
+	} else {
+		shadowGid = gid
+	}
+
+	shadowGroup, err := osutil.FindGroup(shadowGid)
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
@@ -448,10 +461,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
 		// u:root g:shadow
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		{fmt.Sprintf("fchown - u:root g:%s", shadowGroup), fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{fmt.Sprintf("fchown - u:root g:%s", shadowGroup), fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		{fmt.Sprintf("chown - u:root g:%s", shadowGroup), fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
+		{fmt.Sprintf("chown - u:root g:%s", shadowGroup), fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
