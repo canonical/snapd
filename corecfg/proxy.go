@@ -56,10 +56,10 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration() error {
+func handleProxyConfiguration(tr Conf) error {
 	config := map[string]string{}
 	for _, key := range []string{"http", "https", "ftp"} {
-		output, err := snapctlGet("proxy." + key)
+		output, err := coreCfg(tr, "proxy."+key)
 		if err != nil {
 			return err
 		}

@@ -67,6 +67,10 @@ type ConfinementOptions struct {
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
+	// Initialize performs any initialization required by the backend.
+	// It is called during snapd startup process.
+	Initialize() error
+
 	// Name returns the name of the backend.
 	// This is intended for diagnostic messages.
 	Name() SecuritySystem

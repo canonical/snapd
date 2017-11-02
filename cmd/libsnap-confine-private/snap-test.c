@@ -54,7 +54,8 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap.n@me.app", "n@me"));
 	g_assert_false(verify_security_tag("SNAP.name.app", "name"));
 	g_assert_false(verify_security_tag("snap.Name.app", "Name"));
-	g_assert_false(verify_security_tag("snap.0name.app", "0name"));
+	// This used to be false but it's now allowed.
+	g_assert_true(verify_security_tag("snap.0name.app", "0name"));
 	g_assert_false(verify_security_tag("snap.-name.app", "-name"));
 	g_assert_false(verify_security_tag("snap.name.@app", "name"));
 	g_assert_false(verify_security_tag(".name.app", "name"));
@@ -67,6 +68,13 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
+
+	// Regression test 12to8
+	g_assert_true(verify_security_tag("snap.12to8.128to8", "12to8"));
+	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
+	g_assert_true(verify_security_tag
+		      ("snap.123test.hook.configure", "123test"));
+
 }
 
 static void test_sc_snap_name_validate()
@@ -166,6 +174,12 @@ static void test_sc_snap_name_validate()
 			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 		sc_error_free(err);
 	}
+	// Regression test: 12to8 and 123test
+	sc_snap_name_validate("12to8", &err);
+	g_assert_null(err);
+	sc_snap_name_validate("123test", &err);
+	g_assert_null(err);
+
 }
 
 static void test_sc_snap_name_validate__respects_error_protocol()
