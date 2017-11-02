@@ -20,7 +20,9 @@
 package builtin_test
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -352,4 +354,74 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
 	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+}
+
+func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
+	type funcSig struct {
+		name string
+		in   []string
+		out  []string
+	}
+	var sigs []funcSig
+
+	// All the valid signatures from all the specification definers from all the backends.
+	for _, backend := range []string{"AppArmor", "SecComp", "UDev", "DBus", "Systemd", "KMod"} {
+		backendLower := strings.ToLower(backend)
+		sigs = append(sigs, []funcSig{{
+			name: fmt.Sprintf("%sPermanentPlug", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*snap.PlugInfo",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sPermanentSlot", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*snap.SlotInfo",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sConnectedPlug", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*interfaces.Plug",
+				"map[string]interface {}",
+				"*interfaces.Slot",
+				"map[string]interface {}",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sConnectedSlot", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*interfaces.Plug",
+				"map[string]interface {}",
+				"*interfaces.Slot",
+				"map[string]interface {}",
+			},
+			out: []string{"error"},
+		}}...)
+	}
+	for _, iface := range builtin.Interfaces() {
+		ifaceVal := reflect.ValueOf(iface)
+		ifaceType := ifaceVal.Type()
+		for _, sig := range sigs {
+			meth, ok := ifaceType.MethodByName(sig.name)
+			if !ok {
+				// all specificiation methods are optional.
+				continue
+			}
+			methType := meth.Type
+			// Check that the signature matches our expectation. The -1 and +1 below is for the receiver type.
+			c.Assert(methType.NumIn()-1, Equals, len(sig.in), Commentf("expected %s's %s method to take %d arguments", ifaceType, meth.Name, len(sig.in)))
+			for i, expected := range sig.in {
+				c.Assert(methType.In(i+1).String(), Equals, expected, Commentf("expected %s's %s method %dth argument type to be different", ifaceType, meth.Name, i))
+			}
+			c.Assert(methType.NumOut(), Equals, len(sig.out), Commentf("expected %s's %s method to return %d values", ifaceType, meth.Name, len(sig.out)))
+			for i, expected := range sig.out {
+				c.Assert(methType.Out(i).String(), Equals, expected, Commentf("expected %s's %s method %dth return value type to be different", ifaceType, meth.Name, i))
+			}
+		}
+	}
 }
