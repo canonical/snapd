@@ -21,6 +21,10 @@ install_local_classic() {
     install_local "$1" --classic
 }
 
+install_local_jailmode() {
+    install_local "$1" --jailmode
+}
+
 # mksnap_fast creates a snap using a faster compress algorithm (gzip)
 # than the regular snaps (which are lzma)
 mksnap_fast() {
