@@ -175,8 +175,8 @@ func (e *refreshControlError) Error() string {
 	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
 }
 
-// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
-func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (validated []*snap.Info, err error) {
+// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated. ignoreValidation is a set of snap-ids that should not be gated.
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
@@ -210,7 +210,9 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		}
 		gatingNames[gatingID] = decl.SnapName()
 		for _, gatedID := range control {
-			controlled[gatedID] = append(controlled[gatedID], gatingID)
+			if !ignoreValidation[gatedID] {
+				controlled[gatedID] = append(controlled[gatedID], gatingID)
+			}
 		}
 	}
 
